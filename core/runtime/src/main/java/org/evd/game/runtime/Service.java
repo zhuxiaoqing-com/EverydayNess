@@ -52,10 +52,19 @@ public class Service extends TickCase{
     /** id分配器 */
     private long conIdAlloc = 1;
     private long applyConId(){return conIdAlloc++;}
+    /** rpc等待id分配器 */
+    private long waitIdAlloc = 1;
+    private long applyWaitId(){return waitIdAlloc++;}
     /** 当前正在执行的写成 */
     private Task.ContinuationWrapper runningContinuation;
     /** 执行中和阻塞的协程 */
     private final Map<Long, Task.ContinuationWrapper> continuations = new HashMap<>();
+    /** 等待rpc返回的协程 */
+    private final Map<Long, Task.ContinuationWrapper> waitingContinuations = new HashMap<>();
+    /** 等待rpc返回的超时时间 */
+    private final Map<Long, Long> waitingDeadlines = new HashMap<>();
+    /** 本帧超时的等待id */
+    private final List<Long> timeoutWaitIds = new ArrayList<>();
     /** ThreadLocal */
     private final static ThreadLocal<Service> threadLocal = new ThreadLocal<>();
     public static Service getCurrent(){
@@ -107,10 +116,13 @@ public class Service extends TickCase{
         continuation.bindTask(new Task.TaskParam0(this::init), applyConId());
         // 设置为当前正在执行
         runningContinuation = continuation;
-        // 执行协程
-        continuation.runVirtual();
-        // 取消正在执行
-        this.runningContinuation = null;
+        try {
+            // 执行协程
+            continuation.runVirtual();
+        } finally {
+            // 取消正在执行
+            this.runningContinuation = null;
+        }
     }
 
     @Override
@@ -120,6 +132,7 @@ public class Service extends TickCase{
 
         pulseAffirm_st();
         pulseCalls_st();
+        pulseWaitTimeout_st();
 
         tickVirtual_st();
 
@@ -143,14 +156,29 @@ public class Service extends TickCase{
         context.bindTask(new Task.TaskParam0(this::tick), applyConId());
         // 设置为当前正在执行
         runningContinuation = context;
-        // 执行协程
-        context.runVirtual();
-
-        this.runningContinuation = null;
+        try {
+            // 执行协程
+            context.runVirtual();
+        } finally {
+            this.runningContinuation = null;
+        }
     }
 
     public void tick() {
 
+    }
+
+    /**
+     * 返回rpc同步等待的默认超时时间，单位毫秒
+     * 小于等于0代表不启用超时
+     */
+    protected long getCallWaitTimeout() {
+        return -1L;
+    }
+
+    private long getWaitBaseTime() {
+        long now = getTimeCurrent();
+        return now > 0 ? now : System.currentTimeMillis();
     }
 
     private void pulseEntity_st() {
@@ -159,6 +187,41 @@ public class Service extends TickCase{
 
     private void pulseTask_st() {
         // todo 定时任务
+    }
+
+    /**
+     * 检查等待rpc结果的协程是否超时
+     */
+    private void pulseWaitTimeout_st() {
+        if (waitingDeadlines.isEmpty()) {
+            return;
+        }
+        long now = getTimeCurrent();
+        for (Map.Entry<Long, Long> entry : waitingDeadlines.entrySet()) {
+            if (entry.getValue() <= now) {
+                timeoutWaitIds.add(entry.getKey());
+            }
+        }
+        try {
+            for (Long waitId : timeoutWaitIds) {
+                Task.ContinuationWrapper context = waitingContinuations.remove(waitId);
+                waitingDeadlines.remove(waitId);
+                if (context == null) {
+                    continue;
+                }
+                context.setFailure(new SysException("rpc call timeout: service={}, waitId={}", id, waitId));
+                runningContinuation = context;
+                try {
+                    context.runVirtual();
+                } catch (Throwable e) {
+                    LogCore.core.error("rpc timeout resume error, service={}, waitId={}", id, waitId, e);
+                } finally {
+                    runningContinuation = null;
+                }
+            }
+        } finally {
+            timeoutWaitIds.clear();
+        }
     }
 
     /**
@@ -214,10 +277,11 @@ public class Service extends TickCase{
         // 返回的callResult
         else {
             CallResult callResult = (CallResult)callbase;
-            context = continuations.get(callResult.id);
+            context = waitingContinuations.remove(callResult.id);
+            waitingDeadlines.remove(callResult.id);
             // 已经超时
             if (context == null){
-                LogCore.core.warn("callback is null");
+                LogCore.core.warn("callback is null or timeout, waitId={}", callResult.id);
                 return;
             }
             // 赋值返回
@@ -225,10 +289,13 @@ public class Service extends TickCase{
         }
         // 设置为正在执行
         runningContinuation = context;
-        // 执行协程
-        context.runVirtual();
-        // 清理当前上下文
-        runningContinuation = null;
+        try {
+            // 执行协程
+            context.runVirtual();
+        } finally {
+            // 清理当前上下文
+            runningContinuation = null;
+        }
     }
 
     /**
@@ -316,20 +383,48 @@ public class Service extends TickCase{
      * @param params
      */
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
+        return callWait(toCallPoint, methodKey, params, getCallWaitTimeout());
+    }
+
+    /**
+     * 创建call请求，并发送到目标service
+     * 针对需要返回结果的call请求
+     * @param toCallPoint
+     * @param methodKey
+     * @param params
+     * @param timeoutMillis 超时时间，单位毫秒，小于等于0代表不启用超时
+     */
+    public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
+        Task.ContinuationWrapper thisContinuation = runningContinuation;
+        if (thisContinuation == null) {
+            throw new SysException("callWait must run inside continuation: service={}", id);
+        }
+        long waitId = applyWaitId();
+        thisContinuation.prepareWait();
+
         Call call = new Call();
         call.from = this.callPoint;
         call.to = toCallPoint;
 
-        call.id = runningContinuation.getConId();
+        call.id = waitId;
 
         call.methodKey = methodKey;
         call.methodParam = params;
 
         call.needResult = true;
 
-        sendCall_st(call);
+        waitingContinuations.put(waitId, thisContinuation);
+        if (timeoutMillis > 0) {
+            waitingDeadlines.put(waitId, getWaitBaseTime() + timeoutMillis);
+        }
 
-        Task.ContinuationWrapper thisContinuation = runningContinuation;
+        if (!sendCall_st(call)) {
+            waitingContinuations.remove(waitId);
+            waitingDeadlines.remove(waitId);
+            throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
+                    id, toCallPoint.nodeId, toCallPoint.servId, methodKey);
+        }
+
         // 等待结果，内部会阻塞当前协程，直到call请求的结果返回
         return thisContinuation.waitResult();
     }
@@ -338,7 +433,7 @@ public class Service extends TickCase{
      * 发送call请求
      * @param call
      */
-    private void sendCall_st(CallBase call) {
+    private boolean sendCall_st(CallBase call) {
         String toNodeId = call.to.nodeId;
         CallPulseBuffer buffer = callFrameBuffers.get(toNodeId);
 
@@ -361,8 +456,10 @@ public class Service extends TickCase{
             if (!buffer.writeCall(this, call)) {
                 //日志 第二次尝试写入缓冲失败
                 LogCore.core.error("第二次尝试写入缓冲失败, call请求最大支持2M：bufferLen={}", buffer.getLength());
+                return false;
             }
         }
+        return true;
     }
 
     /**

@@ -21,6 +21,8 @@ public class Task {
         private Runnable task;
         /** 返回的结果 */
         private Object result;
+        /** 等待失败原因 */
+        private RuntimeException failure;
         /** 协程id（回调id） */
         private long conId;
 
@@ -58,11 +60,12 @@ public class Task {
             // 先放入service中，因为task.run()可能发生协程yield
             // 如果不保存，则无法拿到栈恢复执行
             service.holdContinuation(this);
-
-            task.run();
-
-            // 执行结束，移除
-            service.unHoldContinuation(this);
+            try {
+                task.run();
+            } finally {
+                // 执行结束，移除
+                service.unHoldContinuation(this);
+            }
         }
 
         @Override
@@ -70,6 +73,7 @@ public class Task {
             // 清理临时变量
             task = null;
             result = null;
+            failure = null;
             conId = 0;
         }
 
@@ -88,6 +92,15 @@ public class Task {
             this.result = result;
         }
 
+        public void setFailure(RuntimeException failure) {
+            this.failure = failure;
+        }
+
+        public void prepareWait() {
+            result = null;
+            failure = null;
+        }
+
         /**
          * 协程进入阻塞，等待结果
          * @return
@@ -96,6 +109,9 @@ public class Task {
             // 协程进入阻塞，因为此时result为null
             // 需要等其他协程setResult后并runVirtual唤醒协程，才能执行return result;
             Continuation.yield(continuation.getScope());
+            if (failure != null) {
+                throw failure;
+            }
             return result;
         }
     }
