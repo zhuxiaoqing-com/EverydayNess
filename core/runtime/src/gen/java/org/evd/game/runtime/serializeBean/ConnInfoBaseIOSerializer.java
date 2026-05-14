@@ -1,9 +1,7 @@
-package org.evd.game.ConnService;
+package org.evd.game.runtime.serializeBean;
 
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
-import org.evd.game.common.serializeBean.ConnInfoBase;
-
 import java.io.IOException;
 
 

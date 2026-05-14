@@ -3,19 +3,34 @@ package org.evd.game.gencode.struct;
 import org.evd.game.gencode.AptUtils;
 
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 
 public class MethodStruct<T> {
+    /** 被注解标记的方法元素本身 */
     private Element element;
+    /** 方法上对应的注解类型 */
     private Class<T> annotationClass;
-    /** 包路径 */
+    /** 该方法所在类的包名 */
     public String packageName;
+    /** 该方法所在类的完整类名，包含包名 */
     public String fullClassName;
+    /** 该方法所在类的简单类名，不包含包名 */
     public String className;
+    /** 最终承载这个 RPC 方法的宿主 Service 完整类名 */
+    public String ownerFullClassName;
+    /** 最终承载这个 RPC 方法的宿主 Service 简单类名 */
+    public String ownerClassName;
+    /** 方法名 */
     public String methodName;
+    /** RPC 分发时使用的方法编号，对应生成代码里的 EnumCall 值 */
+    public int methodKey;
 
+    /** 返回值基础类型名，例如 int / String / void */
     public String returnType;
+    /** 返回值包装类型名，例如 Integer / String / Void */
     public String returnTypeWrapper;
+    /** 方法参数列表 */
     public ParamStruct[] params;
 
 
@@ -112,5 +127,9 @@ public class MethodStruct<T> {
 
     public TypeElement getTypeElement() {
         return (TypeElement)element.getEnclosingElement();
+    }
+
+    public ExecutableElement getExecutableElement() {
+        return (ExecutableElement) element;
     }
 }

@@ -31,6 +31,9 @@ final class SerializerRegister{
 		OutputStream.registerSerializeWriteFunc(326933455, SerializerRegister::CallPointIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(1593330110, SerializerRegister::CallResultIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(322098688, SerializerRegister::ChunkIOSerializerWrite);
+		OutputStream.registerSerializeWriteFunc(-179889083, SerializerRegister::CoInfoIOSerializerWrite);
+		OutputStream.registerSerializeWriteFunc(-16299963, SerializerRegister::ConnInfoIOSerializerWrite);
+		OutputStream.registerSerializeWriteFunc(504305846, SerializerRegister::ConnInfoBaseIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(1944252859, SerializerRegister::TickTimerIOSerializerWrite);
 	}
 	/**
@@ -42,6 +45,9 @@ final class SerializerRegister{
 		InputStream.registerSerializeReadFunc(326933455, SerializerRegister::CallPointIOSerializerRead);
 		InputStream.registerSerializeReadFunc(1593330110, SerializerRegister::CallResultIOSerializerRead);
 		InputStream.registerSerializeReadFunc(322098688, SerializerRegister::ChunkIOSerializerRead);
+		InputStream.registerSerializeReadFunc(-179889083, SerializerRegister::CoInfoIOSerializerRead);
+		InputStream.registerSerializeReadFunc(-16299963, SerializerRegister::ConnInfoIOSerializerRead);
+		InputStream.registerSerializeReadFunc(504305846, SerializerRegister::ConnInfoBaseIOSerializerRead);
 		InputStream.registerSerializeReadFunc(1944252859, SerializerRegister::TickTimerIOSerializerRead);
 	}
 	/**
@@ -64,6 +70,15 @@ final class SerializerRegister{
 	}
 	public static void ChunkIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.ChunkIOSerializer.write(out, (org.evd.game.runtime.Chunk)ser);
+	}
+	public static void CoInfoIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.serializeBean.CoInfoIOSerializer.write(out, (org.evd.game.runtime.serializeBean.CoInfo)ser);
+	}
+	public static void ConnInfoIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.serializeBean.ConnInfoIOSerializer.write(out, (org.evd.game.runtime.serializeBean.ConnInfo)ser);
+	}
+	public static void ConnInfoBaseIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.serializeBean.ConnInfoBaseIOSerializer.write(out, (org.evd.game.runtime.serializeBean.ConnInfoBase)ser);
 	}
 	public static void TickTimerIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.TickTimerIOSerializer.write(out, (org.evd.game.runtime.TickTimer)ser);
@@ -93,6 +108,21 @@ final class SerializerRegister{
 		org.evd.game.runtime.Chunk chunk = new org.evd.game.runtime.Chunk();
 		org.evd.game.runtime.ChunkIOSerializer.read(in, chunk);
 		return chunk;
+	}
+	public static ISerializable CoInfoIOSerializerRead(InputStream in) throws IOException{
+		org.evd.game.runtime.serializeBean.CoInfo coInfo = new org.evd.game.runtime.serializeBean.CoInfo();
+		org.evd.game.runtime.serializeBean.CoInfoIOSerializer.read(in, coInfo);
+		return coInfo;
+	}
+	public static ISerializable ConnInfoIOSerializerRead(InputStream in) throws IOException{
+		org.evd.game.runtime.serializeBean.ConnInfo connInfo = new org.evd.game.runtime.serializeBean.ConnInfo();
+		org.evd.game.runtime.serializeBean.ConnInfoIOSerializer.read(in, connInfo);
+		return connInfo;
+	}
+	public static ISerializable ConnInfoBaseIOSerializerRead(InputStream in) throws IOException{
+		org.evd.game.runtime.serializeBean.ConnInfoBase connInfoBase = new org.evd.game.runtime.serializeBean.ConnInfoBase();
+		org.evd.game.runtime.serializeBean.ConnInfoBaseIOSerializer.read(in, connInfoBase);
+		return connInfoBase;
 	}
 	public static ISerializable TickTimerIOSerializerRead(InputStream in) throws IOException{
 		org.evd.game.runtime.TickTimer tickTimer = new org.evd.game.runtime.TickTimer();

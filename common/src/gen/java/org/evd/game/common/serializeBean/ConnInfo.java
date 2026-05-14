@@ -1,4 +1,4 @@
-package org.evd.game.ConnService;
+package org.evd.game.common.serializeBean;
 
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;

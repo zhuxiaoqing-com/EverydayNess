@@ -10,9 +10,9 @@ import org.evd.game.runtime.Service;
 public class StageServiceProxy extends RPCProxyBase {
 
     public final static class EnumCall{
-        public final static int ENUM_STRING_DOSOME1_INT_INT = 0;
-        public final static int ENUM_VOID_DOSOME2_INT_INT = 1;
-        public final static int ENUM_STRING_DOSOME3_INT = 2;
+        public final static int ENUM_STAGESERVICE_STRING_DOSOME1_INT_INT = 0;
+        public final static int ENUM_STAGESERVICE_VOID_DOSOME2_INT_INT = 1;
+        public final static int ENUM_STAGESERVICE_STRING_DOSOME3_INT = 2;
     }
 
     private StageServiceProxy(CallPoint callPoint){
@@ -27,20 +27,20 @@ public class StageServiceProxy extends RPCProxyBase {
     */
     public String doSome1(int a, int b){
         Service service = Service.getCurrent();
-        return (String)service.callWait(remote, EnumCall.ENUM_STRING_DOSOME1_INT_INT, new Object[]{a, b});
+        return (String)service.callWait(remote, EnumCall.ENUM_STAGESERVICE_STRING_DOSOME1_INT_INT, new Object[]{a, b});
     }
     /**
     * @see org.evd.game.StageService.StageService#doSome2()
     */
     public void doSome2(int a, int b){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_VOID_DOSOME2_INT_INT, new Object[]{a, b});
+        service.call(remote, EnumCall.ENUM_STAGESERVICE_VOID_DOSOME2_INT_INT, new Object[]{a, b});
     }
     /**
     * @see org.evd.game.StageService.StageService#doSome3()
     */
     public String doSome3(int a){
         Service service = Service.getCurrent();
-        return (String)service.callWait(remote, EnumCall.ENUM_STRING_DOSOME3_INT, new Object[]{a});
+        return (String)service.callWait(remote, EnumCall.ENUM_STAGESERVICE_STRING_DOSOME3_INT, new Object[]{a});
     }
 }
