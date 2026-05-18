@@ -43,6 +43,7 @@ public class Main {
 
         String configPath = ConstPath.CONFIGURATION_PATH + bootStrapName;
         NodeConfig config = NodeConfig.load(configPath);
+        registerServiceRoutes(config);
 
         final String nName = nodeId;
         Optional<NodeInfo> nodeInfoOptional = config.getNodes().stream().filter(n->n.getName().equals(nName)).findFirst();
@@ -133,6 +134,23 @@ public class Main {
             }
         }));
 
+    }
+
+    private static void registerServiceRoutes(NodeConfig config) {
+        for (NodeInfo configNode : config.getNodes()) {
+            for (ScheduleInfo scheduleInfo : configNode.getSchedule()) {
+                for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
+                    String serviceClassName = "org.evd.game." + serviceInfo.getClassName() + "." + serviceInfo.getClassName();
+                    if (serviceInfo.getNum() < 0) {
+                        DistributeConfig.addServiceNode(serviceClassName, new org.evd.game.runtime.call.CallPoint(configNode.getName(), serviceInfo.getName()));
+                    } else {
+                        for (int i = 1; i <= serviceInfo.getNum(); i++) {
+                            DistributeConfig.addServiceNode(serviceClassName, new org.evd.game.runtime.call.CallPoint(configNode.getName(), serviceInfo.getName() + i));
+                        }
+                    }
+                }
+            }
+        }
     }
 
 }

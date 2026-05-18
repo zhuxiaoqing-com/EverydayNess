@@ -31,6 +31,7 @@ final class SerializerRegister{
 		OutputStream.registerSerializeWriteFunc(326933455, SerializerRegister::CallPointIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(1593330110, SerializerRegister::CallResultIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(322098688, SerializerRegister::ChunkIOSerializerWrite);
+		OutputStream.registerSerializeWriteFunc(-1328685355, SerializerRegister::ClientSessionRefIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(1944252859, SerializerRegister::TickTimerIOSerializerWrite);
 	}
 	/**
@@ -42,6 +43,7 @@ final class SerializerRegister{
 		InputStream.registerSerializeReadFunc(326933455, SerializerRegister::CallPointIOSerializerRead);
 		InputStream.registerSerializeReadFunc(1593330110, SerializerRegister::CallResultIOSerializerRead);
 		InputStream.registerSerializeReadFunc(322098688, SerializerRegister::ChunkIOSerializerRead);
+		InputStream.registerSerializeReadFunc(-1328685355, SerializerRegister::ClientSessionRefIOSerializerRead);
 		InputStream.registerSerializeReadFunc(1944252859, SerializerRegister::TickTimerIOSerializerRead);
 	}
 	/**
@@ -64,6 +66,9 @@ final class SerializerRegister{
 	}
 	public static void ChunkIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.ChunkIOSerializer.write(out, (org.evd.game.runtime.Chunk)ser);
+	}
+	public static void ClientSessionRefIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.ClientSessionRefIOSerializer.write(out, (org.evd.game.runtime.ClientSessionRef)ser);
 	}
 	public static void TickTimerIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.TickTimerIOSerializer.write(out, (org.evd.game.runtime.TickTimer)ser);
@@ -93,6 +98,11 @@ final class SerializerRegister{
 		org.evd.game.runtime.Chunk chunk = new org.evd.game.runtime.Chunk();
 		org.evd.game.runtime.ChunkIOSerializer.read(in, chunk);
 		return chunk;
+	}
+	public static ISerializable ClientSessionRefIOSerializerRead(InputStream in) throws IOException{
+		org.evd.game.runtime.ClientSessionRef clientSessionRef = new org.evd.game.runtime.ClientSessionRef();
+		org.evd.game.runtime.ClientSessionRefIOSerializer.read(in, clientSessionRef);
+		return clientSessionRef;
 	}
 	public static ISerializable TickTimerIOSerializerRead(InputStream in) throws IOException{
 		org.evd.game.runtime.TickTimer tickTimer = new org.evd.game.runtime.TickTimer();

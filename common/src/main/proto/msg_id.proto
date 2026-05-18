@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "MsgIdProto";
+
+enum MsgId {
+  MSG_ID_UNSPECIFIED = 0;
+
+  C2S_LOGIN = 1001;
+  C2S_CONN_PING = 1002;
+  S2C_LOGIN = 2001;
+  S2C_CONN_PING = 2002;
+}

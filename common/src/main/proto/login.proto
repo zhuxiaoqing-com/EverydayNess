@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "LoginProto";
+
+message C2S_Login {
+  string account = 1;
+  string password = 2;
+}
+
+message S2C_Login {
+  int64 role_id = 1;
+  string token = 2;
+}

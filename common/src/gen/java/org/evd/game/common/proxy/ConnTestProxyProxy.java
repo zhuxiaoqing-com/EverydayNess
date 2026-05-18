@@ -11,8 +11,8 @@ import org.evd.game.runtime.Service;
 public class ConnTestProxyProxy extends RPCProxyBase {
 
     public final static class EnumCall{
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST1 = 3;
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO = 4;
+        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST1 = 5;
+        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO = 6;
     }
 
     private ConnTestProxyProxy(CallPoint callPoint){

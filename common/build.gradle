@@ -1,6 +1,21 @@
+buildscript {
+    repositories {
+        maven {
+            url 'https://maven.aliyun.com/repository/public'
+        }
+        mavenCentral()
+        mavenLocal()
+    }
+    dependencies {
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.9.4'
+    }
+}
+
 plugins {
     id 'java'
 }
+
+apply plugin: 'com.google.protobuf'
 
 group = 'org.example'
 version = '1.0-SNAPSHOT'
@@ -12,6 +27,9 @@ repositories {
 
 sourceSets {
     main {
+        proto {
+            srcDirs += 'src/main/proto'
+        }
         java {
             srcDirs += 'src/main/java'
             srcDirs += 'src/gen/java'
@@ -23,10 +41,25 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation 'org.yaml:snakeyaml:2.0'
+    implementation 'com.google.protobuf:protobuf-java:3.25.3'
     implementation project(':core:runtime')
 
     implementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')
+}
+
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.25.3'
+    }
+}
+
+tasks.named('compileJava') {
+    dependsOn tasks.named('generateProto')
+}
+
+tasks.named('processResources') {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 test {

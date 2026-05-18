@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "ConnProto";
+
+message C2S_ConnPing {
+  string text = 1;
+}
+
+message S2C_ConnPing {
+  string text = 1;
+}

@@ -21,6 +21,7 @@ sourceSets {
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation 'com.google.protobuf:protobuf-java:3.25.3'
     implementation project(':common')
     implementation project(':core:runtime')
     implementation project(':core:gencode:apt-annotation')

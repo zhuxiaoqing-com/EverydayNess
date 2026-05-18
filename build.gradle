@@ -2,6 +2,7 @@ ext {
     //资源目录
     dirResource = project(project_resource).projectDir
 }
+
 allprojects {
     group 'org.evd.game'
 
@@ -35,6 +36,16 @@ allprojects {
     // 没起作用
     tasks.withType(JavaCompile){
         options.encoding='UTF-8'
+    }
+}
+
+def clientCmdUpstreamProjects = subprojects.findAll { subproject ->
+    subproject.path.startsWith(':Services:') && subproject.name != 'ConnService'
+}
+
+project(':Services:ConnService') {
+    tasks.named('compileJava') {
+        dependsOn clientCmdUpstreamProjects.collect { it.tasks.named('compileJava') }
     }
 }
 

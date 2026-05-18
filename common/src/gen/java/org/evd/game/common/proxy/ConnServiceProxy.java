@@ -3,6 +3,8 @@ package org.evd.game.common.proxy;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.RPCProxyBase;
 import org.evd.game.runtime.Service;
+        import org.evd.game.runtime.ClientSessionRef;
+        import org.evd.game.runtime.Chunk;
 
 /**
 * 根据ConnServiceService生成的代理类
@@ -13,6 +15,8 @@ public class ConnServiceProxy extends RPCProxyBase {
         public final static int ENUM_CONNSERVICE_STRING_CON = 0;
         public final static int ENUM_CONNSERVICE_VOID_CON1 = 1;
         public final static int ENUM_CONNSERVICE_VOID_CON2 = 2;
+        public final static int ENUM_CONNSERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 3;
+        public final static int ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 4;
     }
 
     private ConnServiceProxy(CallPoint callPoint){
@@ -42,5 +46,19 @@ public class ConnServiceProxy extends RPCProxyBase {
     public void con2(){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_CONNSERVICE_VOID_CON2, new Object[]{});
+    }
+    /**
+    * @see org.evd.game.ConnService.ConnService#forwardClientCmd()
+    */
+    public void forwardClientCmd(org.evd.game.runtime.ClientSessionRef session, int msgId, org.evd.game.runtime.Chunk body){
+        Service service = Service.getCurrent();
+        service.call(remote, EnumCall.ENUM_CONNSERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK, new Object[]{session, msgId, body});
+    }
+    /**
+    * @see org.evd.game.ConnService.ConnService#pushToClient()
+    */
+    public void pushToClient(org.evd.game.runtime.ClientSessionRef session, int msgId, org.evd.game.runtime.Chunk body){
+        Service service = Service.getCurrent();
+        service.call(remote, EnumCall.ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK, new Object[]{session, msgId, body});
     }
 }

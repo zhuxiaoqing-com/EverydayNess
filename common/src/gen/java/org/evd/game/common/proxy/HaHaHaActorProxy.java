@@ -10,8 +10,8 @@ import org.evd.game.runtime.Service;
 public class HaHaHaActorProxy extends RPCProxyBase {
 
     public final static class EnumCall{
-        public final static int ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT = 3;
-        public final static int ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT = 4;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT = 4;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT = 5;
     }
 
     private HaHaHaActorProxy(CallPoint callPoint){
