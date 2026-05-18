@@ -7,6 +7,8 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.RpcCallException;
+import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.SysException;
 import org.evd.game.runtime.support.function.*;
 
@@ -24,10 +26,6 @@ public class Service extends TickCase{
 
     public void addCall_snt(CallBase call) {
         calls.add(call);
-    }
-
-    public CallBase removeCallFrameReferences_st(long callId) {
-        return callFrameReferences.remove(callId);
     }
 
     enum ServiceStatus{
@@ -59,10 +57,8 @@ public class Service extends TickCase{
     private Task.ContinuationWrapper runningContinuation;
     /** 执行中和阻塞的协程 */
     private final Map<Long, Task.ContinuationWrapper> continuations = new HashMap<>();
-    /** 等待rpc返回的协程 */
-    private final Map<Long, Task.ContinuationWrapper> waitingContinuations = new HashMap<>();
-    /** 等待rpc返回的超时时间 */
-    private final Map<Long, Long> waitingDeadlines = new HashMap<>();
+    /** 当前处于等待态的协程 */
+    private final Map<Long, WaitContext> waitContexts = new HashMap<>();
     /** 本帧超时的等待id */
     private final List<Long> timeoutWaitIds = new ArrayList<>();
     /** ThreadLocal */
@@ -70,13 +66,29 @@ public class Service extends TickCase{
     public static Service getCurrent(){
         return threadLocal.get();
     }
+    @FunctionalInterface
+    private interface WaitTimeoutHandler {
+        void onTimeout(Task.ContinuationWrapper continuation, long waitId);
+    }
+    private static class WaitContext {
+        private final Task.ContinuationWrapper continuation;
+        private final long deadline;
+        private final WaitTimeoutHandler timeoutHandler;
+
+        private WaitContext(Task.ContinuationWrapper continuation, long deadline, WaitTimeoutHandler timeoutHandler) {
+            this.continuation = continuation;
+            this.deadline = deadline;
+            this.timeoutHandler = timeoutHandler;
+        }
+
+        private boolean isTimeout(long now) {
+            return deadline > 0 && deadline <= now;
+        }
+    }
     /** rpc调用路由到接收函数的类 */
     private RPCImplBase methodFunctionProxy;
     /** 本service的调用点 */
     private final CallPoint callPoint;
-    /** 远程请求RPC缓冲区,引用 */
-    private final Map<Long, CallBase> callFrameReferences = new HashMap<>();
-    public void addCallFrameReferences(CallBase call) { callFrameReferences.put(call.id, call);}
     /** 远程请求RPC缓冲区 */
     private final Map<String, CallPulseBuffer> callFrameBuffers = new HashMap<>();
 
@@ -190,34 +202,26 @@ public class Service extends TickCase{
     }
 
     /**
-     * 检查等待rpc结果的协程是否超时
+     * 检查等待中的协程是否超时
      */
     private void pulseWaitTimeout_st() {
-        if (waitingDeadlines.isEmpty()) {
+        if (waitContexts.isEmpty()) {
             return;
         }
         long now = getTimeCurrent();
-        for (Map.Entry<Long, Long> entry : waitingDeadlines.entrySet()) {
-            if (entry.getValue() <= now) {
+        for (Map.Entry<Long, WaitContext> entry : waitContexts.entrySet()) {
+            if (entry.getValue().isTimeout(now)) {
                 timeoutWaitIds.add(entry.getKey());
             }
         }
         try {
             for (Long waitId : timeoutWaitIds) {
-                Task.ContinuationWrapper context = waitingContinuations.remove(waitId);
-                waitingDeadlines.remove(waitId);
-                if (context == null) {
+                WaitContext waitContext = waitContexts.remove(waitId);
+                if (waitContext == null) {
                     continue;
                 }
-                context.setFailure(new SysException("rpc call timeout: service={}, waitId={}", id, waitId));
-                runningContinuation = context;
-                try {
-                    context.runVirtual();
-                } catch (Throwable e) {
-                    LogCore.core.error("rpc timeout resume error, service={}, waitId={}", id, waitId, e);
-                } finally {
-                    runningContinuation = null;
-                }
+                waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
+                resumeContinuation(waitContext.continuation);
             }
         } finally {
             timeoutWaitIds.clear();
@@ -237,11 +241,6 @@ public class Service extends TickCase{
                 LogCore.core.error("", e);
                 /*log.error("", e);*/
             }
-        }
-        // 正常应该不会出现，为了保证安全，防止由于错误导致内存问题
-        if(!callFrameReferences.isEmpty()){
-            LogCore.core.error("【port】flush rpc缓冲区后，仍有残留的引用类型call");
-            callFrameReferences.clear();
         }
     }
 
@@ -277,25 +276,22 @@ public class Service extends TickCase{
         // 返回的callResult
         else {
             CallResult callResult = (CallResult)callbase;
-            context = waitingContinuations.remove(callResult.id);
-            waitingDeadlines.remove(callResult.id);
+            context = takeWaitContinuation(callResult.id);
             // 已经超时
             if (context == null){
                 LogCore.core.warn("callback is null or timeout, waitId={}", callResult.id);
                 return;
             }
-            // 赋值返回
-            context.setResult(callResult.result);
+            if (callResult.success) {
+                context.setResult(callResult.result);
+            } else {
+                context.setFailure(new RpcCallException(
+                        callResult.errorCode,
+                        "rpc call failed: service=" + id + ", waitId=" + callResult.id + ", errorCode="
+                                + callResult.errorCode + ", message=" + callResult.errorMessage));
+            }
         }
-        // 设置为正在执行
-        runningContinuation = context;
-        try {
-            // 执行协程
-            context.runVirtual();
-        } finally {
-            // 清理当前上下文
-            runningContinuation = null;
-        }
+        resumeContinuation(context);
     }
 
     /**
@@ -307,24 +303,28 @@ public class Service extends TickCase{
         Object func = getMethodFunction(call.methodKey);
         Object[] m = call.methodParam;
         if (call.needResult){
-            Object result = null;
-            switch (call.methodParam.length) {
-                case 0: result = ((ReturnFunction0) func).apply(); break;
-                case 1: result = ((ReturnFunction1) func).apply(m[0]); break;
-                case 2: result = ((ReturnFunction2) func).apply(m[0], m[1]); break;
-                case 3: result = ((ReturnFunction3) func).apply(m[0], m[1], m[2]); break;
-                case 4: result = ((ReturnFunction4) func).apply(m[0], m[1], m[2], m[3]); break;
-                case 5: result = ((ReturnFunction5) func).apply(m[0], m[1], m[2], m[3], m[4]); break;
-                case 6: result = ((ReturnFunction6) func).apply(m[0], m[1], m[2], m[3], m[4], m[5]); break;
-                case 7: result = ((ReturnFunction7) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6]); break;
-                case 8: result = ((ReturnFunction8) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7]); break;
-                case 9: result = ((ReturnFunction9) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]); break;
-                case 10: result = ((ReturnFunction10) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9]); break;
-                default: break;
-            }
             CallResult callReturn = call.createReturn();
-            callReturn.result = result;
-
+            try {
+                Object result = null;
+                switch (call.methodParam.length) {
+                    case 0: result = ((ReturnFunction0) func).apply(); break;
+                    case 1: result = ((ReturnFunction1) func).apply(m[0]); break;
+                    case 2: result = ((ReturnFunction2) func).apply(m[0], m[1]); break;
+                    case 3: result = ((ReturnFunction3) func).apply(m[0], m[1], m[2]); break;
+                    case 4: result = ((ReturnFunction4) func).apply(m[0], m[1], m[2], m[3]); break;
+                    case 5: result = ((ReturnFunction5) func).apply(m[0], m[1], m[2], m[3], m[4]); break;
+                    case 6: result = ((ReturnFunction6) func).apply(m[0], m[1], m[2], m[3], m[4], m[5]); break;
+                    case 7: result = ((ReturnFunction7) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6]); break;
+                    case 8: result = ((ReturnFunction8) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7]); break;
+                    case 9: result = ((ReturnFunction9) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]); break;
+                    case 10: result = ((ReturnFunction10) func).apply(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9]); break;
+                    default: break;
+                }
+                callReturn.result = result;
+            } catch (Throwable e) {
+                LogCore.core.error("rpc dispatch failed: service={}, methodKey={}", id, call.methodKey, e);
+                fillRpcFailure(callReturn, e);
+            }
             sendCall_st(callReturn);
         }else{
             try {
@@ -395,12 +395,10 @@ public class Service extends TickCase{
      * @param timeoutMillis 超时时间，单位毫秒，小于等于0代表不启用超时
      */
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
-        Task.ContinuationWrapper thisContinuation = runningContinuation;
-        if (thisContinuation == null) {
-            throw new SysException("callWait must run inside continuation: service={}", id);
-        }
-        long waitId = applyWaitId();
-        thisContinuation.prepareWait();
+        Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
+        long waitId = registerWait(thisContinuation, timeoutMillis,
+                (continuation, timeoutWaitId) -> continuation.setFailure(
+                        new SysException("rpc call timeout: service={}, waitId={}", id, timeoutWaitId)));
 
         Call call = new Call();
         call.from = this.callPoint;
@@ -413,14 +411,8 @@ public class Service extends TickCase{
 
         call.needResult = true;
 
-        waitingContinuations.put(waitId, thisContinuation);
-        if (timeoutMillis > 0) {
-            waitingDeadlines.put(waitId, getWaitBaseTime() + timeoutMillis);
-        }
-
         if (!sendCall_st(call)) {
-            waitingContinuations.remove(waitId);
-            waitingDeadlines.remove(waitId);
+            waitContexts.remove(waitId);
             throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
                     id, toCallPoint.nodeId, toCallPoint.servId, methodKey);
         }
@@ -430,11 +422,27 @@ public class Service extends TickCase{
     }
 
     /**
+     * 协程等待指定时间，常用于需要显式超时点的业务逻辑
+     */
+    public void sleep(long delayMillis) {
+        if (delayMillis <= 0) {
+            return;
+        }
+        Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
+        registerWait(thisContinuation, delayMillis, (continuation, waitId) -> continuation.setResult(null));
+        thisContinuation.waitResult();
+    }
+
+    /**
      * 发送call请求
      * @param call
      */
     private boolean sendCall_st(CallBase call) {
         String toNodeId = call.to.nodeId;
+        if (node.getId().equals(toNodeId)) {
+            node.callHandle_snt(call);
+            return true;
+        }
         CallPulseBuffer buffer = callFrameBuffers.get(toNodeId);
 
         // 如果之前没有缓冲 那么就初始化一个
@@ -446,20 +454,66 @@ public class Service extends TickCase{
         // 将要发送内容放入发送缓冲中
         // 先尝试写入 如果失败(一般都是缓冲剩余空间不足)则先清空缓冲 后再尝试写入
         // 如果还是失败 那证明有可能是发送内容过大 不进行缓冲 直接发送
-        if (!buffer.writeCall(this, call)) {
+        if (!buffer.writeCall(call)) {
             //日志 第一次尝试写入缓冲失败
             LogCore.core.warn("第一次尝试写入缓冲失败：bufferLen={}, nodeId={}, portId={}, remoteNodeId={}", buffer.getLength(), getId(), node.getId(), toNodeId);
 
             //刷新缓冲区
             buffer.flush_st(node);
             //再次尝试写入缓冲
-            if (!buffer.writeCall(this, call)) {
+            if (!buffer.writeCall(call)) {
                 //日志 第二次尝试写入缓冲失败
                 LogCore.core.error("第二次尝试写入缓冲失败, call请求最大支持2M：bufferLen={}", buffer.getLength());
                 return false;
             }
         }
         return true;
+    }
+
+    private Task.ContinuationWrapper requireRunningContinuation() {
+        Task.ContinuationWrapper thisContinuation = runningContinuation;
+        if (thisContinuation == null) {
+            throw new SysException("continuation wait must run inside continuation: service={}", id);
+        }
+        return thisContinuation;
+    }
+
+    private long registerWait(Task.ContinuationWrapper continuation, long timeoutMillis, WaitTimeoutHandler timeoutHandler) {
+        long waitId = applyWaitId();
+        long deadline = timeoutMillis > 0 ? getWaitBaseTime() + timeoutMillis : -1L;
+        continuation.prepareWait();
+        waitContexts.put(waitId, new WaitContext(continuation, deadline, timeoutHandler));
+        return waitId;
+    }
+
+    private Task.ContinuationWrapper takeWaitContinuation(long waitId) {
+        WaitContext waitContext = waitContexts.remove(waitId);
+        return waitContext == null ? null : waitContext.continuation;
+    }
+
+    private void resumeContinuation(Task.ContinuationWrapper continuation) {
+        runningContinuation = continuation;
+        try {
+            continuation.runVirtual();
+        } finally {
+            runningContinuation = null;
+        }
+    }
+
+    private void fillRpcFailure(CallResult callReturn, Throwable e) {
+        callReturn.success = false;
+        if (e instanceof RpcCallException rpcCallException) {
+            callReturn.errorCode = rpcCallException.getErrorCode();
+            callReturn.errorMessage = rpcCallException.getMessage();
+            return;
+        }
+        if (e instanceof SysException sysException) {
+            callReturn.errorCode = RpcErrorCodes.UNKNOWN;
+            callReturn.errorMessage = sysException.getMessage();
+            return;
+        }
+        callReturn.errorCode = RpcErrorCodes.UNKNOWN;
+        callReturn.errorMessage = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
     /**

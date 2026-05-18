@@ -15,8 +15,6 @@ public abstract class CallBase implements ISerializable {
     /** 请求后回调contextid */
     @SerializeField
     public long id;
-    /** 参数是不变的，则可以不序列化*/
-    public boolean immutable;
 
     public long getId() {
         return id;

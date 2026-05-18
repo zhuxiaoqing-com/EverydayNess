@@ -9,6 +9,10 @@ nodes:
           name: conn
           num: 1
           interval: 5
+        - className: LocationService
+          name: location
+          num: -1
+          interval: 5
         - className: StageService
           name: stage
           num: 2

@@ -2,9 +2,6 @@ package org.evd.game.runtime.serialize;
 
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.Node;
-import org.evd.game.runtime.Service;
-
-import java.io.IOException;
 
 /**
  *
@@ -28,18 +25,7 @@ public class CallPulseBuffer implements AutoCloseable{
 	/**
 	 * 写入新请求
      */
-	public boolean writeCall(Service service, CallBase call) {
-		// rpc参数不可变，可以一直引用
-		if(call.immutable) {
-            try {
-                buffer.writeLong(call.id);
-				service.addCallFrameReferences(call);
-			} catch (IOException e) {
-				// 不会有错
-				return true;
-            }
-			return false;
-		}
+	public boolean writeCall(CallBase call) {
 		return buffer.writeCall(call);
 	}
 

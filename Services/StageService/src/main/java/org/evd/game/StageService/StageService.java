@@ -3,9 +3,11 @@ package org.evd.game.StageService;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Actor;
 import org.evd.game.common.proxy.ConnServiceProxy;
+import org.evd.game.common.proxy.LocationServiceProxy;
 import org.evd.game.common.proto.C2S_Login;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
+import org.evd.game.common.location.MessageLocationSender;
 import org.evd.game.runtime.Node;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.runtime.Chunk;
@@ -13,16 +15,21 @@ import org.evd.game.runtime.ClientSessionRef;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RuntimeUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 @Actor
 public class StageService extends Service {
     public int a;
     private Object clientCmdRegistry;
     private java.lang.reflect.Method clientCmdDispatchMethod;
+    private final MessageLocationSender messageLocationSender = new MessageLocationSender();
+    private final Map<Long, HaHaHaActor> haHaHaActors = new HashMap<>();
 
     public StageService(Node node, String name, String scheduledName) {
         super(node, name, scheduledName);
@@ -58,6 +65,16 @@ public class StageService extends Service {
     }
 
     @Rpc
+    public void callHaHaHaActorRpc1(long actorId, int a, int b) {
+        requireHaHaHaActor(actorId).rpc1(a, b);
+    }
+
+    @Rpc
+    public void callHaHaHaActorRpc2(long actorId, Object a, Object b) {
+        requireHaHaHaActor(actorId).rpc2(a, b);
+    }
+
+    @Rpc
     public void forwardClientCmd(ClientSessionRef session, int msgId, Chunk body) {
         try {
             clientCmdDispatchMethod().invoke(clientCmdRegistry(), session, msgId, copyChunkBody(body));
@@ -75,12 +92,18 @@ public class StageService extends Service {
     @ClientCmd(MsgId.C2S_LOGIN_VALUE)
     public void login(ClientSessionRef session, C2S_Login req) {
         LogCore.core.info("StageService 收到客户端登录: service={}, sessionId={}, account={}", id, session.getSessionId(), req.getAccount());
+        long actorId = session.getSessionId();
+        bindActorLocation(actorId);
 
         S2C_Login resp = S2C_Login.newBuilder()
-                .setRoleId(session.getSessionId())
+                .setRoleId(actorId)
                 .setToken("token-" + req.getAccount())
                 .build();
         ConnServiceProxy.inst(session.getGate()).pushToClient(session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
+    }
+
+    public MessageLocationSender getMessageLocationSender() {
+        return messageLocationSender;
     }
 
     private Object clientCmdRegistry() {
@@ -109,5 +132,20 @@ public class StageService extends Service {
 
     private byte[] copyChunkBody(Chunk body) {
         return Arrays.copyOfRange(body.buffer, body.offset, body.offset + body.length);
+    }
+
+    private void bindActorLocation(long actorId) {
+        CallPoint self = new CallPoint(node.getId(), id);
+        haHaHaActors.computeIfAbsent(actorId, ignore -> new HaHaHaActor());
+        LocationServiceProxy.inst().bindActor(actorId, self);
+        messageLocationSender.cache(actorId, self);
+    }
+
+    private HaHaHaActor requireHaHaHaActor(long actorId) {
+        HaHaHaActor actor = haHaHaActors.get(actorId);
+        if (actor == null) {
+            throw RpcCallException.actorNotFound(actorId);
+        }
+        return actor;
     }
 }

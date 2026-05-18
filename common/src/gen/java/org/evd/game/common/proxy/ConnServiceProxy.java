@@ -33,6 +33,10 @@ public class ConnServiceProxy extends RPCProxyBase {
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_CONNSERVICE_STRING_CON, new Object[]{});
     }
+    public String con(long timeoutMillis){
+        Service service = Service.getCurrent();
+        return (String)service.callWait(remote, EnumCall.ENUM_CONNSERVICE_STRING_CON, new Object[]{}, timeoutMillis);
+    }
     /**
     * @see org.evd.game.ConnService.ConnService#con1()
     */

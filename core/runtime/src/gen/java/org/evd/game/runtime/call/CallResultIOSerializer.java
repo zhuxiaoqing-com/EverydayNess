@@ -13,6 +13,9 @@ public final class CallResultIOSerializer{
 	 */
 	public static void write(OutputStream out, CallResult instance) throws IOException {
 		org.evd.game.runtime.call.CallBaseIOSerializer.write(out, instance);
+		out.writeBoolean(instance.isSuccess());
+		out.writeInt(instance.getErrorCode());
+		out.writeString(instance.getErrorMessage());
 		out.write(instance.getResult());
 	}
 	
@@ -23,6 +26,9 @@ public final class CallResultIOSerializer{
 	 */
 	public static void read(InputStream in, CallResult instance) throws IOException {
 		org.evd.game.runtime.call.CallBaseIOSerializer.read(in, instance);
+		instance.setSuccess(in.readBoolean());
+		instance.setErrorCode(in.readInt());
+		instance.setErrorMessage(in.readString());
 		instance.setResult(in.read());
 	}
 }

@@ -56,5 +56,11 @@ public class ${className}Proxy extends RPCProxyBase {
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
     }
+    <#if method.returnType != "void">
+    public ${method.returnType} ${method.methodName}(${method.formalParams}<#if method.formalParams?has_content>, </#if>long timeoutMillis){
+        Service service = Service.getCurrent();
+        return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+    }
+    </#if>
     </#list>
 }

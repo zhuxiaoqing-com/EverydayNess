@@ -240,19 +240,8 @@ public class Node extends TickCase{
 
         // 是否已读取到末尾
         while (!input.isAtEnd()) {
-            // 先读取一个Call请求
-            Object obj = input.read();
-            // 正常的call类型
-            if(obj instanceof CallBase call){
-                callHandle_snt(call);
-
-            // call的引用id
-            }else {
-                long callId = (long)obj;
-                Service service = Service.getCurrent();
-                // 如果是引用方式，调用callHandle此方法的一定是某个port，可以放心的Port.getCurrent()
-                callHandle_snt(service.removeCallFrameReferences_st(callId));
-            }
+            CallBase call = input.read();
+            callHandle_snt(call);
         }
     }
 
