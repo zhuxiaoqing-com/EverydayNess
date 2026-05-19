@@ -5,9 +5,9 @@ import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
-import org.evd.game.runtime.mailbox.MailboxExecutionMode;
-import org.evd.game.runtime.mailbox.MailboxKey;
-import org.evd.game.runtime.mailbox.MailboxRegistry;
+import org.evd.game.runtime.actor.ActorExecutionMode;
+import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.actor.ActorRegistry;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
@@ -26,12 +26,8 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  * 服务
  */
 public class Service extends TickCase{
-    /** 通用协程锁类型: mailbox */
-    protected static final int COROUTINE_LOCK_TYPE_MAILBOX = 1;
-    /** location 查询后的转发消息，等价于 ET 的 message 包装协议 */
-    private static final int MAILBOX_FORWARD_MESSAGE_METHOD = Integer.MIN_VALUE + 1;
-    /** location 查询后的转发请求，等价于 ET 的 request 包装协议 */
-    private static final int MAILBOX_FORWARD_REQUEST_METHOD = Integer.MIN_VALUE + 2;
+    /** 通用协程锁类型: actor */
+    protected static final int COROUTINE_LOCK_TYPE_ACTOR = 1;
 
     public void addCall_snt(CallBase call) {
         calls.add(call);
@@ -56,8 +52,8 @@ public class Service extends TickCase{
     private final ContinuationScope scope; public ContinuationScope getScope() { return scope; }
     /** 通用协程锁 */
     private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager();
-    /** 当前 service 内的 mailbox 注册表 */
-    private final MailboxRegistry mailboxRegistry = new MailboxRegistry();
+    /** 当前 service 内的 actor 注册表 */
+    private final ActorRegistry actorRegistry = new ActorRegistry();
     /** 通用定时调度器 */
     private final TimerScheduler timerScheduler = new TimerScheduler();
     /** continuation 调度与 wait/timeout */
@@ -210,7 +206,7 @@ public class Service extends TickCase{
         Task.ContinuationWrapper context;
         // 发送的call
         if (callbase instanceof Call call){
-            context = createCallContinuation(call, call.getMailboxKey());
+            context = createCallContinuation(call, call.getActorId());
         }
         // 返回的callResult
         else {
@@ -239,30 +235,27 @@ public class Service extends TickCase{
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void dispatch_st(Call call){
-        // todo 这里没有mailboxKey 是不是应该报错呢？
-        if (call.mailboxKey != null) {
-            dispatchMailboxCall_st(call);
+        // todo 这里没有actorId 是不是应该报错呢？
+        if (call.actorId != null) {
+            dispatchActorCall_st(call);
             return;
         }
 
         dispatchBusinessCall_st(call);
     }
 
-    private void dispatchMailboxCall_st(Call call) {
-        MailboxRegistry.Registration registration = mailboxRegistry.requireRegistration(call.mailboxKey);
-        Call businessCall = call;
-        if (call.methodKey == MAILBOX_FORWARD_MESSAGE_METHOD || call.methodKey == MAILBOX_FORWARD_REQUEST_METHOD) {
-            businessCall = unwrapMailboxForwardCall(call);
-        }
+    private void dispatchActorCall_st(Call call) {
+        ActorRegistry.Registration registration = actorRegistry.requireRegistration(call.actorId);
+        Call businessCall = ActorForwarding.unwrapOrOriginal(id, call);
         switch (registration.getExecutionMode()) {
-            case ORDERED -> dispatchOrderedMailboxCall_st(businessCall);
-            case UNORDERED -> dispatchUnorderedMailboxCall_st(businessCall);
+            case ORDERED -> dispatchOrderedActorCall_st(businessCall);
+            case UNORDERED -> dispatchUnorderedActorCall_st(businessCall);
         }
     }
 
-    final void dispatchOrderedMailboxCall_st(Call call) {
+    final void dispatchOrderedActorCall_st(Call call) {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
-        awaitCoroutineLock(COROUTINE_LOCK_TYPE_MAILBOX, new MailboxKey(call.mailboxKey));
+        awaitCoroutineLock(COROUTINE_LOCK_TYPE_ACTOR, new ActorId(call.actorId));
         try {
             dispatchBusinessCall_st(call);
         } finally {
@@ -270,7 +263,7 @@ public class Service extends TickCase{
         }
     }
 
-    final void dispatchUnorderedMailboxCall_st(Call call) {
+    final void dispatchUnorderedActorCall_st(Call call) {
         dispatchBusinessCall_st(call);
     }
 
@@ -369,32 +362,6 @@ public class Service extends TickCase{
         }
     }
 
-    private Call unwrapMailboxForwardCall(Call envelope) {
-        Object[] envelopeParams = envelope.methodParam;
-        if (envelope.mailboxKey == null) {
-            throw RpcCallException.mailboxNotFound(null);
-        }
-        if (envelopeParams == null || envelopeParams.length != 2) {
-            throw new SysException("mailbox forward payload invalid: service={}, methodKey={}", id, envelope.methodKey);
-        }
-        if (!(envelopeParams[0] instanceof Integer methodKey)) {
-            throw new SysException("mailbox forward methodKey invalid: service={}, methodKey={}", id, envelope.methodKey);
-        }
-        if (!(envelopeParams[1] instanceof Object[] methodParams)) {
-            throw new SysException("mailbox forward params invalid: service={}, methodKey={}", id, envelope.methodKey);
-        }
-
-        Call innerCall = new Call();
-        innerCall.from = envelope.from;
-        innerCall.to = envelope.to;
-        innerCall.id = envelope.id;
-        innerCall.mailboxKey = new MailboxKey(envelope.mailboxKey);
-        innerCall.methodKey = methodKey;
-        innerCall.methodParam = methodParams;
-        innerCall.needResult = envelope.needResult;
-        return innerCall;
-    }
-
     public void holdContinuation(Task.ContinuationWrapper conTask){
         continuationRuntime.hold(conTask);
     }
@@ -413,11 +380,11 @@ public class Service extends TickCase{
         call(toCallPoint, null, methodKey, params);
     }
 
-    public void call(CallPoint toCallPoint, MailboxKey mailboxKey, int methodKey, Object[] params) {
+    public void call(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
         Call call = new Call();
         call.from = this.callPoint;
         call.to = toCallPoint;
-        call.mailboxKey = mailboxKey == null ? null : new MailboxKey(mailboxKey);
+        call.actorId = actorId == null ? null : new ActorId(actorId);
 
         call.methodKey = methodKey;
         call.methodParam = params;
@@ -425,8 +392,8 @@ public class Service extends TickCase{
         sendCall_st(call);
     }
 
-    public void locationSend(CallPoint toCallPoint, MailboxKey mailboxKey, int methodKey, Object[] params) {
-        Call call = buildCall(toCallPoint, mailboxKey, MAILBOX_FORWARD_MESSAGE_METHOD, new Object[]{methodKey, params});
+    public void locationSend(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
+        Call call = ActorForwarding.createMessageEnvelope(this.callPoint, toCallPoint, actorId, methodKey, params);
         if (!sendCall_st(call)) {
             throw new SysException("send location message failed: service={}, toNode={}, toService={}, methodKey={}",
                     id, toCallPoint.nodeId, toCallPoint.servId, methodKey);
@@ -444,21 +411,21 @@ public class Service extends TickCase{
         return callWait(toCallPoint, null, methodKey, params, getCallWaitTimeout());
     }
 
-    public Object callWait(CallPoint toCallPoint, MailboxKey mailboxKey, int methodKey, Object[] params) {
-        return callWait(toCallPoint, mailboxKey, methodKey, params, getCallWaitTimeout());
+    public Object callWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
+        return callWait(toCallPoint, actorId, methodKey, params, getCallWaitTimeout());
     }
 
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
         return callWait(toCallPoint, null, methodKey, params, timeoutMillis);
     }
 
-    public Object callWait(CallPoint toCallPoint, MailboxKey mailboxKey, int methodKey, Object[] params, long timeoutMillis) {
+    public Object callWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
         Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
         long waitId = registerWait(timeoutMillis,
                 (continuation, timeoutWaitId) -> continuation.setFailure(
                         new SysException("rpc call timeout: service={}, waitId={}", id, timeoutWaitId)));
 
-        Call call = buildCall(toCallPoint, mailboxKey, methodKey, params);
+        Call call = buildCall(toCallPoint, actorId, methodKey, params);
         call.id = waitId;
         call.needResult = true;
 
@@ -471,19 +438,18 @@ public class Service extends TickCase{
         return thisContinuation.waitResult();
     }
 
-    public Object locationCallWait(CallPoint toCallPoint, MailboxKey mailboxKey, int methodKey, Object[] params) {
-        return locationCallWait(toCallPoint, mailboxKey, methodKey, params, getCallWaitTimeout());
+    public Object locationCallWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
+        return locationCallWait(toCallPoint, actorId, methodKey, params, getCallWaitTimeout());
     }
 
-    public Object locationCallWait(CallPoint toCallPoint, MailboxKey mailboxKey, int methodKey, Object[] params, long timeoutMillis) {
+    public Object locationCallWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
         Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
         long waitId = registerWait(timeoutMillis,
                 (continuation, timeoutWaitId) -> continuation.setFailure(
                         new SysException("location rpc call timeout: service={}, waitId={}", id, timeoutWaitId)));
 
-        Call call = buildCall(toCallPoint, mailboxKey, MAILBOX_FORWARD_REQUEST_METHOD, new Object[]{methodKey, params});
+        Call call = ActorForwarding.createRequestEnvelope(this.callPoint, toCallPoint, actorId, methodKey, params);
         call.id = waitId;
-        call.needResult = true;
 
         if (!sendCall_st(call)) {
             continuationRuntime.takeWaitContinuation(waitId);
@@ -494,11 +460,11 @@ public class Service extends TickCase{
         return thisContinuation.waitResult();
     }
 
-    private Call buildCall(CallPoint toCallPoint, MailboxKey mailboxKey, int methodKey, Object[] params) {
+    private Call buildCall(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
         Call call = new Call();
         call.from = this.callPoint;
         call.to = toCallPoint;
-        call.mailboxKey = mailboxKey == null ? null : new MailboxKey(mailboxKey);
+        call.actorId = actorId == null ? null : new ActorId(actorId);
         call.methodKey = methodKey;
         call.methodParam = params;
         return call;
@@ -565,8 +531,8 @@ public class Service extends TickCase{
         return continuationRuntime.takeWaitContinuation(waitId);
     }
 
-    private Task.ContinuationWrapper createCallContinuation(Call call, MailboxKey mailboxKey) {
-        return continuationRuntime.create(new Task.TaskParam1<>(this::dispatch_st, call), mailboxKey);
+    private Task.ContinuationWrapper createCallContinuation(Call call, ActorId actorId) {
+        return continuationRuntime.create(new Task.TaskParam1<>(this::dispatch_st, call), actorId);
     }
 
     protected final void awaitCoroutineLock(int type, Object key) {
@@ -599,39 +565,39 @@ public class Service extends TickCase{
         continuationRuntime.queue(next);
     }
 
-    protected void registerMailbox(MailboxKey key, Object mailbox, MailboxExecutionMode executionMode) {
-        mailboxRegistry.register(key, mailbox, executionMode);
+    protected void registerActor(ActorId actorId, Object actor, ActorExecutionMode executionMode) {
+        actorRegistry.register(actorId, actor, executionMode);
     }
 
-    protected void unregisterMailbox(MailboxKey key) {
-        mailboxRegistry.unregister(key);
+    protected void unregisterActor(ActorId actorId) {
+        actorRegistry.unregister(actorId);
     }
 
-    protected boolean hasMailbox(MailboxKey key) {
-        return mailboxRegistry.contains(key);
+    protected boolean hasActor(ActorId actorId) {
+        return actorRegistry.contains(actorId);
     }
 
-    protected <T> T requireMailbox(MailboxKey key, Class<T> type) {
-        return mailboxRegistry.require(key, type);
+    protected <T> T requireActor(ActorId actorId, Class<T> type) {
+        return actorRegistry.require(actorId, type);
     }
 
-    public MailboxKey requireCurrentMailboxKey() {
+    public ActorId requireCurrentActorId() {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
         if (continuation == null) {
-            throw new SysException("current mailbox must run inside continuation: service={}", id);
+            throw new SysException("current actor must run inside continuation: service={}", id);
         }
 
-        MailboxKey mailboxKey = continuation.getMailboxKey();
-        if (mailboxKey == null) {
+        ActorId actorId = continuation.getActorId();
+        if (actorId == null) {
             throw new RpcCallException(
-                    RpcErrorCodes.MAILBOX_NOT_FOUND,
-                    "rpc mailbox context missing: service=" + id);
+                    RpcErrorCodes.ACTOR_CONTEXT_MISSING,
+                    "rpc actor context missing: service=" + id);
         }
-        return new MailboxKey(mailboxKey);
+        return new ActorId(actorId);
     }
 
-    public <T> T requireCurrentMailbox(Class<T> type) {
-        return requireMailbox(requireCurrentMailboxKey(), type);
+    public <T> T requireCurrentActor(Class<T> type) {
+        return requireActor(requireCurrentActorId(), type);
     }
 
     private void fillRpcFailure(CallResult callReturn, Throwable e) {

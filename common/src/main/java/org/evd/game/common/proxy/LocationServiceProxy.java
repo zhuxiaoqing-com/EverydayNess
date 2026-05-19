@@ -5,10 +5,10 @@ import org.evd.game.runtime.DistributeConfig;
 import org.evd.game.runtime.RPCProxyBase;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.mailbox.MailboxKey;
+import org.evd.game.runtime.actor.ActorId;
 
 /**
- * 手写 LocationService 代理，供各业务服务按 mailboxKey 查询 location。
+ * 手写 LocationService 代理，供各业务服务按 actorId 查询 location。
  */
 public class LocationServiceProxy extends RPCProxyBase {
 
@@ -28,24 +28,24 @@ public class LocationServiceProxy extends RPCProxyBase {
         return new LocationServiceProxy(callPoint);
     }
 
-    public void bindMailbox(MailboxKey mailboxKey, CallPoint callPoint) {
+    public void bindActor(ActorId actorId, CallPoint callPoint) {
         Service service = Service.getCurrent();
         service.call(remote,
                 LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_BINDACTOR_LONG_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT,
-                new Object[]{mailboxKey, callPoint});
+                new Object[]{actorId, callPoint});
     }
 
-    public void unbindMailbox(MailboxKey mailboxKey, CallPoint callPoint) {
+    public void unbindActor(ActorId actorId, CallPoint callPoint) {
         Service service = Service.getCurrent();
         service.call(remote,
                 LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_UNBINDACTOR_LONG_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT,
-                new Object[]{mailboxKey, callPoint});
+                new Object[]{actorId, callPoint});
     }
 
-    public CallPoint getMailbox(MailboxKey mailboxKey) {
+    public CallPoint getActor(ActorId actorId) {
         Service service = Service.getCurrent();
         return (CallPoint) service.callWait(remote,
                 LocationRpcEnum.ENUM_LOCATIONSERVICE_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT_GETACTOR_LONG,
-                new Object[]{mailboxKey});
+                new Object[]{actorId});
     }
 }

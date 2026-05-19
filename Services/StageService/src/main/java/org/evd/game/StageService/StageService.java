@@ -2,21 +2,21 @@ package org.evd.game.StageService;
 
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Actor;
-import org.evd.game.common.mailbox.MailboxSender;
+import org.evd.game.common.actor.ActorSender;
 import org.evd.game.common.proxy.ConnServiceProxy;
 import org.evd.game.common.proxy.LocationServiceProxy;
 import org.evd.game.common.proto.C2S_Login;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
-import org.evd.game.common.location.MessageLocationSender;
+import org.evd.game.common.location.ActorLocationSender;
 import org.evd.game.runtime.Node;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.ClientSessionRef;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.mailbox.MailboxExecutionMode;
-import org.evd.game.runtime.mailbox.MailboxKey;
+import org.evd.game.runtime.actor.ActorExecutionMode;
+import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
 
@@ -28,8 +28,8 @@ public class StageService extends Service {
     public int a;
     private Object clientCmdRegistry;
     private java.lang.reflect.Method clientCmdDispatchMethod;
-    private final MailboxSender mailboxSender = new MailboxSender();
-    private final MessageLocationSender messageLocationSender = new MessageLocationSender();
+    private final ActorSender actorSender = new ActorSender();
+    private final ActorLocationSender actorLocationSender = new ActorLocationSender();
 
     public StageService(Node node, String name, String scheduledName) {
         super(node, name, scheduledName);
@@ -99,14 +99,18 @@ public class StageService extends Service {
                 .setRoleId(actorId)
                 .setToken("token-" + req.getAccount())
                 .build();
-        mailboxSender.gate(session.getSessionId()).call(
+        actorSender.gate(session.getSessionId()).call(
                 session.getGate(),
                 ConnServiceProxy.EnumCall.ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK,
                 new Object[]{session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp)});
     }
 
-    public MessageLocationSender getMessageLocationSender() {
-        return messageLocationSender;
+    public ActorLocationSender getActorLocationSender() {
+        return actorLocationSender;
+    }
+
+    public ActorLocationSender getMessageLocationSender() {
+        return actorLocationSender;
     }
 
     private Object clientCmdRegistry() {
@@ -139,13 +143,13 @@ public class StageService extends Service {
 
     private void bindActorLocation(long actorId) {
         CallPoint self = new CallPoint(node.getId(), id);
-        MailboxKey mailboxKey = MailboxKey.player(actorId);
-        registerMailbox(mailboxKey, new HaHaHaActor(), MailboxExecutionMode.ORDERED);
-        LocationServiceProxy.inst().bindMailbox(mailboxKey, self);
-        messageLocationSender.cache(actorId, self);
+        ActorId actorRef = ActorId.player(actorId);
+        registerActor(actorRef, new HaHaHaActor(), ActorExecutionMode.ORDERED);
+        LocationServiceProxy.inst().bindActor(actorRef, self);
+        actorLocationSender.cache(actorId, self);
     }
 
     private HaHaHaActor requireHaHaHaActor(long actorId) {
-        return requireMailbox(MailboxKey.player(actorId), HaHaHaActor.class);
+        return requireActor(ActorId.player(actorId), HaHaHaActor.class);
     }
 }

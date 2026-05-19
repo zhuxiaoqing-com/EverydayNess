@@ -28,7 +28,7 @@ public class ${className}Impl extends RPCImplBase {
                 <#if method.targetIsOwner>
                 return (${method.func}${method.paramSize}${method.typeParams})service::${method.methodName};
                 <#else>
-                return (${method.func}${method.paramSize}${method.typeParams})service.requireCurrentMailbox(${method.targetClassName}.class)::${method.methodName};
+                return (${method.func}${method.paramSize}${method.typeParams})service.requireCurrentActor(${method.targetClassName}.class)::${method.methodName};
                 </#if>
             </#list>
             default:

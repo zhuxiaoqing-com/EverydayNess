@@ -1,7 +1,7 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.Continuation;
-import org.evd.game.runtime.mailbox.MailboxKey;
+import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.function.Function0;
 import org.evd.game.runtime.support.function.Function1;
 
@@ -26,8 +26,8 @@ public class Task {
         private RuntimeException failure;
         /** 协程id（回调id） */
         private long conId;
-        /** 当前协程所属的 mailbox */
-        private MailboxKey mailboxKey;
+        /** 当前协程所属的 actor */
+        private ActorId actorId;
 
         public ContinuationWrapper(Service service) {
             this.service = service;
@@ -43,10 +43,10 @@ public class Task {
             bindTask(task, conId, null);
         }
 
-        public void bindTask(Runnable task, long conId, MailboxKey mailboxKey) {
+        public void bindTask(Runnable task, long conId, ActorId actorId) {
             this.task = task;
             this.conId = conId;
-            this.mailboxKey = mailboxKey == null ? null : new MailboxKey(mailboxKey);
+            this.actorId = actorId == null ? null : new ActorId(actorId);
         }
 
         /**
@@ -83,7 +83,7 @@ public class Task {
             result = null;
             failure = null;
             conId = 0;
-            mailboxKey = null;
+            actorId = null;
         }
 
         /**
@@ -124,8 +124,8 @@ public class Task {
             return result;
         }
 
-        public MailboxKey getMailboxKey() {
-            return mailboxKey;
+        public ActorId getActorId() {
+            return actorId;
         }
     }
 

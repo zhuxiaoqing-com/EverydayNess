@@ -1,6 +1,6 @@
 package org.evd.game.runtime;
 
-import org.evd.game.runtime.mailbox.MailboxKey;
+import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.SysException;
 
 import java.util.ArrayDeque;
@@ -42,9 +42,9 @@ final class ContinuationRuntime {
         this.continuationPool = new ContinuationPool(service);
     }
 
-    public Task.ContinuationWrapper create(Runnable task, MailboxKey mailboxKey) {
+    public Task.ContinuationWrapper create(Runnable task, ActorId actorId) {
         Task.ContinuationWrapper context = continuationPool.apply();
-        context.bindTask(task, nextConId(), mailboxKey);
+        context.bindTask(task, nextConId(), actorId);
         return context;
     }
 

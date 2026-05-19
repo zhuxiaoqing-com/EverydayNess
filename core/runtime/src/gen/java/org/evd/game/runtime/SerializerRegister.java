@@ -32,7 +32,7 @@ final class SerializerRegister{
 		OutputStream.registerSerializeWriteFunc(1593330110, SerializerRegister::CallResultIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(322098688, SerializerRegister::ChunkIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(-1328685355, SerializerRegister::ClientSessionRefIOSerializerWrite);
-		OutputStream.registerSerializeWriteFunc(1908892114, SerializerRegister::MailboxKeyIOSerializerWrite);
+		OutputStream.registerSerializeWriteFunc(1908892114, SerializerRegister::ActorIdIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(1944252859, SerializerRegister::TickTimerIOSerializerWrite);
 	}
 	/**
@@ -45,7 +45,7 @@ final class SerializerRegister{
 		InputStream.registerSerializeReadFunc(1593330110, SerializerRegister::CallResultIOSerializerRead);
 		InputStream.registerSerializeReadFunc(322098688, SerializerRegister::ChunkIOSerializerRead);
 		InputStream.registerSerializeReadFunc(-1328685355, SerializerRegister::ClientSessionRefIOSerializerRead);
-		InputStream.registerSerializeReadFunc(1908892114, SerializerRegister::MailboxKeyIOSerializerRead);
+		InputStream.registerSerializeReadFunc(1908892114, SerializerRegister::ActorIdIOSerializerRead);
 		InputStream.registerSerializeReadFunc(1944252859, SerializerRegister::TickTimerIOSerializerRead);
 	}
 	/**
@@ -72,8 +72,8 @@ final class SerializerRegister{
 	public static void ClientSessionRefIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.ClientSessionRefIOSerializer.write(out, (org.evd.game.runtime.ClientSessionRef)ser);
 	}
-	public static void MailboxKeyIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.runtime.mailbox.MailboxKeyIOSerializer.write(out, (org.evd.game.runtime.mailbox.MailboxKey)ser);
+	public static void ActorIdIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.actor.ActorIdIOSerializer.write(out, (org.evd.game.runtime.actor.ActorId)ser);
 	}
 	public static void TickTimerIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.TickTimerIOSerializer.write(out, (org.evd.game.runtime.TickTimer)ser);
@@ -109,10 +109,10 @@ final class SerializerRegister{
 		org.evd.game.runtime.ClientSessionRefIOSerializer.read(in, clientSessionRef);
 		return clientSessionRef;
 	}
-	public static ISerializable MailboxKeyIOSerializerRead(InputStream in) throws IOException{
-		org.evd.game.runtime.mailbox.MailboxKey mailboxKey = new org.evd.game.runtime.mailbox.MailboxKey();
-		org.evd.game.runtime.mailbox.MailboxKeyIOSerializer.read(in, mailboxKey);
-		return mailboxKey;
+	public static ISerializable ActorIdIOSerializerRead(InputStream in) throws IOException{
+		org.evd.game.runtime.actor.ActorId actorId = new org.evd.game.runtime.actor.ActorId();
+		org.evd.game.runtime.actor.ActorIdIOSerializer.read(in, actorId);
+		return actorId;
 	}
 	public static ISerializable TickTimerIOSerializerRead(InputStream in) throws IOException{
 		org.evd.game.runtime.TickTimer tickTimer = new org.evd.game.runtime.TickTimer();

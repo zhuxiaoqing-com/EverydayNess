@@ -3,7 +3,7 @@ package org.evd.game.runtime.call;
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
-import org.evd.game.runtime.mailbox.MailboxKey;
+import org.evd.game.runtime.actor.ActorId;
 
 @SerializeClass
 public abstract class CallBase implements ISerializable {
@@ -16,9 +16,9 @@ public abstract class CallBase implements ISerializable {
     /** 请求后回调contextid */
     @SerializeField
     public long id;
-    /** mailbox 串行键，为 null 时表示普通 service 级调用 */
+    /** actor 串行键，为 null 时表示普通 service 级调用 */
     @SerializeField
-    public MailboxKey mailboxKey;
+    public ActorId actorId;
 
     public long getId() {
         return id;
@@ -44,11 +44,11 @@ public abstract class CallBase implements ISerializable {
         this.to = to;
     }
 
-    public MailboxKey getMailboxKey() {
-        return mailboxKey;
+    public ActorId getActorId() {
+        return actorId;
     }
 
-    public void setMailboxKey(MailboxKey mailboxKey) {
-        this.mailboxKey = mailboxKey;
+    public void setActorId(ActorId actorId) {
+        this.actorId = actorId;
     }
 }

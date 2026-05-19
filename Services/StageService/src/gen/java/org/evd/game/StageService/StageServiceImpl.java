@@ -38,9 +38,9 @@ public class StageServiceImpl extends RPCImplBase {
             case EnumCall.ENUM_STAGESERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK:
                 return (Function3<org.evd.game.runtime.ClientSessionRef, Integer, org.evd.game.runtime.Chunk>)service::forwardClientCmd;
             case EnumCall.ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT:
-                return (Function2<Integer, Integer>)service.requireCurrentMailbox(HaHaHaActor.class)::rpc1;
+                return (Function2<Integer, Integer>)service.requireCurrentActor(HaHaHaActor.class)::rpc1;
             case EnumCall.ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT:
-                return (Function2<Object, Object>)service.requireCurrentMailbox(HaHaHaActor.class)::rpc2;
+                return (Function2<Object, Object>)service.requireCurrentActor(HaHaHaActor.class)::rpc2;
             default:
                 return null;
         }

@@ -7,7 +7,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.DistributeConfig;
 </#if>
 <#if fullClassName != ownerFullClassName>
-import org.evd.game.runtime.mailbox.MailboxKey;
+import org.evd.game.runtime.actor.ActorId;
 </#if>
 <#if importPackages??>
     <#list importPackages as package>
@@ -47,14 +47,14 @@ public class ${className}Proxy extends RPCProxyBase {
         return new ${className}Proxy(callPoint);
     }
     <#else>
-    private MailboxKey mailboxKey;
+    private ActorId actorId;
 
-    private ${className}Proxy(CallPoint callPoint, MailboxKey mailboxKey){
+    private ${className}Proxy(CallPoint callPoint, ActorId actorId){
         this.remote = callPoint;
-        this.mailboxKey = mailboxKey == null ? null : new MailboxKey(mailboxKey);
+        this.actorId = actorId == null ? null : new ActorId(actorId);
     }
-    public static ${className}Proxy inst(CallPoint callPoint, MailboxKey mailboxKey) {
-        return new ${className}Proxy(callPoint, mailboxKey);
+    public static ${className}Proxy inst(CallPoint callPoint, ActorId actorId) {
+        return new ${className}Proxy(callPoint, actorId);
     }
     </#if>
     </#if>
@@ -69,13 +69,13 @@ public class ${className}Proxy extends RPCProxyBase {
         <#if method.targetIsOwner>
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
-        service.call(remote, mailboxKey, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        service.call(remote, actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         <#else >
         <#if method.targetIsOwner>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
-        return (${method.returnType})service.callWait(remote, mailboxKey, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        return (${method.returnType})service.callWait(remote, actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         </#if>
     }
@@ -85,7 +85,7 @@ public class ${className}Proxy extends RPCProxyBase {
         <#if method.targetIsOwner>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         <#else>
-        return (${method.returnType})service.callWait(remote, mailboxKey, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+        return (${method.returnType})service.callWait(remote, actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         </#if>
     }
     </#if>
