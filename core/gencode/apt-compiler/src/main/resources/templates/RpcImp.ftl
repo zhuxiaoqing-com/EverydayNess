@@ -18,22 +18,6 @@ public class ${className}Impl extends RPCImplBase {
         public final static int ${method.enumCall} = ${method.methodKey};
     </#list>
     }
-<#if actorFields??>
-    <#list actorFields as actorField>
-    private ${actorField.className} ${actorField.fieldName};
-    </#list>
-</#if>
-
-<#if actorFields??>
-    <#list actorFields as actorField>
-    private ${actorField.className} ${actorField.fieldName}() {
-        if (${actorField.fieldName} == null) {
-            ${actorField.fieldName} = new ${actorField.className}();
-        }
-        return ${actorField.fieldName};
-    }
-    </#list>
-</#if>
 
     @Override
     public Object getMethodFunction(Service serv, int methodKey) {
@@ -44,7 +28,7 @@ public class ${className}Impl extends RPCImplBase {
                 <#if method.targetIsOwner>
                 return (${method.func}${method.paramSize}${method.typeParams})service::${method.methodName};
                 <#else>
-                return (${method.func}${method.paramSize}${method.typeParams})${method.targetFieldName}()::${method.methodName};
+                return (${method.func}${method.paramSize}${method.typeParams})service.requireCurrentMailbox(${method.targetClassName}.class)::${method.methodName};
                 </#if>
             </#list>
             default:

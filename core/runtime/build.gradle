@@ -38,4 +38,5 @@ tasks.withType(JavaCompile) {
 
 test {
     useJUnitPlatform()
+    jvmArgs '--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED'
 }

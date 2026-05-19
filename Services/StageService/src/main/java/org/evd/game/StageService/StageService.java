@@ -2,6 +2,7 @@ package org.evd.game.StageService;
 
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Actor;
+import org.evd.game.common.mailbox.MailboxSender;
 import org.evd.game.common.proxy.ConnServiceProxy;
 import org.evd.game.common.proxy.LocationServiceProxy;
 import org.evd.game.common.proto.C2S_Login;
@@ -14,22 +15,21 @@ import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.ClientSessionRef;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.mailbox.MailboxExecutionMode;
+import org.evd.game.runtime.mailbox.MailboxKey;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RuntimeUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 @Actor
 public class StageService extends Service {
     public int a;
     private Object clientCmdRegistry;
     private java.lang.reflect.Method clientCmdDispatchMethod;
+    private final MailboxSender mailboxSender = new MailboxSender();
     private final MessageLocationSender messageLocationSender = new MessageLocationSender();
-    private final Map<Long, HaHaHaActor> haHaHaActors = new HashMap<>();
 
     public StageService(Node node, String name, String scheduledName) {
         super(node, name, scheduledName);
@@ -99,7 +99,10 @@ public class StageService extends Service {
                 .setRoleId(actorId)
                 .setToken("token-" + req.getAccount())
                 .build();
-        ConnServiceProxy.inst(session.getGate()).pushToClient(session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
+        mailboxSender.gate(session.getSessionId()).call(
+                session.getGate(),
+                ConnServiceProxy.EnumCall.ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK,
+                new Object[]{session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp)});
     }
 
     public MessageLocationSender getMessageLocationSender() {
@@ -136,16 +139,13 @@ public class StageService extends Service {
 
     private void bindActorLocation(long actorId) {
         CallPoint self = new CallPoint(node.getId(), id);
-        haHaHaActors.computeIfAbsent(actorId, ignore -> new HaHaHaActor());
-        LocationServiceProxy.inst().bindActor(actorId, self);
+        MailboxKey mailboxKey = MailboxKey.player(actorId);
+        registerMailbox(mailboxKey, new HaHaHaActor(), MailboxExecutionMode.ORDERED);
+        LocationServiceProxy.inst().bindMailbox(mailboxKey, self);
         messageLocationSender.cache(actorId, self);
     }
 
     private HaHaHaActor requireHaHaHaActor(long actorId) {
-        HaHaHaActor actor = haHaHaActors.get(actorId);
-        if (actor == null) {
-            throw RpcCallException.actorNotFound(actorId);
-        }
-        return actor;
+        return requireMailbox(MailboxKey.player(actorId), HaHaHaActor.class);
     }
 }

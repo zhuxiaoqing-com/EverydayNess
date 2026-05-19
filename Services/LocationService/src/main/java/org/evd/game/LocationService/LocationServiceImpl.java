@@ -4,6 +4,7 @@ import org.evd.game.common.location.LocationRpcEnum;
 import org.evd.game.runtime.RPCImplBase;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.mailbox.MailboxKey;
 import org.evd.game.runtime.support.function.Function2;
 import org.evd.game.runtime.support.function.ReturnFunction1;
 
@@ -16,11 +17,11 @@ public class LocationServiceImpl extends RPCImplBase {
         LocationService service = (LocationService) serv;
         return switch (methodKey) {
             case LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_BINDACTOR_LONG_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT ->
-                    (Function2<Long, CallPoint>) service::bindActor;
+                    (Function2<MailboxKey, CallPoint>) service::bindMailbox;
             case LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_UNBINDACTOR_LONG_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT ->
-                    (Function2<Long, CallPoint>) service::unbindActor;
+                    (Function2<MailboxKey, CallPoint>) service::unbindMailbox;
             case LocationRpcEnum.ENUM_LOCATIONSERVICE_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT_GETACTOR_LONG ->
-                    (ReturnFunction1<CallPoint, Long>) service::getActor;
+                    (ReturnFunction1<CallPoint, MailboxKey>) service::getMailbox;
             default -> throw new IllegalArgumentException("未知的LocationService methodKey: " + methodKey);
         };
     }

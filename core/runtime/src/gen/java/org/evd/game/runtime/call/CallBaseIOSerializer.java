@@ -15,6 +15,7 @@ public final class CallBaseIOSerializer{
 		org.evd.game.runtime.call.CallPointIOSerializer.write(out, instance.getFrom());
 		org.evd.game.runtime.call.CallPointIOSerializer.write(out, instance.getTo());
 		out.writeLong(instance.getId());
+		org.evd.game.runtime.mailbox.MailboxKeyIOSerializer.write(out, instance.getMailboxKey());
 	}
 	
 	/**
@@ -30,5 +31,8 @@ public final class CallBaseIOSerializer{
 		org.evd.game.runtime.call.CallPointIOSerializer.read(in, to);
 		instance.setTo(to);
 		instance.setId(in.readLong());
+		org.evd.game.runtime.mailbox.MailboxKey mailboxKey = new org.evd.game.runtime.mailbox.MailboxKey();
+		org.evd.game.runtime.mailbox.MailboxKeyIOSerializer.read(in, mailboxKey);
+		instance.setMailboxKey(mailboxKey);
 	}
 }

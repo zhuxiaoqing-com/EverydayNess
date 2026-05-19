@@ -10,6 +10,8 @@ import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.ClientSessionRef;
 import org.evd.game.common.proxy.StageServiceProxy;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.mailbox.MailboxExecutionMode;
+import org.evd.game.runtime.mailbox.MailboxKey;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Session;
 import org.evd.game.runtime.Service;
@@ -88,6 +90,7 @@ public class ConnService extends Service {
 
     @Rpc
     public void pushToClient(ClientSessionRef session, int msgId, Chunk body) {
+        requireMailbox(MailboxKey.gate(session.getSessionId()), Session.class);
         LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, msgId={}, bytes={}",
                 id, session.getSessionId(), msgId, body.length);
     }
@@ -104,6 +107,7 @@ public class ConnService extends Service {
     }
 
     ClientSessionRef buildClientSessionRef(Session session) {
+        registerMailbox(MailboxKey.gate(session.getSessionId()), session, MailboxExecutionMode.ORDERED);
         return new ClientSessionRef(new CallPoint(node.getId(), id), session.getSessionId(), session.getSessionId());
     }
 

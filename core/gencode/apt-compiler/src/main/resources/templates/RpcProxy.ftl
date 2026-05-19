@@ -6,6 +6,9 @@ import org.evd.game.runtime.Service;
 <#if singleton>
 import org.evd.game.runtime.DistributeConfig;
 </#if>
+<#if fullClassName != ownerFullClassName>
+import org.evd.game.runtime.mailbox.MailboxKey;
+</#if>
 <#if importPackages??>
     <#list importPackages as package>
         import ${package};
@@ -36,12 +39,24 @@ public class ${className}Proxy extends RPCProxyBase {
         return proxy;
     }
     <#else>
+    <#if fullClassName == ownerFullClassName>
     private ${className}Proxy(CallPoint callPoint){
         this.remote = callPoint;
     }
     public static ${className}Proxy inst(CallPoint callPoint) {
         return new ${className}Proxy(callPoint);
     }
+    <#else>
+    private MailboxKey mailboxKey;
+
+    private ${className}Proxy(CallPoint callPoint, MailboxKey mailboxKey){
+        this.remote = callPoint;
+        this.mailboxKey = mailboxKey == null ? null : new MailboxKey(mailboxKey);
+    }
+    public static ${className}Proxy inst(CallPoint callPoint, MailboxKey mailboxKey) {
+        return new ${className}Proxy(callPoint, mailboxKey);
+    }
+    </#if>
     </#if>
 
     <#list methods as method>
@@ -51,15 +66,27 @@ public class ${className}Proxy extends RPCProxyBase {
     public ${method.returnType} ${method.methodName}(${method.formalParams}){
         Service service = Service.getCurrent();
         <#if method.returnType == "void">
+        <#if method.targetIsOwner>
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        <#else>
+        service.call(remote, mailboxKey, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        </#if>
         <#else >
+        <#if method.targetIsOwner>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        <#else>
+        return (${method.returnType})service.callWait(remote, mailboxKey, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        </#if>
         </#if>
     }
     <#if method.returnType != "void">
     public ${method.returnType} ${method.methodName}(${method.formalParams}<#if method.formalParams?has_content>, </#if>long timeoutMillis){
         Service service = Service.getCurrent();
+        <#if method.targetIsOwner>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+        <#else>
+        return (${method.returnType})service.callWait(remote, mailboxKey, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+        </#if>
     }
     </#if>
     </#list>
