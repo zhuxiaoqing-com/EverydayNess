@@ -5,6 +5,7 @@ import org.evd.game.runtime.DistributeConfig;
 import org.evd.game.runtime.RPCProxyBase;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 
 /**
@@ -28,24 +29,42 @@ public class LocationServiceProxy extends RPCProxyBase {
         return new LocationServiceProxy(callPoint);
     }
 
-    public void bindActor(ActorId actorId, CallPoint callPoint) {
+    public void add(ActorId actorId, ActorAddress actorAddress) {
         Service service = Service.getCurrent();
         service.call(remote,
-                LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_BINDACTOR_LONG_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT,
-                new Object[]{actorId, callPoint});
+                LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_ADD_ACTORID_ACTORADDRESS,
+                new Object[]{actorId, actorAddress});
     }
 
-    public void unbindActor(ActorId actorId, CallPoint callPoint) {
+    public void remove(ActorId actorId) {
         Service service = Service.getCurrent();
         service.call(remote,
-                LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_UNBINDACTOR_LONG_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT,
-                new Object[]{actorId, callPoint});
-    }
-
-    public CallPoint getActor(ActorId actorId) {
-        Service service = Service.getCurrent();
-        return (CallPoint) service.callWait(remote,
-                LocationRpcEnum.ENUM_LOCATIONSERVICE_ORG_EVD_GAME_RUNTIME_CALL_CALLPOINT_GETACTOR_LONG,
+                LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_REMOVE_ACTORID,
                 new Object[]{actorId});
+    }
+
+    public ActorAddress get(ActorId actorId) {
+        Service service = Service.getCurrent();
+        return (ActorAddress) service.callWait(remote,
+                LocationRpcEnum.ENUM_LOCATIONSERVICE_ACTORADDRESS_GET_ACTORID,
+                new Object[]{actorId});
+    }
+
+    public void lock(ActorId actorId, ActorAddress oldActorAddress) {
+        lock(actorId, oldActorAddress, 60000);
+    }
+
+    public void lock(ActorId actorId, ActorAddress oldActorAddress, int timeMillis) {
+        Service service = Service.getCurrent();
+        service.call(remote,
+                LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_LOCK_ACTORID_ACTORADDRESS_INT,
+                new Object[]{actorId, oldActorAddress, timeMillis});
+    }
+
+    public void unlock(ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress) {
+        Service service = Service.getCurrent();
+        service.call(remote,
+                LocationRpcEnum.ENUM_LOCATIONSERVICE_VOID_UNLOCK_ACTORID_ACTORADDRESS_ACTORADDRESS,
+                new Object[]{actorId, oldActorAddress, newActorAddress});
     }
 }

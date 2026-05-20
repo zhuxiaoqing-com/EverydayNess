@@ -192,7 +192,7 @@ public final class ClientCmdRouteGenerator {
                     .append(route.cmd()).append(", service=").append(route.serviceFullClassName()).append("\");\n");
             source.append("        }\n");
             source.append("        ").append(route.proxyClassName())
-                    .append(".inst(callPoint).forwardClientCmd(session, cmd, new Chunk(body));\n");
+                    .append(".forwardClientCmd(callPoint, session, cmd, new Chunk(body));\n");
             source.append("    }\n\n");
         }
         source.append("}\n");

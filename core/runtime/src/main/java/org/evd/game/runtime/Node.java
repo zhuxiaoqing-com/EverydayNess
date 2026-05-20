@@ -251,6 +251,11 @@ public class Node extends TickCase{
     public void callHandle_snt(CallBase call) {
         // 根据请求类型来分别处理
         switch (call) {
+            case ActorMessage ignored: {
+                Service service = services.get(call.to.servId);
+                service.addCall_snt(call);
+            }
+            break;
             // PRC远程调用请求
             case Call ignored: {
                 Service service = services.get(call.to.servId);

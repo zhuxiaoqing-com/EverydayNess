@@ -2,6 +2,7 @@ package org.evd.game.runtime;
 
 import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.RpcCallException;
@@ -66,31 +67,27 @@ class ServiceActorDispatchTest {
     }
 
     @Test
-    void missingActorShouldStillThrowForLocationForwardActorCall() throws Exception {
-        TestActorService service = new TestActorService(new TestNode(nextAddr()), "missing-forward");
+    void actorMessageRequestShouldReturnActorNotFoundWhenMailboxMissing() throws Exception {
+        TestNode node = new TestNode(nextAddr());
+        TestActorService target = new TestActorService(node, "missing-mailbox-target");
+        TestRequesterService requester = new TestRequesterService(node, "missing-mailbox-requester");
+        node.addService(target);
+        node.addService(requester);
 
-        RpcCallException exception = assertThrows(RpcCallException.class,
-                () -> service.dispatch_st(service.newForwardActorCall(
-                        ActorId.player(4004L),
-                        TestActorService.METHOD_SLEEP_AND_RECORD,
-                        new Object[]{1, 1L})));
+        ActorId actorId = ActorId.player(4004L);
+        target.registerActorForTest(actorId, new Object(), ActorExecutionMode.ORDERED);
+        ActorAddress actorAddress = target.exposeActorAddress(actorId);
+        target.unregisterActorForTest(actorId);
 
+        requester.requestActorCall(actorAddress, actorId, 1, 1L);
+        requester.runPulseForTest();
+        target.runPulseForTest();
+        requester.runPulseForTest();
+
+        RpcCallException exception = requester.getLastFailure();
+        assertNotNull(exception);
         assertEquals(RpcErrorCodes.ACTOR_NOT_FOUND, exception.getErrorCode());
-        assertTrue(exception.getMessage().startsWith("rpc actor not found: actorId="));
-    }
-
-    @Test
-    void locationForwardActorCallShouldDispatchBusinessMethod() throws Exception {
-        TestActorService service = new TestActorService(new TestNode(nextAddr()), "forward-dispatch");
-        ActorId actorId = ActorId.player(5005L);
-        service.registerActorForTest(actorId, new Object(), ActorExecutionMode.UNORDERED);
-
-        service.dispatch_st(service.newForwardActorCall(
-                actorId,
-                TestActorService.METHOD_SLEEP_AND_RECORD,
-                new Object[]{7, 0L}));
-
-        assertEquals(List.of("start-7", "end-7"), service.events());
+        assertNull(requester.getLastResult());
     }
 
     @Test
@@ -124,7 +121,7 @@ class ServiceActorDispatchTest {
         target.scheduleAfterSleepHook(1, () -> target.unregisterActorForTest(actorId));
 
         target.addActorCall(actorId, 1, 20L);
-        requester.requestLocationCall(new CallPoint(node.getId(), target.getId()), actorId, 2, 0L);
+        requester.requestActorCall(target.exposeActorAddress(actorId), actorId, 2, 0L);
 
         target.runPulseForTest();
         requester.runPulseForTest();
@@ -156,7 +153,7 @@ class ServiceActorDispatchTest {
         });
 
         target.addActorCall(actorId, 1, 20L);
-        requester.requestLocationCall(new CallPoint(node.getId(), target.getId()), actorId, 2, 0L);
+        requester.requestActorCall(target.exposeActorAddress(actorId), actorId, 2, 0L);
 
         target.runPulseForTest();
         requester.runPulseForTest();
@@ -220,17 +217,12 @@ class ServiceActorDispatchTest {
             return call;
         }
 
-        Call newForwardActorCall(ActorId actorId, int methodKey, Object[] params) {
-            return ActorForwarding.createMessageEnvelope(
-                    new CallPoint("test-node", "from"),
-                    new CallPoint(node.getId(), getId()),
-                    actorId,
-                    methodKey,
-                    params);
-        }
-
         List<String> events() {
             return new ArrayList<>(events);
+        }
+
+        ActorAddress exposeActorAddress(ActorId actorId) {
+            return getActorAddress(actorId);
         }
 
         void runPulseForTest() {
@@ -265,12 +257,12 @@ class ServiceActorDispatchTest {
             super(node, name, "test-scheduled");
         }
 
-        void requestLocationCall(CallPoint target, ActorId actorId, int marker, long sleepMillis) {
+        void requestActorCall(ActorAddress actorAddress, ActorId actorId, int marker, long sleepMillis) {
             this.lastResult = null;
             this.lastFailure = null;
             this.tickAction = () -> {
                 try {
-                    lastResult = locationCallWait(target, actorId, TestActorService.METHOD_SLEEP_AND_RECORD, new Object[]{marker, sleepMillis});
+                    lastResult = getMessageSender().callWait(actorAddress, actorId, TestActorService.METHOD_SLEEP_AND_RECORD, new Object[]{marker, sleepMillis});
                 } catch (RpcCallException e) {
                     lastFailure = e;
                 }

@@ -1,13 +1,17 @@
 package ${commonPackageName};
 
-import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.RPCProxyBase;
 import org.evd.game.runtime.Service;
-<#if singleton>
-import org.evd.game.runtime.DistributeConfig;
+<#if needsCallPointImport>
+import org.evd.game.runtime.call.CallPoint;
 </#if>
-<#if fullClassName != ownerFullClassName>
+<#if needsLocationImport>
+import org.evd.game.common.location.MessageLocationSender;
+</#if>
+<#if needsActorIdImport>
 import org.evd.game.runtime.actor.ActorId;
+</#if>
+<#if needsActorTypeImport>
+import org.evd.game.runtime.actor.ActorType;
 </#if>
 <#if importPackages??>
     <#list importPackages as package>
@@ -18,7 +22,10 @@ import org.evd.game.runtime.actor.ActorId;
 /**
 * 根据${className}Service生成的代理类
 */
-public class ${className}Proxy extends RPCProxyBase {
+public final class ${className}Proxy {
+
+    private ${className}Proxy() {
+    }
 
     public final static class EnumCall{
     <#list methods as method>
@@ -26,66 +33,49 @@ public class ${className}Proxy extends RPCProxyBase {
     </#list>
     }
 
-    <#if singleton>
-    private static final String SERV_NAME = "${serviceName}";
-    private static CallPoint callPoint;
-
-    public static ${className}Proxy inst() {
-        ${className}Proxy proxy = new ${className}Proxy();
-        if(callPoint == null){
-            callPoint = DistributeConfig.getNode(SERV_NAME);
-        }
-        proxy.remote = callPoint;
-        return proxy;
-    }
-    <#else>
-    <#if fullClassName == ownerFullClassName>
-    private ${className}Proxy(CallPoint callPoint){
-        this.remote = callPoint;
-    }
-    public static ${className}Proxy inst(CallPoint callPoint) {
-        return new ${className}Proxy(callPoint);
-    }
-    <#else>
-    private ActorId actorId;
-
-    private ${className}Proxy(CallPoint callPoint, ActorId actorId){
-        this.remote = callPoint;
-        this.actorId = actorId == null ? null : new ActorId(actorId);
-    }
-    public static ${className}Proxy inst(CallPoint callPoint, ActorId actorId) {
-        return new ${className}Proxy(callPoint, actorId);
-    }
-    </#if>
-    </#if>
-
     <#list methods as method>
     /**
     * @see ${fullClassName}#${method.methodName}()
     */
-    public ${method.returnType} ${method.methodName}(${method.formalParams}){
+    public static ${method.returnType} ${method.methodName}(${method.targetPrefix}<#if method.formalParams?has_content>, </#if>${method.formalParams}){
         Service service = Service.getCurrent();
         <#if method.returnType == "void">
-        <#if method.targetIsOwner>
+        <#if method.routeService>
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
-        service.call(remote, actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        <#if method.usesFixedActorType>
+        ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        <#else >
+        new MessageLocationSender().send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        </#if>
+        <#else>
+        <#if method.routeService>
+        <#if method.usesFixedActorType>
+        ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
+        </#if>
         <#if method.targetIsOwner>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
         return (${method.returnType})service.callWait(remote, actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
+        <#else>
+        <#if method.usesFixedActorType>
+        ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
+        </#if>
+        return (${method.returnType})new MessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        </#if>
         </#if>
     }
     <#if method.returnType != "void">
-    public ${method.returnType} ${method.methodName}(${method.formalParams}<#if method.formalParams?has_content>, </#if>long timeoutMillis){
+    public static ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
         Service service = Service.getCurrent();
-        <#if method.targetIsOwner>
+        <#if method.routeService>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         <#else>
-        return (${method.returnType})service.callWait(remote, actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+        <#if method.usesFixedActorType>
+        ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
+        </#if>
+        return (${method.returnType})new MessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         </#if>
     }
     </#if>

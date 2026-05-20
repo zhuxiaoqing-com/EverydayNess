@@ -35,7 +35,7 @@ public final class ConnServiceClientCmdRouter {
         if (callPoint == null) {
             throw new IllegalStateException("找不到客户端协议目标服务: cmd=1001, service=org.evd.game.StageService.StageService");
         }
-        StageServiceProxy.inst(callPoint).forwardClientCmd(session, cmd, new Chunk(body));
+        StageServiceProxy.forwardClientCmd(callPoint, session, cmd, new Chunk(body));
     }
 
     private static void forwardToConnService(ClientSessionRef session, int cmd, byte[] body) {
@@ -43,7 +43,7 @@ public final class ConnServiceClientCmdRouter {
         if (callPoint == null) {
             throw new IllegalStateException("找不到客户端协议目标服务: cmd=1002, service=org.evd.game.ConnService.ConnService");
         }
-        ConnServiceProxy.inst(callPoint).forwardClientCmd(session, cmd, new Chunk(body));
+        ConnServiceProxy.forwardClientCmd(callPoint, session, cmd, new Chunk(body));
     }
 
 }

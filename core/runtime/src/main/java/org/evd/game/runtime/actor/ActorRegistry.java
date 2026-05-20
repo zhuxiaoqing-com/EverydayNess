@@ -1,6 +1,8 @@
 package org.evd.game.runtime.actor;
 
 import org.evd.game.runtime.support.RpcCallException;
+import org.evd.game.runtime.mailbox.MailBoxComponent;
+import org.evd.game.runtime.mailbox.MailBoxType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -9,12 +11,19 @@ public class ActorRegistry {
     public static final class Registration {
         private final Object actor;
         private final ActorExecutionMode executionMode;
-        private final long registrationId;
+        private final long ownerInstanceId;
+        private final MailBoxComponent mailBoxComponent;
 
-        private Registration(Object actor, ActorExecutionMode executionMode, long registrationId) {
+        private Registration(
+                Object actor,
+                ActorExecutionMode executionMode,
+                long ownerInstanceId,
+                MailBoxComponent mailBoxComponent
+        ) {
             this.actor = actor;
             this.executionMode = executionMode;
-            this.registrationId = registrationId;
+            this.ownerInstanceId = ownerInstanceId;
+            this.mailBoxComponent = mailBoxComponent;
         }
 
         public Object getActor() {
@@ -25,20 +34,38 @@ public class ActorRegistry {
             return executionMode;
         }
 
-        public long getRegistrationId() {
-            return registrationId;
+        public long getOwnerInstanceId() {
+            return ownerInstanceId;
+        }
+
+        public MailBoxComponent getMailBoxComponent() {
+            return mailBoxComponent;
         }
     }
 
     private final Map<ActorId, Registration> actors = new HashMap<>();
-    private long nextRegistrationId = 1L;
+    private final Map<Long, MailBoxComponent> mailBoxes = new HashMap<>();
+    private long nextOwnerInstanceId = 1L;
+    private long nextMailBoxInstanceId = 1L;
 
     public void register(ActorId actorId, Object actor, ActorExecutionMode executionMode) {
-        actors.put(new ActorId(actorId), new Registration(actor, executionMode, nextRegistrationId++));
+        long ownerInstanceId = nextOwnerInstanceId++;
+        MailBoxComponent mailBoxComponent = new MailBoxComponent(
+                actorId,
+                actor,
+                ownerInstanceId,
+                nextMailBoxInstanceId++,
+                executionMode == ActorExecutionMode.ORDERED ? MailBoxType.ORDERED : MailBoxType.UNORDERED);
+        actors.put(new ActorId(actorId), new Registration(actor, executionMode, ownerInstanceId, mailBoxComponent));
+        mailBoxes.put(ownerInstanceId, mailBoxComponent);
     }
 
     public void unregister(ActorId actorId) {
-        actors.remove(actorId);
+        Registration registration = actors.remove(actorId);
+        if (registration == null) {
+            return;
+        }
+        mailBoxes.remove(registration.getOwnerInstanceId());
     }
 
     public boolean contains(ActorId actorId) {
@@ -58,12 +85,13 @@ public class ActorRegistry {
         return registration;
     }
 
-    public Registration requireSameRegistration(ActorId actorId, long registrationId) {
-        Registration registration = requireRegistration(actorId);
-        if (registration.getRegistrationId() != registrationId) {
-            throw RpcCallException.actorNotFound(actorId);
-        }
-        return registration;
+    public MailBoxComponent getMailBox(long ownerInstanceId) {
+        return mailBoxes.get(ownerInstanceId);
+    }
+
+    public boolean hasSameMailBoxInstance(long ownerInstanceId, long mailBoxInstanceId) {
+        MailBoxComponent mailBoxComponent = mailBoxes.get(ownerInstanceId);
+        return mailBoxComponent != null && mailBoxComponent.getInstanceId() == mailBoxInstanceId;
     }
 
     public <T> T require(ActorId actorId, Class<T> type) {

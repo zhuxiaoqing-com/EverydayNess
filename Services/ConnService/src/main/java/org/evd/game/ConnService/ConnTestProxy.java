@@ -1,6 +1,8 @@
 package org.evd.game.ConnService;
 
 import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.RpcActorType;
+import org.evd.game.annotation.RpcRoute;
 import org.evd.game.common.serializeBean.ConnInfo;
 
 /**
@@ -9,13 +11,13 @@ import org.evd.game.common.serializeBean.ConnInfo;
  * @Date 2026/5/14 13:55
  **/
 public class ConnTestProxy {
-    @Rpc
-    public void connTest1() {
+    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.PLAYER)
+    public void connTest3() {
 
     }
 
 
-    @Rpc
+    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.PLAYER)
     public void connTest2(int a, Object b, ConnInfo connInfo) {
 
     }

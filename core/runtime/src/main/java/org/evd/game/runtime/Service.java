@@ -5,9 +5,12 @@ import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
+import org.evd.game.runtime.call.ActorMessage;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorRegistry;
+import org.evd.game.runtime.mailbox.MailBoxComponent;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
@@ -17,6 +20,7 @@ import org.evd.game.runtime.support.function.*;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +30,23 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  * 服务
  */
 public class Service extends TickCase{
+    private static final long ACTOR_ADDRESS_CACHE_IDLE_MILLIS = 30L * 60L * 1000L;
+    private static final long ACTOR_ADDRESS_CACHE_CLEANUP_INTERVAL_MILLIS = 5L * 60L * 1000L;
+
+    private static final class CachedActorAddress {
+        private final ActorAddress actorAddress;
+        private long lastAccessTime;
+
+        private CachedActorAddress(ActorAddress actorAddress, long lastAccessTime) {
+            this.actorAddress = actorAddress;
+            this.lastAccessTime = lastAccessTime;
+        }
+    }
+
     /** 通用协程锁类型: actor */
     protected static final int COROUTINE_LOCK_TYPE_ACTOR = 1;
+    /** mailbox 线性化锁类型 */
+    static final int COROUTINE_LOCK_TYPE_MAILBOX = 2;
 
     public void addCall_snt(CallBase call) {
         calls.add(call);
@@ -58,6 +77,13 @@ public class Service extends TickCase{
     private final TimerScheduler timerScheduler = new TimerScheduler();
     /** continuation 调度与 wait/timeout */
     private final ContinuationRuntime continuationRuntime = new ContinuationRuntime(this, timerScheduler);
+    /** actor mailbox 分发 */
+    private final ProcessInnerSender processInnerSender = new ProcessInnerSender(this);
+    /** 已知 actor address 的 message sender */
+    private final MessageSender messageSender = new MessageSender(this);
+    /** location sender 缓存 */
+    private final Map<ActorId, CachedActorAddress> actorAddressCache = new HashMap<>();
+    private long actorAddressCacheCleanupTimerId;
     /** ThreadLocal */
     private final static ThreadLocal<Service> threadLocal = new ThreadLocal<>();
     public static Service getCurrent(){
@@ -88,6 +114,10 @@ public class Service extends TickCase{
     protected void init_t() {
         // 加入到services
         node.attachToNode(this);
+        actorAddressCacheCleanupTimerId = newRepeatedTimer(
+                ACTOR_ADDRESS_CACHE_CLEANUP_INTERVAL_MILLIS,
+                false,
+                this::cleanupIdleActorAddressCache);
 
         // 修改状态
         status = CaseStatus.Running;
@@ -207,6 +237,9 @@ public class Service extends TickCase{
         // 发送的call
         if (callbase instanceof Call call){
             context = createCallContinuation(call, call.getActorId());
+        } else if (callbase instanceof ActorMessage actorMessage) {
+            processInnerSender.dispatch(actorMessage);
+            return;
         }
         // 返回的callResult
         else {
@@ -256,32 +289,13 @@ public class Service extends TickCase{
         } catch (Throwable e) {
             LogCore.core.error("actor rpc dispatch failed: service={}, actorId={}, methodKey={}", id, call.actorId, call.methodKey, e);
             fillRpcFailure(callReturn, e);
-            sendCall_st(callReturn);
+            sendTransport_st(callReturn);
         }
     }
 
     private void dispatchActorCall_st(Call call) {
         ActorRegistry.Registration registration = actorRegistry.requireRegistration(call.actorId);
-        Call businessCall = ActorForwarding.unwrapOrOriginal(id, call);
-        switch (registration.getExecutionMode()) {
-            case ORDERED -> dispatchOrderedActorCall_st(businessCall, registration.getRegistrationId());
-            case UNORDERED -> dispatchUnorderedActorCall_st(businessCall);
-        }
-    }
-
-    final void dispatchOrderedActorCall_st(Call call, long registrationId) {
-        Task.ContinuationWrapper continuation = requireRunningContinuation();
-        awaitCoroutineLock(COROUTINE_LOCK_TYPE_ACTOR, new ActorId(call.actorId));
-        try {
-            actorRegistry.requireSameRegistration(call.actorId, registrationId);
-            dispatchBusinessCall_st(call);
-        } finally {
-            releaseCoroutineLock(continuation);
-        }
-    }
-
-    final void dispatchUnorderedActorCall_st(Call call) {
-        dispatchBusinessCall_st(call);
+        processInnerSender.dispatch(toActorMessage(call, registration));
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -306,6 +320,7 @@ public class Service extends TickCase{
         }
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private Object invokeRpc(Object func, Object[] args) throws InterruptedException {
         switch (args.length) {
             case 0:
@@ -409,14 +424,6 @@ public class Service extends TickCase{
         sendCall_st(call);
     }
 
-    public void locationSend(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
-        Call call = ActorForwarding.createMessageEnvelope(this.callPoint, toCallPoint, actorId, methodKey, params);
-        if (!sendCall_st(call)) {
-            throw new SysException("send location message failed: service={}, toNode={}, toService={}, methodKey={}",
-                    id, toCallPoint.nodeId, toCallPoint.servId, methodKey);
-        }
-    }
-
     /**
      * 创建call请求，并发送到目标service
      * 针对需要返回结果的call请求
@@ -449,28 +456,6 @@ public class Service extends TickCase{
         if (!sendCall_st(call)) {
             continuationRuntime.takeWaitContinuation(waitId);
             throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
-                    id, toCallPoint.nodeId, toCallPoint.servId, methodKey);
-        }
-
-        return thisContinuation.waitResult();
-    }
-
-    public Object locationCallWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
-        return locationCallWait(toCallPoint, actorId, methodKey, params, getCallWaitTimeout());
-    }
-
-    public Object locationCallWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
-        Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
-        long waitId = registerWait(timeoutMillis,
-                (continuation, timeoutWaitId) -> continuation.setFailure(
-                        new SysException("location rpc call timeout: service={}, waitId={}", id, timeoutWaitId)));
-
-        Call call = ActorForwarding.createRequestEnvelope(this.callPoint, toCallPoint, actorId, methodKey, params);
-        call.id = waitId;
-
-        if (!sendCall_st(call)) {
-            continuationRuntime.takeWaitContinuation(waitId);
-            throw new SysException("send location rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
                     id, toCallPoint.nodeId, toCallPoint.servId, methodKey);
         }
 
@@ -536,7 +521,15 @@ public class Service extends TickCase{
         return true;
     }
 
+    boolean sendTransport_st(CallBase call) {
+        return sendCall_st(call);
+    }
+
     private Task.ContinuationWrapper requireRunningContinuation() {
+        return continuationRuntime.requireRunning();
+    }
+
+    Task.ContinuationWrapper requireRunningContinuationTransport() {
         return continuationRuntime.requireRunning();
     }
 
@@ -544,12 +537,48 @@ public class Service extends TickCase{
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
     }
 
+    long registerTransportWait(long timeoutMillis, ContinuationRuntime.WaitTimeoutHandler timeoutHandler) {
+        return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
+    }
+
     private Task.ContinuationWrapper takeWaitContinuation(long waitId) {
+        return continuationRuntime.takeWaitContinuation(waitId);
+    }
+
+    Task.ContinuationWrapper takeTransportWaitContinuation(long waitId) {
         return continuationRuntime.takeWaitContinuation(waitId);
     }
 
     private Task.ContinuationWrapper createCallContinuation(Call call, ActorId actorId) {
         return continuationRuntime.create(new Task.TaskParam1<>(this::dispatch_st, call), actorId);
+    }
+
+    Task.ContinuationWrapper createActorMessageContinuation(Runnable task, ActorId actorId) {
+        return continuationRuntime.create(task, actorId);
+    }
+
+    void queueContinuation(Task.ContinuationWrapper continuation) {
+        continuationRuntime.queue(continuation);
+    }
+
+    protected final Task.ContinuationWrapper currentContinuation() {
+        return requireRunningContinuation();
+    }
+
+    protected final void resumeContinuation(Task.ContinuationWrapper continuation, Object result) {
+        if (continuation == null) {
+            return;
+        }
+        continuation.setResult(result);
+        continuationRuntime.queue(continuation);
+    }
+
+    protected final void failContinuation(Task.ContinuationWrapper continuation, RuntimeException failure) {
+        if (continuation == null) {
+            return;
+        }
+        continuation.setFailure(failure);
+        continuationRuntime.queue(continuation);
     }
 
     protected final void awaitCoroutineLock(int type, Object key) {
@@ -582,6 +611,10 @@ public class Service extends TickCase{
         continuationRuntime.queue(next);
     }
 
+    void releaseContinuationLock(Task.ContinuationWrapper continuation) {
+        releaseCoroutineLock(continuation);
+    }
+
     protected void registerActor(ActorId actorId, Object actor, ActorExecutionMode executionMode) {
         actorRegistry.register(actorId, actor, executionMode);
     }
@@ -596,6 +629,14 @@ public class Service extends TickCase{
 
     protected <T> T requireActor(ActorId actorId, Class<T> type) {
         return actorRegistry.require(actorId, type);
+    }
+
+    MailBoxComponent getMailBox(long ownerInstanceId) {
+        return actorRegistry.getMailBox(ownerInstanceId);
+    }
+
+    boolean hasSameMailBoxInstance(long ownerInstanceId, long mailBoxInstanceId) {
+        return actorRegistry.hasSameMailBoxInstance(ownerInstanceId, mailBoxInstanceId);
     }
 
     public ActorId requireCurrentActorId() {
@@ -615,6 +656,98 @@ public class Service extends TickCase{
 
     public <T> T requireCurrentActor(Class<T> type) {
         return requireActor(requireCurrentActorId(), type);
+    }
+
+    void dispatchMailBoxMessage_st(ActorMessage message) {
+        Call call = new Call();
+        call.from = new CallPoint(message.getFrom());
+        call.to = new CallPoint(message.getTo());
+        call.id = message.getId();
+        call.actorId = message.getActorId() == null ? null : new ActorId(message.getActorId());
+        call.methodKey = message.getMethodKey();
+        call.methodParam = message.getMethodParam();
+        call.needResult = message.isNeedResult();
+        dispatchBusinessCall_st(call);
+    }
+
+    void replyActorNotFound(ActorMessage message) {
+        processInnerSender.replyActorNotFound(message);
+    }
+
+    public MessageSender getMessageSender() {
+        return messageSender;
+    }
+
+    public ActorAddress getCachedActorAddress(ActorId actorId) {
+        if (actorId == null) {
+            return null;
+        }
+        CachedActorAddress cachedActorAddress = actorAddressCache.get(actorId);
+        if (cachedActorAddress == null) {
+            return null;
+        }
+        cachedActorAddress.lastAccessTime = getWaitBaseTime();
+        return new ActorAddress(cachedActorAddress.actorAddress);
+    }
+
+    public void cacheActorAddress(ActorId actorId, ActorAddress actorAddress) {
+        if (actorId == null || actorAddress == null) {
+            return;
+        }
+        actorAddressCache.put(
+                new ActorId(actorId),
+                new CachedActorAddress(new ActorAddress(actorAddress), getWaitBaseTime()));
+    }
+
+    public void removeActorAddress(ActorId actorId) {
+        if (actorId == null) {
+            return;
+        }
+        actorAddressCache.remove(actorId);
+    }
+
+    private void cleanupIdleActorAddressCache() {
+        if (actorAddressCache.isEmpty()) {
+            return;
+        }
+        long expireBefore = getWaitBaseTime() - ACTOR_ADDRESS_CACHE_IDLE_MILLIS;
+        Iterator<Map.Entry<ActorId, CachedActorAddress>> iterator = actorAddressCache.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<ActorId, CachedActorAddress> entry = iterator.next();
+            if (entry.getValue().lastAccessTime > expireBefore) {
+                continue;
+            }
+            iterator.remove();
+        }
+    }
+
+    CallPoint getCallPointInternal() {
+        return new CallPoint(callPoint);
+    }
+
+    long getTransportCallWaitTimeout() {
+        return getCallWaitTimeout();
+    }
+
+    protected ActorAddress getActorAddress(ActorId actorId) {
+        ActorRegistry.Registration registration = actorRegistry.requireRegistration(actorId);
+        MailBoxComponent mailBoxComponent = registration.getMailBoxComponent();
+        return new ActorAddress(callPoint, mailBoxComponent.getOwnerInstanceId(), mailBoxComponent.getInstanceId());
+    }
+
+    private ActorMessage toActorMessage(Call call, ActorRegistry.Registration registration) {
+        MailBoxComponent mailBoxComponent = registration.getMailBoxComponent();
+        ActorMessage actorMessage = new ActorMessage();
+        actorMessage.setFrom(new CallPoint(call.from));
+        actorMessage.setTo(new CallPoint(call.to));
+        actorMessage.setId(call.id);
+        actorMessage.setActorId(call.actorId == null ? null : new ActorId(call.actorId));
+        actorMessage.setOwnerInstanceId(mailBoxComponent.getOwnerInstanceId());
+        actorMessage.setMailBoxInstanceId(mailBoxComponent.getInstanceId());
+        actorMessage.setMethodKey(call.methodKey);
+        actorMessage.setMethodParam(call.methodParam);
+        actorMessage.setNeedResult(call.needResult);
+        return actorMessage;
     }
 
     private void fillRpcFailure(CallResult callReturn, Throwable e) {
@@ -659,6 +792,11 @@ public class Service extends TickCase{
 
     @Override
     public void onClose(){
+        if (actorAddressCacheCleanupTimerId != 0L) {
+            removeTimer(actorAddressCacheCleanupTimerId);
+            actorAddressCacheCleanupTimerId = 0L;
+        }
+        actorAddressCache.clear();
 
         node.remove(this);
 

@@ -3,6 +3,8 @@ package org.evd.game.gencode.rpc;
 import com.google.auto.service.AutoService;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.RpcActorType;
+import org.evd.game.annotation.RpcRoute;
 import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.ProcessorBase;
@@ -63,6 +65,9 @@ public class RpcProcessor extends ProcessorBase {
         }
 
         structList = StructFactory.convertMethod(elementUtils, elements, Rpc.class);
+        for (MethodStruct<Rpc> method : structList) {
+            initRpcMetadata(method);
+        }
         structList.sort(Comparator
                 .comparing((MethodStruct<Rpc> m) -> m.fullClassName)
                 .thenComparing(m -> m.methodName)
@@ -116,13 +121,20 @@ public class RpcProcessor extends ProcessorBase {
         int splitIndex = generatedClassFullName.lastIndexOf(".");
         String generatedPackageName = generatedClassFullName.substring(0, splitIndex);
         String generatedClassName = generatedClassFullName.substring(splitIndex + 1);
+        boolean ownerImpl = generatedClassFullName.equals(ownerType.getQualifiedName().toString());
 
         Map<String, Object> dataModel = new HashMap<>();
         Set<String> importPackages = new LinkedHashSet<>();
         List<String> importsModel = new ArrayList<>();
         List<Map<String, Object>> methodsModel = new ArrayList<>();
         List<Map<String, Object>> actorFieldsModel = new ArrayList<>();
+        List<Map<String, Object>> serviceTargetFieldsModel = new ArrayList<>();
         Set<String> actorFieldNames = new HashSet<>();
+        Set<String> serviceTargetFieldNames = new HashSet<>();
+        boolean needsCallPointImport = false;
+        boolean needsLocationImport = false;
+        boolean needsActorIdImport = false;
+        boolean needsActorTypeImport = false;
 
         dataModel.put("packageName", generatedPackageName);
         dataModel.put("commonPackageName", "org.evd.game.common.proxy");
@@ -133,6 +145,7 @@ public class RpcProcessor extends ProcessorBase {
         dataModel.put("importPackages", importsModel);
         dataModel.put("methods", methodsModel);
         dataModel.put("actorFields", actorFieldsModel);
+        dataModel.put("serviceTargetFields", serviceTargetFieldsModel);
 
         Actor serviceAnnotation = ownerType.getAnnotation(Actor.class);
         if (serviceAnnotation == null) {
@@ -143,6 +156,27 @@ public class RpcProcessor extends ProcessorBase {
 
         for (MethodStruct<Rpc> method : methods) {
             collectMethodImports(importPackages, generatedPackageName, method);
+            boolean ownerMethod = method.fullClassName.equals(method.ownerFullClassName);
+            boolean routeService = method.rpcRoute == RpcRoute.SERVICE;
+            boolean routeLocation = method.rpcRoute == RpcRoute.LOCATION;
+            boolean usesFixedActorType = routeLocation && method.rpcActorType != RpcActorType.NONE;
+            String targetPrefix;
+            if (routeService) {
+                targetPrefix = "CallPoint remote";
+                needsCallPointImport = true;
+            } else if (usesFixedActorType) {
+                targetPrefix = "long actorUniqueId";
+                needsActorTypeImport = true;
+                needsActorIdImport = true;
+                needsLocationImport = true;
+            } else {
+                targetPrefix = "ActorId actorId";
+                needsActorIdImport = true;
+                needsLocationImport = true;
+            }
+            if (routeLocation) {
+                needsLocationImport = true;
+            }
 
             Map<String, Object> methodModel = new HashMap<>();
             methodsModel.add(methodModel);
@@ -166,6 +200,11 @@ public class RpcProcessor extends ProcessorBase {
             methodModel.put("targetClassName", method.className);
             methodModel.put("targetFieldName", getActorFieldName(method.className));
             methodModel.put("targetIsOwner", method.fullClassName.equals(method.ownerFullClassName));
+            methodModel.put("routeService", routeService);
+            methodModel.put("routeLocation", routeLocation);
+            methodModel.put("usesFixedActorType", usesFixedActorType);
+            methodModel.put("actorTypeName", method.rpcActorType.name());
+            methodModel.put("targetPrefix", targetPrefix);
 
             String func = method.returnType.equals("void") ? "Function" : "ReturnFunction";
             methodModel.put("func", func);
@@ -183,8 +222,18 @@ public class RpcProcessor extends ProcessorBase {
                     actorFieldModel.put("fieldName", fieldName);
                     actorFieldsModel.add(actorFieldModel);
                 }
+                if (routeService && serviceTargetFieldNames.add(fieldName)) {
+                    Map<String, Object> serviceTargetFieldModel = new HashMap<>();
+                    serviceTargetFieldModel.put("className", method.className);
+                    serviceTargetFieldModel.put("fieldName", fieldName);
+                    serviceTargetFieldsModel.add(serviceTargetFieldModel);
+                }
             }
         }
+        dataModel.put("needsCallPointImport", needsCallPointImport);
+        dataModel.put("needsLocationImport", needsLocationImport);
+        dataModel.put("needsActorIdImport", needsActorIdImport);
+        dataModel.put("needsActorTypeImport", needsActorTypeImport);
         importsModel.addAll(importPackages);
         return dataModel;
     }
@@ -303,6 +352,15 @@ public class RpcProcessor extends ProcessorBase {
 
     private String toEnumToken(String value) {
         return value.toUpperCase().replace('.', '_').replaceAll("[^A-Z0-9_]", "_");
+    }
+
+    private void initRpcMetadata(MethodStruct<Rpc> method) {
+        Rpc rpc = method.getExecutableElement().getAnnotation(Rpc.class);
+        if (rpc == null) {
+            throw new IllegalStateException("找不到 @Rpc 注解: " + method.fullClassName + "#" + method.methodName);
+        }
+        method.rpcRoute = rpc.route();
+        method.rpcActorType = rpc.actorType();
     }
 
     private String getActorFieldName(String className) {

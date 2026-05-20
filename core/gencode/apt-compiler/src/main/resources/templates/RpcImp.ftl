@@ -18,6 +18,11 @@ public class ${className}Impl extends RPCImplBase {
         public final static int ${method.enumCall} = ${method.methodKey};
     </#list>
     }
+    <#if serviceTargetFields??>
+    <#list serviceTargetFields as field>
+    private final ${field.className} ${field.fieldName} = new ${field.className}();
+    </#list>
+    </#if>
 
     @Override
     public Object getMethodFunction(Service serv, int methodKey) {
@@ -28,7 +33,11 @@ public class ${className}Impl extends RPCImplBase {
                 <#if method.targetIsOwner>
                 return (${method.func}${method.paramSize}${method.typeParams})service::${method.methodName};
                 <#else>
+                <#if method.routeService>
+                return (${method.func}${method.paramSize}${method.typeParams})${method.targetFieldName}::${method.methodName};
+                <#else>
                 return (${method.func}${method.paramSize}${method.typeParams})service.requireCurrentActor(${method.targetClassName}.class)::${method.methodName};
+                </#if>
                 </#if>
             </#list>
             default:
