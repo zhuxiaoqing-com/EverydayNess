@@ -26,26 +26,26 @@ final class SerializerRegister{
 	* 注册序列化
 	*/
 	private static void registerWrite(){
+		OutputStream.registerSerializeWriteFunc(-124463222, SerializerRegister::ActorIdIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(-1065350591, SerializerRegister::CallIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(287635283, SerializerRegister::CallPingIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(326933455, SerializerRegister::CallPointIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(1593330110, SerializerRegister::CallResultIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(322098688, SerializerRegister::ChunkIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(-1328685355, SerializerRegister::ClientSessionRefIOSerializerWrite);
-		OutputStream.registerSerializeWriteFunc(1908892114, SerializerRegister::ActorIdIOSerializerWrite);
 		OutputStream.registerSerializeWriteFunc(1944252859, SerializerRegister::TickTimerIOSerializerWrite);
 	}
 	/**
 	* 注册反序列化
 	*/
 	private static void registerRead(){
+		InputStream.registerSerializeReadFunc(-124463222, SerializerRegister::ActorIdIOSerializerRead);
 		InputStream.registerSerializeReadFunc(-1065350591, SerializerRegister::CallIOSerializerRead);
 		InputStream.registerSerializeReadFunc(287635283, SerializerRegister::CallPingIOSerializerRead);
 		InputStream.registerSerializeReadFunc(326933455, SerializerRegister::CallPointIOSerializerRead);
 		InputStream.registerSerializeReadFunc(1593330110, SerializerRegister::CallResultIOSerializerRead);
 		InputStream.registerSerializeReadFunc(322098688, SerializerRegister::ChunkIOSerializerRead);
 		InputStream.registerSerializeReadFunc(-1328685355, SerializerRegister::ClientSessionRefIOSerializerRead);
-		InputStream.registerSerializeReadFunc(1908892114, SerializerRegister::ActorIdIOSerializerRead);
 		InputStream.registerSerializeReadFunc(1944252859, SerializerRegister::TickTimerIOSerializerRead);
 	}
 	/**
@@ -54,6 +54,9 @@ final class SerializerRegister{
 	private static void registerReadEnum(){
 	}
 
+	public static void ActorIdIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.actor.ActorIdIOSerializer.write(out, (org.evd.game.runtime.actor.ActorId)ser);
+	}
 	public static void CallIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.call.CallIOSerializer.write(out, (org.evd.game.runtime.call.Call)ser);
 	}
@@ -72,13 +75,15 @@ final class SerializerRegister{
 	public static void ClientSessionRefIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.ClientSessionRefIOSerializer.write(out, (org.evd.game.runtime.ClientSessionRef)ser);
 	}
-	public static void ActorIdIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.runtime.actor.ActorIdIOSerializer.write(out, (org.evd.game.runtime.actor.ActorId)ser);
-	}
 	public static void TickTimerIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.TickTimerIOSerializer.write(out, (org.evd.game.runtime.TickTimer)ser);
 	}
 
+	public static ISerializable ActorIdIOSerializerRead(InputStream in) throws IOException{
+		org.evd.game.runtime.actor.ActorId actorId = new org.evd.game.runtime.actor.ActorId();
+		org.evd.game.runtime.actor.ActorIdIOSerializer.read(in, actorId);
+		return actorId;
+	}
 	public static ISerializable CallIOSerializerRead(InputStream in) throws IOException{
 		org.evd.game.runtime.call.Call call = new org.evd.game.runtime.call.Call();
 		org.evd.game.runtime.call.CallIOSerializer.read(in, call);
@@ -108,11 +113,6 @@ final class SerializerRegister{
 		org.evd.game.runtime.ClientSessionRef clientSessionRef = new org.evd.game.runtime.ClientSessionRef();
 		org.evd.game.runtime.ClientSessionRefIOSerializer.read(in, clientSessionRef);
 		return clientSessionRef;
-	}
-	public static ISerializable ActorIdIOSerializerRead(InputStream in) throws IOException{
-		org.evd.game.runtime.actor.ActorId actorId = new org.evd.game.runtime.actor.ActorId();
-		org.evd.game.runtime.actor.ActorIdIOSerializer.read(in, actorId);
-		return actorId;
 	}
 	public static ISerializable TickTimerIOSerializerRead(InputStream in) throws IOException{
 		org.evd.game.runtime.TickTimer tickTimer = new org.evd.game.runtime.TickTimer();

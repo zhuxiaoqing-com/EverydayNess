@@ -237,26 +237,43 @@ public class Service extends TickCase{
     public void dispatch_st(Call call){
         // todo 这里没有actorId 是不是应该报错呢？
         if (call.actorId != null) {
-            dispatchActorCall_st(call);
+            dispatchActorCallWithResult_st(call);
             return;
         }
 
         dispatchBusinessCall_st(call);
     }
 
+    private void dispatchActorCallWithResult_st(Call call) {
+        if (!call.needResult) {
+            dispatchActorCall_st(call);
+            return;
+        }
+
+        CallResult callReturn = call.createReturn();
+        try {
+            dispatchActorCall_st(call);
+        } catch (Throwable e) {
+            LogCore.core.error("actor rpc dispatch failed: service={}, actorId={}, methodKey={}", id, call.actorId, call.methodKey, e);
+            fillRpcFailure(callReturn, e);
+            sendCall_st(callReturn);
+        }
+    }
+
     private void dispatchActorCall_st(Call call) {
         ActorRegistry.Registration registration = actorRegistry.requireRegistration(call.actorId);
         Call businessCall = ActorForwarding.unwrapOrOriginal(id, call);
         switch (registration.getExecutionMode()) {
-            case ORDERED -> dispatchOrderedActorCall_st(businessCall);
+            case ORDERED -> dispatchOrderedActorCall_st(businessCall, registration.getRegistrationId());
             case UNORDERED -> dispatchUnorderedActorCall_st(businessCall);
         }
     }
 
-    final void dispatchOrderedActorCall_st(Call call) {
+    final void dispatchOrderedActorCall_st(Call call, long registrationId) {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
         awaitCoroutineLock(COROUTINE_LOCK_TYPE_ACTOR, new ActorId(call.actorId));
         try {
+            actorRegistry.requireSameRegistration(call.actorId, registrationId);
             dispatchBusinessCall_st(call);
         } finally {
             releaseCoroutineLock(continuation);

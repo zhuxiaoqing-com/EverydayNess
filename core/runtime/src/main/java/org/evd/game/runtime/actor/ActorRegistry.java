@@ -9,10 +9,12 @@ public class ActorRegistry {
     public static final class Registration {
         private final Object actor;
         private final ActorExecutionMode executionMode;
+        private final long registrationId;
 
-        private Registration(Object actor, ActorExecutionMode executionMode) {
+        private Registration(Object actor, ActorExecutionMode executionMode, long registrationId) {
             this.actor = actor;
             this.executionMode = executionMode;
+            this.registrationId = registrationId;
         }
 
         public Object getActor() {
@@ -22,12 +24,17 @@ public class ActorRegistry {
         public ActorExecutionMode getExecutionMode() {
             return executionMode;
         }
+
+        public long getRegistrationId() {
+            return registrationId;
+        }
     }
 
     private final Map<ActorId, Registration> actors = new HashMap<>();
+    private long nextRegistrationId = 1L;
 
     public void register(ActorId actorId, Object actor, ActorExecutionMode executionMode) {
-        actors.put(new ActorId(actorId), new Registration(actor, executionMode));
+        actors.put(new ActorId(actorId), new Registration(actor, executionMode, nextRegistrationId++));
     }
 
     public void unregister(ActorId actorId) {
@@ -46,6 +53,14 @@ public class ActorRegistry {
     public Registration requireRegistration(ActorId actorId) {
         Registration registration = actors.get(actorId);
         if (registration == null) {
+            throw RpcCallException.actorNotFound(actorId);
+        }
+        return registration;
+    }
+
+    public Registration requireSameRegistration(ActorId actorId, long registrationId) {
+        Registration registration = requireRegistration(actorId);
+        if (registration.getRegistrationId() != registrationId) {
             throw RpcCallException.actorNotFound(actorId);
         }
         return registration;
