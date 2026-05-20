@@ -56,6 +56,10 @@ final class CoroutineLockManager {
         return false;
     }
 
+    public boolean owns(Task.ContinuationWrapper continuation) {
+        return owners.containsKey(continuation);
+    }
+
     public Task.ContinuationWrapper release(Task.ContinuationWrapper continuation) {
         LockKey lockKey = owners.remove(continuation);
         if (lockKey == null) {

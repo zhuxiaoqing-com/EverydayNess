@@ -47,14 +47,16 @@ public class LocationService extends Service {
 
     @Rpc
     public void add(ActorId actorId, ActorAddress actorAddress) {
-        awaitLocationLock(actorId);
-        addNow(actorId, actorAddress);
+        try (ContinuationLockScope ignored = awaitLocationLockScope(actorId)) {
+            addNow(actorId, actorAddress);
+        }
     }
 
     @Rpc
     public void remove(ActorId actorId) {
-        awaitLocationLock(actorId);
-        removeNow(actorId);
+        try (ContinuationLockScope ignored = awaitLocationLockScope(actorId)) {
+            removeNow(actorId);
+        }
     }
 
     @Rpc
@@ -62,8 +64,9 @@ public class LocationService extends Service {
         if (actorId == null || oldActorAddress == null) {
             return;
         }
-        awaitLocationLock(actorId);
-        lockNow(actorId, oldActorAddress, timeMillis);
+        try (ContinuationLockScope ignored = awaitLocationLockScope(actorId)) {
+            lockNow(actorId, oldActorAddress, timeMillis);
+        }
     }
 
     @Rpc
@@ -103,8 +106,9 @@ public class LocationService extends Service {
 
     @Rpc
     public ActorAddress get(ActorId actorId) {
-        awaitLocationLock(actorId);
-        return getNow(actorId);
+        try (ContinuationLockScope ignored = awaitLocationLockScope(actorId)) {
+            return getNow(actorId);
+        }
     }
 
     private void addNow(ActorId actorId, ActorAddress actorAddress) {
@@ -136,7 +140,6 @@ public class LocationService extends Service {
         lockInfos.put(key, new LockInfo(lockActorAddress, lockContinuation, revision, timerId));
         LogCore.core.info("LocationService 锁定actor: actorId={}, address={}, timeMillis={}",
                 actorId, oldActorAddress, timeMillis);
-
         lockContinuation.prepareWait();
         lockContinuation.waitResult();
     }
@@ -160,11 +163,8 @@ public class LocationService extends Service {
         unlock(actorId, lockInfo.lockActorAddress, lockInfo.lockActorAddress);
     }
 
-    private void awaitLocationLock(ActorId actorId) {
-        if (actorId == null) {
-            return;
-        }
-        awaitCoroutineLock(COROUTINE_LOCK_TYPE_LOCATION, copyActorId(actorId));
+    private ContinuationLockScope awaitLocationLockScope(ActorId actorId) {
+        return awaitCoroutineLockScope(COROUTINE_LOCK_TYPE_LOCATION, copyActorId(actorId));
     }
 
     private ActorId copyActorId(ActorId actorId) {

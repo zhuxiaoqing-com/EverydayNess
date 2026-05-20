@@ -48,6 +48,24 @@ public class Service extends TickCase{
     /** mailbox 线性化锁类型 */
     static final int COROUTINE_LOCK_TYPE_MAILBOX = 2;
 
+    protected final class ContinuationLockScope implements AutoCloseable {
+        private final Task.ContinuationWrapper continuation;
+        private boolean closed;
+
+        private ContinuationLockScope(Task.ContinuationWrapper continuation) {
+            this.continuation = continuation;
+        }
+
+        @Override
+        public void close() {
+            if (closed || continuation == null) {
+                return;
+            }
+            closed = true;
+            releaseContinuationLock(continuation);
+        }
+    }
+
     public void addCall_snt(CallBase call) {
         calls.add(call);
     }
@@ -398,7 +416,14 @@ public class Service extends TickCase{
         continuationRuntime.hold(conTask);
     }
     public void unHoldContinuation(Task.ContinuationWrapper conTask){
-        continuationRuntime.unhold(conTask, () -> releaseCoroutineLock(conTask));
+        continuationRuntime.unhold(conTask, () -> {
+            if (!coroutineLockManager.owns(conTask)) {
+                return;
+            }
+            LogCore.core.error("协程锁未显式释放，走unHoldContinuation保底释放: service={}, conId={}, actorId={}",
+                    id, conTask.getConId(), conTask.getActorId());
+            releaseCoroutineLock(conTask);
+        });
     }
 
     /**
@@ -590,6 +615,14 @@ public class Service extends TickCase{
         continuation.waitResult();
     }
 
+    protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key) {
+        if (key == null) {
+            return new ContinuationLockScope(null);
+        }
+        awaitCoroutineLock(type, key);
+        return new ContinuationLockScope(currentContinuation());
+    }
+
     protected final long newOnceTimer(long delayMillis, Runnable callback) {
         return timerScheduler.scheduleDelay(getWaitBaseTime(), delayMillis, callback);
     }
@@ -611,7 +644,7 @@ public class Service extends TickCase{
         continuationRuntime.queue(next);
     }
 
-    void releaseContinuationLock(Task.ContinuationWrapper continuation) {
+    public void releaseContinuationLock(Task.ContinuationWrapper continuation) {
         releaseCoroutineLock(continuation);
     }
 
