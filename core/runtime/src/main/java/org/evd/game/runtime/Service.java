@@ -398,7 +398,7 @@ public class Service extends TickCase{
         continuationRuntime.hold(conTask);
     }
     public void unHoldContinuation(Task.ContinuationWrapper conTask){
-        continuationRuntime.unhold(conTask, () -> {});
+        continuationRuntime.unhold(conTask, () -> releaseCoroutineLock(conTask));
     }
 
     /**

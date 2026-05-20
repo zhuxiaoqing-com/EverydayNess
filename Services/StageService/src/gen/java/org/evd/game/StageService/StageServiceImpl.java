@@ -19,7 +19,10 @@ public class StageServiceImpl extends RPCImplBase {
         public final static int ENUM_STAGESERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 5;
         public final static int ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT = 6;
         public final static int ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT = 7;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC3_OBJECT_OBJECT = 8;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC4_OBJECT_OBJECT = 9;
     }
+    private final HaHaHaActor haHaHaActor = new HaHaHaActor();
 
     @Override
     public Object getMethodFunction(Service serv, int methodKey) {
@@ -41,6 +44,10 @@ public class StageServiceImpl extends RPCImplBase {
                 return (Function2<Integer, Integer>)service.requireCurrentActor(HaHaHaActor.class)::rpc1;
             case EnumCall.ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT:
                 return (Function2<Object, Object>)service.requireCurrentActor(HaHaHaActor.class)::rpc2;
+            case EnumCall.ENUM_HAHAHAACTOR_VOID_RPC3_OBJECT_OBJECT:
+                return (Function2<Object, Object>)haHaHaActor::rpc3;
+            case EnumCall.ENUM_HAHAHAACTOR_VOID_RPC4_OBJECT_OBJECT:
+                return (Function2<Object, Object>)service.requireCurrentActor(HaHaHaActor.class)::rpc4;
             default:
                 return null;
         }

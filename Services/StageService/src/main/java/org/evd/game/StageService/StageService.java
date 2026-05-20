@@ -144,11 +144,22 @@ public class StageService extends Service {
         ActorId actorRef = ActorId.player(actorId);
         registerActor(actorRef, new HaHaHaActor(), ActorExecutionMode.ORDERED);
         ActorAddress actorAddress = getActorAddress(actorRef);
-        LocationServiceProxy.inst().add(actorRef, actorAddress);
+        CallPoint locationService = getLocationServiceRemote();
+        LocationServiceProxy.add(locationService, actorRef, actorAddress);
         actorLocationSender.cache(actorRef, actorAddress);
     }
 
     private HaHaHaActor requireHaHaHaActor(long actorId) {
         return requireActor(ActorId.player(actorId), HaHaHaActor.class);
+    }
+
+    private CallPoint getLocationServiceRemote() {
+        CallPoint remote = org.evd.game.runtime.DistributeConfig.getNodeByServiceClass(
+                "org.evd.game.LocationService.LocationService",
+                0L);
+        if (remote == null) {
+            throw new IllegalStateException("找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
+        }
+        return remote;
     }
 }

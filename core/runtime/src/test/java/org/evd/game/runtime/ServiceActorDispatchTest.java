@@ -169,6 +169,18 @@ class ServiceActorDispatchTest {
         assertNull(requester.getLastResult());
     }
 
+    @Test
+    void businessCallCoroutineLockShouldReleaseWhenContinuationCompletes() throws Exception {
+        TestBusinessLockService service = new TestBusinessLockService(new TestNode(nextAddr()), "business-lock");
+
+        service.addBusinessLockCall("same-key", 1);
+        service.addBusinessLockCall("same-key", 2);
+
+        service.runPulseForTest();
+
+        assertEquals(List.of("lock-1", "lock-2"), service.events());
+    }
+
     private static String nextAddr() throws Exception {
         try (ServerSocket socket = new ServerSocket(0)) {
             return "tcp://127.0.0.1:" + socket.getLocalPort();
@@ -295,12 +307,64 @@ class ServiceActorDispatchTest {
         }
     }
 
+    static final class TestBusinessLockService extends Service {
+        static final int METHOD_RECORD_WITH_LOCK = 2;
+        private static final int BUSINESS_LOCK_TYPE = 99;
+
+        private final List<String> events = new ArrayList<>();
+
+        TestBusinessLockService(Node node, String name) {
+            super(node, name, "test-scheduled");
+        }
+
+        void addBusinessLockCall(String key, int marker) {
+            Call call = new Call();
+            call.from = new CallPoint("test-node", "from");
+            call.to = new CallPoint(node.getId(), getId());
+            call.methodKey = METHOD_RECORD_WITH_LOCK;
+            call.methodParam = new Object[]{key, marker};
+            addCall_snt(call);
+        }
+
+        List<String> events() {
+            return new ArrayList<>(events);
+        }
+
+        void runPulseForTest() {
+            pulseCase_t();
+        }
+
+        void recordWithLock(String key, int marker) {
+            awaitCoroutineLock(BUSINESS_LOCK_TYPE, key);
+            events.add("lock-" + marker);
+        }
+
+        @Override
+        public void tick() {
+        }
+
+        @Override
+        public void init() {
+        }
+    }
+
     public static final class TestActorServiceImpl extends RPCImplBase {
         @Override
         public Object getMethodFunction(Service service, int methodKey) {
             TestActorService actorService = (TestActorService) service;
             if (methodKey == TestActorService.METHOD_SLEEP_AND_RECORD) {
                 return (org.evd.game.runtime.support.function.Function2<Integer, Long>) actorService::sleepAndRecord;
+            }
+            throw new IllegalArgumentException("unknown methodKey: " + methodKey);
+        }
+    }
+
+    public static final class TestBusinessLockServiceImpl extends RPCImplBase {
+        @Override
+        public Object getMethodFunction(Service service, int methodKey) {
+            TestBusinessLockService businessLockService = (TestBusinessLockService) service;
+            if (methodKey == TestBusinessLockService.METHOD_RECORD_WITH_LOCK) {
+                return (org.evd.game.runtime.support.function.Function2<String, Integer>) businessLockService::recordWithLock;
             }
             throw new IllegalArgumentException("unknown methodKey: " + methodKey);
         }
