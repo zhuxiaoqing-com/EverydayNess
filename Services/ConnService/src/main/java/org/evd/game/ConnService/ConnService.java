@@ -12,6 +12,10 @@ import org.evd.game.common.proxy.StageServiceProxy;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.client.ClientTransport;
+import org.evd.game.runtime.client.ClientTransportHandler;
+import org.evd.game.runtime.client.NettyClientTransport;
+import org.evd.game.runtime.client.NettyServerConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Session;
 import org.evd.game.runtime.Service;
@@ -26,6 +30,12 @@ public class ConnService extends Service {
     boolean first = true;
     private Object clientCmdRegistry;
     private java.lang.reflect.Method clientCmdDispatchMethod;
+    private volatile ClientTransport clientTransport;
+    private String clientHost = "0.0.0.0";
+    private int clientPort = -1;
+    private int clientBossThreads = 1;
+    private int clientWorkerThreads = 0;
+    private int clientMaxFrameLength = 8 * 1024 * 1024;
 
     public ConnService(Node node, String name, String scheduledName) {
         super(node, name, scheduledName);
@@ -37,6 +47,7 @@ public class ConnService extends Service {
     @Override
     public void init() {
         LogCore.core.info("ConnService Init");
+        startClientTransport();
     }
 
     @Override
@@ -90,9 +101,12 @@ public class ConnService extends Service {
 
     @Rpc
     public void pushToClient(ClientSessionRef session, int msgId, Chunk body) {
-        requireActor(ActorId.gate(session.getSessionId()), Session.class);
+        requireActor(gateActorId(session.getSessionId()), Session.class);
+        ClientTransport transport = requireClientTransport();
+        byte[] payload = copyChunkBody(body);
+        transport.send(session.getSessionId(), msgId, payload);
         LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, msgId={}, bytes={}",
-                id, session.getSessionId(), msgId, body.length);
+                id, session.getSessionId(), msgId, payload.length);
     }
 
     @ClientCmd(MsgId.C2S_CONN_PING_VALUE)
@@ -107,8 +121,28 @@ public class ConnService extends Service {
     }
 
     ClientSessionRef buildClientSessionRef(Session session) {
-        registerActor(ActorId.gate(session.getSessionId()), session, ActorExecutionMode.ORDERED);
+        ensureSessionActorRegistered(session);
         return new ClientSessionRef(new CallPoint(node.getId(), id), session.getSessionId(), session.getSessionId());
+    }
+
+    public void setClientHost(String clientHost) {
+        this.clientHost = clientHost;
+    }
+
+    public void setClientPort(int clientPort) {
+        this.clientPort = clientPort;
+    }
+
+    public void setClientBossThreads(int clientBossThreads) {
+        this.clientBossThreads = clientBossThreads;
+    }
+
+    public void setClientWorkerThreads(int clientWorkerThreads) {
+        this.clientWorkerThreads = clientWorkerThreads;
+    }
+
+    public void setClientMaxFrameLength(int clientMaxFrameLength) {
+        this.clientMaxFrameLength = clientMaxFrameLength;
     }
 
     private Object clientCmdRegistry() {
@@ -137,5 +171,84 @@ public class ConnService extends Service {
 
     private byte[] copyChunkBody(Chunk body) {
         return Arrays.copyOfRange(body.buffer, body.offset, body.offset + body.length);
+    }
+
+    @Override
+    public void onClose() {
+        ClientTransport transport = clientTransport;
+        clientTransport = null;
+        if (transport != null) {
+            transport.stop();
+        }
+        super.onClose();
+    }
+
+    private void startClientTransport() {
+        if (clientPort <= 0) {
+            LogCore.core.warn("ConnService 未配置客户端监听端口，跳过 Netty 启动: service={}", id);
+            return;
+        }
+        NettyServerConfig config = new NettyServerConfig(
+                clientHost,
+                clientPort,
+                clientBossThreads,
+                clientWorkerThreads,
+                clientMaxFrameLength);
+        NettyClientTransport transport = new NettyClientTransport(config, new ClientTransportHandler() {
+            @Override
+            public void onConnected(Session session) {
+                post(() -> handleClientConnected(session));
+            }
+
+            @Override
+            public void onDisconnected(Session session) {
+                post(() -> handleClientDisconnected(session));
+            }
+
+            @Override
+            public void onPacket(Session session, int msgId, byte[] body) {
+                post(() -> dispatchClientCmd(session, msgId, body));
+            }
+
+            @Override
+            public void onException(Session session, Throwable cause) {
+                long sessionId = session == null ? -1L : session.getSessionId();
+                LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", id, sessionId, cause);
+            }
+        });
+        transport.start();
+        clientTransport = transport;
+        LogCore.core.info("ConnService Netty 启动完成: service={}, host={}, port={}", id, clientHost, clientPort);
+    }
+
+    private void handleClientConnected(Session session) {
+        ensureSessionActorRegistered(session);
+        LogCore.core.info("ConnService 客户端连接: service={}, sessionId={}, remote={}",
+                id, session.getSessionId(), session.getRemoteAddress());
+    }
+
+    private void handleClientDisconnected(Session session) {
+        unregisterActor(gateActorId(session.getSessionId()));
+        LogCore.core.info("ConnService 客户端断开: service={}, sessionId={}, remote={}",
+                id, session.getSessionId(), session.getRemoteAddress());
+    }
+
+    private void ensureSessionActorRegistered(Session session) {
+        ActorId actorId = gateActorId(session.getSessionId());
+        if (!hasActor(actorId)) {
+            registerActor(actorId, session, ActorExecutionMode.ORDERED);
+        }
+    }
+
+    private ActorId gateActorId(long sessionId) {
+        return ActorId.gate(sessionId);
+    }
+
+    private ClientTransport requireClientTransport() {
+        ClientTransport transport = clientTransport;
+        if (transport == null) {
+            throw new IllegalStateException("ConnService client transport not started: service=" + id);
+        }
+        return transport;
     }
 }

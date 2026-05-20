@@ -9,6 +9,9 @@ nodes:
           name: conn
           num: 1
           interval: 5
+          options:
+            clientHost: 0.0.0.0
+            clientPort: 18080
         - className: LocationService
           name: location
           num: -1

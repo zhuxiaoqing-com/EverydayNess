@@ -85,6 +85,10 @@ public class Service extends TickCase{
     private final ConcurrentLinkedDeque<CallBase> calls = new ConcurrentLinkedDeque<>();
     /** 此帧要执行的calls */
     private final List<CallBase> affirmCalls = new ArrayList<>();
+    /** 非 service 线程投递过来的任务 */
+    private final ConcurrentLinkedDeque<Runnable> postedTasks = new ConcurrentLinkedDeque<>();
+    /** 此帧要执行的投递任务 */
+    private final List<Runnable> affirmPostedTasks = new ArrayList<>();
     /** 协程的组，与service同名 */
     private final ContinuationScope scope; public ContinuationScope getScope() { return scope; }
     /** 通用协程锁 */
@@ -158,6 +162,7 @@ public class Service extends TickCase{
         threadLocal.set(this);
 
         pulseAffirm_st();
+        pulsePostedTasks_st();
         pulseCalls_st();
         pulseWaitTimeout_st();
 
@@ -237,6 +242,20 @@ public class Service extends TickCase{
         while (!calls.isEmpty()){
             affirmCalls.add(calls.poll());
         }
+        while (!postedTasks.isEmpty()) {
+            affirmPostedTasks.add(postedTasks.poll());
+        }
+    }
+
+    private void pulsePostedTasks_st() {
+        for (Runnable postedTask : affirmPostedTasks) {
+            try {
+                postedTask.run();
+            } catch (Throwable e) {
+                LogCore.core.error("posted service task failed: service={}", id, e);
+            }
+        }
+        affirmPostedTasks.clear();
     }
 
     /**
@@ -414,6 +433,16 @@ public class Service extends TickCase{
 
     public void holdContinuation(Task.ContinuationWrapper conTask){
         continuationRuntime.hold(conTask);
+    }
+
+    /**
+     * 供外部线程安全投递任务到 service 线程执行
+     */
+    public void post(Runnable task) {
+        if (task == null) {
+            throw new SysException("posted task is null: service={}", id);
+        }
+        postedTasks.add(task);
     }
     public void unHoldContinuation(Task.ContinuationWrapper conTask){
         continuationRuntime.unhold(conTask, () -> {

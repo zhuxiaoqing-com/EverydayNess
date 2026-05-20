@@ -24,6 +24,7 @@ dependencies {
     implementation 'org.apache.commons:commons-lang3:3.14.0'
 
     implementation 'com.google.protobuf:protobuf-java:3.25.3'
+    implementation 'io.netty:netty-all:4.1.112.Final'
 
     implementation group: 'org.zeromq', name: 'jeromq', version: '0.5.4'
     implementation group: 'org.quartz-scheduler', name: 'quartz', version: '2.3.2'

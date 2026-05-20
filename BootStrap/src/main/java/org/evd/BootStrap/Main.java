@@ -78,11 +78,13 @@ public class Main {
                 Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class);
                 if (serviceInfo.getNum() < 0){
                     Service service = (Service)con.newInstance(node, serviceInfo.getName(), scheduleInfo.getName(), serviceInfo.getInterval());
+                    applyServiceOptions(service, serviceInfo);
                     node.addService(service);
                     DistributeConfig.addSingleService(service);
                 }else{
                     for (int i=1; i<=serviceInfo.getNum(); ++i){
                         Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval());
+                        applyServiceOptions(service, serviceInfo);
                         node.addService(service);
                     }
                 }
@@ -151,6 +153,75 @@ public class Main {
                 }
             }
         }
+    }
+
+    private static void applyServiceOptions(Service service, ServiceInfo serviceInfo) {
+        Map<String, Object> options = serviceInfo.getOptions();
+        if (options == null || options.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : options.entrySet()) {
+            applyServiceOption(service, entry.getKey(), entry.getValue());
+        }
+    }
+
+    private static void applyServiceOption(Service service, String optionName, Object optionValue) {
+        String setterName = "set" + Character.toUpperCase(optionName.charAt(0)) + optionName.substring(1);
+        Method setter = findSetter(service.getClass(), setterName);
+        if (setter == null) {
+            throw new SysException("service option setter not found: service={}, option={}",
+                    service.getClass().getName(), optionName);
+        }
+        Object convertedValue = convertOptionValue(service.getClass(), optionName, optionValue, setter.getParameterTypes()[0]);
+        try {
+            setter.invoke(service, convertedValue);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException("apply service option failed: service=" + service.getClass().getName()
+                    + ", option=" + optionName, e);
+        }
+    }
+
+    private static Method findSetter(Class<?> type, String setterName) {
+        for (Method method : type.getMethods()) {
+            if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
+                return method;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Object convertOptionValue(Class<?> serviceType, String optionName, Object optionValue, Class<?> targetType) {
+        if (optionValue == null) {
+            if (targetType.isPrimitive()) {
+                throw new SysException("service option value is null for primitive: service={}, option={}",
+                        serviceType.getName(), optionName);
+            }
+            return null;
+        }
+        if (targetType.isInstance(optionValue)) {
+            return optionValue;
+        }
+        if (targetType == String.class) {
+            return String.valueOf(optionValue);
+        }
+        if (targetType == int.class || targetType == Integer.class) {
+            return optionValue instanceof Number number ? number.intValue() : Integer.parseInt(String.valueOf(optionValue));
+        }
+        if (targetType == long.class || targetType == Long.class) {
+            return optionValue instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(optionValue));
+        }
+        if (targetType == boolean.class || targetType == Boolean.class) {
+            if (optionValue instanceof Boolean bool) {
+                return bool;
+            }
+            return Boolean.parseBoolean(String.valueOf(optionValue));
+        }
+        if (targetType.isEnum()) {
+            return Enum.valueOf((Class<? extends Enum>) targetType, String.valueOf(optionValue));
+        }
+        throw new SysException("unsupported service option type: service={}, option={}, targetType={}",
+                serviceType.getName(), optionName, targetType.getName());
     }
 
 }
