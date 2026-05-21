@@ -1,4 +1,4 @@
-package org.evd.game.common.serializeBean;
+package org.evd.game.serializeBean;
 
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
