@@ -7,11 +7,11 @@ import io.netty.handler.codec.LengthFieldPrepender;
 import org.evd.game.runtime.netty.AbsChannelInitializer;
 
 final class ConnServiceClientChannelInitializer extends AbsChannelInitializer {
-    private final ConnService owner;
+    private final ConnServiceClientTransport transport;
     private final int maxFrameLength;
 
-    ConnServiceClientChannelInitializer(ConnService owner, int maxFrameLength) {
-        this.owner = owner;
+    ConnServiceClientChannelInitializer(ConnServiceClientTransport transport, int maxFrameLength) {
+        this.transport = transport;
         this.maxFrameLength = maxFrameLength;
     }
 
@@ -20,6 +20,6 @@ final class ConnServiceClientChannelInitializer extends AbsChannelInitializer {
         ChannelPipeline pipeline = ch.pipeline();
         pipeline.addLast("frameDecoder", new LengthFieldBasedFrameDecoder(maxFrameLength, 0, 4, 0, 4));
         pipeline.addLast("frameEncoder", new LengthFieldPrepender(4));
-        pipeline.addLast("packetHandler", new ConnServiceClientChannelHandler(owner));
+        pipeline.addLast("packetHandler", new ConnServiceClientChannelHandler(transport));
     }
 }

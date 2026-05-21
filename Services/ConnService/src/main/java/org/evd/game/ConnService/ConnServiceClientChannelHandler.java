@@ -13,51 +13,51 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 
 final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
-    private final ConnService owner;
+    private final ConnServiceClientTransport transport;
 
-    ConnServiceClientChannelHandler(ConnService owner) {
-        this.owner = owner;
+    ConnServiceClientChannelHandler(ConnServiceClientTransport transport) {
+        this.transport = transport;
     }
 
     @Override
     protected void onChannelActive(ChannelHandlerContext ctx) {
-        NetChannel session = owner.createClientSession(ctx.channel());
+        NetChannel session = transport.createClientSession(ctx.channel());
         ctx.channel().attr(ServerAttributeKey.netChannel).set(session);
-        owner.onClientChannelActive(session, ctx.channel());
+        transport.onClientChannelActive(session);
     }
 
     @Override
     protected void handlePacket(ChannelHandlerContext ctx, byte[] payload) {
         NetChannel session = requireSession(ctx.channel());
         if (payload.length < Integer.BYTES) {
-            throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节: service=" + owner.getId());
+            throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节");
         }
         int msgId = ByteBuffer.wrap(payload, 0, Integer.BYTES).getInt();
         if (!checkMsgFlowRate(ctx, session, msgId)) {
             return;
         }
         byte[] body = Arrays.copyOfRange(payload, Integer.BYTES, payload.length);
-        owner.onClientPacket(session, msgId, body);
+        transport.onClientPacket(session, msgId, body);
     }
 
     @Override
     protected void onChannelInactive(ChannelHandlerContext ctx) {
         NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).getAndSet(null);
         if (session != null) {
-            owner.onClientChannelInactive(session);
+            transport.onClientChannelInactive(session);
         }
     }
 
     @Override
     protected void onChannelException(ChannelHandlerContext ctx, Throwable cause) {
         NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).get();
-        owner.onClientChannelException(session, cause);
+        transport.onClientChannelException(session, cause);
     }
 
     private NetChannel requireSession(Channel channel) {
         NetChannel session = channel.attr(ServerAttributeKey.netChannel).get();
         if (session == null) {
-            throw new IllegalStateException("ConnService channel session not initialized: service=" + owner.getId());
+            throw new IllegalStateException("ConnService channel session not initialized");
         }
         return session;
     }
@@ -77,9 +77,9 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
                     .map(e -> e.getCurrTime() + "---" + e.getCmd())
                     .collect(Collectors.joining(System.lineSeparator()));
             LogCore.core.error("ConnService 主动断开连接，消息过于频繁: service={}, sessionId={}, userId={}, remote={}",
-                    owner.getId(), session.getChannelId(), session.getUserId(), session.getRemoteAddress());
+                    transport.getOwnerServiceId(), session.getChannelId(), session.getUserId(), session.getRemoteAddress());
             LogCore.core.error("ConnService 高频消息明细: service={}, sessionId={}, messages={}",
-                    owner.getId(), session.getChannelId(), System.lineSeparator() + messages);
+                    transport.getOwnerServiceId(), session.getChannelId(), System.lineSeparator() + messages);
             session.setFrequentlyMessageCount(0);
             session.getFrequentlyMessageList().clear();
             ctx.close();
