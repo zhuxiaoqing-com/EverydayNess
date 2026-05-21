@@ -162,13 +162,16 @@ public class Service extends TickCase{
         threadLocal.set(this);
 
         pulseAffirm_st();
+        drainQueuedContinuations_st();
+
         pulsePostedTasks_st();
         pulseCalls_st();
-        pulseWaitTimeout_st();
+        drainQueuedContinuations_st();
 
         tickVirtual_st();
 
         pulseTask_st();
+        drainQueuedContinuations_st();
         pulseEntity_st();
 
         //刷新call发送缓冲区
@@ -208,13 +211,6 @@ public class Service extends TickCase{
     }
 
     private void pulseTask_st() {
-        // todo 定时任务
-    }
-
-    /**
-     * 检查等待中的协程是否超时
-     */
-    private void pulseWaitTimeout_st() {
         timerScheduler.update(getTimeCurrent());
     }
 
@@ -258,6 +254,10 @@ public class Service extends TickCase{
         affirmPostedTasks.clear();
     }
 
+    private void drainQueuedContinuations_st() {
+        continuationRuntime.drain();
+    }
+
     /**
      * 执行call请求
      */
@@ -266,7 +266,6 @@ public class Service extends TickCase{
             dispatchCall_st(call);
         }
         affirmCalls.clear();
-        continuationRuntime.drain();
     }
 
     private void dispatchCall_st(CallBase callbase) {

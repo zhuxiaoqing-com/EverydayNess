@@ -34,7 +34,6 @@ final class ContinuationRuntime {
     private final Map<Long, Task.ContinuationWrapper> continuations = new HashMap<>();
     private final Map<Long, WaitContext> waitContexts = new HashMap<>();
     private final ArrayDeque<Task.ContinuationWrapper> readyContinuations = new ArrayDeque<>();
-    private boolean drainingReadyContinuations;
 
     ContinuationRuntime(Service service, TimerScheduler timerScheduler) {
         this.service = service;
@@ -69,23 +68,12 @@ final class ContinuationRuntime {
 
     public void queue(Task.ContinuationWrapper continuation) {
         readyContinuations.addLast(continuation);
-        if (!drainingReadyContinuations) {
-            drain();
-        }
     }
 
     public void drain() {
-        if (drainingReadyContinuations) {
-            return;
-        }
-        drainingReadyContinuations = true;
-        try {
-            Task.ContinuationWrapper continuation;
-            while ((continuation = readyContinuations.pollFirst()) != null) {
-                runImmediate(continuation);
-            }
-        } finally {
-            drainingReadyContinuations = false;
+        Task.ContinuationWrapper continuation;
+        while ((continuation = readyContinuations.pollFirst()) != null) {
+            runImmediate(continuation);
         }
     }
 
