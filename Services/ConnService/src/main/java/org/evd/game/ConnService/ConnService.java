@@ -1,5 +1,7 @@
 package org.evd.game.ConnService;
 
+import io.netty.channel.Channel;
+import io.netty.util.AttributeKey;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
@@ -12,27 +14,31 @@ import org.evd.game.common.proxy.StageServiceProxy;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.client.ClientTransport;
-import org.evd.game.runtime.client.ClientTransportHandler;
-import org.evd.game.runtime.client.NettyClientTransport;
-import org.evd.game.runtime.client.NettyServerConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Session;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.netty.ChannelManager;
+import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.netty.NetAcceptor;
+import org.evd.game.runtime.netty.NetAcceptorConfig;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
-import org.evd.game.runtime.support.SysException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Actor
 public class ConnService extends Service {
+    static final AttributeKey<Session> SESSION_KEY = AttributeKey.valueOf("conn-service-session");
+
     boolean first = true;
     private Object clientCmdRegistry;
     private java.lang.reflect.Method clientCmdDispatchMethod;
-    private volatile ClientTransport clientTransport;
+    private final AtomicLong nextSessionId = new AtomicLong(1L);
+    private final ChannelManager clientChannelManager = new ChannelManager();
+    private volatile NetAcceptor clientAcceptor;
     private String publicAddr;
     private int clientBossThreads = 1;
     private int clientWorkerThreads = 0;
@@ -101,9 +107,9 @@ public class ConnService extends Service {
     @Rpc
     public void pushToClient(ClientSessionRef session, int msgId, Chunk body) {
         requireActor(gateActorId(session.getSessionId()), Session.class);
-        ClientTransport transport = requireClientTransport();
+        NetChannel channel = requireClientChannel(session.getSessionId());
         byte[] payload = copyChunkBody(body);
-        transport.send(session.getSessionId(), msgId, payload);
+        channel.write(encodeClientPacket(msgId, payload));
         LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, msgId={}, bytes={}",
                 id, session.getSessionId(), msgId, payload.length);
     }
@@ -170,11 +176,12 @@ public class ConnService extends Service {
 
     @Override
     public void onClose() {
-        ClientTransport transport = clientTransport;
-        clientTransport = null;
-        if (transport != null) {
-            transport.stop();
+        NetAcceptor acceptor = clientAcceptor;
+        clientAcceptor = null;
+        if (acceptor != null) {
+            acceptor.shutdown();
         }
+        clientChannelManager.clear();
         super.onClose();
     }
 
@@ -186,36 +193,12 @@ public class ConnService extends Service {
         int split = publicAddr.lastIndexOf(':');
         String host = publicAddr.substring(0, split).trim();
         int port = Integer.parseInt(publicAddr.substring(split + 1).trim());
-        NettyServerConfig config = new NettyServerConfig(
+        clientAcceptor = new NetAcceptor(new NetAcceptorConfig(
                 host,
                 port,
                 clientBossThreads,
-                clientWorkerThreads,
-                clientMaxFrameLength);
-        NettyClientTransport transport = new NettyClientTransport(config, new ClientTransportHandler() {
-            @Override
-            public void onConnected(Session session) {
-                post(() -> handleClientConnected(session));
-            }
-
-            @Override
-            public void onDisconnected(Session session) {
-                post(() -> handleClientDisconnected(session));
-            }
-
-            @Override
-            public void onPacket(Session session, int msgId, byte[] body) {
-                post(() -> dispatchClientCmd(session, msgId, body));
-            }
-
-            @Override
-            public void onException(Session session, Throwable cause) {
-                long sessionId = session == null ? -1L : session.getSessionId();
-                LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", id, sessionId, cause);
-            }
-        });
-        transport.start();
-        clientTransport = transport;
+                clientWorkerThreads),
+                new ConnServiceClientChannelInitializer(this, clientMaxFrameLength));
         LogCore.core.info("ConnService Netty 启动完成: service={}, publicAddr={}", id, publicAddr);
     }
 
@@ -242,11 +225,58 @@ public class ConnService extends Service {
         return ActorId.gate(sessionId);
     }
 
-    private ClientTransport requireClientTransport() {
-        ClientTransport transport = clientTransport;
-        if (transport == null) {
-            throw new IllegalStateException("ConnService client transport not started: service=" + id);
+    private NetChannel requireClientChannel(long sessionId) {
+        NetChannel channel = clientChannelManager.getChannel(sessionId);
+        if (channel == null) {
+            throw new IllegalStateException("ConnService client channel not found: service=" + id + ", sessionId=" + sessionId);
         }
-        return transport;
+        return channel;
+    }
+
+    private byte[] encodeClientPacket(int msgId, byte[] body) {
+        byte[] packet = new byte[Integer.BYTES + body.length];
+        packet[0] = (byte) (msgId >>> 24);
+        packet[1] = (byte) (msgId >>> 16);
+        packet[2] = (byte) (msgId >>> 8);
+        packet[3] = (byte) msgId;
+        System.arraycopy(body, 0, packet, Integer.BYTES, body.length);
+        return packet;
+    }
+
+    int decodeMsgId(byte[] packet) {
+        if (packet.length < Integer.BYTES) {
+            throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节: service=" + id);
+        }
+        return ((packet[0] & 0xFF) << 24)
+                | ((packet[1] & 0xFF) << 16)
+                | ((packet[2] & 0xFF) << 8)
+                | (packet[3] & 0xFF);
+    }
+
+    byte[] decodeBody(byte[] packet) {
+        return Arrays.copyOfRange(packet, Integer.BYTES, packet.length);
+    }
+
+    Session createClientSession(Channel channel) {
+        return new Session(nextSessionId.getAndIncrement(), String.valueOf(channel.remoteAddress()));
+    }
+
+    void onClientChannelActive(Session session, Channel channel) {
+        clientChannelManager.addChannel(session.getSessionId(), channel);
+        post(() -> handleClientConnected(session));
+    }
+
+    void onClientPacket(Session session, int msgId, byte[] body) {
+        post(() -> dispatchClientCmd(session, msgId, body));
+    }
+
+    void onClientChannelInactive(Session session) {
+        clientChannelManager.removeChannel(session.getSessionId());
+        post(() -> handleClientDisconnected(session));
+    }
+
+    void onClientChannelException(Session session, Throwable cause) {
+        long sessionId = session == null ? -1L : session.getSessionId();
+        LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", id, sessionId, cause);
     }
 }
