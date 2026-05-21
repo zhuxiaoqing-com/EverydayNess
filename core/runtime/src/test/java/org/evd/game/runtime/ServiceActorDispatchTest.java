@@ -9,6 +9,7 @@ import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
+import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.junit.jupiter.api.Test;
@@ -219,14 +220,21 @@ class ServiceActorDispatchTest {
 
         String mergedLogs = String.join("\n", appender.messages());
         assertTrue(mergedLogs.contains("continuation drain threshold exceeded"));
-        assertTrue(mergedLogs.contains("count=2, rpcMethodKey=77 | rpc"));
-        assertTrue(mergedLogs.contains("count=2, rpcMethodKey=88 | lock"));
+        assertTrue(mergedLogs.contains("rpcMethodKey=77 | rpc,   count=2"));
+        assertTrue(mergedLogs.contains("rpcMethodKey=88 | lock,   count=2"));
     }
 
     private static String nextAddr() throws Exception {
         try (ServerSocket socket = new ServerSocket(0)) {
             return "tcp://127.0.0.1:" + socket.getLocalPort();
         }
+    }
+
+    private static ServiceInfo testServiceInfo(String name) {
+        ServiceInfo serviceInfo = new ServiceInfo();
+        serviceInfo.setName(name);
+        serviceInfo.setInterval(5);
+        return serviceInfo;
     }
 
     private static final class TestNode extends Node {
@@ -242,7 +250,7 @@ class ServiceActorDispatchTest {
         private final Map<Integer, Runnable> afterSleepHooks = new HashMap<>();
 
         TestActorService(Node node, String name) {
-            super(node, name, "test-scheduled");
+            super(node, name, "test-scheduled", 5, testServiceInfo(name));
         }
 
         void registerActorForTest(ActorId actorId, Object actor, ActorExecutionMode executionMode) {
@@ -303,24 +311,23 @@ class ServiceActorDispatchTest {
     }
 
     static final class TestRequesterService extends Service {
-        private Runnable tickAction;
         private Object lastResult;
         private RpcCallException lastFailure;
 
         TestRequesterService(Node node, String name) {
-            super(node, name, "test-scheduled");
+            super(node, name, "test-scheduled", 5, testServiceInfo(name));
         }
 
         void requestActorCall(ActorAddress actorAddress, ActorId actorId, int marker, long sleepMillis) {
             this.lastResult = null;
             this.lastFailure = null;
-            this.tickAction = () -> {
+            postCoroutine(() -> {
                 try {
                     lastResult = getMessageSender().callWait(actorAddress, actorId, TestActorService.METHOD_SLEEP_AND_RECORD, new Object[]{marker, sleepMillis});
                 } catch (RpcCallException e) {
                     lastFailure = e;
                 }
-            };
+            });
         }
 
         Object getLastResult() {
@@ -337,11 +344,6 @@ class ServiceActorDispatchTest {
 
         @Override
         public void tick() {
-            Runnable action = tickAction;
-            tickAction = null;
-            if (action != null) {
-                action.run();
-            }
         }
 
         @Override
@@ -356,7 +358,7 @@ class ServiceActorDispatchTest {
         private final List<String> events = new ArrayList<>();
 
         TestBusinessLockService(Node node, String name) {
-            super(node, name, "test-scheduled");
+            super(node, name, "test-scheduled", 5, testServiceInfo(name));
         }
 
         void addBusinessLockCall(String key, int marker) {

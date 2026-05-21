@@ -51,15 +51,17 @@ public class ConnService extends Service {
 
     @Override
     public void tick() {
-//        StageServiceProxy.inst().doSome1(1, 2);
-//        if (first){
-            first = false;
-            CallPoint callPoint = new CallPoint("node2", "stage1");
-            String s = StageServiceProxy.doSome1(callPoint, 1, 2);
-            System.out.println("receive = " + s);
-//            LogCore.core.info("ConnService tick reveive {" + s + "}");
-//        }
+        if (!first) {
+            return;
+        }
+        first = false;
+        launchCoroutine(this::requestStageDemo);
+    }
 
+    private void requestStageDemo() {
+        CallPoint callPoint = new CallPoint("node2", "stage1");
+        String s = StageServiceProxy.doSome1(callPoint, 1, 2);
+        System.out.println("receive = " + s);
     }
 
     @Rpc

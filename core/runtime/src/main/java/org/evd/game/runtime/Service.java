@@ -165,7 +165,7 @@ public class Service extends TickCase{
         pulseCalls_st();
         drainQueuedContinuations_st("afterCalls");
 
-        tickVirtual_st();
+        tick_st();
 
         pulseTask_st();
         drainQueuedContinuations_st("afterTimers");
@@ -179,11 +179,11 @@ public class Service extends TickCase{
     }
 
     /**
-     * tick交给协程执行
+     * tick保持同步驱动。
+     * 需要等待RPC/定时器的逻辑，应该显式启动独立业务协程，而不是阻塞tick本身。
      */
-    private void tickVirtual_st() {
-        Task.ContinuationWrapper context = continuationRuntime.create(new Task.TaskParam0(this::tick), null);
-        continuationRuntime.runImmediate(context);
+    private void tick_st() {
+        tick();
     }
 
     public void tick() {
@@ -440,6 +440,35 @@ public class Service extends TickCase{
         }
         postedTasks.add(task);
     }
+
+    /**
+     * 在当前service线程里启动一个独立业务协程。
+     * 适合从同步tick/普通回调里触发需要callWait/sleep的业务流程。
+     */
+    protected final void launchCoroutine(Runnable task) {
+        if (task == null) {
+            throw new SysException("launch coroutine task is null: service={}", id);
+        }
+        Task.ContinuationWrapper continuation = continuationRuntime.create(() -> {
+            try {
+                task.run();
+            } catch (Throwable e) {
+                LogCore.core.error("service coroutine failed: service={}", id, e);
+            }
+        }, null);
+        continuationRuntime.queue(continuation, "manual");
+    }
+
+    /**
+     * 线程安全地投递一个业务协程到service线程启动。
+     */
+    protected final void postCoroutine(Runnable task) {
+        if (task == null) {
+            throw new SysException("post coroutine task is null: service={}", id);
+        }
+        post(() -> launchCoroutine(task));
+    }
+
     public void unHoldContinuation(Task.ContinuationWrapper conTask){
         continuationRuntime.unhold(conTask, () -> {
             if (!coroutineLockManager.owns(conTask)) {
