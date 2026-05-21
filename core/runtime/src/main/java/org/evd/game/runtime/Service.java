@@ -162,16 +162,16 @@ public class Service extends TickCase{
         threadLocal.set(this);
 
         pulseAffirm_st();
-        drainQueuedContinuations_st();
+        drainQueuedContinuations_st("afterAffirm");
 
         pulsePostedTasks_st();
         pulseCalls_st();
-        drainQueuedContinuations_st();
+        drainQueuedContinuations_st("afterCalls");
 
         tickVirtual_st();
 
         pulseTask_st();
-        drainQueuedContinuations_st();
+        drainQueuedContinuations_st("afterTimers");
         pulseEntity_st();
 
         //刷新call发送缓冲区
@@ -254,8 +254,8 @@ public class Service extends TickCase{
         affirmPostedTasks.clear();
     }
 
-    private void drainQueuedContinuations_st() {
-        continuationRuntime.drain();
+    private void drainQueuedContinuations_st(String phase) {
+        continuationRuntime.drain(phase);
     }
 
     /**
@@ -295,7 +295,7 @@ public class Service extends TickCase{
                                 + callResult.errorCode + ", message=" + callResult.errorMessage));
             }
         }
-        continuationRuntime.queue(context);
+        continuationRuntime.queue(context, "rpc");
     }
 
     /**
@@ -603,15 +603,21 @@ public class Service extends TickCase{
     }
 
     private Task.ContinuationWrapper createCallContinuation(Call call, ActorId actorId) {
-        return continuationRuntime.create(new Task.TaskParam1<>(this::dispatch_st, call), actorId);
+        Task.ContinuationWrapper continuation = continuationRuntime.create(
+                new Task.TaskParam1<>(this::dispatch_st, call),
+                actorId);
+        continuation.bindDebugInfo(new Task.RpcDebugInfo(call.methodKey));
+        return continuation;
     }
 
-    Task.ContinuationWrapper createActorMessageContinuation(Runnable task, ActorId actorId) {
-        return continuationRuntime.create(task, actorId);
+    Task.ContinuationWrapper createActorMessageContinuation(Runnable task, ActorMessage message) {
+        Task.ContinuationWrapper continuation = continuationRuntime.create(task, message.getActorId());
+        continuation.bindDebugInfo(new Task.RpcDebugInfo(message.getMethodKey()));
+        return continuation;
     }
 
     void queueContinuation(Task.ContinuationWrapper continuation) {
-        continuationRuntime.queue(continuation);
+        continuationRuntime.queue(continuation, "rpc");
     }
 
     protected final Task.ContinuationWrapper currentContinuation() {
@@ -623,7 +629,7 @@ public class Service extends TickCase{
             return;
         }
         continuation.setResult(result);
-        continuationRuntime.queue(continuation);
+        continuationRuntime.queue(continuation, "rpc");
     }
 
     protected final void failContinuation(Task.ContinuationWrapper continuation, RuntimeException failure) {
@@ -631,7 +637,7 @@ public class Service extends TickCase{
             return;
         }
         continuation.setFailure(failure);
-        continuationRuntime.queue(continuation);
+        continuationRuntime.queue(continuation, "rpc");
     }
 
     protected final void awaitCoroutineLock(int type, Object key) {
@@ -669,7 +675,7 @@ public class Service extends TickCase{
             return;
         }
         next.setResult(null);
-        continuationRuntime.queue(next);
+        continuationRuntime.queue(next, "lock");
     }
 
     public void releaseContinuationLock(Task.ContinuationWrapper continuation) {

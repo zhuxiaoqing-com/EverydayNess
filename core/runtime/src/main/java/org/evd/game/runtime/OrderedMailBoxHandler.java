@@ -13,7 +13,7 @@ final class OrderedMailBoxHandler {
     void dispatch(MailBoxComponent mailBox, ActorMessage message) {
         Task.ContinuationWrapper continuation = service.createActorMessageContinuation(
                 () -> handle(mailBox, message),
-                message.getActorId());
+                message);
         service.queueContinuation(continuation);
     }
 

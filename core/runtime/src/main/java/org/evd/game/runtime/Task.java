@@ -8,6 +8,24 @@ import org.evd.game.runtime.support.function.Function1;
 import java.io.Closeable;
 
 public class Task {
+    public static abstract class DebugInfo {
+        @Override
+        public abstract String toString();
+    }
+
+    public static final class RpcDebugInfo extends DebugInfo {
+        private final int rpcMethodKey;
+
+        public RpcDebugInfo(int rpcMethodKey) {
+            this.rpcMethodKey = rpcMethodKey;
+        }
+
+        @Override
+        public String toString() {
+            return "rpcMethodKey=" + rpcMethodKey;
+        }
+    }
+
     /**
      * 对协程栈的封装
      */
@@ -28,6 +46,10 @@ public class Task {
         private long conId;
         /** 当前协程所属的 actor */
         private ActorId actorId;
+        /** 调试信息 */
+        private DebugInfo debugInfo;
+        /** 最近一次入队列理由 */
+        private String queueReason;
 
         public ContinuationWrapper(Service service) {
             this.service = service;
@@ -47,6 +69,16 @@ public class Task {
             this.task = task;
             this.conId = conId;
             this.actorId = actorId == null ? null : new ActorId(actorId);
+            this.debugInfo = null;
+            this.queueReason = null;
+        }
+
+        public void bindDebugInfo(DebugInfo debugInfo) {
+            this.debugInfo = debugInfo;
+        }
+
+        public void markQueued(String queueReason) {
+            this.queueReason = queueReason;
         }
 
         /**
@@ -84,6 +116,8 @@ public class Task {
             failure = null;
             conId = 0;
             actorId = null;
+            debugInfo = null;
+            queueReason = null;
         }
 
         /**
@@ -103,6 +137,14 @@ public class Task {
 
         public void setFailure(RuntimeException failure) {
             this.failure = failure;
+        }
+
+        public DebugInfo getDebugInfo() {
+            return debugInfo;
+        }
+
+        public String getQueueReason() {
+            return queueReason;
         }
 
         public void prepareWait() {

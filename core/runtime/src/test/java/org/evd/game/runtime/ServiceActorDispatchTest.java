@@ -1,10 +1,14 @@
 package org.evd.game.runtime;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
+import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
-import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.junit.jupiter.api.Test;
@@ -179,6 +183,44 @@ class ServiceActorDispatchTest {
         service.runPulseForTest();
 
         assertEquals(List.of("lock-1", "lock-2"), service.events());
+    }
+
+    @Test
+    void continuationDrainShouldLogPendingRpcAggregationWhenThresholdExceeded() throws Exception {
+        TestActorService service = new TestActorService(new TestNode(nextAddr()), "drain-log");
+        ContinuationRuntime runtime = new ContinuationRuntime(service, new TimerScheduler());
+
+        for (int i = 0; i < 100; i++) {
+            Task.ContinuationWrapper continuation = runtime.create(() -> { }, null);
+            runtime.queue(continuation, "rpc");
+        }
+
+        for (int i = 0; i < 3; i++) {
+            Task.ContinuationWrapper continuation = runtime.create(() -> { }, null);
+            continuation.bindDebugInfo(new Task.RpcDebugInfo(77));
+            runtime.queue(continuation, "rpc");
+        }
+        for (int i = 0; i < 2; i++) {
+            Task.ContinuationWrapper continuation = runtime.create(() -> { }, null);
+            continuation.bindDebugInfo(new Task.RpcDebugInfo(88));
+            runtime.queue(continuation, "lock");
+        }
+
+        MemoryAppender appender = new MemoryAppender("drain-threshold-test");
+        org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) LogManager.getLogger("CORE");
+        appender.start();
+        coreLogger.addAppender(appender);
+        try {
+            runtime.drain("test");
+        } finally {
+            coreLogger.removeAppender(appender);
+            appender.stop();
+        }
+
+        String mergedLogs = String.join("\n", appender.messages());
+        assertTrue(mergedLogs.contains("continuation drain threshold exceeded"));
+        assertTrue(mergedLogs.contains("count=2, rpcMethodKey=77 | rpc"));
+        assertTrue(mergedLogs.contains("count=2, rpcMethodKey=88 | lock"));
     }
 
     private static String nextAddr() throws Exception {
@@ -367,6 +409,23 @@ class ServiceActorDispatchTest {
                 return (org.evd.game.runtime.support.function.Function2<String, Integer>) businessLockService::recordWithLock;
             }
             throw new IllegalArgumentException("unknown methodKey: " + methodKey);
+        }
+    }
+
+    static final class MemoryAppender extends AbstractAppender {
+        private final List<String> messages = new ArrayList<>();
+
+        MemoryAppender(String name) {
+            super(name, null, null, true, Property.EMPTY_ARRAY);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            messages.add(event.getMessage().getFormattedMessage());
+        }
+
+        List<String> messages() {
+            return messages;
         }
     }
 }

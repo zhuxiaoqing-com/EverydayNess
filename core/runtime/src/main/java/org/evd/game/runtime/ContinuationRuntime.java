@@ -1,13 +1,18 @@
 package org.evd.game.runtime;
 
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
 
 import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 final class ContinuationRuntime {
+    private static final int DRAIN_LOG_THRESHOLD = 100;
+    private static final int DRAIN_DEFER_THRESHOLD = 1000;
+
     @FunctionalInterface
     interface WaitTimeoutHandler {
         void onTimeout(Task.ContinuationWrapper continuation, long waitId);
@@ -66,13 +71,26 @@ final class ContinuationRuntime {
         continuationPool.recycle(continuation);
     }
 
-    public void queue(Task.ContinuationWrapper continuation) {
+    public void queue(Task.ContinuationWrapper continuation, String queueReason) {
+        continuation.markQueued(queueReason);
         readyContinuations.addLast(continuation);
     }
 
-    public void drain() {
+    public void drain(String phase) {
+        int resumed = 0;
+        boolean logged = false;
         Task.ContinuationWrapper continuation;
         while ((continuation = readyContinuations.pollFirst()) != null) {
+            if (resumed >= DRAIN_DEFER_THRESHOLD) {
+                readyContinuations.addFirst(continuation);
+                logDrainState("continuation drain deferred to next tick", phase, resumed);
+                return;
+            }
+            if (!logged && resumed >= DRAIN_LOG_THRESHOLD) {
+                logged = true;
+                logDrainState("continuation drain threshold exceeded", phase, resumed);
+            }
+            resumed++;
             runImmediate(continuation);
         }
     }
@@ -110,7 +128,43 @@ final class ContinuationRuntime {
             return;
         }
         waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
-        queue(waitContext.continuation);
+        queue(waitContext.continuation, "timer");
+    }
+
+    private void logDrainState(String title, String phase, int resumed) {
+        StringBuilder sb = new StringBuilder(1024);
+        sb.append(title)
+                .append(": service=")
+                .append(service.getId())
+                .append(", phase=").append(phase)
+                .append(", resumed=").append(resumed)
+                .append(", pending=").append(readyContinuations.size())
+                .append('\n');
+
+        Map<String, Integer> pendingDebugCounts = new LinkedHashMap<>();
+        for (Task.ContinuationWrapper pending : readyContinuations) {
+            Task.DebugInfo debugInfo = pending.getDebugInfo();
+            if (debugInfo == null) {
+                continue;
+            }
+            String queueReason = pending.getQueueReason();
+            String key = debugInfo + " | " + (queueReason == null ? "unknown" : queueReason);
+            pendingDebugCounts.merge(key, 1, Integer::sum);
+        }
+        sb.append("pending rpc continuations:\n");
+        if (pendingDebugCounts.isEmpty()) {
+            sb.append("  none\n");
+        } else {
+            for (Map.Entry<String, Integer> entry : pendingDebugCounts.entrySet()) {
+                sb
+                        .append(entry.getKey())
+                        .append(", ")
+                        .append("  count=").append(entry.getValue())
+                        .append('\n');
+            }
+        }
+
+        LogCore.core.error(sb.toString());
     }
 
     private long nextConId() {
