@@ -2,6 +2,7 @@ package org.evd.game.runtime;
 
 import jdk.internal.vm.Continuation;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.function.Function0;
 import org.evd.game.runtime.support.function.Function1;
 
@@ -182,7 +183,7 @@ public class Task {
             try {
                 func.apply();
             }catch (Exception e){
-                e.printStackTrace();
+                LogCore.core.error("执行TaskParam0失败", e);
             }
         }
     }
@@ -200,7 +201,7 @@ public class Task {
             try {
                 func.apply(t1);
             }catch (Exception e){
-                e.printStackTrace();
+                LogCore.core.error("执行TaskParam1失败: param={}", t1, e);
             }
         }
     }

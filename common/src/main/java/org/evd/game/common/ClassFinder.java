@@ -1,5 +1,7 @@
 package org.evd.game.common;
 
+import org.evd.game.runtime.support.LogCore;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.JarURLConnection;
@@ -55,7 +57,7 @@ public class ClassFinder {
                     findInJar(cl, packageName, packageDirName, url, classes);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LogCore.core.error("扫描包下所有类失败: packageName={}", packageName, e);
         }
 
         List<Class<?>> result = new ArrayList<>(classes);
@@ -133,7 +135,7 @@ public class ClassFinder {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LogCore.core.error("扫描Jar包中的类失败: packageName={}, packageDirName={}, url={}", pname, packageDirName, url, e);
         }
     }
 }

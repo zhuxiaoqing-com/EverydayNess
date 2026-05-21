@@ -132,7 +132,7 @@ public class Main {
                 // TODO 处理各jar包的end函数
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                LogCore.core.error("关闭钩子等待结束时被中断", e);
             }
         }));
 

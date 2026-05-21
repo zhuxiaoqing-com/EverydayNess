@@ -1,6 +1,7 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.runtime.serialize.InputStream;
+import org.evd.game.runtime.support.LogCore;
 
 /**
  * 发送给远程的call
@@ -32,7 +33,7 @@ public class RemoteCall {
 				InputStream in = new InputStream(buffer, 0, buffer.length);
 				call = in.read();
 			} catch (Exception e) {
-				e.printStackTrace();
+				LogCore.remote.error("RemoteCall 转字符串时解析buffer失败: remoteNodeId={}", remoteNodeId, e);
 			}
 		}
 		return "RemoteCall [remoteNodeId=" + remoteNodeId + ", call=" + call + "]";

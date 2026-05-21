@@ -1,5 +1,6 @@
 package org.evd.game.runtime;
 
+import org.evd.game.runtime.support.LogCore;
 import org.quartz.TriggerUtils;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
@@ -81,7 +82,7 @@ public class TimeUtils {
 		try {
 			return dateTime.format(DateTimeFormatter.ofPattern(pattern));
 		} catch (Exception e) {
-			e.printStackTrace();
+			LogCore.core.error("格式化时间戳失败: timestamp={}, pattern={}", timestamp, pattern, e);
 			return null;
 		}
 	}
@@ -572,7 +573,7 @@ public class TimeUtils {
 				return dates.get(0);
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			LogCore.core.error("根据Cron表达式计算最近执行时间失败: cron={}, day={}", cron, day, e);
 		}
 		return null;
 	}
@@ -602,7 +603,7 @@ public class TimeUtils {
 
 			return dates.size();
 		} catch (Exception e) {
-			e.printStackTrace();
+			LogCore.core.error("根据Cron表达式统计执行次数失败: cron={}, start={}", cron, start, e);
 		}
 		return 0;
 	}
@@ -706,7 +707,7 @@ public class TimeUtils {
 			try {
 				return LocalDateTime.parse(dateTimeStr, DateTimeFormatter.ofPattern(pattern));
 			} catch (Exception e) {
-				e.printStackTrace();
+				LogCore.core.error("解析日期时间失败: dateTimeStr={}, pattern={}", dateTimeStr, pattern, e);
 				return null;
 			}
 		}
@@ -721,7 +722,7 @@ public class TimeUtils {
 			try {
 				return LocalTime.parse(timeStr, DateTimeFormatter.ofPattern(pattern));
 			} catch (Exception e) {
-				e.printStackTrace();
+				LogCore.core.error("解析时间失败: timeStr={}, pattern={}", timeStr, pattern, e);
 				return null;
 			}
 		}
@@ -736,7 +737,7 @@ public class TimeUtils {
 			try {
 				return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern(pattern));
 			} catch (Exception e) {
-				e.printStackTrace();
+				LogCore.core.error("解析日期失败: dateStr={}, pattern={}", dateStr, pattern, e);
 				return null;
 			}
 		}
