@@ -1,7 +1,6 @@
 package org.evd.game.ConnService;
 
 import io.netty.channel.Channel;
-import io.netty.util.AttributeKey;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
@@ -15,7 +14,6 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.Node;
-import org.evd.game.runtime.Session;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.netty.ChannelManager;
 import org.evd.game.runtime.netty.NetChannel;
@@ -27,16 +25,12 @@ import org.evd.game.runtime.support.RuntimeUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Actor
 public class ConnService extends Service {
-    static final AttributeKey<Session> SESSION_KEY = AttributeKey.valueOf("conn-service-session");
-
     boolean first = true;
     private Object clientCmdRegistry;
     private java.lang.reflect.Method clientCmdDispatchMethod;
-    private final AtomicLong nextSessionId = new AtomicLong(1L);
     private final ChannelManager clientChannelManager = new ChannelManager();
     private volatile NetAcceptor clientAcceptor;
     private String publicAddr;
@@ -85,7 +79,7 @@ public class ConnService extends Service {
 
     }
 
-    public void dispatchClientCmd(Session session, int cmd, byte[] body) {
+    public void dispatchClientCmd(NetChannel session, int cmd, byte[] body) {
         ConnServiceClientCmdRouter.forward(this, session, cmd, body);
     }
 
@@ -106,7 +100,7 @@ public class ConnService extends Service {
 
     @Rpc
     public void pushToClient(ClientSessionRef session, int msgId, Chunk body) {
-        requireActor(gateActorId(session.getSessionId()), Session.class);
+        requireActor(gateActorId(session.getSessionId()), NetChannel.class);
         NetChannel channel = requireClientChannel(session.getSessionId());
         byte[] payload = copyChunkBody(body);
         channel.write(encodeClientPacket(msgId, payload));
@@ -125,9 +119,9 @@ public class ConnService extends Service {
         pushToClient(session, MsgId.S2C_CONN_PING_VALUE, new Chunk(resp));
     }
 
-    ClientSessionRef buildClientSessionRef(Session session) {
+    ClientSessionRef buildClientSessionRef(NetChannel session) {
         ensureSessionActorRegistered(session);
-        return new ClientSessionRef(new CallPoint(node.getId(), id), session.getSessionId(), session.getSessionId());
+        return new ClientSessionRef(new CallPoint(node.getId(), id), session.getChannelId(), session.getChannelId());
     }
 
     public void setPublicAddr(String publicAddr) {
@@ -202,20 +196,20 @@ public class ConnService extends Service {
         LogCore.core.info("ConnService Netty 启动完成: service={}, publicAddr={}", id, publicAddr);
     }
 
-    private void handleClientConnected(Session session) {
+    private void handleClientConnected(NetChannel session) {
         ensureSessionActorRegistered(session);
         LogCore.core.info("ConnService 客户端连接: service={}, sessionId={}, remote={}",
-                id, session.getSessionId(), session.getRemoteAddress());
+                id, session.getChannelId(), session.getRemoteAddress());
     }
 
-    private void handleClientDisconnected(Session session) {
-        unregisterActor(gateActorId(session.getSessionId()));
+    private void handleClientDisconnected(NetChannel session) {
+        unregisterActor(gateActorId(session.getChannelId()));
         LogCore.core.info("ConnService 客户端断开: service={}, sessionId={}, remote={}",
-                id, session.getSessionId(), session.getRemoteAddress());
+                id, session.getChannelId(), session.getRemoteAddress());
     }
 
-    private void ensureSessionActorRegistered(Session session) {
-        ActorId actorId = gateActorId(session.getSessionId());
+    private void ensureSessionActorRegistered(NetChannel session) {
+        ActorId actorId = gateActorId(session.getChannelId());
         if (!hasActor(actorId)) {
             registerActor(actorId, session, ActorExecutionMode.ORDERED);
         }
@@ -243,40 +237,26 @@ public class ConnService extends Service {
         return packet;
     }
 
-    int decodeMsgId(byte[] packet) {
-        if (packet.length < Integer.BYTES) {
-            throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节: service=" + id);
-        }
-        return ((packet[0] & 0xFF) << 24)
-                | ((packet[1] & 0xFF) << 16)
-                | ((packet[2] & 0xFF) << 8)
-                | (packet[3] & 0xFF);
+    NetChannel createClientSession(Channel channel) {
+        return new NetChannel(channel);
     }
 
-    byte[] decodeBody(byte[] packet) {
-        return Arrays.copyOfRange(packet, Integer.BYTES, packet.length);
-    }
-
-    Session createClientSession(Channel channel) {
-        return new Session(nextSessionId.getAndIncrement(), String.valueOf(channel.remoteAddress()));
-    }
-
-    void onClientChannelActive(Session session, Channel channel) {
-        clientChannelManager.addChannel(session.getSessionId(), channel);
+    void onClientChannelActive(NetChannel session, Channel channel) {
+        clientChannelManager.addChannel(session);
         post(() -> handleClientConnected(session));
     }
 
-    void onClientPacket(Session session, int msgId, byte[] body) {
+    void onClientPacket(NetChannel session, int msgId, byte[] body) {
         post(() -> dispatchClientCmd(session, msgId, body));
     }
 
-    void onClientChannelInactive(Session session) {
-        clientChannelManager.removeChannel(session.getSessionId());
+    void onClientChannelInactive(NetChannel session) {
+        clientChannelManager.removeChannel(session.getChannelId());
         post(() -> handleClientDisconnected(session));
     }
 
-    void onClientChannelException(Session session, Throwable cause) {
-        long sessionId = session == null ? -1L : session.getSessionId();
+    void onClientChannelException(NetChannel session, Throwable cause) {
+        long sessionId = session == null ? -1L : session.getChannelId();
         LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", id, sessionId, cause);
     }
 }

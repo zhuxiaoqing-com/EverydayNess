@@ -4,7 +4,7 @@ import org.evd.game.common.proto.MsgId;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.ClientSessionRef;
 import org.evd.game.runtime.DistributeConfig;
-import org.evd.game.runtime.Session;
+import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.common.proxy.StageServiceProxy;
 import org.evd.game.common.proxy.ConnServiceProxy;
@@ -16,7 +16,7 @@ public final class ConnServiceClientCmdRouter {
     private ConnServiceClientCmdRouter() {
     }
 
-    public static void forward(ConnService owner, Session session, int cmd, byte[] body) {
+    public static void forward(ConnService owner, NetChannel session, int cmd, byte[] body) {
         ClientSessionRef sessionRef = owner.buildClientSessionRef(session);
         switch (cmd) {
             case MsgId.C2S_LOGIN_VALUE:

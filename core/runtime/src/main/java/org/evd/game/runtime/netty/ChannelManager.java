@@ -1,6 +1,7 @@
 package org.evd.game.runtime.netty;
 
 import io.netty.channel.Channel;
+import io.netty.util.Attribute;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,9 +13,9 @@ public class ChannelManager {
         return channelMap.get(channelId);
     }
 
-    public NetChannel addChannel(long channelId, Channel channel) {
-        NetChannel netChannel = new NetChannel(channelId, channel);
-        channelMap.put(channelId, netChannel);
+    public NetChannel addChannel(NetChannel netChannel) {
+        netChannel.setLastPingTime(System.currentTimeMillis());
+        channelMap.put(netChannel.getChannelId(), netChannel);
         return netChannel;
     }
 
@@ -23,10 +24,12 @@ public class ChannelManager {
     }
 
     public void removeChannel(Channel channel) {
-        Long channelId = channel.attr(NetChannelAttributeKeys.CHANNEL_ID).get();
-        if (channelId != null) {
-            channelMap.remove(channelId);
+        Attribute<Long> attribute = channel.attr(ServerAttributeKey.channel_Id);
+        if (attribute == null || attribute.get() == null) {
+            //log.error("delete a channel without id");
+            return;
         }
+        this.channelMap.remove(attribute.get());
     }
 
     public void clear() {

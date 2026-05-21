@@ -3,6 +3,7 @@ package org.evd.game.runtime.netty;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 
+
 public abstract class BaseChannelHandler<T> extends SimpleChannelInboundHandler<T> {
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {

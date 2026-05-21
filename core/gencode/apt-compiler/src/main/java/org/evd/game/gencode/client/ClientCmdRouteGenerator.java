@@ -158,7 +158,7 @@ public final class ClientCmdRouteGenerator {
         source.append("import org.evd.game.runtime.Chunk;\n");
         source.append("import org.evd.game.runtime.ClientSessionRef;\n");
         source.append("import org.evd.game.runtime.DistributeConfig;\n");
-        source.append("import org.evd.game.runtime.Session;\n");
+        source.append("import org.evd.game.runtime.netty.NetChannel;\n");
         source.append("import org.evd.game.runtime.call.CallPoint;\n");
         for (String proxyImport : collectProxyImports(routes)) {
             source.append("import ").append(proxyImport).append(";\n");
@@ -170,7 +170,7 @@ public final class ClientCmdRouteGenerator {
         source.append("public final class ").append(ROUTER_CLASS_NAME).append(" {\n");
         source.append("    private ").append(ROUTER_CLASS_NAME).append("() {\n");
         source.append("    }\n\n");
-        source.append("    public static void forward(ConnService owner, Session session, int cmd, byte[] body) {\n");
+        source.append("    public static void forward(ConnService owner, NetChannel session, int cmd, byte[] body) {\n");
         source.append("        ClientSessionRef sessionRef = owner.buildClientSessionRef(session);\n");
         source.append("        switch (cmd) {\n");
         for (ClientCmdRouteInfo route : routes) {
