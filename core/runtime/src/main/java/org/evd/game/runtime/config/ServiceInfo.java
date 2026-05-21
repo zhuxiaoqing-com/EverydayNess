@@ -1,14 +1,11 @@
-package org.evd.BootStrap.config;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
+package org.evd.game.runtime.config;
 
 public class ServiceInfo {
     private String className;
     private String name;
     private int num;
     private int interval = 5;
-    private Map<String, Object> options = new LinkedHashMap<>();
+    private String publicAddr;
 
     public String getClassName() {
         return className;
@@ -42,12 +39,12 @@ public class ServiceInfo {
         this.interval = interval;
     }
 
-    public Map<String, Object> getOptions() {
-        return options;
+    public String getPublicAddr() {
+        return publicAddr;
     }
 
-    public void setOptions(Map<String, Object> options) {
-        this.options = options;
+    public void setPublicAddr(String publicAddr) {
+        this.publicAddr = publicAddr;
     }
 }
 

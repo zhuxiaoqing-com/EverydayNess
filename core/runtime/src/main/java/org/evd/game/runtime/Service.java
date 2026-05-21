@@ -10,6 +10,7 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorRegistry;
+import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.mailbox.MailBoxComponent;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
@@ -78,9 +79,9 @@ public class Service extends TickCase{
     }
     /** node */
     protected final Node node;    public Node getNode() { return node; }
+    protected ServiceInfo serviceInfo;
     /** 线程池名字 */
     private final String scheduledName;     public String getScheduledName(){ return scheduledName; }
-
     /** service的接收队列 */
     private final ConcurrentLinkedDeque<CallBase> calls = new ConcurrentLinkedDeque<>();
     /** 此帧要执行的calls */
@@ -118,18 +119,14 @@ public class Service extends TickCase{
     /** 远程请求RPC缓冲区 */
     private final Map<String, CallPulseBuffer> callFrameBuffers = new HashMap<>();
 
-    public Service(Node node, String name, String scheduledName, long tickInterval){
+    public Service(Node node, String name, String scheduledName, long tickInterval, ServiceInfo serviceInfo){
         super(name, tickInterval);
         this.node = node;
         this.scheduledName = scheduledName;
         // scope与service同名
         scope = new ContinuationScope(name);
         callPoint = new CallPoint(node.getId(), name);
-
-    }
-
-    public Service(Node node, String name, String scheduledName){
-        this(node, name, scheduledName, TICK_INTERVAL);
+        this.serviceInfo = serviceInfo;
     }
 
     @Override

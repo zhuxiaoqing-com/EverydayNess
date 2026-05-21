@@ -7,6 +7,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.Task;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 
 import java.util.HashMap;
@@ -37,12 +38,8 @@ public class LocationService extends Service {
     private final Map<ActorId, LockInfo> lockInfos = new HashMap<>();
     private long nextLockRevision = 1L;
 
-    public LocationService(Node node, String name, String scheduledName) {
-        super(node, name, scheduledName);
-    }
-
-    public LocationService(Node node, String name, String scheduledName, int interval) {
-        super(node, name, scheduledName, interval);
+    public LocationService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
+        super(node, name, scheduledName, interval, serviceInfo);
     }
 
     @Rpc

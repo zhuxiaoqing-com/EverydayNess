@@ -1,4 +1,4 @@
-package org.evd.BootStrap.config;
+package org.evd.game.runtime.config;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -17,6 +17,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
 
@@ -30,11 +31,9 @@ public class StageService extends Service {
     private java.lang.reflect.Method clientCmdDispatchMethod;
     private final MessageLocationSender actorLocationSender = new MessageLocationSender();
 
-    public StageService(Node node, String name, String scheduledName) {
-        super(node, name, scheduledName);
-    }
-    public StageService(Node node, String name, String scheduledName, int interval) {
-        super(node, name, scheduledName, interval);
+
+    public StageService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
+        super(node, name, scheduledName, interval, serviceInfo);
     }
 
     @Rpc

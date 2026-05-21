@@ -19,8 +19,10 @@ import org.evd.game.runtime.client.NettyServerConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Session;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
+import org.evd.game.runtime.support.SysException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,17 +33,14 @@ public class ConnService extends Service {
     private Object clientCmdRegistry;
     private java.lang.reflect.Method clientCmdDispatchMethod;
     private volatile ClientTransport clientTransport;
-    private String clientHost = "0.0.0.0";
-    private int clientPort = -1;
+    private String publicAddr;
     private int clientBossThreads = 1;
     private int clientWorkerThreads = 0;
     private int clientMaxFrameLength = 8 * 1024 * 1024;
 
-    public ConnService(Node node, String name, String scheduledName) {
-        super(node, name, scheduledName);
-    }
-    public ConnService(Node node, String name, String scheduledName, int interval) {
-        super(node, name, scheduledName, interval);
+    public ConnService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
+        super(node, name, scheduledName, interval, serviceInfo);
+        this.publicAddr = serviceInfo.getPublicAddr();
     }
 
     @Override
@@ -125,12 +124,8 @@ public class ConnService extends Service {
         return new ClientSessionRef(new CallPoint(node.getId(), id), session.getSessionId(), session.getSessionId());
     }
 
-    public void setClientHost(String clientHost) {
-        this.clientHost = clientHost;
-    }
-
-    public void setClientPort(int clientPort) {
-        this.clientPort = clientPort;
+    public void setPublicAddr(String publicAddr) {
+        this.publicAddr = publicAddr;
     }
 
     public void setClientBossThreads(int clientBossThreads) {
@@ -184,13 +179,16 @@ public class ConnService extends Service {
     }
 
     private void startClientTransport() {
-        if (clientPort <= 0) {
-            LogCore.core.warn("ConnService 未配置客户端监听端口，跳过 Netty 启动: service={}", id);
+        if (publicAddr == null || publicAddr.isBlank()) {
+            LogCore.core.warn("ConnService 未配置 publicAddr，跳过 Netty 启动: service={}", id);
             return;
         }
+        int split = publicAddr.lastIndexOf(':');
+        String host = publicAddr.substring(0, split).trim();
+        int port = Integer.parseInt(publicAddr.substring(split + 1).trim());
         NettyServerConfig config = new NettyServerConfig(
-                clientHost,
-                clientPort,
+                host,
+                port,
                 clientBossThreads,
                 clientWorkerThreads,
                 clientMaxFrameLength);
@@ -218,7 +216,7 @@ public class ConnService extends Service {
         });
         transport.start();
         clientTransport = transport;
-        LogCore.core.info("ConnService Netty 启动完成: service={}, host={}, port={}", id, clientHost, clientPort);
+        LogCore.core.info("ConnService Netty 启动完成: service={}, publicAddr={}", id, publicAddr);
     }
 
     private void handleClientConnected(Session session) {

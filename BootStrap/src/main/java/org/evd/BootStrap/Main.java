@@ -2,10 +2,10 @@ package org.evd.BootStrap;
 
 import org.evd.game.common.ClassFinder;
 import org.evd.game.common.ConstPath;
-import org.evd.BootStrap.config.NodeConfig;
-import org.evd.BootStrap.config.NodeInfo;
-import org.evd.BootStrap.config.ScheduleInfo;
-import org.evd.BootStrap.config.ServiceInfo;
+import org.evd.game.runtime.config.NodeConfig;
+import org.evd.game.runtime.config.NodeInfo;
+import org.evd.game.runtime.config.ScheduleInfo;
+import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.DistributeConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
@@ -14,7 +14,11 @@ import org.evd.game.runtime.support.SysException;
 import org.evd.game.runtime.support.TupleUtils;
 import org.evd.game.runtime.support.TwoTuple;
 import org.evd.game.runtime.annotation.Module;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -24,7 +28,7 @@ import java.util.List;
 
 public class Main {
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public static void main(String[] args) throws InterruptedException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    public static void main(String[] args) throws Exception {
 //        if (args.length < 2){
 //            Log.error("param error");
 //            Log.error("     Param1: BootStrap file name");
@@ -42,7 +46,15 @@ public class Main {
         }
 
         String configPath = ConstPath.CONFIGURATION_PATH + bootStrapName;
-        NodeConfig config = NodeConfig.load(configPath);
+
+        NodeConfig config = null;
+        Yaml yaml = new Yaml();
+        try (InputStream in = new FileInputStream(configPath)) {
+            config = yaml.loadAs(in, NodeConfig.class);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
         registerServiceRoutes(config);
 
         final String nName = nodeId;
@@ -77,14 +89,18 @@ public class Main {
 
                 Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class);
                 if (serviceInfo.getNum() < 0){
-                    Service service = (Service)con.newInstance(node, serviceInfo.getName(), scheduleInfo.getName(), serviceInfo.getInterval());
-                    applyServiceOptions(service, serviceInfo);
+                    Service service = (Service)con.newInstance(node, serviceInfo.getName(), scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
+                    if (service instanceof org.evd.game.ConnService.ConnService connService) {
+                        connService.setPublicAddr(serviceInfo.getPublicAddr());
+                    }
                     node.addService(service);
                     DistributeConfig.addSingleService(service);
                 }else{
                     for (int i=1; i<=serviceInfo.getNum(); ++i){
-                        Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval());
-                        applyServiceOptions(service, serviceInfo);
+                        Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
+                        if (service instanceof org.evd.game.ConnService.ConnService connService) {
+                            connService.setPublicAddr(serviceInfo.getPublicAddr());
+                        }
                         node.addService(service);
                     }
                 }
@@ -153,75 +169,6 @@ public class Main {
                 }
             }
         }
-    }
-
-    private static void applyServiceOptions(Service service, ServiceInfo serviceInfo) {
-        Map<String, Object> options = serviceInfo.getOptions();
-        if (options == null || options.isEmpty()) {
-            return;
-        }
-        for (Map.Entry<String, Object> entry : options.entrySet()) {
-            applyServiceOption(service, entry.getKey(), entry.getValue());
-        }
-    }
-
-    private static void applyServiceOption(Service service, String optionName, Object optionValue) {
-        String setterName = "set" + Character.toUpperCase(optionName.charAt(0)) + optionName.substring(1);
-        Method setter = findSetter(service.getClass(), setterName);
-        if (setter == null) {
-            throw new SysException("service option setter not found: service={}, option={}",
-                    service.getClass().getName(), optionName);
-        }
-        Object convertedValue = convertOptionValue(service.getClass(), optionName, optionValue, setter.getParameterTypes()[0]);
-        try {
-            setter.invoke(service, convertedValue);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException("apply service option failed: service=" + service.getClass().getName()
-                    + ", option=" + optionName, e);
-        }
-    }
-
-    private static Method findSetter(Class<?> type, String setterName) {
-        for (Method method : type.getMethods()) {
-            if (method.getName().equals(setterName) && method.getParameterCount() == 1) {
-                return method;
-            }
-        }
-        return null;
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static Object convertOptionValue(Class<?> serviceType, String optionName, Object optionValue, Class<?> targetType) {
-        if (optionValue == null) {
-            if (targetType.isPrimitive()) {
-                throw new SysException("service option value is null for primitive: service={}, option={}",
-                        serviceType.getName(), optionName);
-            }
-            return null;
-        }
-        if (targetType.isInstance(optionValue)) {
-            return optionValue;
-        }
-        if (targetType == String.class) {
-            return String.valueOf(optionValue);
-        }
-        if (targetType == int.class || targetType == Integer.class) {
-            return optionValue instanceof Number number ? number.intValue() : Integer.parseInt(String.valueOf(optionValue));
-        }
-        if (targetType == long.class || targetType == Long.class) {
-            return optionValue instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(optionValue));
-        }
-        if (targetType == boolean.class || targetType == Boolean.class) {
-            if (optionValue instanceof Boolean bool) {
-                return bool;
-            }
-            return Boolean.parseBoolean(String.valueOf(optionValue));
-        }
-        if (targetType.isEnum()) {
-            return Enum.valueOf((Class<? extends Enum>) targetType, String.valueOf(optionValue));
-        }
-        throw new SysException("unsupported service option type: service={}, option={}, targetType={}",
-                serviceType.getName(), optionName, targetType.getName());
     }
 
 }
