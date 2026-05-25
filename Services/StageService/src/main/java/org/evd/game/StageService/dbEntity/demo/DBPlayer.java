@@ -1,4 +1,4 @@
-package org.evd.game.StageService.dbEntity;
+package org.evd.game.StageService.dbEntity.demo;
 import com.alibaba.fastjson2.annotation.JSONField;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.DbEntity.collection.XArrayList;

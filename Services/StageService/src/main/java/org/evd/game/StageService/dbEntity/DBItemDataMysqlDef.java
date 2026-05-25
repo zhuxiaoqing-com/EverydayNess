@@ -9,8 +9,8 @@ import org.evd.game.annotation.DBserialize;
  * @Description: Item
  * @Date 2026/5/21 20:49
  **/
-@DBDirtyEntity(DBserialize.PB)
-public class DBItemDataDef {
+@DBDirtyEntity(DBserialize.MYSQL)
+public class DBItemDataMysqlDef {
     @DBDirtyTag(1)
     private long itemSrl;
     @DBDirtyTag(2)

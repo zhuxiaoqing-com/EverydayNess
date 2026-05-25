@@ -66,7 +66,7 @@ public class ConnService extends Service {
 
     @Rpc
     public void con4(){
-
+        String s = StageServiceProxy.doSome3(new CallPoint("", ""), 1);
     }
 
     public void dispatchClientCmd(NetChannel session, int cmd, byte[] body) {

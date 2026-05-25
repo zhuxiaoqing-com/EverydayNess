@@ -59,4 +59,12 @@ public abstract class DirtyObject {
         return _parent;
     }
 
+
+    public Object marshalKey() {
+        return "";
+    }
+    public Object marshalValue() {
+        return "";
+    }
+
 }

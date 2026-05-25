@@ -1,8 +1,9 @@
 package org.evd.game.gencode.db;
 
-import com.alibaba.fastjson2.annotation.JSONField;
 import com.google.auto.service.AutoService;
 import org.evd.game.annotation.DBDirtyEntity;
+import org.evd.game.annotation.DBDirtyTag;
+import org.evd.game.annotation.DBserialize;
 import org.evd.game.gencode.ProcessorBase;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -21,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -98,7 +100,7 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
     private String renderEntity(EntityModel entity) {
         StringBuilder sb = new StringBuilder(4096);
         sb.append("package ").append(entity.targetPackage).append(";\n");
-        sb.append("import com.alibaba.fastjson2.annotation.JSONField;\n");
+        appendSerializationImport(sb, entity);
         sb.append("import org.evd.game.base.DirtyObject;\n");
         if (entity.usesList()) {
             sb.append("import org.evd.game.runtime.DbEntity.collection.XArrayList;\n");
@@ -112,6 +114,7 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
         sb.append("\n");
         sb.append("public final class ").append(entity.className).append(" extends DirtyObject {\n");
         for (FieldModel field : entity.fields) {
+            appendFieldAnnotation(sb, entity, field, "    ");
             sb.append("    private ").append(field.type.fieldType).append(" ").append(field.name).append(";\n");
         }
         sb.append("\n");
@@ -224,12 +227,10 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
 
     private void appendGettersAndSetters(StringBuilder sb, EntityModel entity) {
         for (FieldModel field : entity.fields) {
-            appendJsonFieldAnnotation(sb, field, "    ");
             sb.append("    public ").append(field.type.getterType).append(" get").append(field.methodSuffix).append("(){\n");
             sb.append("        return this.").append(field.name).append(";\n");
             sb.append("    }\n\n");
 
-            appendJsonFieldAnnotation(sb, field, "    ");
             sb.append("    public void set").append(field.methodSuffix).append("(").append(field.type.fieldType).append(" _v_){\n");
             sb.append("        this.").append(field.name).append(" = _v_;\n");
             if (field.type.kind == TypeKind.ENTITY || field.type.kind == TypeKind.LIST
@@ -243,11 +244,26 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
         }
     }
 
-    private void appendJsonFieldAnnotation(StringBuilder sb, FieldModel field, String indent) {
-        if (field.jsonName == null || field.jsonName.isEmpty()) {
+    private void appendSerializationImport(StringBuilder sb, EntityModel entity) {
+        if (!entity.hasTaggedField()) {
             return;
         }
-        sb.append(indent).append("@JSONField(name = \"").append(field.jsonName).append("\")\n");
+        if (entity.dbType == DBserialize.JSON) {
+            sb.append("import com.alibaba.fastjson2.annotation.JSONField;\n");
+        } else if (entity.dbType == DBserialize.PB) {
+            sb.append("import io.protostuff.Tag;\n");
+        }
+    }
+
+    private void appendFieldAnnotation(StringBuilder sb, EntityModel entity, FieldModel field, String indent) {
+        if (field.tagValue == null) {
+            return;
+        }
+        if (entity.dbType == DBserialize.JSON) {
+            sb.append(indent).append("@JSONField(name = \"").append(field.tagValue).append("\")\n");
+        } else if (entity.dbType == DBserialize.PB) {
+            sb.append(indent).append("@Tag(").append(field.tagValue).append(")\n");
+        }
     }
 
     private void appendToString(StringBuilder sb, EntityModel entity) {
@@ -290,11 +306,15 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
     private static final class EntityModel {
         private final String targetPackage;
         private final String className;
+        private final DBserialize dbType;
+        private final boolean table;
         private final List<FieldModel> fields;
 
-        private EntityModel(String targetPackage, String className, List<FieldModel> fields) {
+        private EntityModel(String targetPackage, String className, DBserialize dbType, boolean table, List<FieldModel> fields) {
             this.targetPackage = targetPackage;
             this.className = className;
+            this.dbType = dbType;
+            this.table = table;
             this.fields = fields;
         }
 
@@ -302,13 +322,42 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
             String sourcePackage = processingEnv.getElementUtils().getPackageOf(typeElement).getQualifiedName().toString();
             String targetPackage = toTargetPackage(sourcePackage);
             String className = toGeneratedClassName(typeElement.getSimpleName().toString());
+            DBDirtyEntity dbDirtyEntity = typeElement.getAnnotation(DBDirtyEntity.class);
+            DBserialize dbType = dbDirtyEntity.value();
+            boolean table = dbDirtyEntity.table();
             List<FieldModel> fields = new ArrayList<>();
             for (Element element : typeElement.getEnclosedElements()) {
                 if (element instanceof VariableElement variableElement) {
-                    fields.add(FieldModel.of(variableElement, processingEnv, targetPackage));
+                    fields.add(FieldModel.of(variableElement, processingEnv, targetPackage, dbType, className));
                 }
             }
-            return new EntityModel(targetPackage, className, fields);
+            validateFields(className, table, fields);
+            return new EntityModel(targetPackage, className, dbType, table, fields);
+        }
+
+        private static void validateFields(String className, boolean table, List<FieldModel> fields) {
+            Set<Integer> usedTagValues = new HashSet<>();
+            boolean hasPrimaryKey = false;
+            for (FieldModel field : fields) {
+                if (field.tagValue == null) {
+                    continue;
+                }
+                if (field.tagValue <= 0) {
+                    throw new IllegalStateException("DBDirtyTag.value 必须 > 0: " + className + "." + field.name);
+                }
+                if (!usedTagValues.add(field.tagValue)) {
+                    throw new IllegalStateException("DBDirtyTag.value 不能重复: " + className + "." + field.name + " = " + field.tagValue);
+                }
+                if (field.primaryKey) {
+                    hasPrimaryKey = true;
+                    if (!field.type.supportPrimaryKey()) {
+                        throw new IllegalStateException("primaryKey 只能是基础类型或String: " + className + "." + field.name);
+                    }
+                }
+            }
+            if (table && !hasPrimaryKey) {
+                throw new IllegalStateException("table=true 的实体必须至少声明一个 primaryKey: " + className);
+            }
         }
 
         private boolean usesList() {
@@ -322,26 +371,35 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
         private boolean usesSet() {
             return fields.stream().anyMatch(field -> field.type.containsKind(TypeKind.SET));
         }
+
+        private boolean hasTaggedField() {
+            return fields.stream().anyMatch(field -> field.tagValue != null);
+        }
     }
 
     private static final class FieldModel {
         private final String name;
         private final String methodSuffix;
-        private final String jsonName;
+        private final Integer tagValue;
+        private final boolean primaryKey;
         private final TypeModel type;
 
-        private FieldModel(String name, String methodSuffix, String jsonName, TypeModel type) {
+        private FieldModel(String name, String methodSuffix, Integer tagValue, boolean primaryKey, TypeModel type) {
             this.name = name;
             this.methodSuffix = methodSuffix;
-            this.jsonName = jsonName;
+            this.tagValue = tagValue;
+            this.primaryKey = primaryKey;
             this.type = type;
         }
 
-        private static FieldModel of(VariableElement field, ProcessingEnvironment processingEnv, String currentTargetPackage) {
-            JSONField jsonField = field.getAnnotation(JSONField.class);
-            String jsonName = jsonField == null ? null : jsonField.name();
+        private static FieldModel of(VariableElement field, ProcessingEnvironment processingEnv, String currentTargetPackage,
+                                     DBserialize ownerSerialize, String ownerClassName) {
+            DBDirtyTag dbDirtyTag = field.getAnnotation(DBDirtyTag.class);
+            Integer tagValue = dbDirtyTag == null ? null : dbDirtyTag.value();
+            boolean primaryKey = dbDirtyTag != null && dbDirtyTag.primaryKey();
             String name = field.getSimpleName().toString();
-            return new FieldModel(name, upperFirst(name), jsonName, TypeModel.of(field.asType(), processingEnv, currentTargetPackage));
+            return new FieldModel(name, upperFirst(name), tagValue, primaryKey,
+                    TypeModel.of(field.asType(), processingEnv, currentTargetPackage, ownerSerialize, ownerClassName, name));
         }
 
         private static String upperFirst(String name) {
@@ -374,7 +432,8 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
             this.valueType = valueType;
         }
 
-        private static TypeModel of(TypeMirror typeMirror, ProcessingEnvironment processingEnv, String currentTargetPackage) {
+        private static TypeModel of(TypeMirror typeMirror, ProcessingEnvironment processingEnv, String currentTargetPackage,
+                                    DBserialize ownerSerialize, String ownerClassName, String fieldName) {
             if (typeMirror.getKind().isPrimitive()) {
                 String typeName = typeMirror.toString();
                 return new TypeModel(TypeKind.PRIMITIVE, typeName, typeName, null, null, null, null, null);
@@ -387,7 +446,8 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                     return new TypeModel(TypeKind.STRING, "String", "String", "\"\"", null, null, null, null);
                 }
                 if (qualifiedName.equals(List.class.getCanonicalName())) {
-                    TypeModel elementType = of(declaredType.getTypeArguments().get(0), processingEnv, currentTargetPackage);
+                    TypeModel elementType = of(declaredType.getTypeArguments().get(0), processingEnv, currentTargetPackage,
+                            ownerSerialize, ownerClassName, fieldName);
                     String genericType = elementType.fieldType;
                     return new TypeModel(TypeKind.LIST,
                             "XArrayList<" + genericType + ">",
@@ -397,7 +457,8 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                             elementType, null, null);
                 }
                 if (qualifiedName.equals(Set.class.getCanonicalName())) {
-                    TypeModel elementType = of(declaredType.getTypeArguments().get(0), processingEnv, currentTargetPackage);
+                    TypeModel elementType = of(declaredType.getTypeArguments().get(0), processingEnv, currentTargetPackage,
+                            ownerSerialize, ownerClassName, fieldName);
                     String genericType = elementType.fieldType;
                     return new TypeModel(TypeKind.SET,
                             "XHashSet<" + genericType + ">",
@@ -407,8 +468,10 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                             elementType, null, null);
                 }
                 if (qualifiedName.equals(java.util.Map.class.getCanonicalName())) {
-                    TypeModel keyType = of(declaredType.getTypeArguments().get(0), processingEnv, currentTargetPackage);
-                    TypeModel valueType = of(declaredType.getTypeArguments().get(1), processingEnv, currentTargetPackage);
+                    TypeModel keyType = of(declaredType.getTypeArguments().get(0), processingEnv, currentTargetPackage,
+                            ownerSerialize, ownerClassName, fieldName);
+                    TypeModel valueType = of(declaredType.getTypeArguments().get(1), processingEnv, currentTargetPackage,
+                            ownerSerialize, ownerClassName, fieldName);
                     return new TypeModel(TypeKind.MAP,
                             "XHashMap<" + keyType.fieldType + ", " + valueType.fieldType + ">",
                             "java.util.Map<" + keyType.fieldType + ", " + valueType.fieldType + ">",
@@ -416,11 +479,17 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                             "new XHashMap<>(this)",
                             null, keyType, valueType);
                 }
-                if (typeElement.getAnnotation(DBDirtyEntity.class) != null) {
+                DBDirtyEntity childEntity = typeElement.getAnnotation(DBDirtyEntity.class);
+                if (childEntity != null) {
+                    if (childEntity.value() != ownerSerialize) {
+                        throw new IllegalStateException("父子 DBserialize 必须一致: " + ownerClassName + "." + fieldName
+                                + " -> " + typeElement.getQualifiedName() + "，父=" + ownerSerialize + "，子=" + childEntity.value());
+                    }
                     String typeName = renderDbEntityType(typeElement, processingEnv, currentTargetPackage);
                     return new TypeModel(TypeKind.ENTITY, typeName, typeName, null, null, null, null, null);
                 }
-                String typeName = renderDeclaredType(declaredType, processingEnv, currentTargetPackage);
+                String typeName = renderDeclaredType(declaredType, processingEnv, currentTargetPackage,
+                        ownerSerialize, ownerClassName, fieldName);
                 return new TypeModel(TypeKind.OTHER, typeName, typeName, null, null, null, null, null);
             }
 
@@ -437,6 +506,10 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                     || (valueType != null && valueType.containsKind(targetKind));
         }
 
+        private boolean supportPrimaryKey() {
+            return kind == TypeKind.PRIMITIVE || kind == TypeKind.STRING;
+        }
+
         private static String renderDbEntityType(TypeElement typeElement, ProcessingEnvironment processingEnv, String currentTargetPackage) {
             String sourcePackage = processingEnv.getElementUtils().getPackageOf(typeElement).getQualifiedName().toString();
             String targetPackage = toTargetPackage(sourcePackage);
@@ -447,7 +520,9 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
             return targetPackage + "." + className;
         }
 
-        private static String renderDeclaredType(DeclaredType declaredType, ProcessingEnvironment processingEnv, String currentTargetPackage) {
+        private static String renderDeclaredType(DeclaredType declaredType, ProcessingEnvironment processingEnv,
+                                                 String currentTargetPackage, DBserialize ownerSerialize,
+                                                 String ownerClassName, String fieldName) {
             TypeElement typeElement = (TypeElement) declaredType.asElement();
             String qualifiedName = typeElement.getQualifiedName().toString();
             List<? extends TypeMirror> typeArguments = declaredType.getTypeArguments();
@@ -456,7 +531,8 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
             }
             StringJoiner joiner = new StringJoiner(", ");
             for (TypeMirror typeArgument : typeArguments) {
-                joiner.add(of(typeArgument, processingEnv, currentTargetPackage).fieldType);
+                joiner.add(of(typeArgument, processingEnv, currentTargetPackage,
+                        ownerSerialize, ownerClassName, fieldName).fieldType);
             }
             return shortJavaLang(qualifiedName) + "<" + joiner + ">";
         }
