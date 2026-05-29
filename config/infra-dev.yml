@@ -1,0 +1,24 @@
+db:
+  engine: mysql
+  mysql:
+    jdbcUrl: "jdbc:mysql://127.0.0.1:3306/game?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai"
+    driverClass: "com.mysql.cj.jdbc.Driver"
+    username: "root"
+    password: "123456"
+    database: "game"
+    autoCreate: true
+    minPoolSize: 4
+    maxPoolSize: 16
+    connectionTimeoutMs: 4000
+    testQuery: "SELECT 1"
+
+  mongo:
+    enabled: false
+    uri: "mongodb://127.0.0.1:27017"
+    database: "game"
+
+  storage:
+    batchThreshold: 30
+    batchPerCount: 500
+    costMsWarn: 100
+    batchCostMsWarn: 30000

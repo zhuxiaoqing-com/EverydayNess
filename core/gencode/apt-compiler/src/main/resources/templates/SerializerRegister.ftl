@@ -32,7 +32,7 @@ final class ${className}{
 	*/
 	private static void registerWrite(){
 <#list fields as field>
-		OutputStream.registerSerializeWriteFunc(${field.key}, ${className}::${field.serializerName}Write);
+		OutputStream.registerSerializeWriteFunc(${field.key}, ${className}::${field.registerName}Write);
 </#list>
 	}
 	/**
@@ -40,7 +40,7 @@ final class ${className}{
 	*/
 	private static void registerRead(){
 	<#list fields as field>
-		InputStream.registerSerializeReadFunc(${field.key}, ${className}::${field.serializerName}Read);
+		InputStream.registerSerializeReadFunc(${field.key}, ${className}::${field.registerName}Read);
 	</#list>
 	}
 	/**
@@ -48,18 +48,18 @@ final class ${className}{
 	*/
 	private static void registerReadEnum(){
 	<#list enums as field>
-		InputStream.registerSerializeReadEnumFunc(${field.key}, ${className}::${field.className}ReadEnum);
+		InputStream.registerSerializeReadEnumFunc(${field.key}, ${className}::${field.registerName}ReadEnum);
 	</#list>
 	}
 
 <#list fields as field>
-	public static void ${field.serializerName}Write(OutputStream out, ISerializable ser) throws IOException{
+	public static void ${field.registerName}Write(OutputStream out, ISerializable ser) throws IOException{
 		${field.serializerFullName}.write(out, (${field.classFullName})ser);
 	}
 </#list>
 
 <#list fields as field>
-	public static ISerializable ${field.serializerName}Read(InputStream in) throws IOException{
+	public static ISerializable ${field.registerName}Read(InputStream in) throws IOException{
 		${field.classFullName} ${field.className?uncap_first} = new ${field.classFullName}();
 		${field.serializerFullName}.read(in, ${field.className?uncap_first});
 		return ${field.className?uncap_first};
@@ -67,7 +67,7 @@ final class ${className}{
 </#list>
 
 <#list enums as field>
-	public static Enum<?> ${field.className}ReadEnum(InputStream in, int ordinal) throws IOException{
+	public static Enum<?> ${field.registerName}ReadEnum(InputStream in, int ordinal) throws IOException{
 		return ${field.classFullName}.values()[ordinal];
 	}
 </#list>

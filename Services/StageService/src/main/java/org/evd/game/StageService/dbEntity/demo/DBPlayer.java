@@ -1,9 +1,9 @@
 package org.evd.game.StageService.dbEntity.demo;
 import com.alibaba.fastjson2.annotation.JSONField;
 import org.evd.game.base.DirtyObject;
-import org.evd.game.runtime.DbEntity.collection.XArrayList;
-import org.evd.game.runtime.DbEntity.collection.XHashMap;
-import org.evd.game.runtime.DbEntity.collection.XHashSet;
+import org.evd.game.DbEntity.collection.XArrayList;
+import org.evd.game.DbEntity.collection.XHashMap;
+import org.evd.game.DbEntity.collection.XHashSet;
 
 
 public final class DBPlayer extends DirtyObject {

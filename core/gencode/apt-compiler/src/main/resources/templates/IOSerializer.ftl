@@ -17,6 +17,11 @@ public final class ${proxyName}{
 	 * @param instance 实例
 	 */
 	public static void write(OutputStream out, ${className} instance) throws IOException {
+		<#if customized>
+		instance.beforeWrite(out);
+		instance.writeTo(out);
+		instance.afterWrite(out);
+		<#else>
 		<#if superClass??>
 		${superClass}.write(out, instance);
 		</#if>
@@ -53,6 +58,7 @@ public final class ${proxyName}{
 		out.write(instance.get${field.name?cap_first}());
 			</#if>
 		</#list>
+		</#if>
 	}
 	
 	/**
@@ -61,6 +67,11 @@ public final class ${proxyName}{
 	 * @param instance 实例
 	 */
 	public static void read(InputStream in, ${className} instance) throws IOException {
+		<#if customized>
+		instance.beforeRead(in);
+		instance.readFrom(in);
+		instance.afterRead(in);
+		<#else>
 		<#if superClass??>
 		${superClass}.read(in, instance);
 		</#if>
@@ -94,5 +105,6 @@ public final class ${proxyName}{
 		instance.set${field.name?cap_first}(in.read());
 			</#if>
 		</#list>
+		</#if>
 	}
 }

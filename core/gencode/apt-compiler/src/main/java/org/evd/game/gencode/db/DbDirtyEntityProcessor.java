@@ -29,7 +29,7 @@ import java.util.StringJoiner;
 
 @AutoService(Processor.class)
 public class DbDirtyEntityProcessor extends ProcessorBase {
-    private static final String DATA_DEF_SUFFIX = "DataDef";
+    private static final String DATA_DEF_SUFFIX = "Def";
     private static final String DB_ENTITY_PACKAGE_SUFFIX = ".dbEntity";
     private static final String DB_PACKAGE_SUFFIX = ".db";
 
@@ -351,7 +351,7 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                 if (field.primaryKey) {
                     hasPrimaryKey = true;
                     if (!field.type.supportPrimaryKey()) {
-                        throw new IllegalStateException("primaryKey 只能是基础类型或String: " + className + "." + field.name);
+                        throw new IllegalStateException("primaryKey 只能是 int、long 或 String: " + className + "." + field.name);
                     }
                 }
             }
@@ -414,17 +414,20 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
         private final TypeKind kind;
         private final String fieldType;
         private final String getterType;
+        private final boolean primaryKeySupported;
         private final String initExpr;
         private final String newCollectionExpr;
         private final TypeModel elementType;
         private final TypeModel keyType;
         private final TypeModel valueType;
 
-        private TypeModel(TypeKind kind, String fieldType, String getterType, String initExpr, String newCollectionExpr,
+        private TypeModel(TypeKind kind, String fieldType, String getterType, boolean primaryKeySupported,
+                          String initExpr, String newCollectionExpr,
                           TypeModel elementType, TypeModel keyType, TypeModel valueType) {
             this.kind = kind;
             this.fieldType = fieldType;
             this.getterType = getterType;
+            this.primaryKeySupported = primaryKeySupported;
             this.initExpr = initExpr;
             this.newCollectionExpr = newCollectionExpr;
             this.elementType = elementType;
@@ -436,14 +439,17 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                                     DBserialize ownerSerialize, String ownerClassName, String fieldName) {
             if (typeMirror.getKind().isPrimitive()) {
                 String typeName = typeMirror.toString();
-                return new TypeModel(TypeKind.PRIMITIVE, typeName, typeName, null, null, null, null, null);
+                return new TypeModel(TypeKind.PRIMITIVE, typeName, typeName,
+                        "int".equals(typeName) || "long".equals(typeName),
+                        null, null, null, null, null);
             }
 
             if (typeMirror instanceof DeclaredType declaredType) {
                 TypeElement typeElement = (TypeElement) declaredType.asElement();
                 String qualifiedName = typeElement.getQualifiedName().toString();
                 if (qualifiedName.equals(String.class.getCanonicalName())) {
-                    return new TypeModel(TypeKind.STRING, "String", "String", "\"\"", null, null, null, null);
+                    return new TypeModel(TypeKind.STRING, "String", "String",
+                            true, "\"\"", null, null, null, null);
                 }
                 if (qualifiedName.equals(List.class.getCanonicalName())) {
                     TypeModel elementType = of(declaredType.getTypeArguments().get(0), processingEnv, currentTargetPackage,
@@ -452,6 +458,7 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                     return new TypeModel(TypeKind.LIST,
                             "XArrayList<" + genericType + ">",
                             "java.util.List<" + genericType + ">",
+                            false,
                             "new XArrayList<>(this)",
                             "new XArrayList<>(this)",
                             elementType, null, null);
@@ -463,6 +470,7 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                     return new TypeModel(TypeKind.SET,
                             "XHashSet<" + genericType + ">",
                             "java.util.Set<" + genericType + ">",
+                            false,
                             "new XHashSet<>(this)",
                             "new XHashSet<>(this)",
                             elementType, null, null);
@@ -475,6 +483,7 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                     return new TypeModel(TypeKind.MAP,
                             "XHashMap<" + keyType.fieldType + ", " + valueType.fieldType + ">",
                             "java.util.Map<" + keyType.fieldType + ", " + valueType.fieldType + ">",
+                            false,
                             "new XHashMap<>(this)",
                             "new XHashMap<>(this)",
                             null, keyType, valueType);
@@ -486,15 +495,18 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
                                 + " -> " + typeElement.getQualifiedName() + "，父=" + ownerSerialize + "，子=" + childEntity.value());
                     }
                     String typeName = renderDbEntityType(typeElement, processingEnv, currentTargetPackage);
-                    return new TypeModel(TypeKind.ENTITY, typeName, typeName, null, null, null, null, null);
+                    return new TypeModel(TypeKind.ENTITY, typeName, typeName,
+                            false, null, null, null, null, null);
                 }
                 String typeName = renderDeclaredType(declaredType, processingEnv, currentTargetPackage,
                         ownerSerialize, ownerClassName, fieldName);
-                return new TypeModel(TypeKind.OTHER, typeName, typeName, null, null, null, null, null);
+                return new TypeModel(TypeKind.OTHER, typeName, typeName,
+                        false, null, null, null, null, null);
             }
 
             String typeName = shortJavaLang(typeMirror.toString());
-            return new TypeModel(TypeKind.OTHER, typeName, typeName, null, null, null, null, null);
+            return new TypeModel(TypeKind.OTHER, typeName, typeName,
+                    false, null, null, null, null, null);
         }
 
         private boolean containsKind(TypeKind targetKind) {
@@ -507,7 +519,7 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
         }
 
         private boolean supportPrimaryKey() {
-            return kind == TypeKind.PRIMITIVE || kind == TypeKind.STRING;
+            return primaryKeySupported;
         }
 
         private static String renderDbEntityType(TypeElement typeElement, ProcessingEnvironment processingEnv, String currentTargetPackage) {

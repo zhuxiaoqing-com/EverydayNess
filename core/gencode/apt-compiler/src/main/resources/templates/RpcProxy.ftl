@@ -53,11 +53,7 @@ public final class ${className}Proxy {
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        <#if method.targetIsOwner>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
-        <#else>
-        return (${method.returnType})service.callWait(remote, actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
-        </#if>
         <#else>
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);

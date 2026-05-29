@@ -1,7 +1,7 @@
 package org.evd.BootStrap;
 
 import org.evd.game.common.ClassFinder;
-import org.evd.game.common.ConstPath;
+import org.evd.game.common.GlobalConfig;
 import org.evd.game.runtime.config.NodeConfig;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.ScheduleInfo;
@@ -14,11 +14,7 @@ import org.evd.game.runtime.support.SysException;
 import org.evd.game.runtime.support.TupleUtils;
 import org.evd.game.runtime.support.TwoTuple;
 import org.evd.game.runtime.annotation.Module;
-import org.yaml.snakeyaml.Yaml;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -45,26 +41,12 @@ public class Main {
             nodeId = args[1];
         }
 
-        String configPath = ConstPath.CONFIGURATION_PATH + bootStrapName;
-
-        NodeConfig config = null;
-        Yaml yaml = new Yaml();
-        try (InputStream in = new FileInputStream(configPath)) {
-            config = yaml.loadAs(in, NodeConfig.class);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        GlobalConfig.init(bootStrapName);
+        NodeConfig config = GlobalConfig.requireNodeConfig();
 
         registerServiceRoutes(config);
 
-        final String nName = nodeId;
-        Optional<NodeInfo> nodeInfoOptional = config.getNodes().stream().filter(n->n.getName().equals(nName)).findFirst();
-        if (nodeInfoOptional.isEmpty()){
-            LogCore.core.error("[{}] node config not exist", nodeId);
-            return;
-        }
-
-        NodeInfo nodeInfo = nodeInfoOptional.get();
+        NodeInfo nodeInfo = GlobalConfig.requireNodeInfo(nodeId);
         Node node = new Node(nodeId, nodeInfo.getAddr());
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
             node.createExecutor(scheduleInfo.getName(), scheduleInfo.getNum());
@@ -87,20 +69,14 @@ public class Main {
                 // TODO 按service名加载 XXXService.jar
 
 
-                Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class);
+                Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class, ServiceInfo.class);
                 if (serviceInfo.getNum() < 0){
                     Service service = (Service)con.newInstance(node, serviceInfo.getName(), scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
-                    if (service instanceof org.evd.game.ConnService.ConnService connService) {
-                        connService.setPublicAddr(serviceInfo.getPublicAddr());
-                    }
                     node.addService(service);
                     DistributeConfig.addSingleService(service);
                 }else{
                     for (int i=1; i<=serviceInfo.getNum(); ++i){
                         Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
-                        if (service instanceof org.evd.game.ConnService.ConnService connService) {
-                            connService.setPublicAddr(serviceInfo.getPublicAddr());
-                        }
                         node.addService(service);
                     }
                 }
@@ -139,7 +115,7 @@ public class Main {
             try {
                 for (TwoTuple<Integer, Method> ender : enders){
                     try {
-                        ender.second.invoke(null);
+                        ender.second.invoke(null, node);
                     } catch (IllegalAccessException | InvocationTargetException e) {
                         throw new RuntimeException(e);
                     }

@@ -1,7 +1,10 @@
 package org.evd.game.gencode.struct;
 
+import org.evd.game.annotation.SerializeClass;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import java.lang.annotation.Annotation;
@@ -52,9 +55,18 @@ public class ClassStruct {
         return element.getSimpleName().toString();
     }
 
+    public boolean isCustomizedSerialize() {
+        SerializeClass serializeClass = element.getAnnotation(SerializeClass.class);
+        return serializeClass != null && serializeClass.customized();
+    }
+
     public ClassStruct getSuperClass(){
         Element e = typeUtils.asElement(element.getSuperclass());
         return new ClassStruct(e, env);
+    }
+
+    public boolean isAssignableFrom(Class<?> clazz) {
+        return isAssignableFrom(element.asType(), clazz);
     }
 
     public boolean isAbstract() {
@@ -66,5 +78,18 @@ public class ClassStruct {
     }
     public boolean isEnum(){
         return element.getKind() == ElementKind.ENUM;
+    }
+
+    private boolean isAssignableFrom(TypeMirror type, Class<?> clazz) {
+        TypeMirror erasureType = typeUtils.erasure(type);
+        if (erasureType.toString().equals(clazz.getTypeName())) {
+            return true;
+        }
+        for (TypeMirror superType : typeUtils.directSupertypes(type)) {
+            if (isAssignableFrom(superType, clazz)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

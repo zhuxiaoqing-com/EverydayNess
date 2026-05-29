@@ -39,6 +39,12 @@ Bootstrap-all.yml node1
     * ConnService：连接服example
       * main：代码
       * gen：gencode生成的代码（rpc分发类、序列化类……）
+    * LocationService：位置服example
+      * main：代码
+      * gen：gencode生成的代码（rpc分发类、序列化类……）
+    * DBService：数据库服example
+      * main：代码
+      * gen：gencode生成的代码（rpc分发类、序列化类……）
     * StageService：场景服example
       * main：代码
       * gen：gencode生成的代码（rpc分发类、序列化类……）

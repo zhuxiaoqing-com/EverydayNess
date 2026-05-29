@@ -26,13 +26,13 @@ final class SerializerRegister{
 	* 注册序列化
 	*/
 	private static void registerWrite(){
-		OutputStream.registerSerializeWriteFunc(1501583342, SerializerRegister::TestSerIOSerializerWrite);
+		OutputStream.registerSerializeWriteFunc(1501583342, SerializerRegister::org_evd_game_StageService_TestSerWrite);
 	}
 	/**
 	* 注册反序列化
 	*/
 	private static void registerRead(){
-		InputStream.registerSerializeReadFunc(1501583342, SerializerRegister::TestSerIOSerializerRead);
+		InputStream.registerSerializeReadFunc(1501583342, SerializerRegister::org_evd_game_StageService_TestSerRead);
 	}
 	/**
 	* 注册反序列化枚举
@@ -40,11 +40,11 @@ final class SerializerRegister{
 	private static void registerReadEnum(){
 	}
 
-	public static void TestSerIOSerializerWrite(OutputStream out, ISerializable ser) throws IOException{
+	public static void org_evd_game_StageService_TestSerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.StageService.TestSerIOSerializer.write(out, (org.evd.game.StageService.TestSer)ser);
 	}
 
-	public static ISerializable TestSerIOSerializerRead(InputStream in) throws IOException{
+	public static ISerializable org_evd_game_StageService_TestSerRead(InputStream in) throws IOException{
 		org.evd.game.StageService.TestSer testSer = new org.evd.game.StageService.TestSer();
 		org.evd.game.StageService.TestSerIOSerializer.read(in, testSer);
 		return testSer;

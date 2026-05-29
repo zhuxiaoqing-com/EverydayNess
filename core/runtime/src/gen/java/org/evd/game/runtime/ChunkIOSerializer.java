@@ -12,6 +12,9 @@ public final class ChunkIOSerializer{
 	 * @param instance 实例
 	 */
 	public static void write(OutputStream out, Chunk instance) throws IOException {
+		instance.beforeWrite(out);
+		instance.writeTo(out);
+		instance.afterWrite(out);
 	}
 	
 	/**
@@ -20,5 +23,8 @@ public final class ChunkIOSerializer{
 	 * @param instance 实例
 	 */
 	public static void read(InputStream in, Chunk instance) throws IOException {
+		instance.beforeRead(in);
+		instance.readFrom(in);
+		instance.afterRead(in);
 	}
 }

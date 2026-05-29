@@ -29,6 +29,7 @@ public class ConnService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
         this.clientCommandDispatcher = new ConnServiceClientCommandDispatcher(this);
         this.clientTransport = new ConnServiceClientTransport(this, serviceInfo.getPublicAddr());
+        setPublicAddr(serviceInfo.getPublicAddr());
     }
 
     @Override

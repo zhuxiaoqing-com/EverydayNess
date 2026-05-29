@@ -1,17 +1,24 @@
 package org.evd.game.StageService.db;
-import com.alibaba.fastjson2.annotation.JSONField;
+import io.protostuff.Tag;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.DbEntity.collection.XArrayList;
 import org.evd.game.runtime.DbEntity.collection.XHashMap;
 import org.evd.game.runtime.DbEntity.collection.XHashSet;
 
 public final class DBPlayer extends DirtyObject {
+    @Tag(1)
     private long id;
+    @Tag(2)
     private String name;
+    @Tag(3)
     private int lv;
+    @Tag(4)
     private XHashMap<Integer, Integer> intIntMap;
+    @Tag(5)
     private XArrayList<Integer> intList;
+    @Tag(6)
     private XHashSet<Integer> intSet;
+    @Tag(7)
     private XHashMap<Integer, DBItem> intDBItemMap;
 
     DBPlayer(DirtyObject _xp_) {
@@ -62,45 +69,37 @@ public final class DBPlayer extends DirtyObject {
         makeModify();
     }
 
-    @JSONField(name = "1")
     public long getId(){
         return this.id;
     }
 
-    @JSONField(name = "1")
     public void setId(long _v_){
         this.id = _v_;
         makeModify();
     }
 
-    @JSONField(name = "2")
     public String getName(){
         return this.name;
     }
 
-    @JSONField(name = "2")
     public void setName(String _v_){
         this.name = _v_;
         makeModify();
     }
 
-    @JSONField(name = "3")
     public int getLv(){
         return this.lv;
     }
 
-    @JSONField(name = "3")
     public void setLv(int _v_){
         this.lv = _v_;
         makeModify();
     }
 
-    @JSONField(name = "4")
     public java.util.Map<Integer, Integer> getIntIntMap(){
         return this.intIntMap;
     }
 
-    @JSONField(name = "4")
     public void setIntIntMap(XHashMap<Integer, Integer> _v_){
         this.intIntMap = _v_;
         if (_v_ != null) {
@@ -109,12 +108,10 @@ public final class DBPlayer extends DirtyObject {
         makeModify();
     }
 
-    @JSONField(name = "5")
     public java.util.List<Integer> getIntList(){
         return this.intList;
     }
 
-    @JSONField(name = "5")
     public void setIntList(XArrayList<Integer> _v_){
         this.intList = _v_;
         if (_v_ != null) {
@@ -123,12 +120,10 @@ public final class DBPlayer extends DirtyObject {
         makeModify();
     }
 
-    @JSONField(name = "6")
     public java.util.Set<Integer> getIntSet(){
         return this.intSet;
     }
 
-    @JSONField(name = "6")
     public void setIntSet(XHashSet<Integer> _v_){
         this.intSet = _v_;
         if (_v_ != null) {
@@ -137,12 +132,10 @@ public final class DBPlayer extends DirtyObject {
         makeModify();
     }
 
-    @JSONField(name = "7")
     public java.util.Map<Integer, DBItem> getIntDBItemMap(){
         return this.intDBItemMap;
     }
 
-    @JSONField(name = "7")
     public void setIntDBItemMap(XHashMap<Integer, DBItem> _v_){
         this.intDBItemMap = _v_;
         if (_v_ != null) {

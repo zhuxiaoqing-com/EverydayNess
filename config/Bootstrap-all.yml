@@ -1,3 +1,5 @@
+infraConfig: infra-dev.yml
+
 nodes:
   - name: node1 # 节点
     addr: tcp://127.0.0.1:15001
@@ -12,6 +14,10 @@ nodes:
           publicAddr: 0.0.0.0:18080
         - className: LocationService
           name: location
+          num: -1
+          interval: 5
+        - className: DBService
+          name: db
           num: -1
           interval: 5
         - className: StageService

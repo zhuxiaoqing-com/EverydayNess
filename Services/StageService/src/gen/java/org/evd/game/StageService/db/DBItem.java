@@ -1,10 +1,13 @@
 package org.evd.game.StageService.db;
-import com.alibaba.fastjson2.annotation.JSONField;
+import io.protostuff.Tag;
 import org.evd.game.base.DirtyObject;
 
 public final class DBItem extends DirtyObject {
+    @Tag(1)
     private long itemSrl;
+    @Tag(2)
     private int itemId;
+    @Tag(3)
     private String itemName;
 
     DBItem(DirtyObject _xp_) {
@@ -35,34 +38,28 @@ public final class DBItem extends DirtyObject {
         makeModify();
     }
 
-    @JSONField(name = "1")
     public long getItemSrl(){
         return this.itemSrl;
     }
 
-    @JSONField(name = "1")
     public void setItemSrl(long _v_){
         this.itemSrl = _v_;
         makeModify();
     }
 
-    @JSONField(name = "2")
     public int getItemId(){
         return this.itemId;
     }
 
-    @JSONField(name = "2")
     public void setItemId(int _v_){
         this.itemId = _v_;
         makeModify();
     }
 
-    @JSONField(name = "3")
     public String getItemName(){
         return this.itemName;
     }
 
-    @JSONField(name = "3")
     public void setItemName(String _v_){
         this.itemName = _v_;
         makeModify();

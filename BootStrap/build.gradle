@@ -18,7 +18,9 @@ dependencies {
     implementation project(':core:runtime')
     implementation project(':common')
     implementation project(':Services:ConnService')
+    implementation project(':Services:LocationService')
     implementation project(':Services:StageService')
+    implementation project(':Services:DBService')
 
 }
 

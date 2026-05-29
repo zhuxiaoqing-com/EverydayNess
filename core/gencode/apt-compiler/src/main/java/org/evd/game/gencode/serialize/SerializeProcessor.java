@@ -109,6 +109,7 @@ public class SerializeProcessor extends ProcessorBase {
             String fullClassName = classStruct.getFullClassName();
             int hashCode = fullClassName.hashCode();
             fieldInfo.put("key", String.valueOf(hashCode));
+            fieldInfo.put("registerName", toRegisterName(fullClassName));
             if (classStruct.isEnum()){
             }else{
                 fieldInfo.put("serializerFullName", fullClassName + CLASS_SUFFIX);
@@ -122,8 +123,15 @@ public class SerializeProcessor extends ProcessorBase {
         return dataModel;
     }
 
+    private String toRegisterName(String fullClassName) {
+        return fullClassName.replaceAll("[^A-Za-z0-9]", "_");
+    }
+
     private void genIoSerializer(ClassStruct clazz) {
         if (clazz.isEnum()) return;
+        if (clazz.isCustomizedSerialize() && !clazz.isAssignableFrom(ISerializable.class)) {
+            throw new IllegalStateException("自定义序列化类必须实现 ISerializable: " + clazz.getFullClassName());
+        }
 
         Map<String, Object> rootMap = getRootMap(clazz);
         String packageName = clazz.getPackageName();
@@ -151,6 +159,7 @@ public class SerializeProcessor extends ProcessorBase {
         dataModel.put("proxyName", clazz.getClassName() + CLASS_SUFFIX);
         dataModel.put("importPackages", importsModel);
         dataModel.put("fields", fieldInfos);
+        dataModel.put("customized", clazz.isCustomizedSerialize());
 
         for(FieldStruct f : clazz.getFields(SerializeField.class)){
             // 模板所需数据
