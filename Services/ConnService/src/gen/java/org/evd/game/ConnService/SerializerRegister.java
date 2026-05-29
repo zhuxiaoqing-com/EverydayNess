@@ -36,12 +36,12 @@ final class SerializerRegister{
 	* 注册反序列化枚举
 	*/
 	private static void registerReadEnum(){
-		InputStream.registerSerializeReadEnumFunc(-441921041, SerializerRegister::TestEnumReadEnum);
+		InputStream.registerSerializeReadEnumFunc(-441921041, SerializerRegister::org_evd_game_ConnService_TestEnumReadEnum);
 	}
 
 
 
-	public static Enum<?> TestEnumReadEnum(InputStream in, int ordinal) throws IOException{
+	public static Enum<?> org_evd_game_ConnService_TestEnumReadEnum(InputStream in, int ordinal) throws IOException{
 		return org.evd.game.ConnService.TestEnum.values()[ordinal];
 	}
 }

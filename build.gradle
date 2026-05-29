@@ -43,16 +43,6 @@ allprojects {
     }
 }
 
-def clientCmdUpstreamProjects = subprojects.findAll { subproject ->
-    subproject.path.startsWith(':Services:') && subproject.name != 'ConnService'
-}
-
-project(':Services:ConnService') {
-    tasks.named('compileJava') {
-        dependsOn clientCmdUpstreamProjects.collect { it.tasks.named('compileJava') }
-    }
-}
-
 //jar {
 //// 定义jar文件的基本名称
 ////    baseName = 'game'

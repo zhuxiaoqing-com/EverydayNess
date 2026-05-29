@@ -34,6 +34,7 @@ import java.util.Set;
 public class ClientCmdProcessor extends ProcessorBase {
 
     private static final String CLIENT_SESSION_REF_CLASS_NAME = "org.evd.game.runtime.ClientSessionRef";
+    private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.ClientCmdRouteTable";
     private static final String MSG_ID_CLASS_NAME = "org.evd.game.common.proto.MsgId";
     private static final String PROTO_MESSAGE_CLASS_NAME = "com.google.protobuf.MessageLite";
     private static final String SERVICE_CLASS_NAME = "org.evd.game.runtime.Service";
@@ -76,8 +77,8 @@ public class ClientCmdProcessor extends ProcessorBase {
             methods.sort(Comparator.comparingInt((ClientCmdMethod method) -> method.cmd).thenComparing(method -> method.methodName));
             checkDuplicateCmd(methods);
             genRegistry(methods);
+            genRouteRegistry(methods);
         });
-        ClientCmdRouteGenerator.generate();
     }
 
     private void genRegistry(List<ClientCmdMethod> methods) {
@@ -94,6 +95,23 @@ public class ClientCmdProcessor extends ProcessorBase {
             println("generate success [" + className + ".java]");
         } catch (Exception e) {
             throw new RuntimeException("生成客户端协议分发表失败: " + className, e);
+        }
+    }
+
+    private void genRouteRegistry(List<ClientCmdMethod> methods) {
+        ClientCmdMethod first = methods.getFirst();
+        String className = first.ownerClassName + "ClientCmdRouteRegistry";
+        String packageName = first.ownerPackageName;
+        String fullClassName = packageName + "." + className;
+        if (!generatedClasses.add(fullClassName)) {
+            return;
+        }
+
+        try {
+            writeJavaSource(packageName, className, buildRouteRegistrySource(className, methods));
+            println("generate success [" + className + ".java]");
+        } catch (Exception e) {
+            throw new RuntimeException("生成客户端协议路由注册类失败: " + className, e);
         }
     }
 
@@ -129,6 +147,34 @@ public class ClientCmdProcessor extends ProcessorBase {
         source.append("            default:\n");
         source.append("                throw new IllegalArgumentException(\"unknown client cmd: \" + cmd);\n");
         source.append("        }\n");
+        source.append("    }\n");
+        source.append("}\n");
+        return source.toString();
+    }
+
+    private String buildRouteRegistrySource(String className, List<ClientCmdMethod> methods) {
+        ClientCmdMethod first = methods.getFirst();
+        String proxyClassName = first.ownerClassName + "Proxy";
+        StringBuilder source = new StringBuilder();
+        source.append("package ").append(first.ownerPackageName).append(";\n\n");
+        source.append("import ").append(MSG_ID_CLASS_NAME).append(";\n");
+        source.append("import ").append(CLIENT_CMD_ROUTE_TABLE_CLASS_NAME).append(";\n\n");
+        source.append("/**\n");
+        source.append(" * 根据").append(first.ownerClassName).append("生成的客户端协议路由注册类\n");
+        source.append(" */\n");
+        source.append("public final class ").append(className).append(" {\n");
+        source.append("    private ").append(className).append("() {\n");
+        source.append("    }\n\n");
+        source.append("    public static void register(ClientCmdRouteTable routeTable) {\n");
+        for (ClientCmdMethod method : methods) {
+            source.append("        routeTable.register(")
+                    .append(method.cmdExpr)
+                    .append(", \"")
+                    .append(method.ownerFullClassName)
+                    .append("\", \"org.evd.game.common.proxy.")
+                    .append(proxyClassName)
+                    .append("\");\n");
+        }
         source.append("    }\n");
         source.append("}\n");
         return source.toString();

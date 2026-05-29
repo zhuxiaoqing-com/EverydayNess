@@ -23,11 +23,13 @@ import org.evd.game.runtime.support.RuntimeUtils;
 public class ConnService extends Service {
     boolean first = true;
     private final ConnServiceClientCommandDispatcher clientCommandDispatcher;
+    private final ConnServiceClientCmdRouter clientCmdRouter;
     private final ConnServiceClientTransport clientTransport;
 
     public ConnService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
         this.clientCommandDispatcher = new ConnServiceClientCommandDispatcher(this);
+        this.clientCmdRouter = new ConnServiceClientCmdRouter(this);
         this.clientTransport = new ConnServiceClientTransport(this, serviceInfo.getPublicAddr());
         setPublicAddr(serviceInfo.getPublicAddr());
     }
@@ -55,6 +57,7 @@ public class ConnService extends Service {
 
     @Rpc
     public String con(){
+
         String str = RuntimeUtils.createStr("{}::{}::con()", node.getId(), id);
         System.out.println(str);
         return str;
@@ -71,7 +74,7 @@ public class ConnService extends Service {
     }
 
     public void dispatchClientCmd(NetChannel session, int cmd, byte[] body) {
-        ConnServiceClientCmdRouter.forward(this, session, cmd, body);
+        clientCmdRouter.forward(session, cmd, body);
     }
 
     @Rpc

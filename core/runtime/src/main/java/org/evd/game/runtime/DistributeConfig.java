@@ -40,4 +40,10 @@ public class DistributeConfig {
         int index = Math.floorMod(Long.hashCode(routeKey), callPoints.size());
         return new CallPoint(callPoints.get(index));
     }
+
+    public static List<String> getServiceClassNames() {
+        List<String> serviceClassNames = new ArrayList<>(serviceClass2Nodes.keySet());
+        serviceClassNames.sort(String::compareTo);
+        return serviceClassNames;
+    }
 }
