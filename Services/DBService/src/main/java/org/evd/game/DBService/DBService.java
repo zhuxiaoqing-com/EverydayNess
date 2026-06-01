@@ -3,9 +3,9 @@ package org.evd.game.DBService;
 import org.evd.game.DBService.storage.mysql.LoggerMysql;
 import org.evd.game.DBService.storage.mysql.StorageEngine;
 import org.evd.game.DBService.storage.mysql.StorageMysql;
-import org.evd.game.DbEntity.serialize.DBReq;
-import org.evd.game.DbEntity.serialize.DBRsp;
-import org.evd.game.DbEntity.serialize.DbOpType;
+import org.evd.game.Db.serialize.DBReq;
+import org.evd.game.Db.serialize.DBRsp;
+import org.evd.game.Db.serialize.DbOpType;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.common.GlobalConfig;
@@ -65,7 +65,7 @@ public class DBService extends Service {
                     dbRsp = storageEngine.find(dbReq);
                     break;
                 case DbOpType.BATCH_GET:
-                    dbRsp = storageEngine.find(dbReq);
+                    dbRsp = storageEngine.findBatch(dbReq);
                     break;
                 case DbOpType.SAVE:
                     storageEngine.replace(dbReq);

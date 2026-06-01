@@ -1,8 +1,8 @@
 package org.evd.game.DBService.storage.mysql;
 
 import com.mongodb.client.MongoDatabase;
-import org.evd.game.DbEntity.serialize.DBReq;
-import org.evd.game.DbEntity.serialize.DBRsp;
+import org.evd.game.Db.serialize.DBReq;
+import org.evd.game.Db.serialize.DBRsp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

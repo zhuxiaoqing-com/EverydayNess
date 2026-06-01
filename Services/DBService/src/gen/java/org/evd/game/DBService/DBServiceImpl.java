@@ -3,23 +3,23 @@ package org.evd.game.DBService;
 import org.evd.game.runtime.RPCImplBase;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.function.*;
-        import org.evd.game.DbEntity.serialize.DBRsp;
-        import org.evd.game.DbEntity.serialize.DBReq;
+        import org.evd.game.Db.serialize.DBRsp;
+        import org.evd.game.Db.serialize.DBReq;
 
 /**
 * 根据DBServiceService生成的rpc分发类
 */
 public class DBServiceImpl extends RPCImplBase {
     public final static class EnumCall{
-        public final static int ENUM_DBSERVICE_ORG_EVD_GAME_DBENTITY_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_DBENTITY_SERIALIZE_DBREQ = 0;
+        public final static int ENUM_DBSERVICE_ORG_EVD_GAME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_DB_SERIALIZE_DBREQ = 0;
     }
 
     @Override
     public Object getMethodFunction(Service serv, int methodKey) {
         DBService service = (DBService) serv;
         switch (methodKey){
-            case EnumCall.ENUM_DBSERVICE_ORG_EVD_GAME_DBENTITY_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_DBENTITY_SERIALIZE_DBREQ:
-                return (ReturnFunction1<org.evd.game.DbEntity.serialize.DBRsp, org.evd.game.DbEntity.serialize.DBReq>)service::dbExec;
+            case EnumCall.ENUM_DBSERVICE_ORG_EVD_GAME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_DB_SERIALIZE_DBREQ:
+                return (ReturnFunction1<org.evd.game.Db.serialize.DBRsp, org.evd.game.Db.serialize.DBReq>)service::dbExec;
             default:
                 return null;
         }

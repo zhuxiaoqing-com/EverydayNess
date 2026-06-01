@@ -1,8 +1,8 @@
 package org.evd.game.DBService.storage.mysql;
 
 
-import org.evd.game.DbEntity.serialize.DBReq;
-import org.evd.game.DbEntity.serialize.DBRsp;
+import org.evd.game.Db.serialize.DBReq;
+import org.evd.game.Db.serialize.DBRsp;
 
 /**
  * insert

@@ -1,6 +1,6 @@
 package org.evd.game.DBService.storage.mysql;
 
-import org.evd.game.DbEntity.serialize.*;
+import org.evd.game.Db.serialize.*;
 import org.evd.game.runtime.config.DbStorageConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -169,27 +169,17 @@ public class StorageMysql implements StorageEngine {
 		Connection conn = null;
 		PreparedStatement stmt = null;
 		try {
+			List<DbTableField> tableFieldList = mysqlReq.getTablFieldList();
+			if (tableFieldList == null || tableFieldList.isEmpty()) {
+				return;
+			}
 			conn = logger.getWriteConnection();
 			stmt = conn.prepareStatement(mysqlReq.getSql());
-			int idx = 0;
-			for (DbTableField entry : mysqlReq.getTablFieldList()) {
-				List<DbValue> valueList = entry.getValueList();
-				for (int i = 0; i < valueList.size(); i++) {
-					DbValue dbValue = valueList.get(i);
-					stmt.setObject(i + 1, dbValue.getV());
-				}
-				stmt.addBatch();
-				idx++;
-				if (idx == batchPerCount) {
-					stmt.executeBatch();
-					stmt.clearBatch();
-					idx = 0;
-				}
+			int paramIndex = 1;
+			for (DbTableField tableField : tableFieldList) {
+				stmt.setObject(paramIndex++, mysqlReq.getTableKey(tableField));
 			}
-			if (idx != 0) {
-				stmt.executeBatch();
-				stmt.clearBatch();
-			}
+			stmt.executeUpdate();
 
 		} catch (Exception e) {
 			log.error("remove batch error, table={}, keys={}, num={}",
@@ -317,10 +307,10 @@ public class StorageMysql implements StorageEngine {
 		try {
 			conn = logger.getReadConnection();
 			stmt = conn.prepareStatement(mysqlReq.getSql());
-			List<DbValue> valueList = mysqlReq.getSingleTableField().getValueList();
-			for (int i = 0; i < valueList.size(); i++) {
-				DbValue dbValue = valueList.get(i);
-				stmt.setObject(i + 1, dbValue.getV());
+			List<DbTableField> tableFieldList = mysqlReq.getTablFieldList();
+			int paramIndex = 1;
+			for (DbTableField tableField : tableFieldList) {
+				stmt.setObject(paramIndex++, mysqlReq.getTableKey(tableField));
 			}
 			rs = stmt.executeQuery();
 			List<DbTableField> resultRows = new ArrayList<>();
@@ -341,14 +331,14 @@ public class StorageMysql implements StorageEngine {
 			dbRsp.setMysqlRsp(mysqlRsp);
 			return dbRsp;
 		} catch (Exception e) {
-			log.error("find batch error, table={}, keys={}", mysqlReq.getTableName(), getFindBatchKeys(mysqlReq), e);
+			log.error("find batch error, table={}, keys={}", mysqlReq.getTableName(), getBatchKeys(mysqlReq), e);
 			throw new SysException(e);
 		} finally {
 			LoggerMysql.release(rs, stmt, conn);
 			long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
 			if (costMs > batchCostMsWarn) {
 				log.warn("table {} batch find keys : {} cost: {} ms",
-						mysqlReq.getTableName(), getFindBatchKeys(mysqlReq), costMs);
+						mysqlReq.getTableName(), getBatchKeys(mysqlReq), costMs);
 			}
 		}
 	}
@@ -389,24 +379,6 @@ public class StorageMysql implements StorageEngine {
 		builder.append(']');
 		return builder.toString();
 	}
-
-	private String getFindBatchKeys(MysqlReq mysqlReq) {
-		DbTableField tableField = mysqlReq.getSingleTableField();
-		if (tableField == null || tableField.getValueList() == null || tableField.getValueList().isEmpty()) {
-			return "[]";
-		}
-		StringBuilder builder = new StringBuilder("[");
-		List<DbValue> valueList = tableField.getValueList();
-		for (int i = 0; i < valueList.size(); i++) {
-			if (i > 0) {
-				builder.append(", ");
-			}
-			builder.append(valueList.get(i).getV());
-		}
-		builder.append(']');
-		return builder.toString();
-	}
-
 
 
 }

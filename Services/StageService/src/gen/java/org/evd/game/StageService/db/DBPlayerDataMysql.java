@@ -1,8 +1,8 @@
 package org.evd.game.StageService.db;
 import org.evd.game.base.DirtyObject;
-import org.evd.game.runtime.DbEntity.collection.XArrayList;
-import org.evd.game.runtime.DbEntity.collection.XHashMap;
-import org.evd.game.runtime.DbEntity.collection.XHashSet;
+import org.evd.game.Db.collection.XArrayList;
+import org.evd.game.Db.collection.XHashMap;
+import org.evd.game.Db.collection.XHashSet;
 
 public final class DBPlayerDataMysql extends DirtyObject {
     private String id;

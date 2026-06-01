@@ -5,6 +5,8 @@ import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
+import java.util.Objects;
+
 @SerializeClass
 public class CallPoint implements ISerializable {
     @SerializeField
@@ -37,6 +39,18 @@ public class CallPoint implements ISerializable {
                 .append("nodeId", nodeId)
                 .append("servId", servId)
                 .toString();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        CallPoint callPoint = (CallPoint) o;
+        return Objects.equals(nodeId, callPoint.nodeId) && Objects.equals(servId, callPoint.servId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId, servId);
     }
 
     public String getNodeId() {

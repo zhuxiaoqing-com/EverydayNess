@@ -103,13 +103,13 @@ public class DbDirtyEntityProcessor extends ProcessorBase {
         appendSerializationImport(sb, entity);
         sb.append("import org.evd.game.base.DirtyObject;\n");
         if (entity.usesList()) {
-            sb.append("import org.evd.game.runtime.DbEntity.collection.XArrayList;\n");
+            sb.append("import org.evd.game.Db.collection.XArrayList;\n");
         }
         if (entity.usesMap()) {
-            sb.append("import org.evd.game.runtime.DbEntity.collection.XHashMap;\n");
+            sb.append("import org.evd.game.Db.collection.XHashMap;\n");
         }
         if (entity.usesSet()) {
-            sb.append("import org.evd.game.runtime.DbEntity.collection.XHashSet;\n");
+            sb.append("import org.evd.game.Db.collection.XHashSet;\n");
         }
         sb.append("\n");
         sb.append("public final class ").append(entity.className).append(" extends DirtyObject {\n");
