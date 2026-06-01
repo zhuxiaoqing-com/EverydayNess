@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
+import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
@@ -118,6 +119,8 @@ public class Service extends TickCase{
     private final CallPoint callPoint;
     /** 远程请求RPC缓冲区 */
     private final Map<String, CallPulseBuffer> callFrameBuffers = new HashMap<>();
+
+    Mdb mdb;
 
     public Service(Node node, String name, String scheduledName, long tickInterval, ServiceInfo serviceInfo){
         super(name, tickInterval);
@@ -909,4 +912,7 @@ public class Service extends TickCase{
         return getCurrent().getTimeCurrent();
     }
 
+    public Mdb getMdb() {
+        return mdb;
+    }
 }

@@ -41,8 +41,6 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation 'org.yaml:snakeyaml:2.0'
-    implementation 'com.google.protobuf:protobuf-java:3.25.3'
-    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
     implementation project(':core:runtime')
 
     implementation project(':core:gencode:apt-annotation')

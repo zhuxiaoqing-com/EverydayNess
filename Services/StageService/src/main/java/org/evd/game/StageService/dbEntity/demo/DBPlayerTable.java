@@ -1,8 +1,8 @@
 package org.evd.game.StageService.dbEntity.demo;
 
 
-import org.evd.game.Db.table.Mdb;
-import org.evd.game.Db.table.TTable;
+import org.evd.game.runtime.Db.table.Mdb;
+import org.evd.game.runtime.Db.table.TTable;
 import org.evd.game.runtime.Service;
 
 public class DBPlayerTable {

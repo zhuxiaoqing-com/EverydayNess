@@ -1,5 +1,7 @@
 package org.evd.game.Db.serialize;
 
+import org.evd.game.runtime.Db.serialize.DbField;
+import org.evd.game.runtime.Db.serialize.DbValue;
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
 import java.io.IOException;
@@ -23,7 +25,7 @@ public final class DbFieldIOSerializer{
 	 */
 	public static void read(InputStream in, DbField instance) throws IOException {
 		instance.setName(in.readString());
-		org.evd.game.Db.serialize.DbValue value = new org.evd.game.Db.serialize.DbValue();
+		DbValue value = new DbValue();
 		org.evd.game.Db.serialize.DbValueIOSerializer.read(in, value);
 		instance.setValue(value);
 	}

@@ -1,5 +1,7 @@
 package org.evd.game.Db.serialize;
 
+import org.evd.game.runtime.Db.serialize.DBRsp;
+import org.evd.game.runtime.Db.serialize.MysqlRsp;
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
 import java.io.IOException;
@@ -25,7 +27,7 @@ public final class DBRspIOSerializer{
 	public static void read(InputStream in, DBRsp instance) throws IOException {
 		instance.setSuccess(in.readBoolean());
 		instance.setExceptionMessage(in.readString());
-		org.evd.game.Db.serialize.MysqlRsp mysqlRsp = new org.evd.game.Db.serialize.MysqlRsp();
+		MysqlRsp mysqlRsp = new MysqlRsp();
 		org.evd.game.Db.serialize.MysqlRspIOSerializer.read(in, mysqlRsp);
 		instance.setMysqlRsp(mysqlRsp);
 	}

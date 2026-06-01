@@ -3,8 +3,8 @@ package org.evd.game.DBService;
 import org.evd.game.runtime.RPCImplBase;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.function.*;
-        import org.evd.game.Db.serialize.DBRsp;
-        import org.evd.game.Db.serialize.DBReq;
+        import org.evd.game.runtime.Db.serialize.DBRsp;
+        import org.evd.game.runtime.Db.serialize.DBReq;
 
 /**
 * 根据DBServiceService生成的rpc分发类
@@ -19,7 +19,7 @@ public class DBServiceImpl extends RPCImplBase {
         DBService service = (DBService) serv;
         switch (methodKey){
             case EnumCall.ENUM_DBSERVICE_ORG_EVD_GAME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_DB_SERIALIZE_DBREQ:
-                return (ReturnFunction1<org.evd.game.Db.serialize.DBRsp, org.evd.game.Db.serialize.DBReq>)service::dbExec;
+                return (ReturnFunction1<DBRsp, DBReq>)service::dbExec;
             default:
                 return null;
         }

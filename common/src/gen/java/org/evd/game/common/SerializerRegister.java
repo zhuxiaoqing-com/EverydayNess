@@ -1,6 +1,7 @@
 package org.evd.game.common;
 
 import org.evd.game.base.ISerializable;
+import org.evd.game.runtime.Db.serialize.*;
 import org.evd.game.runtime.serialize.OutputStream;
 import org.evd.game.runtime.serialize.InputStream;
 import java.io.IOException;
@@ -72,31 +73,31 @@ final class SerializerRegister{
 		org.evd.game.common.TestSerIOSerializer.write(out, (org.evd.game.common.TestSer)ser);
 	}
 	public static void org_evd_game_Db_serialize_DbFieldWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.DbFieldIOSerializer.write(out, (org.evd.game.Db.serialize.DbField)ser);
+		org.evd.game.Db.serialize.DbFieldIOSerializer.write(out, (DbField)ser);
 	}
 	public static void org_evd_game_Db_serialize_DbKeyWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.DbKeyIOSerializer.write(out, (org.evd.game.Db.serialize.DbKey)ser);
+		org.evd.game.Db.serialize.DbKeyIOSerializer.write(out, (DbKey)ser);
 	}
 	public static void org_evd_game_Db_serialize_DBReqWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.DBReqIOSerializer.write(out, (org.evd.game.Db.serialize.DBReq)ser);
+		org.evd.game.Db.serialize.DBReqIOSerializer.write(out, (DBReq)ser);
 	}
 	public static void org_evd_game_Db_serialize_DBRspWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.DBRspIOSerializer.write(out, (org.evd.game.Db.serialize.DBRsp)ser);
+		org.evd.game.Db.serialize.DBRspIOSerializer.write(out, (DBRsp)ser);
 	}
 	public static void org_evd_game_Db_serialize_DbTableFieldWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.DbTableFieldIOSerializer.write(out, (org.evd.game.Db.serialize.DbTableField)ser);
+		org.evd.game.Db.serialize.DbTableFieldIOSerializer.write(out, (DbTableField)ser);
 	}
 	public static void org_evd_game_Db_serialize_DbValueWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.DbValueIOSerializer.write(out, (org.evd.game.Db.serialize.DbValue)ser);
+		org.evd.game.Db.serialize.DbValueIOSerializer.write(out, (DbValue)ser);
 	}
 	public static void org_evd_game_Db_serialize_MysqlReqWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.MysqlReqIOSerializer.write(out, (org.evd.game.Db.serialize.MysqlReq)ser);
+		org.evd.game.Db.serialize.MysqlReqIOSerializer.write(out, (MysqlReq)ser);
 	}
 	public static void org_evd_game_Db_serialize_MysqlRspWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.MysqlRspIOSerializer.write(out, (org.evd.game.Db.serialize.MysqlRsp)ser);
+		org.evd.game.Db.serialize.MysqlRspIOSerializer.write(out, (MysqlRsp)ser);
 	}
 	public static void org_evd_game_Db_serialize_ObjectValueWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.Db.serialize.ObjectValueIOSerializer.write(out, (org.evd.game.Db.serialize.ObjectValue)ser);
+		org.evd.game.Db.serialize.ObjectValueIOSerializer.write(out, (ObjectValue)ser);
 	}
 	public static void org_evd_game_serializeBean_CoInfoWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.serializeBean.CoInfoIOSerializer.write(out, (org.evd.game.serializeBean.CoInfo)ser);
@@ -114,47 +115,47 @@ final class SerializerRegister{
 		return testSer;
 	}
 	public static ISerializable org_evd_game_Db_serialize_DbFieldRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.DbField dbField = new org.evd.game.Db.serialize.DbField();
+		DbField dbField = new DbField();
 		org.evd.game.Db.serialize.DbFieldIOSerializer.read(in, dbField);
 		return dbField;
 	}
 	public static ISerializable org_evd_game_Db_serialize_DbKeyRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.DbKey dbKey = new org.evd.game.Db.serialize.DbKey();
+		DbKey dbKey = new DbKey();
 		org.evd.game.Db.serialize.DbKeyIOSerializer.read(in, dbKey);
 		return dbKey;
 	}
 	public static ISerializable org_evd_game_Db_serialize_DBReqRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.DBReq dBReq = new org.evd.game.Db.serialize.DBReq();
+		DBReq dBReq = new DBReq();
 		org.evd.game.Db.serialize.DBReqIOSerializer.read(in, dBReq);
 		return dBReq;
 	}
 	public static ISerializable org_evd_game_Db_serialize_DBRspRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.DBRsp dBRsp = new org.evd.game.Db.serialize.DBRsp();
+		DBRsp dBRsp = new DBRsp();
 		org.evd.game.Db.serialize.DBRspIOSerializer.read(in, dBRsp);
 		return dBRsp;
 	}
 	public static ISerializable org_evd_game_Db_serialize_DbTableFieldRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.DbTableField dbTableField = new org.evd.game.Db.serialize.DbTableField();
+		DbTableField dbTableField = new DbTableField();
 		org.evd.game.Db.serialize.DbTableFieldIOSerializer.read(in, dbTableField);
 		return dbTableField;
 	}
 	public static ISerializable org_evd_game_Db_serialize_DbValueRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.DbValue dbValue = new org.evd.game.Db.serialize.DbValue();
+		DbValue dbValue = new DbValue();
 		org.evd.game.Db.serialize.DbValueIOSerializer.read(in, dbValue);
 		return dbValue;
 	}
 	public static ISerializable org_evd_game_Db_serialize_MysqlReqRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.MysqlReq mysqlReq = new org.evd.game.Db.serialize.MysqlReq();
+		MysqlReq mysqlReq = new MysqlReq();
 		org.evd.game.Db.serialize.MysqlReqIOSerializer.read(in, mysqlReq);
 		return mysqlReq;
 	}
 	public static ISerializable org_evd_game_Db_serialize_MysqlRspRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.MysqlRsp mysqlRsp = new org.evd.game.Db.serialize.MysqlRsp();
+		MysqlRsp mysqlRsp = new MysqlRsp();
 		org.evd.game.Db.serialize.MysqlRspIOSerializer.read(in, mysqlRsp);
 		return mysqlRsp;
 	}
 	public static ISerializable org_evd_game_Db_serialize_ObjectValueRead(InputStream in) throws IOException{
-		org.evd.game.Db.serialize.ObjectValue objectValue = new org.evd.game.Db.serialize.ObjectValue();
+		ObjectValue objectValue = new ObjectValue();
 		org.evd.game.Db.serialize.ObjectValueIOSerializer.read(in, objectValue);
 		return objectValue;
 	}
@@ -175,15 +176,15 @@ final class SerializerRegister{
 	}
 
 	public static Enum<?> org_evd_game_Db_serialize_DbDataTypeReadEnum(InputStream in, int ordinal) throws IOException{
-		return org.evd.game.Db.serialize.DbDataType.values()[ordinal];
+		return DbDataType.values()[ordinal];
 	}
 	public static Enum<?> org_evd_game_Db_serialize_DbKeyTypeReadEnum(InputStream in, int ordinal) throws IOException{
-		return org.evd.game.Db.serialize.DbKeyType.values()[ordinal];
+		return DbKeyType.values()[ordinal];
 	}
 	public static Enum<?> org_evd_game_Db_serialize_DbOpTypeReadEnum(InputStream in, int ordinal) throws IOException{
-		return org.evd.game.Db.serialize.DbOpType.values()[ordinal];
+		return DbOpType.values()[ordinal];
 	}
 	public static Enum<?> org_evd_game_Db_serialize_DbValueTypeReadEnum(InputStream in, int ordinal) throws IOException{
-		return org.evd.game.Db.serialize.DbValueType.values()[ordinal];
+		return DbValueType.values()[ordinal];
 	}
 }

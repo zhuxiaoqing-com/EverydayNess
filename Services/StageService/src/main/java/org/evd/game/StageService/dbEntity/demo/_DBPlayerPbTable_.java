@@ -3,17 +3,17 @@ package org.evd.game.StageService.dbEntity.demo;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.WireFormat;
-import org.evd.game.Db.collection.XArrayList;
-import org.evd.game.Db.collection.XHashMap;
-import org.evd.game.Db.collection.XHashSet;
-import org.evd.game.Db.serialize.DBReq;
-import org.evd.game.Db.serialize.DBRsp;
-import org.evd.game.Db.serialize.DbOpType;
-import org.evd.game.Db.serialize.DbTableField;
-import org.evd.game.Db.serialize.DbValue;
-import org.evd.game.Db.serialize.MysqlReq;
-import org.evd.game.Db.serialize.MysqlRsp;
-import org.evd.game.Db.table.TTable;
+import org.evd.game.runtime.Db.collection.XArrayList;
+import org.evd.game.runtime.Db.collection.XHashMap;
+import org.evd.game.runtime.Db.collection.XHashSet;
+import org.evd.game.runtime.Db.serialize.DBReq;
+import org.evd.game.runtime.Db.serialize.DBRsp;
+import org.evd.game.runtime.Db.serialize.DbOpType;
+import org.evd.game.runtime.Db.serialize.DbTableField;
+import org.evd.game.runtime.Db.serialize.DbValue;
+import org.evd.game.runtime.Db.serialize.MysqlReq;
+import org.evd.game.runtime.Db.serialize.MysqlRsp;
+import org.evd.game.runtime.Db.table.TTable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -22,7 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 	private static final String TABLE_NAME = "db_player_pb";

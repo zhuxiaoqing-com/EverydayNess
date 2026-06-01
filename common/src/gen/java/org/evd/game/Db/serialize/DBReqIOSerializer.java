@@ -1,5 +1,7 @@
 package org.evd.game.Db.serialize;
 
+import org.evd.game.runtime.Db.serialize.DBReq;
+import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
 import java.io.IOException;
@@ -23,7 +25,7 @@ public final class DBReqIOSerializer{
 	 */
 	public static void read(InputStream in, DBReq instance) throws IOException {
 		instance.setDbOpType(in.read());
-		org.evd.game.Db.serialize.MysqlReq mysqlReq = new org.evd.game.Db.serialize.MysqlReq();
+		MysqlReq mysqlReq = new MysqlReq();
 		org.evd.game.Db.serialize.MysqlReqIOSerializer.read(in, mysqlReq);
 		instance.setMysqlReq(mysqlReq);
 	}
