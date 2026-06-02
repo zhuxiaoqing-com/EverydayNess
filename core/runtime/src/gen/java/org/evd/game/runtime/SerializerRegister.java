@@ -34,7 +34,7 @@ final class SerializerRegister{
 		OutputStream.registerSerializeWriteFunc(326933455, SerializerRegister::org_evd_game_runtime_call_CallPointWrite);
 		OutputStream.registerSerializeWriteFunc(1593330110, SerializerRegister::org_evd_game_runtime_call_CallResultWrite);
 		OutputStream.registerSerializeWriteFunc(322098688, SerializerRegister::org_evd_game_runtime_ChunkWrite);
-		OutputStream.registerSerializeWriteFunc(-1328685355, SerializerRegister::org_evd_game_runtime_ClientSessionRefWrite);
+		OutputStream.registerSerializeWriteFunc(-978084578, SerializerRegister::org_evd_game_runtime_client_ClientSessionRefWrite);
 		OutputStream.registerSerializeWriteFunc(1376784523, SerializerRegister::org_evd_game_runtime_Db_serialize_DbFieldWrite);
 		OutputStream.registerSerializeWriteFunc(-1236550096, SerializerRegister::org_evd_game_runtime_Db_serialize_DbKeyWrite);
 		OutputStream.registerSerializeWriteFunc(-1237496689, SerializerRegister::org_evd_game_runtime_Db_serialize_DBReqWrite);
@@ -58,7 +58,7 @@ final class SerializerRegister{
 		InputStream.registerSerializeReadFunc(326933455, SerializerRegister::org_evd_game_runtime_call_CallPointRead);
 		InputStream.registerSerializeReadFunc(1593330110, SerializerRegister::org_evd_game_runtime_call_CallResultRead);
 		InputStream.registerSerializeReadFunc(322098688, SerializerRegister::org_evd_game_runtime_ChunkRead);
-		InputStream.registerSerializeReadFunc(-1328685355, SerializerRegister::org_evd_game_runtime_ClientSessionRefRead);
+		InputStream.registerSerializeReadFunc(-978084578, SerializerRegister::org_evd_game_runtime_client_ClientSessionRefRead);
 		InputStream.registerSerializeReadFunc(1376784523, SerializerRegister::org_evd_game_runtime_Db_serialize_DbFieldRead);
 		InputStream.registerSerializeReadFunc(-1236550096, SerializerRegister::org_evd_game_runtime_Db_serialize_DbKeyRead);
 		InputStream.registerSerializeReadFunc(-1237496689, SerializerRegister::org_evd_game_runtime_Db_serialize_DBReqRead);
@@ -104,8 +104,8 @@ final class SerializerRegister{
 	public static void org_evd_game_runtime_ChunkWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.ChunkIOSerializer.write(out, (org.evd.game.runtime.Chunk)ser);
 	}
-	public static void org_evd_game_runtime_ClientSessionRefWrite(OutputStream out, ISerializable ser) throws IOException{
-		org.evd.game.runtime.ClientSessionRefIOSerializer.write(out, (org.evd.game.runtime.ClientSessionRef)ser);
+	public static void org_evd_game_runtime_client_ClientSessionRefWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.client.ClientSessionRefIOSerializer.write(out, (org.evd.game.runtime.client.ClientSessionRef)ser);
 	}
 	public static void org_evd_game_runtime_Db_serialize_DbFieldWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.Db.serialize.DbFieldIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.DbField)ser);
@@ -178,9 +178,9 @@ final class SerializerRegister{
 		org.evd.game.runtime.ChunkIOSerializer.read(in, chunk);
 		return chunk;
 	}
-	public static ISerializable org_evd_game_runtime_ClientSessionRefRead(InputStream in) throws IOException{
-		org.evd.game.runtime.ClientSessionRef clientSessionRef = new org.evd.game.runtime.ClientSessionRef();
-		org.evd.game.runtime.ClientSessionRefIOSerializer.read(in, clientSessionRef);
+	public static ISerializable org_evd_game_runtime_client_ClientSessionRefRead(InputStream in) throws IOException{
+		org.evd.game.runtime.client.ClientSessionRef clientSessionRef = new org.evd.game.runtime.client.ClientSessionRef();
+		org.evd.game.runtime.client.ClientSessionRefIOSerializer.read(in, clientSessionRef);
 		return clientSessionRef;
 	}
 	public static ISerializable org_evd_game_runtime_Db_serialize_DbFieldRead(InputStream in) throws IOException{

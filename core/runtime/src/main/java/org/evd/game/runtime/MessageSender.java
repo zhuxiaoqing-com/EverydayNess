@@ -4,6 +4,7 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.ActorMessage;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.SysException;
 
 public final class MessageSender {

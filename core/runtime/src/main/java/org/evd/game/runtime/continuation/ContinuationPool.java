@@ -1,4 +1,6 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.continuation;
+
+import org.evd.game.runtime.Service;
 
 import java.util.ArrayList;
 import java.util.List;

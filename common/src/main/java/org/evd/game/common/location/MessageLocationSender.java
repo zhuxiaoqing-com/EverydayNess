@@ -1,7 +1,7 @@
 package org.evd.game.common.location;
 
 import org.evd.game.common.proxy.LocationServiceProxy;
-import org.evd.game.runtime.DistributeConfig;
+import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;

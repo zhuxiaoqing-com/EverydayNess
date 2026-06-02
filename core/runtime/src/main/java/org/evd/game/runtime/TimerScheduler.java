@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.PriorityQueue;
 
-final class TimerScheduler {
+public final class TimerScheduler {
     private static final class TimerTask {
         private final long id;
         private long deadline;

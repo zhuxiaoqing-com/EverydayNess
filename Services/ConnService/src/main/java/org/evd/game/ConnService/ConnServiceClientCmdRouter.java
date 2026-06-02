@@ -1,8 +1,8 @@
 package org.evd.game.ConnService;
 
-import org.evd.game.runtime.ClientCmdRouteTable;
-import org.evd.game.runtime.ClientSessionRef;
-import org.evd.game.runtime.DistributeConfig;
+import org.evd.game.runtime.client.ClientCmdRouteTable;
+import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.netty.NetChannel;
 
 import java.lang.reflect.InvocationTargetException;

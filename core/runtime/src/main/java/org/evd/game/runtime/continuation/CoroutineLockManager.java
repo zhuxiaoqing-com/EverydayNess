@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.continuation;
 
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -6,7 +6,7 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-final class CoroutineLockManager {
+public final class CoroutineLockManager {
     private static final class LockKey {
         private final int type;
         private final Object key;

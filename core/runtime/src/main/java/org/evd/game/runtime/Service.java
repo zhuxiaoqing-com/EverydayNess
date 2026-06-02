@@ -12,7 +12,11 @@ import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorRegistry;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.continuation.ContinuationRuntime;
+import org.evd.game.runtime.continuation.CoroutineLockManager;
+import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.mailbox.MailBoxComponent;
+import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
@@ -48,7 +52,7 @@ public class Service extends TickCase{
     /** 通用协程锁类型: actor */
     protected static final int COROUTINE_LOCK_TYPE_ACTOR = 1;
     /** mailbox 线性化锁类型 */
-    static final int COROUTINE_LOCK_TYPE_MAILBOX = 2;
+    public static final int COROUTINE_LOCK_TYPE_MAILBOX = 2;
 
     protected final class ContinuationLockScope implements AutoCloseable {
         private final Task.ContinuationWrapper continuation;
@@ -603,7 +607,7 @@ public class Service extends TickCase{
         return true;
     }
 
-    boolean sendTransport_st(CallBase call) {
+    public boolean sendTransport_st(CallBase call) {
         return sendCall_st(call);
     }
 
@@ -611,7 +615,7 @@ public class Service extends TickCase{
         return continuationRuntime.requireRunning();
     }
 
-    Task.ContinuationWrapper requireRunningContinuationTransport() {
+    public Task.ContinuationWrapper requireRunningContinuationTransport() {
         return continuationRuntime.requireRunning();
     }
 
@@ -639,13 +643,13 @@ public class Service extends TickCase{
         return continuation;
     }
 
-    Task.ContinuationWrapper createActorMessageContinuation(Runnable task, ActorMessage message) {
+    public Task.ContinuationWrapper createActorMessageContinuation(Runnable task, ActorMessage message) {
         Task.ContinuationWrapper continuation = continuationRuntime.create(task, message.getActorId());
         continuation.bindDebugInfo(new Task.RpcDebugInfo(message.getMethodKey()));
         return continuation;
     }
 
-    void queueContinuation(Task.ContinuationWrapper continuation) {
+    public void queueContinuation(Task.ContinuationWrapper continuation) {
         continuationRuntime.queue(continuation, "rpc");
     }
 
@@ -669,7 +673,7 @@ public class Service extends TickCase{
         continuationRuntime.queue(continuation, "rpc");
     }
 
-    protected final void awaitCoroutineLock(int type, Object key) {
+    public final void awaitCoroutineLock(int type, Object key) {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
         if (coroutineLockManager.tryAcquire(type, key, continuation)) {
             return;
@@ -727,11 +731,11 @@ public class Service extends TickCase{
         return actorRegistry.require(actorId, type);
     }
 
-    MailBoxComponent getMailBox(long ownerInstanceId) {
+    public MailBoxComponent getMailBox(long ownerInstanceId) {
         return actorRegistry.getMailBox(ownerInstanceId);
     }
 
-    boolean hasSameMailBoxInstance(long ownerInstanceId, long mailBoxInstanceId) {
+    public boolean hasSameMailBoxInstance(long ownerInstanceId, long mailBoxInstanceId) {
         return actorRegistry.hasSameMailBoxInstance(ownerInstanceId, mailBoxInstanceId);
     }
 
@@ -754,7 +758,7 @@ public class Service extends TickCase{
         return requireActor(requireCurrentActorId(), type);
     }
 
-    void dispatchMailBoxMessage_st(ActorMessage message) {
+    public void dispatchMailBoxMessage_st(ActorMessage message) {
         Call call = new Call();
         call.from = new CallPoint(message.getFrom());
         call.to = new CallPoint(message.getTo());
@@ -766,7 +770,7 @@ public class Service extends TickCase{
         dispatchBusinessCall_st(call);
     }
 
-    void replyActorNotFound(ActorMessage message) {
+    public void replyActorNotFound(ActorMessage message) {
         processInnerSender.replyActorNotFound(message);
     }
 

@@ -1,5 +1,6 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.config;
 
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 
 import java.util.ArrayList;

@@ -2,7 +2,7 @@ package org.evd.game.ConnService;
 
 import io.netty.channel.Channel;
 import org.evd.game.runtime.Chunk;
-import org.evd.game.runtime.ClientSessionRef;
+import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.ChannelManager;
 import org.evd.game.runtime.netty.NetAcceptor;

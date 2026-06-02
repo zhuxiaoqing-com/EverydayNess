@@ -1,16 +1,17 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.mailbox;
 
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.ActorMessage;
-import org.evd.game.runtime.mailbox.MailBoxComponent;
+import org.evd.game.runtime.continuation.Task;
 
-final class UnOrderedMailBoxHandler {
+public final class UnOrderedMailBoxHandler {
     private final Service service;
 
-    UnOrderedMailBoxHandler(Service service) {
+    public UnOrderedMailBoxHandler(Service service) {
         this.service = service;
     }
 
-    void dispatch(MailBoxComponent mailBox, ActorMessage message) {
+    public void dispatch(MailBoxComponent mailBox, ActorMessage message) {
         Task.ContinuationWrapper continuation = service.createActorMessageContinuation(
                 () -> handle(mailBox, message),
                 message);

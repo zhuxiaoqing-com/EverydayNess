@@ -10,6 +10,8 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.continuation.ContinuationRuntime;
+import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.junit.jupiter.api.Test;

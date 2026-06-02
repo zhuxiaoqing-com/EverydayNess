@@ -1,5 +1,7 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.continuation;
 
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.TimerScheduler;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
@@ -9,12 +11,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-final class ContinuationRuntime {
+public final class ContinuationRuntime {
     private static final int DRAIN_LOG_THRESHOLD = 100;
     private static final int DRAIN_DEFER_THRESHOLD = 1000;
 
     @FunctionalInterface
-    interface WaitTimeoutHandler {
+    public interface WaitTimeoutHandler {
         void onTimeout(Task.ContinuationWrapper continuation, long waitId);
     }
 
@@ -40,7 +42,7 @@ final class ContinuationRuntime {
     private final Map<Long, WaitContext> waitContexts = new HashMap<>();
     private final ArrayDeque<Task.ContinuationWrapper> readyContinuations = new ArrayDeque<>();
 
-    ContinuationRuntime(Service service, TimerScheduler timerScheduler) {
+    public ContinuationRuntime(Service service, TimerScheduler timerScheduler) {
         this.service = service;
         this.timerScheduler = timerScheduler;
         this.continuationPool = new ContinuationPool(service);

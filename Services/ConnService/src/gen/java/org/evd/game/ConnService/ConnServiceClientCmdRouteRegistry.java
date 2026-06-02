@@ -1,7 +1,7 @@
 package org.evd.game.ConnService;
 
 import org.evd.game.common.proto.MsgId;
-import org.evd.game.runtime.ClientCmdRouteTable;
+import org.evd.game.runtime.client.ClientCmdRouteTable;
 
 /**
  * 根据ConnService生成的客户端协议路由注册类

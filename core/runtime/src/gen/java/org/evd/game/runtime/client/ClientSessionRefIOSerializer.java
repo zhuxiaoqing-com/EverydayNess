@@ -1,6 +1,5 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.client;
 
-import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
 import java.io.IOException;

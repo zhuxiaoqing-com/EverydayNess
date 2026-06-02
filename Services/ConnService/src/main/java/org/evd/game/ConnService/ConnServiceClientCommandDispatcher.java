@@ -1,7 +1,7 @@
 package org.evd.game.ConnService;
 
 import org.evd.game.runtime.Chunk;
-import org.evd.game.runtime.ClientSessionRef;
+import org.evd.game.runtime.client.ClientSessionRef;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;

@@ -8,7 +8,7 @@ import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_ConnPing;
 import org.evd.game.common.proxy.StageServiceProxy;
 import org.evd.game.runtime.Chunk;
-import org.evd.game.runtime.ClientSessionRef;
+import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;

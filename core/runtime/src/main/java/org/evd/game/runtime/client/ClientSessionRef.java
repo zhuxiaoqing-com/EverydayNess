@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.client;
 
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;

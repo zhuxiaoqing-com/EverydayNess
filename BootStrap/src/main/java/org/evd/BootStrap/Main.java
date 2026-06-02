@@ -6,7 +6,7 @@ import org.evd.game.runtime.config.NodeConfig;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.ScheduleInfo;
 import org.evd.game.runtime.config.ServiceInfo;
-import org.evd.game.runtime.DistributeConfig;
+import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.LogCore;

@@ -11,12 +11,13 @@ import org.evd.game.common.location.MessageLocationSender;
 import org.evd.game.runtime.Node;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.runtime.Chunk;
-import org.evd.game.runtime.ClientSessionRef;
+import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
@@ -153,7 +154,7 @@ public class StageService extends Service {
     }
 
     private CallPoint getLocationServiceRemote() {
-        CallPoint remote = org.evd.game.runtime.DistributeConfig.getNodeByServiceClass(
+        CallPoint remote = DistributeConfig.getNodeByServiceClass(
                 "org.evd.game.LocationService.LocationService",
                 0L);
         if (remote == null) {
