@@ -1,5 +1,6 @@
 package org.evd.game.ConnService;
 
+import org.evd.game.common.serializeBean.ConnInfo;
 import org.evd.game.runtime.RPCImplBase;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.function.*;
@@ -34,7 +35,7 @@ public class ConnServiceImpl extends RPCImplBase {
             case EnumCall.ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK:
                 return (Function3<ClientSessionRef, Integer, org.evd.game.runtime.Chunk>)service::pushToClient;
             case EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_SERIALIZEBEAN_CONNINFO:
-                return (Function3<Integer, Object, org.evd.game.serializeBean.ConnInfo>)service.requireCurrentActor(ConnTestProxy.class)::connTest2;
+                return (Function3<Integer, Object, ConnInfo>)service.requireCurrentActor(ConnTestProxy.class)::connTest2;
             case EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST3:
                 return (Function0)service.requireCurrentActor(ConnTestProxy.class)::connTest3;
             default:

@@ -1,4 +1,4 @@
-package org.evd.game.serializeBean;
+package org.evd.game.common.serializeBean;
 
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
@@ -12,7 +12,7 @@ public final class ConnInfoIOSerializer{
 	 * @param instance 实例
 	 */
 	public static void write(OutputStream out, ConnInfo instance) throws IOException {
-		org.evd.game.serializeBean.ConnInfoBaseIOSerializer.write(out, instance);
+		org.evd.game.common.serializeBean.ConnInfoBaseIOSerializer.write(out, instance);
 		out.writeInt(instance.getA());
 		out.writeLong(instance.getLongValue());
 		out.writeString(instance.getStringValue());
@@ -35,7 +35,7 @@ public final class ConnInfoIOSerializer{
 	 * @param instance 实例
 	 */
 	public static void read(InputStream in, ConnInfo instance) throws IOException {
-		org.evd.game.serializeBean.ConnInfoBaseIOSerializer.read(in, instance);
+		org.evd.game.common.serializeBean.ConnInfoBaseIOSerializer.read(in, instance);
 		instance.setA(in.readInt());
 		instance.setLongValue(in.readLong());
 		instance.setStringValue(in.readString());

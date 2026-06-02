@@ -4,7 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.common.location.MessageLocationSender;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
-        import org.evd.game.serializeBean.ConnInfo;
+        import org.evd.game.common.serializeBean.ConnInfo;
 
 /**
 * 根据ConnTestProxyService生成的代理类
@@ -22,7 +22,7 @@ public final class ConnTestProxyProxy {
     /**
     * @see org.evd.game.ConnService.ConnTestProxy#connTest2()
     */
-    public static void connTest2(long actorUniqueId, int a, Object b, org.evd.game.serializeBean.ConnInfo connInfo){
+    public static void connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
         new MessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_SERIALIZEBEAN_CONNINFO, new Object[]{a, b, connInfo});
