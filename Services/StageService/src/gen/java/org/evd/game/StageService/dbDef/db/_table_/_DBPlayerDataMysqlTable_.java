@@ -1,6 +1,6 @@
-package org.evd.game.StageService.db._table_;
+package org.evd.game.StageService.dbDef.db._table_;
 
-import org.evd.game.StageService.db.bean.*;
+import org.evd.game.StageService.dbDef.db.bean.*;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.collection.XArrayList;
 import org.evd.game.runtime.Db.collection.XHashMap;

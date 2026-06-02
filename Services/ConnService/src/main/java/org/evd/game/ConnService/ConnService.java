@@ -22,13 +22,11 @@ import org.evd.game.runtime.support.RuntimeUtils;
 @Actor
 public class ConnService extends Service {
     boolean first = true;
-    private final ConnServiceClientCommandDispatcher clientCommandDispatcher;
     private final ConnServiceClientCmdRouter clientCmdRouter;
     private final ConnServiceClientTransport clientTransport;
 
     public ConnService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
-        this.clientCommandDispatcher = new ConnServiceClientCommandDispatcher(this);
         this.clientCmdRouter = new ConnServiceClientCmdRouter(this);
         this.clientTransport = new ConnServiceClientTransport(this, serviceInfo.getPublicAddr());
         setPublicAddr(serviceInfo.getPublicAddr());
@@ -75,11 +73,6 @@ public class ConnService extends Service {
 
     public void dispatchClientCmd(NetChannel session, int cmd, byte[] body) {
         clientCmdRouter.forward(session, cmd, body);
-    }
-
-    @Rpc
-    public void forwardClientCmd(ClientSessionRef session, int msgId, Chunk body) {
-        clientCommandDispatcher.dispatch(session, msgId, body);
     }
 
     @Rpc

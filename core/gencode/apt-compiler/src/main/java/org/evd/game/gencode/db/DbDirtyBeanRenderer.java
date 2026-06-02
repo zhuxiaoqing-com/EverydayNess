@@ -13,7 +13,6 @@ final class DbDirtyBeanRenderer {
         StringBuilder sb = new StringBuilder(8192);
         DbDirtyFieldTagRenderer tagRenderer = resolveTagRenderer(entity.dbType);
         sb.append("package ").append(entity.beanPackage).append(";\n\n");
-        sb.append("import org.evd.game.annotation.SerializeClass;\n");
         sb.append("import org.evd.game.base.DirtyObject;\n");
         sb.append("import org.evd.game.base.ISerializable;\n");
         sb.append("import org.evd.game.base.InputStreamBase;\n");
@@ -30,7 +29,6 @@ final class DbDirtyBeanRenderer {
         }
         sb.append("import java.io.IOException;\n\n");
 
-        sb.append("@SerializeClass(customized = true)\n");
         sb.append("public final class ").append(entity.beanClassName)
                 .append(" extends DirtyObject implements ISerializable {\n");
         for (DbDirtyFieldMeta field : entity.fields) {

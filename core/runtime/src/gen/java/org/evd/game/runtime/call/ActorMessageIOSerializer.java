@@ -15,6 +15,7 @@ public final class ActorMessageIOSerializer{
 		org.evd.game.runtime.call.CallBaseIOSerializer.write(out, instance);
 		out.writeLong(instance.getOwnerInstanceId());
 		out.writeLong(instance.getMailBoxInstanceId());
+		out.writeInt(instance.getDispatchType());
 		out.writeInt(instance.getMethodKey());
 		out.writeObjectArray(instance.getMethodParam());
 		out.writeBoolean(instance.isNeedResult());
@@ -29,6 +30,7 @@ public final class ActorMessageIOSerializer{
 		org.evd.game.runtime.call.CallBaseIOSerializer.read(in, instance);
 		instance.setOwnerInstanceId(in.readLong());
 		instance.setMailBoxInstanceId(in.readLong());
+		instance.setDispatchType(in.readInt());
 		instance.setMethodKey(in.readInt());
 		instance.setMethodParam(in.readObjectArray());
 		instance.setNeedResult(in.readBoolean());

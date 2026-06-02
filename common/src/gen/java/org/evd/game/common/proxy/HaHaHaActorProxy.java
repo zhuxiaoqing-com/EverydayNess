@@ -15,10 +15,10 @@ public final class HaHaHaActorProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT = 6;
-        public final static int ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT = 7;
-        public final static int ENUM_HAHAHAACTOR_VOID_RPC3_OBJECT_OBJECT = 8;
-        public final static int ENUM_HAHAHAACTOR_VOID_RPC4_OBJECT_OBJECT = 9;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT = 5;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT = 6;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC3_OBJECT_OBJECT = 7;
+        public final static int ENUM_HAHAHAACTOR_VOID_RPC4_OBJECT_OBJECT = 8;
     }
 
     /**

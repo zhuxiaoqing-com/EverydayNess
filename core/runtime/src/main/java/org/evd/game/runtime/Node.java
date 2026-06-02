@@ -263,7 +263,6 @@ public class Node extends TickCase{
                 service.addCall_snt(call);
             }
             break;
-
             // PRC远程调用请求的返回值
             case CallResult ignored: {
                 Service service = services.get(call.to.servId);

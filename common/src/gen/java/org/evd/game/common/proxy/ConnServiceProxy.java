@@ -3,6 +3,7 @@ package org.evd.game.common.proxy;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
         import org.evd.game.runtime.client.ClientSessionRef;
+        import org.evd.game.runtime.Chunk;
 
 /**
 * 根据ConnServiceService生成的代理类
@@ -16,8 +17,7 @@ public final class ConnServiceProxy {
         public final static int ENUM_CONNSERVICE_STRING_CON = 0;
         public final static int ENUM_CONNSERVICE_VOID_CON1 = 1;
         public final static int ENUM_CONNSERVICE_VOID_CON4 = 2;
-        public final static int ENUM_CONNSERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 3;
-        public final static int ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 4;
+        public final static int ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENT_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 3;
     }
 
     /**
@@ -46,17 +46,10 @@ public final class ConnServiceProxy {
         service.call(remote, EnumCall.ENUM_CONNSERVICE_VOID_CON4, new Object[]{});
     }
     /**
-    * @see org.evd.game.ConnService.ConnService#forwardClientCmd()
-    */
-    public static void forwardClientCmd(CallPoint remote, ClientSessionRef session, int msgId, org.evd.game.runtime.Chunk body){
-        Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNSERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK, new Object[]{session, msgId, body});
-    }
-    /**
     * @see org.evd.game.ConnService.ConnService#pushToClient()
     */
-    public static void pushToClient(CallPoint remote, ClientSessionRef session, int msgId, org.evd.game.runtime.Chunk body){
+    public static void pushToClient(CallPoint remote, org.evd.game.runtime.client.ClientSessionRef session, int msgId, org.evd.game.runtime.Chunk body){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK, new Object[]{session, msgId, body});
+        service.call(remote, EnumCall.ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENT_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK, new Object[]{session, msgId, body});
     }
 }

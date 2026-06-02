@@ -5,6 +5,9 @@ import org.evd.game.annotation.SerializeField;
 
 @SerializeClass
 public class Call extends CallBase {
+    /** 负载分发类型，见 DispatchType */
+    @SerializeField
+    public int dispatchType = DispatchType.RPC;
     /** to service后调用哪个方法 */
     @SerializeField
     public int methodKey;
@@ -27,6 +30,14 @@ public class Call extends CallBase {
 
     public int getMethodKey() {
         return methodKey;
+    }
+
+    public int getDispatchType() {
+        return dispatchType;
+    }
+
+    public void setDispatchType(int dispatchType) {
+        this.dispatchType = dispatchType;
     }
 
     public void setMethodKey(int methodKey) {

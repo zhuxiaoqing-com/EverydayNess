@@ -22,7 +22,7 @@ final class ConnServiceClientCmdRouter {
 
     void forward(NetChannel session, int cmd, byte[] body) {
         ClientSessionRef sessionRef = owner.buildClientSessionRef(session);
-        routeTable.forward(sessionRef, cmd, body);
+        routeTable.forward(owner, sessionRef, cmd, body);
     }
 
     private void registerAllRoutes() {

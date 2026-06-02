@@ -154,15 +154,12 @@ public final class ClientCmdRouteGenerator {
     private static String buildRouterSource(List<ClientCmdRouteInfo> routes) {
         StringBuilder source = new StringBuilder();
         source.append("package ").append(ROUTER_PACKAGE).append(";\n\n");
-        source.append("import org.evd.game.common.proto.MsgId;\n");
         source.append("import org.evd.game.runtime.Chunk;\n");
-        source.append("import org.evd.game.runtime.ClientSessionRef;\n");
+        source.append("import org.evd.game.runtime.Service;\n");
+        source.append("import org.evd.game.runtime.client.ClientSessionRef;\n");
         source.append("import org.evd.game.runtime.DistributeConfig;\n");
         source.append("import org.evd.game.runtime.netty.NetChannel;\n");
         source.append("import org.evd.game.runtime.call.CallPoint;\n");
-        for (String proxyImport : collectProxyImports(routes)) {
-            source.append("import ").append(proxyImport).append(";\n");
-        }
         source.append("\n");
         source.append("/**\n");
         source.append(" * 根据所有客户端协议分发表聚合生成的总路由\n");
@@ -191,19 +188,10 @@ public final class ClientCmdRouteGenerator {
             source.append("            throw new IllegalStateException(\"找不到客户端协议目标服务: cmd=")
                     .append(route.cmd()).append(", service=").append(route.serviceFullClassName()).append("\");\n");
             source.append("        }\n");
-            source.append("        ").append(route.proxyClassName())
-                    .append(".forwardClientCmd(callPoint, session, cmd, new Chunk(body));\n");
+            source.append("        Service.getCurrent().sendClientCmd(callPoint, null, session, cmd, new Chunk(body));\n");
             source.append("    }\n\n");
         }
         source.append("}\n");
         return source.toString();
-    }
-
-    private static Set<String> collectProxyImports(List<ClientCmdRouteInfo> routes) {
-        Set<String> imports = new LinkedHashSet<>();
-        for (ClientCmdRouteInfo route : routes) {
-            imports.add("org.evd.game.common.proxy." + route.proxyClassName());
-        }
-        return imports;
     }
 }

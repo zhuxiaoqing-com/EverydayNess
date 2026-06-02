@@ -6,11 +6,14 @@ import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
+import org.evd.game.runtime.call.DispatchType;
 import org.evd.game.runtime.call.ActorMessage;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorRegistry;
+import org.evd.game.runtime.client.ClientCmdRegistryBase;
+import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.CoroutineLockManager;
@@ -26,6 +29,7 @@ import org.evd.game.runtime.support.function.*;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.HashMap;
 import java.util.List;
@@ -119,6 +123,8 @@ public class Service extends TickCase{
     }
     /** rpc调用路由到接收函数的类 */
     private RPCImplBase methodFunctionProxy;
+    /** client cmd 调用路由到接收函数的类 */
+    private ClientCmdRegistryBase<?> clientCmdRegistry;
     /** 本service的调用点 */
     private final CallPoint callPoint;
     /** 远程请求RPC缓冲区 */
@@ -338,8 +344,12 @@ public class Service extends TickCase{
         processInnerSender.dispatch(toActorMessage(call, registration));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private void dispatchBusinessCall_st(Call call) {
+        if (call.dispatchType == DispatchType.CLIENT_CMD) {
+            dispatchClientCmdCall_st(call);
+            return;
+        }
+
         Object func = getMethodFunction(call.methodKey);
         Object[] m = call.methodParam;
         if (call.needResult){
@@ -358,6 +368,42 @@ public class Service extends TickCase{
                 LogCore.core.error("rpc dispatch failed: service={}, methodKey={}", id, call.methodKey, e);
             }
         }
+    }
+
+    private void dispatchClientCmdCall_st(Call call) {
+        if (call.needResult) {
+            CallResult callReturn = call.createReturn();
+            try {
+                dispatchClientCmd(call.methodKey, call.methodParam);
+            } catch (Throwable e) {
+                LogCore.core.error("client cmd return dispatch failed: service={}, msgId={}", id, call.methodKey, e);
+                fillRpcFailure(callReturn, e);
+            }
+            sendCall_st(callReturn);
+            return;
+        }
+
+        try {
+            dispatchClientCmd(call.methodKey, call.methodParam);
+        } catch (Exception e) {
+            LogCore.core.error("client cmd dispatch failed: service={}, msgId={}", id, call.methodKey, e);
+        }
+    }
+
+    private void dispatchClientCmd(int msgId, Object[] params) throws Exception {
+        if (params == null || params.length != 2) {
+            throw new IllegalArgumentException("client cmd params must be [ClientSessionRef, Chunk]: service="
+                    + id + ", msgId=" + msgId);
+        }
+        if (!(params[0] instanceof ClientSessionRef session)) {
+            throw new IllegalArgumentException("client cmd first param must be ClientSessionRef: service="
+                    + id + ", msgId=" + msgId);
+        }
+        if (!(params[1] instanceof Chunk body)) {
+            throw new IllegalArgumentException("client cmd second param must be Chunk: service="
+                    + id + ", msgId=" + msgId);
+        }
+        clientCmdRegistry().dispatch(session, msgId, copyChunkBody(body));
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -611,6 +657,18 @@ public class Service extends TickCase{
         return sendCall_st(call);
     }
 
+    public void sendClientCmd(CallPoint toCallPoint, ActorId actorId, ClientSessionRef session, int msgId, Chunk body) {
+        Call call = new Call();
+        call.from = this.callPoint;
+        call.to = toCallPoint;
+        call.actorId = actorId == null ? null : new ActorId(actorId);
+        call.dispatchType = DispatchType.CLIENT_CMD;
+        call.methodKey = msgId;
+        call.methodParam = new Object[]{session, body};
+        call.needResult = false;
+        sendCall_st(call);
+    }
+
     private Task.ContinuationWrapper requireRunningContinuation() {
         return continuationRuntime.requireRunning();
     }
@@ -764,6 +822,7 @@ public class Service extends TickCase{
         call.to = new CallPoint(message.getTo());
         call.id = message.getId();
         call.actorId = message.getActorId() == null ? null : new ActorId(message.getActorId());
+        call.dispatchType = message.getDispatchType();
         call.methodKey = message.getMethodKey();
         call.methodParam = message.getMethodParam();
         call.needResult = message.isNeedResult();
@@ -844,6 +903,7 @@ public class Service extends TickCase{
         actorMessage.setActorId(call.actorId == null ? null : new ActorId(call.actorId));
         actorMessage.setOwnerInstanceId(mailBoxComponent.getOwnerInstanceId());
         actorMessage.setMailBoxInstanceId(mailBoxComponent.getInstanceId());
+        actorMessage.setDispatchType(call.dispatchType);
         actorMessage.setMethodKey(call.methodKey);
         actorMessage.setMethodParam(call.methodParam);
         actorMessage.setNeedResult(call.needResult);
@@ -887,6 +947,24 @@ public class Service extends TickCase{
         } catch (Exception e) {
             throw new SysException(e);
         }
+    }
+
+    private ClientCmdRegistryBase<?> clientCmdRegistry() {
+        try {
+            if (clientCmdRegistry == null) {
+                Class<?> cls = Class.forName(getClass().getName() + "ClientCmdRegistry");
+                Constructor<?> c = cls.getDeclaredConstructor(getClass());
+                c.setAccessible(true);
+                clientCmdRegistry = (ClientCmdRegistryBase<?>) c.newInstance(this);
+            }
+            return clientCmdRegistry;
+        } catch (Exception e) {
+            throw new SysException(e, "初始化客户端协议分发表失败: service={}", id);
+        }
+    }
+
+    private byte[] copyChunkBody(Chunk body) {
+        return Arrays.copyOfRange(body.buffer, body.offset, body.offset + body.length);
     }
 
 

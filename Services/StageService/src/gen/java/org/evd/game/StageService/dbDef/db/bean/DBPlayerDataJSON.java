@@ -1,6 +1,5 @@
-package org.evd.game.StageService.db.bean;
+package org.evd.game.StageService.dbDef.db.bean;
 
-import org.evd.game.annotation.SerializeClass;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.base.ISerializable;
 import org.evd.game.base.InputStreamBase;
@@ -11,7 +10,6 @@ import org.evd.game.runtime.Db.collection.XHashMap;
 import org.evd.game.runtime.Db.collection.XHashSet;
 import java.io.IOException;
 
-@SerializeClass(customized = true)
 public final class DBPlayerDataJSON extends DirtyObject implements ISerializable {
     @JSONField(name = "1")
     private String id;

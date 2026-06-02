@@ -10,6 +10,8 @@ public class ActorMessage extends CallBase {
     @SerializeField
     private long mailBoxInstanceId;
     @SerializeField
+    private int dispatchType = DispatchType.RPC;
+    @SerializeField
     private int methodKey;
     @SerializeField
     private Object[] methodParam;
@@ -42,6 +44,14 @@ public class ActorMessage extends CallBase {
 
     public int getMethodKey() {
         return methodKey;
+    }
+
+    public int getDispatchType() {
+        return dispatchType;
+    }
+
+    public void setDispatchType(int dispatchType) {
+        this.dispatchType = dispatchType;
     }
 
     public void setMethodKey(int methodKey) {

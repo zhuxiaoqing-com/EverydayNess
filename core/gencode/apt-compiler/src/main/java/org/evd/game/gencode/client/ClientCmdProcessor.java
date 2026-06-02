@@ -33,8 +33,9 @@ import java.util.Set;
 @AutoService(Processor.class)
 public class ClientCmdProcessor extends ProcessorBase {
 
-    private static final String CLIENT_SESSION_REF_CLASS_NAME = "org.evd.game.runtime.ClientSessionRef";
-    private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.ClientCmdRouteTable";
+    private static final String CLIENT_SESSION_REF_CLASS_NAME = "org.evd.game.runtime.client.ClientSessionRef";
+    private static final String CLIENT_CMD_REGISTRY_BASE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRegistryBase";
+    private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRouteTable";
     private static final String MSG_ID_CLASS_NAME = "org.evd.game.common.proto.MsgId";
     private static final String PROTO_MESSAGE_CLASS_NAME = "com.google.protobuf.MessageLite";
     private static final String SERVICE_CLASS_NAME = "org.evd.game.runtime.Service";
@@ -123,7 +124,8 @@ public class ClientCmdProcessor extends ProcessorBase {
         source.append("package ").append(packageName).append(";\n\n");
         source.append("import com.google.protobuf.InvalidProtocolBufferException;\n");
         source.append("import ").append(MSG_ID_CLASS_NAME).append(";\n");
-        source.append("import org.evd.game.runtime.ClientSessionRef;\n");
+        source.append("import ").append(CLIENT_CMD_REGISTRY_BASE_CLASS_NAME).append(";\n");
+        source.append("import ").append(CLIENT_SESSION_REF_CLASS_NAME).append(";\n");
         for (String importPackage : collectImports(methods, packageName)) {
             source.append("import ").append(importPackage).append(";\n");
         }
@@ -131,16 +133,17 @@ public class ClientCmdProcessor extends ProcessorBase {
         source.append("/**\n");
         source.append(" * 根据").append(ownerClassName).append("生成的客户端协议分发类\n");
         source.append(" */\n");
-        source.append("public final class ").append(className).append(" {\n");
-        source.append("    private final ").append(ownerClassName).append(" owner;\n\n");
+        source.append("public final class ").append(className)
+                .append(" extends ClientCmdRegistryBase<").append(ownerClassName).append("> {\n");
         source.append("    public ").append(className).append("(").append(ownerClassName).append(" owner) {\n");
-        source.append("        this.owner = owner;\n");
+        source.append("        super(owner);\n");
         source.append("    }\n\n");
+        source.append("    @Override\n");
         source.append("    public void dispatch(ClientSessionRef session, int cmd, byte[] body) throws InvalidProtocolBufferException {\n");
         source.append("        switch (cmd) {\n");
         for (ClientCmdMethod method : methods) {
             source.append("            case ").append(method.cmdExpr).append(":\n");
-            source.append("                owner.").append(method.methodName)
+            source.append("                owner().").append(method.methodName)
                     .append("(session, ").append(method.requestClassName).append(".parseFrom(body));\n");
             source.append("                return;\n");
         }
@@ -154,7 +157,6 @@ public class ClientCmdProcessor extends ProcessorBase {
 
     private String buildRouteRegistrySource(String className, List<ClientCmdMethod> methods) {
         ClientCmdMethod first = methods.getFirst();
-        String proxyClassName = first.ownerClassName + "Proxy";
         StringBuilder source = new StringBuilder();
         source.append("package ").append(first.ownerPackageName).append(";\n\n");
         source.append("import ").append(MSG_ID_CLASS_NAME).append(";\n");
@@ -171,8 +173,6 @@ public class ClientCmdProcessor extends ProcessorBase {
                     .append(method.cmdExpr)
                     .append(", \"")
                     .append(method.ownerFullClassName)
-                    .append("\", \"org.evd.game.common.proxy.")
-                    .append(proxyClassName)
                     .append("\");\n");
         }
         source.append("    }\n");

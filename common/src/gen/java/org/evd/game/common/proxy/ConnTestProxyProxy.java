@@ -15,17 +15,17 @@ public final class ConnTestProxyProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_SERIALIZEBEAN_CONNINFO = 5;
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST3 = 6;
+        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO = 4;
+        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST3 = 5;
     }
 
     /**
     * @see org.evd.game.ConnService.ConnTestProxy#connTest2()
     */
-    public static void connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
+    public static void connTest2(long actorUniqueId, int a, Object b, org.evd.game.common.serializeBean.ConnInfo connInfo){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
-        new MessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_SERIALIZEBEAN_CONNINFO, new Object[]{a, b, connInfo});
+        new MessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO, new Object[]{a, b, connInfo});
     }
     /**
     * @see org.evd.game.ConnService.ConnTestProxy#connTest3()

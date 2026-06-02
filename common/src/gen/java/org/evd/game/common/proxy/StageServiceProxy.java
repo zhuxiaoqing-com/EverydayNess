@@ -2,7 +2,6 @@ package org.evd.game.common.proxy;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-        import org.evd.game.runtime.client.ClientSessionRef;
 
 /**
 * 根据StageServiceService生成的代理类
@@ -18,7 +17,6 @@ public final class StageServiceProxy {
         public final static int ENUM_STAGESERVICE_STRING_DOSOME1_INT_INT = 2;
         public final static int ENUM_STAGESERVICE_VOID_DOSOME2_INT_INT = 3;
         public final static int ENUM_STAGESERVICE_STRING_DOSOME3_INT = 4;
-        public final static int ENUM_STAGESERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 5;
     }
 
     /**
@@ -63,12 +61,5 @@ public final class StageServiceProxy {
     public static String doSome3(CallPoint remote, int a, long timeoutMillis){
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_STAGESERVICE_STRING_DOSOME3_INT, new Object[]{a}, timeoutMillis);
-    }
-    /**
-    * @see org.evd.game.StageService.StageService#forwardClientCmd()
-    */
-    public static void forwardClientCmd(CallPoint remote, ClientSessionRef session, int msgId, org.evd.game.runtime.Chunk body){
-        Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_STAGESERVICE_VOID_FORWARDCLIENTCMD_ORG_EVD_GAME_RUNTIME_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK, new Object[]{session, msgId, body});
     }
 }

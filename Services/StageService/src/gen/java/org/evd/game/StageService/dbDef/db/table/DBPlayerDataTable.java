@@ -1,7 +1,7 @@
-package org.evd.game.StageService.db.table;
+package org.evd.game.StageService.dbDef.db.table;
 
-import org.evd.game.StageService.db.bean.DBPlayerData;
-import org.evd.game.StageService.db._table_._DBPlayerDataTable_;
+import org.evd.game.StageService.dbDef.db.bean.DBPlayerData;
+import org.evd.game.StageService.dbDef.db._table_._DBPlayerDataTable_;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.Db.table.TTable;
 import org.evd.game.runtime.Service;

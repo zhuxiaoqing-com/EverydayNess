@@ -11,6 +11,6 @@ public final class ConnServiceClientCmdRouteRegistry {
     }
 
     public static void register(ClientCmdRouteTable routeTable) {
-        routeTable.register(MsgId.C2S_CONN_PING_VALUE, "org.evd.game.ConnService.ConnService", "org.evd.game.common.proxy.ConnServiceProxy");
+        routeTable.register(MsgId.C2S_CONN_PING_VALUE, "org.evd.game.ConnService.ConnService");
     }
 }

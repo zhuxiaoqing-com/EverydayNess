@@ -1,39 +1,40 @@
-package org.evd.game.StageService.db.bean;
+package org.evd.game.StageService.dbDef.db.bean;
 
-import org.evd.game.annotation.SerializeClass;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.base.ISerializable;
 import org.evd.game.base.InputStreamBase;
 import org.evd.game.base.OutputStreamBase;
+import com.alibaba.fastjson2.annotation.JSONField;
 import java.io.IOException;
 
-@SerializeClass(customized = true)
-public final class DBItemDataMysql extends DirtyObject implements ISerializable {
+public final class DBItemDataJSON extends DirtyObject implements ISerializable {
+    @JSONField(name = "1")
     private long id;
+    @JSONField(name = "2")
     private String name;
 
-    DBItemDataMysql(DirtyObject _xp_) {
+    DBItemDataJSON(DirtyObject _xp_) {
         super(_xp_);
         this.id = 0L;
         this.name = "";
     }
 
-    public DBItemDataMysql() {
+    public DBItemDataJSON() {
         this((DirtyObject)null);
     }
 
-    public DBItemDataMysql(DBItemDataMysql _o_) {
+    public DBItemDataJSON(DBItemDataJSON _o_) {
         this(_o_, null);
     }
 
-    DBItemDataMysql(DBItemDataMysql _o_, DirtyObject _xp_) {
+    DBItemDataJSON(DBItemDataJSON _o_, DirtyObject _xp_) {
         super(_xp_);
         this.id = _o_.id;
         this.name = _o_.name;
         this.dirty = false;
     }
 
-    public void copyFrom(DBItemDataMysql _o_) {
+    public void copyFrom(DBItemDataJSON _o_) {
         this.id = _o_.id;
         this.name = _o_.name;
         makeModify();

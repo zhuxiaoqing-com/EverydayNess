@@ -13,6 +13,7 @@ public final class CallIOSerializer{
 	 */
 	public static void write(OutputStream out, Call instance) throws IOException {
 		org.evd.game.runtime.call.CallBaseIOSerializer.write(out, instance);
+		out.writeInt(instance.getDispatchType());
 		out.writeInt(instance.getMethodKey());
 		out.writeObjectArray(instance.getMethodParam());
 		out.writeBoolean(instance.isNeedResult());
@@ -25,6 +26,7 @@ public final class CallIOSerializer{
 	 */
 	public static void read(InputStream in, Call instance) throws IOException {
 		org.evd.game.runtime.call.CallBaseIOSerializer.read(in, instance);
+		instance.setDispatchType(in.readInt());
 		instance.setMethodKey(in.readInt());
 		instance.setMethodParam(in.readObjectArray());
 		instance.setNeedResult(in.readBoolean());
