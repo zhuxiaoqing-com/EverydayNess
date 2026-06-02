@@ -1,12 +1,17 @@
 package org.evd.game.gencode.client;
 
+import com.sun.source.tree.Tree;
+import com.sun.source.util.Trees;
 import com.google.auto.service.AutoService;
+import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.ProcessorBase;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -41,6 +46,7 @@ public class ClientCmdProcessor extends ProcessorBase {
     private static final String SERVICE_CLASS_NAME = "org.evd.game.runtime.Service";
 
     private final Set<String> generatedClasses = new HashSet<>();
+    private Trees trees;
 
     @Override
     protected Set<String> supportAnnotation() {
@@ -49,6 +55,7 @@ public class ClientCmdProcessor extends ProcessorBase {
 
     @Override
     protected void init() {
+        trees = Trees.instance(processingEnv);
     }
 
     @Override
@@ -64,14 +71,15 @@ public class ClientCmdProcessor extends ProcessorBase {
         TypeElement sessionType = requireType(CLIENT_SESSION_REF_CLASS_NAME);
         TypeElement protoMessageType = requireType(PROTO_MESSAGE_CLASS_NAME);
         TypeElement serviceType = requireType(SERVICE_CLASS_NAME);
+        TypeElement roundServiceOwner = resolveRoundServiceOwner(roundEnv, serviceType);
 
         Map<String, List<ClientCmdMethod>> classMethods = new LinkedHashMap<>();
         for (Element element : elements) {
             if (!(element instanceof ExecutableElement executableElement)) {
                 throw new IllegalStateException("@ClientCmd 只能标记在方法上: " + element);
             }
-            ClientCmdMethod method = parseMethod(executableElement, sessionType, protoMessageType, serviceType);
-            classMethods.computeIfAbsent(method.ownerFullClassName, key -> new ArrayList<>()).add(method);
+            ClientCmdMethod method = parseMethod(executableElement, sessionType, protoMessageType, serviceType, roundServiceOwner);
+            classMethods.computeIfAbsent(method.serviceOwnerFullClassName, key -> new ArrayList<>()).add(method);
         }
 
         classMethods.values().forEach(methods -> {
@@ -84,15 +92,15 @@ public class ClientCmdProcessor extends ProcessorBase {
 
     private void genRegistry(List<ClientCmdMethod> methods) {
         ClientCmdMethod first = methods.getFirst();
-        String className = first.ownerClassName + "ClientCmdRegistry";
-        String packageName = first.ownerPackageName;
+        String className = first.serviceOwnerClassName + "ClientCmdRegistry";
+        String packageName = first.serviceOwnerPackageName;
         String fullClassName = packageName + "." + className;
         if (!generatedClasses.add(fullClassName)) {
             return;
         }
 
         try {
-            writeJavaSource(packageName, className, buildRegistrySource(first.ownerClassName, className, packageName, methods));
+            writeJavaSource(packageName, className, buildRegistrySource(first.serviceOwnerClassName, className, packageName, methods));
             println("generate success [" + className + ".java]");
         } catch (Exception e) {
             throw new RuntimeException("生成客户端协议分发表失败: " + className, e);
@@ -101,8 +109,8 @@ public class ClientCmdProcessor extends ProcessorBase {
 
     private void genRouteRegistry(List<ClientCmdMethod> methods) {
         ClientCmdMethod first = methods.getFirst();
-        String className = first.ownerClassName + "ClientCmdRouteRegistry";
-        String packageName = first.ownerPackageName;
+        String className = first.serviceOwnerClassName + "ClientCmdRouteRegistry";
+        String packageName = first.serviceOwnerPackageName;
         String fullClassName = packageName + "." + className;
         if (!generatedClasses.add(fullClassName)) {
             return;
@@ -135,6 +143,12 @@ public class ClientCmdProcessor extends ProcessorBase {
         source.append(" */\n");
         source.append("public final class ").append(className)
                 .append(" extends ClientCmdRegistryBase<").append(ownerClassName).append("> {\n");
+        for (String fieldLine : buildTargetFieldLines(methods)) {
+            source.append(fieldLine);
+        }
+        if (hasNonOwnerTarget(methods)) {
+            source.append("\n");
+        }
         source.append("    public ").append(className).append("(").append(ownerClassName).append(" owner) {\n");
         source.append("        super(owner);\n");
         source.append("    }\n\n");
@@ -143,7 +157,7 @@ public class ClientCmdProcessor extends ProcessorBase {
         source.append("        switch (cmd) {\n");
         for (ClientCmdMethod method : methods) {
             source.append("            case ").append(method.cmdExpr).append(":\n");
-            source.append("                owner().").append(method.methodName)
+            source.append("                ").append(method.dispatchTargetExpr()).append(".").append(method.methodName)
                     .append("(session, ").append(method.requestClassName).append(".parseFrom(body));\n");
             source.append("                return;\n");
         }
@@ -158,11 +172,11 @@ public class ClientCmdProcessor extends ProcessorBase {
     private String buildRouteRegistrySource(String className, List<ClientCmdMethod> methods) {
         ClientCmdMethod first = methods.getFirst();
         StringBuilder source = new StringBuilder();
-        source.append("package ").append(first.ownerPackageName).append(";\n\n");
+        source.append("package ").append(first.serviceOwnerPackageName).append(";\n\n");
         source.append("import ").append(MSG_ID_CLASS_NAME).append(";\n");
         source.append("import ").append(CLIENT_CMD_ROUTE_TABLE_CLASS_NAME).append(";\n\n");
         source.append("/**\n");
-        source.append(" * 根据").append(first.ownerClassName).append("生成的客户端协议路由注册类\n");
+        source.append(" * 根据").append(first.serviceOwnerClassName).append("生成的客户端协议路由注册类\n");
         source.append(" */\n");
         source.append("public final class ").append(className).append(" {\n");
         source.append("    private ").append(className).append("() {\n");
@@ -172,7 +186,7 @@ public class ClientCmdProcessor extends ProcessorBase {
             source.append("        routeTable.register(")
                     .append(method.cmdExpr)
                     .append(", \"")
-                    .append(method.ownerFullClassName)
+                    .append(method.serviceOwnerFullClassName)
                     .append("\");\n");
         }
         source.append("    }\n");
@@ -186,17 +200,21 @@ public class ClientCmdProcessor extends ProcessorBase {
             if (!method.requestPackageName.equals(packageName)) {
                 imports.add(method.requestTypeName);
             }
+            if (!method.targetPackageName.equals(packageName) && !method.isServiceOwnerTarget()) {
+                imports.add(method.targetTypeName());
+            }
         }
         return new ArrayList<>(imports);
     }
 
     private void checkDuplicateCmd(List<ClientCmdMethod> methods) {
-        Map<Integer, String> cmdOwners = new LinkedHashMap<>();
+        Map<Integer, ClientCmdMethod> cmdOwners = new LinkedHashMap<>();
         for (ClientCmdMethod method : methods) {
-            String previous = cmdOwners.putIfAbsent(method.cmd, method.methodName);
+            ClientCmdMethod previous = cmdOwners.putIfAbsent(method.cmd, method);
             if (previous != null) {
-                throw new IllegalStateException(method.ownerFullClassName + " 存在重复的客户端协议号: cmd="
-                        + method.cmd + ", method=" + previous + "/" + method.methodName);
+                throw new IllegalStateException(method.serviceOwnerFullClassName + " 存在重复的客户端协议号: cmd="
+                        + method.cmd + ", previous=" + previous.methodDisplayName()
+                        + ", current=" + method.methodDisplayName());
             }
         }
     }
@@ -204,17 +222,15 @@ public class ClientCmdProcessor extends ProcessorBase {
     private ClientCmdMethod parseMethod(ExecutableElement method,
                                         TypeElement sessionType,
                                         TypeElement protoMessageType,
-                                        TypeElement serviceType) {
+                                        TypeElement serviceType,
+                                        TypeElement roundServiceOwner) {
         TypeElement ownerType = (TypeElement) method.getEnclosingElement();
+        TypeElement serviceOwner = resolveServiceOwner(ownerType, serviceType, roundServiceOwner);
         ClientCmd clientCmd = method.getAnnotation(ClientCmd.class);
         int cmd = clientCmd.value();
         if (cmd <= 0) {
             throw new IllegalStateException(ownerType.getQualifiedName() + "#" + method.getSimpleName()
                     + " 的 @ClientCmd value 必须大于 0");
-        }
-        if (!typeUtils.isSubtype(ownerType.asType(), serviceType.asType())) {
-            throw new IllegalStateException(ownerType.getQualifiedName() + "#" + method.getSimpleName()
-                    + " 所在类必须是 Service 子类");
         }
         if (!method.getModifiers().contains(Modifier.PUBLIC) || method.getModifiers().contains(Modifier.STATIC)) {
             throw new IllegalStateException(ownerType.getQualifiedName() + "#" + method.getSimpleName()
@@ -249,48 +265,112 @@ public class ClientCmdProcessor extends ProcessorBase {
         String requestPackageName = elementUtils.getPackageOf(requestTypeElement).getQualifiedName().toString();
         String requestClassName = requestTypeName.substring(requestTypeName.lastIndexOf('.') + 1);
         return new ClientCmdMethod(
+                elementUtils.getPackageOf(serviceOwner).getQualifiedName().toString(),
+                serviceOwner.getSimpleName().toString(),
+                serviceOwner.getQualifiedName().toString(),
                 elementUtils.getPackageOf(ownerType).getQualifiedName().toString(),
                 ownerType.getSimpleName().toString(),
                 ownerType.getQualifiedName().toString(),
                 method.getSimpleName().toString(),
                 cmd,
-                buildMsgIdExpr(requestClassName),
+                resolveCmdExpr(method, cmd),
                 requestTypeName,
                 requestPackageName,
                 requestClassName
         );
     }
 
-    private String buildMsgIdExpr(String requestClassName) {
-        return MSG_ID_CLASS_NAME.substring(MSG_ID_CLASS_NAME.lastIndexOf('.') + 1) + "."
-                + toMsgIdEnumName(requestClassName) + "_VALUE";
+    private String resolveCmdExpr(ExecutableElement method, int cmd) {
+        AnnotationMirror clientCmdMirror = findAnnotationMirror(method, ClientCmd.class.getCanonicalName());
+        if (clientCmdMirror == null) {
+            return String.valueOf(cmd);
+        }
+        AnnotationValue value = findAnnotationValue(clientCmdMirror, "value");
+        if (value == null) {
+            return String.valueOf(cmd);
+        }
+        Tree valueTree = trees.getTree(method, clientCmdMirror, value);
+        if (valueTree == null) {
+            return String.valueOf(cmd);
+        }
+        return normalizeCmdExpr(valueTree.toString().trim(), cmd);
     }
 
-    private String toMsgIdEnumName(String requestClassName) {
-        StringBuilder result = new StringBuilder();
-        String[] parts = requestClassName.split("_");
-        for (int i = 0; i < parts.length; i++) {
-            if (i > 0) {
-                result.append('_');
+    private AnnotationMirror findAnnotationMirror(ExecutableElement method, String annotationClassName) {
+        for (AnnotationMirror annotationMirror : method.getAnnotationMirrors()) {
+            Element annotationElement = annotationMirror.getAnnotationType().asElement();
+            if (annotationElement instanceof TypeElement typeElement
+                    && typeElement.getQualifiedName().contentEquals(annotationClassName)) {
+                return annotationMirror;
             }
-            result.append(toUpperSnakePart(parts[i]));
         }
-        return result.toString();
+        return null;
     }
 
-    private String toUpperSnakePart(String value) {
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            if (i > 0 && Character.isUpperCase(ch)) {
-                char prev = value.charAt(i - 1);
-                if (Character.isLowerCase(prev)) {
-                    result.append('_');
-                }
+    private AnnotationValue findAnnotationValue(AnnotationMirror annotationMirror, String name) {
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry
+                : annotationMirror.getElementValues().entrySet()) {
+            if (entry.getKey().getSimpleName().contentEquals(name)) {
+                return entry.getValue();
             }
-            result.append(Character.toUpperCase(ch));
         }
-        return result.toString();
+        return null;
+    }
+
+    private String normalizeCmdExpr(String sourceExpr, int cmd) {
+        if (sourceExpr.matches("\\d+")) {
+            return sourceExpr;
+        }
+        String simpleMsgIdPrefix = MSG_ID_CLASS_NAME.substring(MSG_ID_CLASS_NAME.lastIndexOf('.') + 1) + ".";
+        if (sourceExpr.startsWith(MSG_ID_CLASS_NAME + ".")) {
+            return MSG_ID_CLASS_NAME.substring(MSG_ID_CLASS_NAME.lastIndexOf('.') + 1)
+                    + sourceExpr.substring(MSG_ID_CLASS_NAME.length());
+        }
+        if (sourceExpr.startsWith(simpleMsgIdPrefix) && sourceExpr.endsWith("_VALUE")) {
+            return sourceExpr;
+        }
+        return String.valueOf(cmd);
+    }
+
+    private List<String> buildTargetFieldLines(List<ClientCmdMethod> methods) {
+        Map<String, String> fieldByTarget = new LinkedHashMap<>();
+        List<String> fieldLines = new ArrayList<>();
+        Set<String> usedFieldNames = new HashSet<>();
+        for (ClientCmdMethod method : methods) {
+            if (method.isServiceOwnerTarget() || fieldByTarget.containsKey(method.targetFullClassName)) {
+                continue;
+            }
+            String fieldName = createFieldName(method.targetClassName, usedFieldNames);
+            fieldByTarget.put(method.targetFullClassName, fieldName);
+            method.fieldName = fieldName;
+            fieldLines.add("    private final " + method.targetClassName + " " + fieldName + " = new "
+                    + method.targetClassName + "();\n");
+        }
+        for (ClientCmdMethod method : methods) {
+            if (!method.isServiceOwnerTarget()) {
+                method.fieldName = fieldByTarget.get(method.targetFullClassName);
+            }
+        }
+        return fieldLines;
+    }
+
+    private String createFieldName(String className, Set<String> usedFieldNames) {
+        String baseName = Character.toLowerCase(className.charAt(0)) + className.substring(1);
+        String fieldName = baseName;
+        int suffix = 2;
+        while (!usedFieldNames.add(fieldName)) {
+            fieldName = baseName + suffix++;
+        }
+        return fieldName;
+    }
+
+    private boolean hasNonOwnerTarget(List<ClientCmdMethod> methods) {
+        for (ClientCmdMethod method : methods) {
+            if (!method.isServiceOwnerTarget()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private TypeElement requireType(String className) {
@@ -299,6 +379,36 @@ public class ClientCmdProcessor extends ProcessorBase {
             throw new IllegalStateException("找不到类型: " + className);
         }
         return type;
+    }
+
+    private TypeElement resolveRoundServiceOwner(RoundEnvironment roundEnv, TypeElement serviceType) {
+        Set<? extends Element> actorElements = roundEnv.getElementsAnnotatedWith(Actor.class);
+        if (actorElements.isEmpty()) {
+            return null;
+        }
+        if (actorElements.size() > 1) {
+            throw new IllegalStateException("一个 RoundEnvironment 只能有一个 @Actor Service 宿主: " + actorElements);
+        }
+        Element actorElement = actorElements.iterator().next();
+        if (!(actorElement instanceof TypeElement typeElement)) {
+            throw new IllegalStateException("@Actor 目标不是 TypeElement: " + actorElement);
+        }
+        if (!typeUtils.isSubtype(typeElement.asType(), serviceType.asType())) {
+            throw new IllegalStateException(typeElement.getQualifiedName() + " 标了 @Actor，但不是 Service 子类");
+        }
+        return typeElement;
+    }
+
+    private TypeElement resolveServiceOwner(TypeElement ownerType,
+                                            TypeElement serviceType,
+                                            TypeElement roundServiceOwner) {
+        if (typeUtils.isSubtype(ownerType.asType(), serviceType.asType())) {
+            return ownerType;
+        }
+        if (roundServiceOwner == null) {
+            throw new IllegalStateException(ownerType.getQualifiedName() + " 上的 @ClientCmd 找不到宿主 Service");
+        }
+        return roundServiceOwner;
     }
 
     private void writeJavaSource(String packageName, String className, String content) throws Exception {
@@ -315,34 +425,60 @@ public class ClientCmdProcessor extends ProcessorBase {
     }
 
     private static final class ClientCmdMethod {
-        private final String ownerPackageName;
-        private final String ownerClassName;
-        private final String ownerFullClassName;
+        private final String serviceOwnerPackageName;
+        private final String serviceOwnerClassName;
+        private final String serviceOwnerFullClassName;
+        private final String targetPackageName;
+        private final String targetClassName;
+        private final String targetFullClassName;
         private final String methodName;
         private final int cmd;
         private final String cmdExpr;
         private final String requestTypeName;
         private final String requestPackageName;
         private final String requestClassName;
+        private String fieldName;
 
-        private ClientCmdMethod(String ownerPackageName,
-                                String ownerClassName,
-                                 String ownerFullClassName,
+        private ClientCmdMethod(String serviceOwnerPackageName,
+                                String serviceOwnerClassName,
+                                String serviceOwnerFullClassName,
+                                String targetPackageName,
+                                String targetClassName,
+                                String targetFullClassName,
                                  String methodName,
                                  int cmd,
                                  String cmdExpr,
                                  String requestTypeName,
                                  String requestPackageName,
                                  String requestClassName) {
-            this.ownerPackageName = ownerPackageName;
-            this.ownerClassName = ownerClassName;
-            this.ownerFullClassName = ownerFullClassName;
+            this.serviceOwnerPackageName = serviceOwnerPackageName;
+            this.serviceOwnerClassName = serviceOwnerClassName;
+            this.serviceOwnerFullClassName = serviceOwnerFullClassName;
+            this.targetPackageName = targetPackageName;
+            this.targetClassName = targetClassName;
+            this.targetFullClassName = targetFullClassName;
             this.methodName = methodName;
             this.cmd = cmd;
             this.cmdExpr = cmdExpr;
             this.requestTypeName = requestTypeName;
             this.requestPackageName = requestPackageName;
             this.requestClassName = requestClassName;
+        }
+
+        private boolean isServiceOwnerTarget() {
+            return serviceOwnerFullClassName.equals(targetFullClassName);
+        }
+
+        private String dispatchTargetExpr() {
+            return isServiceOwnerTarget() ? "owner()" : fieldName;
+        }
+
+        private String targetTypeName() {
+            return targetPackageName + "." + targetClassName;
+        }
+
+        private String methodDisplayName() {
+            return targetFullClassName + "#" + methodName;
         }
     }
 }

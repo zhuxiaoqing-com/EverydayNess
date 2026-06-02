@@ -12,5 +12,6 @@ public final class StageServiceClientCmdRouteRegistry {
 
     public static void register(ClientCmdRouteTable routeTable) {
         routeTable.register(MsgId.C2S_LOGIN_VALUE, "org.evd.game.StageService.StageService");
+        routeTable.register(MsgId.C2S_LOGIN3_VALUE, "org.evd.game.StageService.StageService");
     }
 }

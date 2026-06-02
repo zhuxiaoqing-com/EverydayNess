@@ -9,6 +9,11 @@ message C2S_Login {
   string password = 2;
 }
 
+message C2S_Login2 {
+  string account = 1;
+  string password = 2;
+}
+
 message S2C_Login {
   int64 role_id = 1;
   string token = 2;
