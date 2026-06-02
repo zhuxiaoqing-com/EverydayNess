@@ -14,6 +14,26 @@ public final class HaHaHaActorProxy {
     private HaHaHaActorProxy() {
     }
 
+    private static MessageLocationSender createMessageLocationSender() {
+        return new MessageLocationSender(HaHaHaActorProxy::queryActorAddress);
+    }
+
+    private static org.evd.game.runtime.actor.ActorAddress queryActorAddress(ActorId actorId) {
+        return LocationServiceProxy.get(locationServiceRemote(), actorId);
+    }
+
+    private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
+        org.evd.game.runtime.call.CallPoint remote =
+                org.evd.game.runtime.config.DistributeConfig.getNodeByServiceClass(
+                        "org.evd.game.LocationService.LocationService",
+                        0L);
+        if (remote == null) {
+            throw new IllegalStateException(
+                    "找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
+        }
+        return remote;
+    }
+
     public final static class EnumCall{
         public final static int ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT = 5;
         public final static int ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT = 6;
@@ -27,7 +47,7 @@ public final class HaHaHaActorProxy {
     public static void rpc1(long actorUniqueId, int a, int b){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
-        new MessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT, new Object[]{a, b});
+        createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT, new Object[]{a, b});
     }
     /**
     * @see org.evd.game.StageService.HaHaHaActor#rpc2()
@@ -35,7 +55,7 @@ public final class HaHaHaActorProxy {
     public static void rpc2(long actorUniqueId, Object a, Object b){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
-        new MessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT, new Object[]{a, b});
+        createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT, new Object[]{a, b});
     }
     /**
     * @see org.evd.game.StageService.HaHaHaActor#rpc3()
@@ -50,6 +70,6 @@ public final class HaHaHaActorProxy {
     public static void rpc4(long actorUniqueId, Object a, Object b){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.GUILD, actorUniqueId);
-        new MessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC4_OBJECT_OBJECT, new Object[]{a, b});
+        createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC4_OBJECT_OBJECT, new Object[]{a, b});
     }
 }

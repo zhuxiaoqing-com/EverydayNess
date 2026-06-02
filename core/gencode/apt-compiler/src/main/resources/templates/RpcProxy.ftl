@@ -27,6 +27,28 @@ public final class ${className}Proxy {
     private ${className}Proxy() {
     }
 
+    <#if needsLocationImport>
+    private static MessageLocationSender createMessageLocationSender() {
+        return new MessageLocationSender(${className}Proxy::queryActorAddress);
+    }
+
+    private static org.evd.game.runtime.actor.ActorAddress queryActorAddress(ActorId actorId) {
+        return LocationServiceProxy.get(locationServiceRemote(), actorId);
+    }
+
+    private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
+        org.evd.game.runtime.call.CallPoint remote =
+                org.evd.game.runtime.config.DistributeConfig.getNodeByServiceClass(
+                        "org.evd.game.LocationService.LocationService",
+                        0L);
+        if (remote == null) {
+            throw new IllegalStateException(
+                    "找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
+        }
+        return remote;
+    }
+    </#if>
+
     public final static class EnumCall{
     <#list methods as method>
         public final static int ${method.enumCall} = ${method.methodKey};
@@ -46,7 +68,7 @@ public final class ${className}Proxy {
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        new MessageLocationSender().send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        createMessageLocationSender().send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         <#else>
         <#if method.routeService>
@@ -58,7 +80,7 @@ public final class ${className}Proxy {
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        return (${method.returnType})new MessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        return (${method.returnType})createMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         </#if>
     }
@@ -71,7 +93,7 @@ public final class ${className}Proxy {
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        return (${method.returnType})new MessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+        return (${method.returnType})createMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         </#if>
     }
     </#if>

@@ -25,7 +25,7 @@ import org.evd.game.runtime.support.RuntimeUtils;
 @Actor
 public class StageService extends Service {
     public int a;
-    private final MessageLocationSender actorLocationSender = new MessageLocationSender();
+    private final MessageLocationSender actorLocationSender = new MessageLocationSender(this::queryActorAddress);
 
 
     public StageService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
@@ -99,6 +99,10 @@ public class StageService extends Service {
 
     private HaHaHaActor requireHaHaHaActor(long actorId) {
         return requireActor(ActorId.player(actorId), HaHaHaActor.class);
+    }
+
+    private ActorAddress queryActorAddress(ActorId actorId) {
+        return LocationServiceProxy.get(getLocationServiceRemote(), actorId);
     }
 
     private CallPoint getLocationServiceRemote() {

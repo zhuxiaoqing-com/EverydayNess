@@ -11,6 +11,7 @@ public final class StageServiceProxy {
     private StageServiceProxy() {
     }
 
+
     public final static class EnumCall{
         public final static int ENUM_STAGESERVICE_VOID_CALLHAHAHAACTORRPC1_LONG_INT_INT = 0;
         public final static int ENUM_STAGESERVICE_VOID_CALLHAHAHAACTORRPC2_LONG_OBJECT_OBJECT = 1;

@@ -1,9 +1,6 @@
 package org.evd.game.common.location;
 
-import org.evd.game.common.proxy.LocationServiceProxy;
-import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.RpcCallException;
@@ -14,8 +11,22 @@ public class MessageLocationSender {
     private static final long RETRY_INTERVAL_MILLIS = 500L;
 
     @FunctionalInterface
+    public interface ActorAddressResolver {
+        ActorAddress query(ActorId actorId);
+    }
+
+    @FunctionalInterface
     public interface ActorAddressCaller<T> {
         T call(ActorAddress actorAddress, ActorId actorId);
+    }
+
+    private final ActorAddressResolver actorAddressResolver;
+
+    public MessageLocationSender(ActorAddressResolver actorAddressResolver) {
+        if (actorAddressResolver == null) {
+            throw new IllegalArgumentException("actorAddressResolver 不能为空");
+        }
+        this.actorAddressResolver = actorAddressResolver;
     }
 
     public ActorAddress get(ActorId actorId) {
@@ -29,7 +40,7 @@ public class MessageLocationSender {
             return cached;
         }
 
-        ActorAddress remote = LocationServiceProxy.get(locationServiceRemote(), actorId);
+        ActorAddress remote = actorAddressResolver.query(actorId);
         if (remote == null) {
             return null;
         }
@@ -47,7 +58,7 @@ public class MessageLocationSender {
     }
 
     public ActorAddress refresh(ActorId actorId) {
-        ActorAddress remote = LocationServiceProxy.get(locationServiceRemote(), actorId);
+        ActorAddress remote = actorAddressResolver.query(actorId);
         if (remote == null) {
             remove(actorId);
             return null;
@@ -115,13 +126,5 @@ public class MessageLocationSender {
         }
         refresh(actorId);
         return true;
-    }
-
-    private CallPoint locationServiceRemote() {
-        CallPoint remote = DistributeConfig.getNodeByServiceClass("org.evd.game.LocationService.LocationService", 0L);
-        if (remote == null) {
-            throw new IllegalStateException("找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
-        }
-        return remote;
     }
 }
