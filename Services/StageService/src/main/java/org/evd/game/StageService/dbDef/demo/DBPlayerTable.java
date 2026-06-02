@@ -1,4 +1,4 @@
-package org.evd.game.StageService.dbEntity.demo;
+package org.evd.game.StageService.dbDef.demo;
 
 
 import org.evd.game.runtime.Db.table.Mdb;

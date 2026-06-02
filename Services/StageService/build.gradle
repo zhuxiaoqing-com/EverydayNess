@@ -10,10 +10,17 @@ repositories {
 }
 
 sourceSets {
+    /**
+     * 这里是为了防止 Def 访问到生成的DB类;
+     */
+    dbDef {
+        java {
+            srcDirs = ['src/dbDef/java']
+        }
+    }
     main {
         java {
-            srcDirs += 'src/main/java'
-            srcDirs += 'src/gen/java'
+            srcDirs = ['src/main/java', 'src/gen/java']
         }
     }
 }
@@ -24,11 +31,24 @@ dependencies {
 
     // 导入自定义注解
     implementation project(":core:gencode:apt-annotation")
+    dbDefImplementation project(":core:gencode:apt-annotation")
     // 指定注释处理器
     annotationProcessor project(':core:gencode:apt-compiler')
+    dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
     implementation project(':core:runtime')
+    dbDefImplementation project(':core:runtime')
     implementation project(':common')
+    dbDefImplementation project(':common')
 
+}
+
+tasks.named('compileJava') {
+    dependsOn tasks.named('compileDbDefJava')
+}
+
+tasks.named('compileDbDefJava', JavaCompile) {
+    options.compilerArgs += ['-proc:only']
+    outputs.dir(file('src/gen/java'))
 }
 
 test {

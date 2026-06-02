@@ -10,10 +10,14 @@ repositories {
 }
 
 sourceSets {
+    dbDef {
+        java {
+            srcDirs = ['src/dbDef/java']
+        }
+    }
     main {
         java {
-            srcDirs += 'src/main/java'
-            srcDirs += 'src/gen/java'
+            srcDirs = ['src/main/java', 'src/gen/java']
         }
     }
 }
@@ -22,9 +26,22 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation project(':core:gencode:apt-annotation')
+    dbDefImplementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')
+    dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
     implementation project(':core:runtime')
+    dbDefImplementation project(':core:runtime')
     implementation project(':common')
+    dbDefImplementation project(':common')
+}
+
+tasks.named('compileJava') {
+    dependsOn tasks.named('compileDbDefJava')
+}
+
+tasks.named('compileDbDefJava', JavaCompile) {
+    options.compilerArgs += ['-proc:only']
+    outputs.dir(file('src/gen/java'))
 }
 
 test {

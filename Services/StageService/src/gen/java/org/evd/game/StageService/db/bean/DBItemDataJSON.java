@@ -11,17 +11,14 @@ import java.io.IOException;
 @SerializeClass(customized = true)
 public final class DBItemDataJSON extends DirtyObject implements ISerializable {
     @JSONField(name = "1")
-    private long itemSrl;
+    private long id;
     @JSONField(name = "2")
-    private int itemId;
-    @JSONField(name = "3")
-    private String itemName;
+    private String name;
 
     DBItemDataJSON(DirtyObject _xp_) {
         super(_xp_);
-        this.itemSrl = 0L;
-        this.itemId = 0;
-        this.itemName = "";
+        this.id = 0L;
+        this.name = "";
     }
 
     public DBItemDataJSON() {
@@ -34,61 +31,47 @@ public final class DBItemDataJSON extends DirtyObject implements ISerializable {
 
     DBItemDataJSON(DBItemDataJSON _o_, DirtyObject _xp_) {
         super(_xp_);
-        this.itemSrl = _o_.itemSrl;
-        this.itemId = _o_.itemId;
-        this.itemName = _o_.itemName;
+        this.id = _o_.id;
+        this.name = _o_.name;
         this.dirty = false;
     }
 
     public void copyFrom(DBItemDataJSON _o_) {
-        this.itemSrl = _o_.itemSrl;
-        this.itemId = _o_.itemId;
-        this.itemName = _o_.itemName;
+        this.id = _o_.id;
+        this.name = _o_.name;
         makeModify();
     }
 
-    public long getItemSrl(){
-        return this.itemSrl;
+    public long getId(){
+        return this.id;
     }
 
-    public void setItemSrl(long _v_){
-        this.itemSrl = _v_;
+    public void setId(long _v_){
+        this.id = _v_;
         makeModify();
     }
 
-    public int getItemId(){
-        return this.itemId;
+    public String getName(){
+        return this.name;
     }
 
-    public void setItemId(int _v_){
-        this.itemId = _v_;
-        makeModify();
-    }
-
-    public String getItemName(){
-        return this.itemName;
-    }
-
-    public void setItemName(String _v_){
-        this.itemName = _v_;
+    public void setName(String _v_){
+        this.name = _v_;
         makeModify();
     }
 
     @Override
     public void writeTo(OutputStreamBase out) throws IOException {
-        out.writeLong(this.itemSrl);
-        out.writeInt(this.itemId);
-        out.writeString(this.itemName);
+        out.writeLong(this.id);
+        out.writeString(this.name);
     }
 
     @Override
     public void readFrom(InputStreamBase in) throws IOException {
         long _v_0 = in.readLong();
-        this.itemSrl = _v_0;
-        int _v_1 = in.readInt();
-        this.itemId = _v_1;
-        String _v_2 = in.readString();
-        this.itemName = _v_2;
+        this.id = _v_0;
+        String _v_1 = in.readString();
+        this.name = _v_1;
         this.dirty = false;
     }
 
@@ -96,9 +79,8 @@ public final class DBItemDataJSON extends DirtyObject implements ISerializable {
     public String toString() {
         StringBuilder _sb_ = new StringBuilder(super.toString());
         _sb_.append("=(");
-        _sb_.append("itemSrl=").append(itemSrl).append(",");
-        _sb_.append("itemId=").append(itemId).append(",");
-        _sb_.append("itemName=").append(itemName == null ? "null" : "T" + itemName.length()).append(",");
+        _sb_.append("id=").append(id).append(",");
+        _sb_.append("name=").append(name == null ? "null" : "T" + name.length()).append(",");
         _sb_.append(")");
         return _sb_.toString();
     }

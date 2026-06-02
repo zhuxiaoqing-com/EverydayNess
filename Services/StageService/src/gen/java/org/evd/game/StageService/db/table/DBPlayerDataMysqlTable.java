@@ -10,27 +10,27 @@ public final class DBPlayerDataMysqlTable {
     private DBPlayerDataMysqlTable() {
     }
 
-    public static boolean add(String key, DBPlayerDataMysql value) {
+    public static boolean add(Integer key, DBPlayerDataMysql value) {
         Mdb mdb = Service.getCurrent().getMdb();
-        TTable<String, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
+        TTable<Integer, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
         return tTable.add(key, value);
     }
 
-    public static boolean add(String key, DBPlayerDataMysql value, boolean immediately) {
+    public static boolean add(Integer key, DBPlayerDataMysql value, boolean immediately) {
         Mdb mdb = Service.getCurrent().getMdb();
-        TTable<String, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
+        TTable<Integer, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
         return tTable.add(key, value, immediately);
     }
 
-    public static DBPlayerDataMysql get(String key) {
+    public static DBPlayerDataMysql get(Integer key) {
         Mdb mdb = Service.getCurrent().getMdb();
-        TTable<String, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
+        TTable<Integer, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
         return tTable.get(key);
     }
 
-    public static boolean remove(String key) {
+    public static boolean remove(Integer key) {
         Mdb mdb = Service.getCurrent().getMdb();
-        TTable<String, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
+        TTable<Integer, DBPlayerDataMysql> tTable = mdb.getTTable(_DBPlayerDataMysqlTable_.class);
         return tTable.remove(key);
     }
 }

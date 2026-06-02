@@ -12,7 +12,7 @@ import java.io.IOException;
 
 @SerializeClass(customized = true)
 public final class DBPlayerDataMysql extends DirtyObject implements ISerializable {
-    private String id;
+    private int id;
     private String name;
     private int lv;
     private XHashMap<Integer, Integer> intIntMap;
@@ -24,7 +24,7 @@ public final class DBPlayerDataMysql extends DirtyObject implements ISerializabl
 
     DBPlayerDataMysql(DirtyObject _xp_) {
         super(_xp_);
-        this.id = "";
+        this.id = 0;
         this.name = "";
         this.lv = 0;
         this.intIntMap = new XHashMap<>(this);
@@ -79,11 +79,11 @@ public final class DBPlayerDataMysql extends DirtyObject implements ISerializabl
         makeModify();
     }
 
-    public String getId(){
+    public int getId(){
         return this.id;
     }
 
-    public void setId(String _v_){
+    public void setId(int _v_){
         this.id = _v_;
         makeModify();
     }
@@ -177,7 +177,7 @@ public final class DBPlayerDataMysql extends DirtyObject implements ISerializabl
 
     @Override
     public void writeTo(OutputStreamBase out) throws IOException {
-        out.writeString(this.id);
+        out.writeInt(this.id);
         out.writeString(this.name);
         out.writeInt(this.lv);
         if (this.intIntMap == null) {
@@ -230,7 +230,7 @@ public final class DBPlayerDataMysql extends DirtyObject implements ISerializabl
 
     @Override
     public void readFrom(InputStreamBase in) throws IOException {
-        String _v_0 = in.readString();
+        int _v_0 = in.readInt();
         this.id = _v_0;
         String _v_1 = in.readString();
         this.name = _v_1;
@@ -303,7 +303,7 @@ public final class DBPlayerDataMysql extends DirtyObject implements ISerializabl
     public String toString() {
         StringBuilder _sb_ = new StringBuilder(super.toString());
         _sb_.append("=(");
-        _sb_.append("id=").append(id == null ? "null" : "T" + id.length()).append(",");
+        _sb_.append("id=").append(id).append(",");
         _sb_.append("name=").append(name == null ? "null" : "T" + name.length()).append(",");
         _sb_.append("lv=").append(lv).append(",");
         _sb_.append("intIntMap=").append(intIntMap).append(",");

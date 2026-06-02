@@ -1,4 +1,4 @@
-package org.evd.game.StageService.dbEntity;
+package org.evd.game.StageService.dbDef;
 
 import org.evd.game.annotation.DBDirtyEntity;
 import org.evd.game.annotation.DBDirtyTag;
@@ -6,16 +6,13 @@ import org.evd.game.annotation.DBserialize;
 
 /**
  * @author zhuxiaoqing
- * @Description: Item
- * @Date 2026/5/21 20:49
+ * @Description: DBItemData
+ * @Date 2026/5/21 20:48
  **/
-@DBDirtyEntity(DBserialize.JSON)
+@DBDirtyEntity(value = DBserialize.JSON)
 public class DBItemDataJSONDef {
     @DBDirtyTag(1)
-    private long itemSrl;
+    private long id;
     @DBDirtyTag(2)
-    private int itemId;
-    @DBDirtyTag(3)
-    private String itemName;
-
+    private String name;
 }

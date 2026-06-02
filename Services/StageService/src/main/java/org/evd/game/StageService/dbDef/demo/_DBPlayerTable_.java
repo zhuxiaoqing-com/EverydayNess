@@ -1,4 +1,4 @@
-package org.evd.game.StageService.dbEntity.demo;
+package org.evd.game.StageService.dbDef.demo;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;

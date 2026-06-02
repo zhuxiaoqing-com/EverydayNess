@@ -21,12 +21,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataMysql> {
+public final class _DBPlayerDataMysqlTable_ extends TTable<Integer, DBPlayerDataMysql> {
     private static final String TABLE_NAME = "db_player_data_mysql";
     private static final String SELECT_COLUMNS = "id, name, lv, int_int_map, int_list, int_set, int_db_item_map, obj1, bytes";
     private static final String CREATE_TABLE_SQL = """
             CREATE TABLE IF NOT EXISTS db_player_data_mysql (
-                id VARCHAR(128) NOT NULL PRIMARY KEY,
+                id INT NOT NULL PRIMARY KEY,
                 name VARCHAR(128) NOT NULL,
                 lv INT NOT NULL,
                 int_int_map MEDIUMTEXT NOT NULL,
@@ -60,7 +60,7 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
     }
 
     @Override
-    public DBReq createGetDBReq(String key) {
+    public DBReq createGetDBReq(Integer key) {
         return createReq(DbOpType.GET, GET_SQL, List.of(createKeyField(key)));
     }
 
@@ -70,17 +70,17 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
     }
 
     @Override
-    public DBReq createRemoveDBReq(String key) {
+    public DBReq createRemoveDBReq(Integer key) {
         return createReq(DbOpType.REMOVE, REMOVE_SQL, List.of(createKeyField(key)));
     }
 
     @Override
-    public DBReq createBatchGetDBReq(Map<String, DBPlayerDataMysql> map) {
+    public DBReq createBatchGetDBReq(Map<Integer, DBPlayerDataMysql> map) {
         return createReq(DbOpType.BATCH_GET, createBatchGetSql(map), toKeyFieldList(map));
     }
 
     @Override
-    public DBReq createBatchSaveDBReq(Map<String, DBPlayerDataMysql> map) {
+    public DBReq createBatchSaveDBReq(Map<Integer, DBPlayerDataMysql> map) {
         requireBatchMap(map);
         List<DbTableField> tableFieldList = new ArrayList<>(map.size());
         for (DBPlayerDataMysql value : map.values()) {
@@ -90,7 +90,7 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
     }
 
     @Override
-    public DBReq createBatchRemoveDBReq(Map<String, DBPlayerDataMysql> map) {
+    public DBReq createBatchRemoveDBReq(Map<Integer, DBPlayerDataMysql> map) {
         return createReq(DbOpType.BATCH_REMOVE, createBatchRemoveSql(map), toKeyFieldList(map));
     }
 
@@ -105,15 +105,15 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
     }
 
     @Override
-    public Map<String, DBPlayerDataMysql> parseBatchGetDBRsp(DBRsp rsp) {
+    public Map<Integer, DBPlayerDataMysql> parseBatchGetDBRsp(DBRsp rsp) {
         MysqlRsp mysqlRsp = requireMysqlRsp(rsp);
-        Map<String, DBPlayerDataMysql> result = new LinkedHashMap<>();
+        Map<Integer, DBPlayerDataMysql> result = new LinkedHashMap<>();
         List<DbTableField> tableFieldList = mysqlRsp.getTablFieldList();
         if (tableFieldList == null || tableFieldList.isEmpty()) {
             return result;
         }
         for (DbTableField tableField : tableFieldList) {
-            String key = parseRowKey(tableField);
+            Integer key = parseRowKey(tableField);
             DBPlayerDataMysql value = parseRow(tableField);
             if (key == null) {
                 if (value != null) {
@@ -138,21 +138,21 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
         return dbReq;
     }
 
-    private DbTableField createKeyField(String key) {
+    private DbTableField createKeyField(Integer key) {
         Objects.requireNonNull(key, "key 不能为空");
         return new DbTableField(List.of(new DbValue(key)));
     }
 
-    private List<DbTableField> toKeyFieldList(Map<String, DBPlayerDataMysql> map) {
+    private List<DbTableField> toKeyFieldList(Map<Integer, DBPlayerDataMysql> map) {
         requireBatchMap(map);
         List<DbTableField> tableFieldList = new ArrayList<>(map.size());
-        for (String key : map.keySet()) {
+        for (Integer key : map.keySet()) {
             tableFieldList.add(createKeyField(key));
         }
         return tableFieldList;
     }
 
-    private String getPrimaryKey(DBPlayerDataMysql value) {
+    private Integer getPrimaryKey(DBPlayerDataMysql value) {
         return value.getId();
     }
 
@@ -171,12 +171,12 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
         return new DbTableField(valueList);
     }
 
-    private String parseRowKey(DbTableField tableField) {
+    private Integer parseRowKey(DbTableField tableField) {
         List<DbValue> valueList = tableField.getValueList();
         if (valueList == null || valueList.size() <= 0) {
             return null;
         }
-        return (String) valueList.get(0).getV();
+        return ((Number) valueList.get(0).getV()).intValue();
     }
 
     private DBPlayerDataMysql parseRow(DbTableField tableField) {
@@ -185,7 +185,7 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
             return null;
         }
         DBPlayerDataMysql value = new DBPlayerDataMysql();
-        value.setId((String) valueList.get(0).getV());
+        value.setId(((Number) valueList.get(0).getV()).intValue());
         value.setName((String) valueList.get(1).getV());
         value.setLv(((Number) valueList.get(2).getV()).intValue());
         value.setIntIntMap(deserializeIntIntMap((String) valueList.get(3).getV(), value));
@@ -312,18 +312,18 @@ public final class _DBPlayerDataMysqlTable_ extends TTable<String, DBPlayerDataM
         return mysqlRsp;
     }
 
-    private void requireBatchMap(Map<String, DBPlayerDataMysql> map) {
+    private void requireBatchMap(Map<Integer, DBPlayerDataMysql> map) {
         if (map == null || map.isEmpty()) {
             throw new IllegalArgumentException("batch map 不能为空");
         }
     }
 
-    private String createBatchGetSql(Map<String, DBPlayerDataMysql> map) {
+    private String createBatchGetSql(Map<Integer, DBPlayerDataMysql> map) {
         requireBatchMap(map);
         return "SELECT " + SELECT_COLUMNS + " FROM " + TABLE_NAME + " WHERE id IN (" + createPlaceholders(map.size()) + ")";
     }
 
-    private String createBatchRemoveSql(Map<String, DBPlayerDataMysql> map) {
+    private String createBatchRemoveSql(Map<Integer, DBPlayerDataMysql> map) {
         requireBatchMap(map);
         return "DELETE FROM " + TABLE_NAME + " WHERE id IN (" + createPlaceholders(map.size()) + ")";
     }
