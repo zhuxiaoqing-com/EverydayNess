@@ -127,6 +127,13 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
         Map<Long, DBPlayer> result = new LinkedHashMap<>();
         for (DbTableField tableField : mysqlRsp.getTablFieldList()) {
             DBPlayer player = parseRow(tableField);
+            if (player == null) {
+                Long key = readRowKey(tableField);
+                if (key != null) {
+                    result.put(key, null);
+                }
+                continue;
+            }
             result.put(player.getId(), player);
         }
         return result;
@@ -174,7 +181,7 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
     private DBPlayer parseRow(DbTableField tableField) {
         List<DbValue> valueList = tableField.getValueList();
         if (valueList == null || valueList.size() != 7) {
-            throw new IllegalArgumentException("DBPlayer row column size error: " + (valueList == null ? 0 : valueList.size()));
+            return null;
         }
 
         DBPlayer player = new DBPlayer();
@@ -195,6 +202,14 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
                 })));
         player.dirty = false;
         return player;
+    }
+
+    private Long readRowKey(DbTableField tableField) {
+        if (tableField == null || tableField.getValueList() == null || tableField.getValueList().isEmpty()) {
+            return null;
+        }
+        Object key = tableField.getValueList().get(0).getV();
+        return key instanceof Number ? ((Number) key).longValue() : null;
     }
 
     private XHashMap<Integer, Integer> toIntMap(DBPlayer player, Map<Integer, Integer> data) {

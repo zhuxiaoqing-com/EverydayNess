@@ -35,6 +35,15 @@ final class SerializerRegister{
 		OutputStream.registerSerializeWriteFunc(1593330110, SerializerRegister::org_evd_game_runtime_call_CallResultWrite);
 		OutputStream.registerSerializeWriteFunc(322098688, SerializerRegister::org_evd_game_runtime_ChunkWrite);
 		OutputStream.registerSerializeWriteFunc(-1328685355, SerializerRegister::org_evd_game_runtime_ClientSessionRefWrite);
+		OutputStream.registerSerializeWriteFunc(1376784523, SerializerRegister::org_evd_game_runtime_Db_serialize_DbFieldWrite);
+		OutputStream.registerSerializeWriteFunc(-1236550096, SerializerRegister::org_evd_game_runtime_Db_serialize_DbKeyWrite);
+		OutputStream.registerSerializeWriteFunc(-1237496689, SerializerRegister::org_evd_game_runtime_Db_serialize_DBReqWrite);
+		OutputStream.registerSerializeWriteFunc(-1237496256, SerializerRegister::org_evd_game_runtime_Db_serialize_DBRspWrite);
+		OutputStream.registerSerializeWriteFunc(984172763, SerializerRegister::org_evd_game_runtime_Db_serialize_DbTableFieldWrite);
+		OutputStream.registerSerializeWriteFunc(1391329538, SerializerRegister::org_evd_game_runtime_Db_serialize_DbValueWrite);
+		OutputStream.registerSerializeWriteFunc(-1530297075, SerializerRegister::org_evd_game_runtime_Db_serialize_MysqlReqWrite);
+		OutputStream.registerSerializeWriteFunc(-1530296642, SerializerRegister::org_evd_game_runtime_Db_serialize_MysqlRspWrite);
+		OutputStream.registerSerializeWriteFunc(-161469599, SerializerRegister::org_evd_game_runtime_Db_serialize_ObjectValueWrite);
 		OutputStream.registerSerializeWriteFunc(1944252859, SerializerRegister::org_evd_game_runtime_TickTimerWrite);
 	}
 	/**
@@ -50,12 +59,25 @@ final class SerializerRegister{
 		InputStream.registerSerializeReadFunc(1593330110, SerializerRegister::org_evd_game_runtime_call_CallResultRead);
 		InputStream.registerSerializeReadFunc(322098688, SerializerRegister::org_evd_game_runtime_ChunkRead);
 		InputStream.registerSerializeReadFunc(-1328685355, SerializerRegister::org_evd_game_runtime_ClientSessionRefRead);
+		InputStream.registerSerializeReadFunc(1376784523, SerializerRegister::org_evd_game_runtime_Db_serialize_DbFieldRead);
+		InputStream.registerSerializeReadFunc(-1236550096, SerializerRegister::org_evd_game_runtime_Db_serialize_DbKeyRead);
+		InputStream.registerSerializeReadFunc(-1237496689, SerializerRegister::org_evd_game_runtime_Db_serialize_DBReqRead);
+		InputStream.registerSerializeReadFunc(-1237496256, SerializerRegister::org_evd_game_runtime_Db_serialize_DBRspRead);
+		InputStream.registerSerializeReadFunc(984172763, SerializerRegister::org_evd_game_runtime_Db_serialize_DbTableFieldRead);
+		InputStream.registerSerializeReadFunc(1391329538, SerializerRegister::org_evd_game_runtime_Db_serialize_DbValueRead);
+		InputStream.registerSerializeReadFunc(-1530297075, SerializerRegister::org_evd_game_runtime_Db_serialize_MysqlReqRead);
+		InputStream.registerSerializeReadFunc(-1530296642, SerializerRegister::org_evd_game_runtime_Db_serialize_MysqlRspRead);
+		InputStream.registerSerializeReadFunc(-161469599, SerializerRegister::org_evd_game_runtime_Db_serialize_ObjectValueRead);
 		InputStream.registerSerializeReadFunc(1944252859, SerializerRegister::org_evd_game_runtime_TickTimerRead);
 	}
 	/**
 	* 注册反序列化枚举
 	*/
 	private static void registerReadEnum(){
+		InputStream.registerSerializeReadEnumFunc(1568221395, SerializerRegister::org_evd_game_runtime_Db_serialize_DbDataTypeReadEnum);
+		InputStream.registerSerializeReadEnumFunc(285813130, SerializerRegister::org_evd_game_runtime_Db_serialize_DbKeyTypeReadEnum);
+		InputStream.registerSerializeReadEnumFunc(-5719222, SerializerRegister::org_evd_game_runtime_Db_serialize_DbOpTypeReadEnum);
+		InputStream.registerSerializeReadEnumFunc(977908572, SerializerRegister::org_evd_game_runtime_Db_serialize_DbValueTypeReadEnum);
 	}
 
 	public static void org_evd_game_runtime_actor_ActorAddressWrite(OutputStream out, ISerializable ser) throws IOException{
@@ -84,6 +106,33 @@ final class SerializerRegister{
 	}
 	public static void org_evd_game_runtime_ClientSessionRefWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.ClientSessionRefIOSerializer.write(out, (org.evd.game.runtime.ClientSessionRef)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_DbFieldWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbFieldIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.DbField)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_DbKeyWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbKeyIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.DbKey)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_DBReqWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.DBReqIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.DBReq)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_DBRspWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.DBRspIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.DBRsp)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_DbTableFieldWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbTableFieldIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.DbTableField)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_DbValueWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbValueIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.DbValue)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_MysqlReqWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.MysqlReqIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.MysqlReq)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_MysqlRspWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.MysqlRspIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.MysqlRsp)ser);
+	}
+	public static void org_evd_game_runtime_Db_serialize_ObjectValueWrite(OutputStream out, ISerializable ser) throws IOException{
+		org.evd.game.runtime.Db.serialize.ObjectValueIOSerializer.write(out, (org.evd.game.runtime.Db.serialize.ObjectValue)ser);
 	}
 	public static void org_evd_game_runtime_TickTimerWrite(OutputStream out, ISerializable ser) throws IOException{
 		org.evd.game.runtime.TickTimerIOSerializer.write(out, (org.evd.game.runtime.TickTimer)ser);
@@ -134,10 +183,67 @@ final class SerializerRegister{
 		org.evd.game.runtime.ClientSessionRefIOSerializer.read(in, clientSessionRef);
 		return clientSessionRef;
 	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_DbFieldRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbField dbField = new org.evd.game.runtime.Db.serialize.DbField();
+		org.evd.game.runtime.Db.serialize.DbFieldIOSerializer.read(in, dbField);
+		return dbField;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_DbKeyRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbKey dbKey = new org.evd.game.runtime.Db.serialize.DbKey();
+		org.evd.game.runtime.Db.serialize.DbKeyIOSerializer.read(in, dbKey);
+		return dbKey;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_DBReqRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.DBReq dBReq = new org.evd.game.runtime.Db.serialize.DBReq();
+		org.evd.game.runtime.Db.serialize.DBReqIOSerializer.read(in, dBReq);
+		return dBReq;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_DBRspRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.DBRsp dBRsp = new org.evd.game.runtime.Db.serialize.DBRsp();
+		org.evd.game.runtime.Db.serialize.DBRspIOSerializer.read(in, dBRsp);
+		return dBRsp;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_DbTableFieldRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbTableField dbTableField = new org.evd.game.runtime.Db.serialize.DbTableField();
+		org.evd.game.runtime.Db.serialize.DbTableFieldIOSerializer.read(in, dbTableField);
+		return dbTableField;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_DbValueRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.DbValue dbValue = new org.evd.game.runtime.Db.serialize.DbValue();
+		org.evd.game.runtime.Db.serialize.DbValueIOSerializer.read(in, dbValue);
+		return dbValue;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_MysqlReqRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.MysqlReq mysqlReq = new org.evd.game.runtime.Db.serialize.MysqlReq();
+		org.evd.game.runtime.Db.serialize.MysqlReqIOSerializer.read(in, mysqlReq);
+		return mysqlReq;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_MysqlRspRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.MysqlRsp mysqlRsp = new org.evd.game.runtime.Db.serialize.MysqlRsp();
+		org.evd.game.runtime.Db.serialize.MysqlRspIOSerializer.read(in, mysqlRsp);
+		return mysqlRsp;
+	}
+	public static ISerializable org_evd_game_runtime_Db_serialize_ObjectValueRead(InputStream in) throws IOException{
+		org.evd.game.runtime.Db.serialize.ObjectValue objectValue = new org.evd.game.runtime.Db.serialize.ObjectValue();
+		org.evd.game.runtime.Db.serialize.ObjectValueIOSerializer.read(in, objectValue);
+		return objectValue;
+	}
 	public static ISerializable org_evd_game_runtime_TickTimerRead(InputStream in) throws IOException{
 		org.evd.game.runtime.TickTimer tickTimer = new org.evd.game.runtime.TickTimer();
 		org.evd.game.runtime.TickTimerIOSerializer.read(in, tickTimer);
 		return tickTimer;
 	}
 
+	public static Enum<?> org_evd_game_runtime_Db_serialize_DbDataTypeReadEnum(InputStream in, int ordinal) throws IOException{
+		return org.evd.game.runtime.Db.serialize.DbDataType.values()[ordinal];
+	}
+	public static Enum<?> org_evd_game_runtime_Db_serialize_DbKeyTypeReadEnum(InputStream in, int ordinal) throws IOException{
+		return org.evd.game.runtime.Db.serialize.DbKeyType.values()[ordinal];
+	}
+	public static Enum<?> org_evd_game_runtime_Db_serialize_DbOpTypeReadEnum(InputStream in, int ordinal) throws IOException{
+		return org.evd.game.runtime.Db.serialize.DbOpType.values()[ordinal];
+	}
+	public static Enum<?> org_evd_game_runtime_Db_serialize_DbValueTypeReadEnum(InputStream in, int ordinal) throws IOException{
+		return org.evd.game.runtime.Db.serialize.DbValueType.values()[ordinal];
+	}
 }

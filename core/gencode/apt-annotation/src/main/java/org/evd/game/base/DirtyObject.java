@@ -6,7 +6,7 @@ package org.evd.game.base;
  * @date 2020/02/09 16:59
  */
 public abstract class DirtyObject {
-    public boolean dirty ;
+    public transient boolean dirty ;
     private transient DirtyObject _parent;
 
     public DirtyObject() {

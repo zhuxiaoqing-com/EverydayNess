@@ -1,11 +1,5 @@
 package org.evd.game.StageService.dbEntity.demo;
 
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.CodedOutputStream;
-import com.google.protobuf.WireFormat;
-import org.evd.game.runtime.Db.collection.XArrayList;
-import org.evd.game.runtime.Db.collection.XHashMap;
-import org.evd.game.runtime.Db.collection.XHashSet;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DbOpType;
@@ -14,9 +8,11 @@ import org.evd.game.runtime.Db.serialize.DbValue;
 import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.Db.serialize.MysqlRsp;
 import org.evd.game.runtime.Db.table.TTable;
+import io.protostuff.LinkedBuffer;
+import io.protostuff.ProtostuffIOUtil;
+import io.protostuff.Schema;
+import io.protostuff.runtime.RuntimeSchema;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,9 +20,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
-	private static final String TABLE_NAME = "db_player_pb";
+	private static final String TABLE_NAME = "db_player";
 	private static final String CREATE_TABLE_SQL = """
-			CREATE TABLE IF NOT EXISTS db_player_pb (
+			CREATE TABLE IF NOT EXISTS db_player (
 			    k BIGINT NOT NULL PRIMARY KEY,
 			    v MEDIUMBLOB NOT NULL
 			) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI
@@ -34,20 +30,7 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 	private static final String GET_SQL = "SELECT k, v FROM " + TABLE_NAME + " WHERE k = ?";
 	private static final String SAVE_SQL = "REPLACE INTO " + TABLE_NAME + " (k, v) VALUES (?, ?)";
 	private static final String REMOVE_SQL = "DELETE FROM " + TABLE_NAME + " WHERE k = ?";
-
-	private static final int FIELD_NAME = 1;
-	private static final int FIELD_LV = 2;
-	private static final int FIELD_INT_INT_MAP = 3;
-	private static final int FIELD_INT_LIST = 4;
-	private static final int FIELD_INT_SET = 5;
-	private static final int FIELD_ITEM_MAP = 6;
-
-	private static final int FIELD_ENTRY_KEY = 1;
-	private static final int FIELD_ENTRY_VALUE = 2;
-
-	private static final int FIELD_ITEM_SRL = 1;
-	private static final int FIELD_ITEM_ID = 2;
-	private static final int FIELD_ITEM_NAME = 3;
+	private static final Schema<DBPlayer> SCHEMA = RuntimeSchema.getSchema(DBPlayer.class);
 
 	private _DBPlayerPbTable_() {
 	}
@@ -109,6 +92,13 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 		Map<Long, DBPlayer> result = new LinkedHashMap<>();
 		for (DbTableField tableField : mysqlRsp.getTablFieldList()) {
 			DBPlayer player = parseRow(tableField);
+			if (player == null) {
+				Long key = readRowKey(tableField);
+				if (key != null) {
+					result.put(key, null);
+				}
+				continue;
+			}
 			result.put(player.getId(), player);
 		}
 		return result;
@@ -151,7 +141,7 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 	private DBPlayer parseRow(DbTableField tableField) {
 		List<DbValue> valueList = tableField.getValueList();
 		if (valueList == null || valueList.size() != 2) {
-			throw new IllegalArgumentException("DBPlayerPb row column size error: " + (valueList == null ? 0 : valueList.size()));
+			return null;
 		}
 		long key = ((Number) valueList.get(0).getV()).longValue();
 		DBPlayer player = decodePlayer(key, (byte[]) valueList.get(1).getV());
@@ -159,163 +149,32 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 		return player;
 	}
 
-	private byte[] encodePlayer(DBPlayer player) {
-		try {
-			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-			CodedOutputStream output = CodedOutputStream.newInstance(byteArrayOutputStream);
-			output.writeString(FIELD_NAME, requireNotNull(player.getName(), "name"));
-			output.writeInt32(FIELD_LV, player.getLv());
-			for (Map.Entry<Integer, Integer> entry : requireNotNull(player.getIntIntMap(), "intIntMap").entrySet()) {
-				writeBytesField(output, FIELD_INT_INT_MAP, encodeIntIntEntry(entry.getKey(), entry.getValue()));
-			}
-			for (Integer value : requireNotNull(player.getIntList(), "intList")) {
-				output.writeInt32(FIELD_INT_LIST, value);
-			}
-			for (Integer value : requireNotNull(player.getIntSet(), "intSet")) {
-				output.writeInt32(FIELD_INT_SET, value);
-			}
-			for (Map.Entry<Integer, DBItem> entry : requireNotNull(player.getIntDBItemMap(), "intDBItemMap").entrySet()) {
-				writeBytesField(output, FIELD_ITEM_MAP, encodeItemEntry(entry.getKey(), entry.getValue()));
-			}
-			output.flush();
-			return byteArrayOutputStream.toByteArray();
-		} catch (IOException e) {
-			throw new IllegalStateException("encode player pb error", e);
+	private Long readRowKey(DbTableField tableField) {
+		if (tableField == null || tableField.getValueList() == null || tableField.getValueList().isEmpty()) {
+			return null;
 		}
+		Object key = tableField.getValueList().get(0).getV();
+		return key instanceof Number ? ((Number) key).longValue() : null;
 	}
 
-	private byte[] encodeIntIntEntry(Integer key, Integer value) throws IOException {
-		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-		CodedOutputStream output = CodedOutputStream.newInstance(byteArrayOutputStream);
-		output.writeInt32(FIELD_ENTRY_KEY, key);
-		output.writeInt32(FIELD_ENTRY_VALUE, value);
-		output.flush();
-		return byteArrayOutputStream.toByteArray();
-	}
-
-	private byte[] encodeItemEntry(Integer key, DBItem item) throws IOException {
-		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-		CodedOutputStream output = CodedOutputStream.newInstance(byteArrayOutputStream);
-		output.writeInt32(FIELD_ENTRY_KEY, key);
-		writeBytesField(output, FIELD_ENTRY_VALUE, encodeItem(item));
-		output.flush();
-		return byteArrayOutputStream.toByteArray();
-	}
-
-	private byte[] encodeItem(DBItem item) throws IOException {
-		Objects.requireNonNull(item, "item 不能为空");
-		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-		CodedOutputStream output = CodedOutputStream.newInstance(byteArrayOutputStream);
-		output.writeInt64(FIELD_ITEM_SRL, item.getItemSrl());
-		output.writeInt32(FIELD_ITEM_ID, item.getItemId());
-		output.writeString(FIELD_ITEM_NAME, requireNotNull(item.getItemName(), "itemName"));
-		output.flush();
-		return byteArrayOutputStream.toByteArray();
+	private byte[] encodePlayer(DBPlayer player) {
+		Objects.requireNonNull(player, "player 不能为空");
+		LinkedBuffer buffer = LinkedBuffer.allocate();
+		try {
+			return ProtostuffIOUtil.toByteArray(player, SCHEMA, buffer);
+		} finally {
+			buffer.clear();
+		}
 	}
 
 	private DBPlayer decodePlayer(long key, byte[] bytes) {
-		try {
-			DBPlayer player = new DBPlayer();
-			player.setId(key);
-			XHashMap<Integer, Integer> intIntMap = new XHashMap<>(player);
-			XArrayList<Integer> intList = new XArrayList<>(player);
-			XHashSet<Integer> intSet = new XHashSet<>(player);
-			XHashMap<Integer, DBItem> intDBItemMap = new XHashMap<>(player);
-
-			CodedInputStream input = CodedInputStream.newInstance(bytes);
-			while (!input.isAtEnd()) {
-				int tag = input.readTag();
-				if (tag == 0) {
-					break;
-				}
-				switch (WireFormat.getTagFieldNumber(tag)) {
-					case FIELD_NAME -> player.setName(input.readString());
-					case FIELD_LV -> player.setLv(input.readInt32());
-					case FIELD_INT_INT_MAP -> {
-						IntIntEntry entry = decodeIntIntEntry(input.readByteArray());
-						intIntMap.put(entry.key, entry.value);
-					}
-					case FIELD_INT_LIST -> intList.add(input.readInt32());
-					case FIELD_INT_SET -> intSet.add(input.readInt32());
-					case FIELD_ITEM_MAP -> {
-						ItemEntry entry = decodeItemEntry(input.readByteArray());
-						if (entry.item != null) {
-							entry.item.setParent(intDBItemMap);
-						}
-						intDBItemMap.put(entry.key, entry.item);
-					}
-					default -> input.skipField(tag);
-				}
-			}
-
-			player.setName(defaultString(player.getName()));
-			player.setIntIntMap(intIntMap);
-			player.setIntList(intList);
-			player.setIntSet(intSet);
-			player.setIntDBItemMap(intDBItemMap);
-			return player;
-		} catch (IOException e) {
-			throw new IllegalStateException("decode player pb error", e);
+		DBPlayer player = new DBPlayer();
+		if (bytes != null && bytes.length > 0) {
+			ProtostuffIOUtil.mergeFrom(bytes, player, SCHEMA);
 		}
-	}
-
-	private IntIntEntry decodeIntIntEntry(byte[] bytes) throws IOException {
-		CodedInputStream input = CodedInputStream.newInstance(bytes);
-		IntIntEntry entry = new IntIntEntry();
-		while (!input.isAtEnd()) {
-			int tag = input.readTag();
-			if (tag == 0) {
-				break;
-			}
-			switch (WireFormat.getTagFieldNumber(tag)) {
-				case FIELD_ENTRY_KEY -> entry.key = input.readInt32();
-				case FIELD_ENTRY_VALUE -> entry.value = input.readInt32();
-				default -> input.skipField(tag);
-			}
-		}
-		return entry;
-	}
-
-	private ItemEntry decodeItemEntry(byte[] bytes) throws IOException {
-		CodedInputStream input = CodedInputStream.newInstance(bytes);
-		ItemEntry entry = new ItemEntry();
-		while (!input.isAtEnd()) {
-			int tag = input.readTag();
-			if (tag == 0) {
-				break;
-			}
-			switch (WireFormat.getTagFieldNumber(tag)) {
-				case FIELD_ENTRY_KEY -> entry.key = input.readInt32();
-				case FIELD_ENTRY_VALUE -> entry.item = decodeItem(input.readByteArray());
-				default -> input.skipField(tag);
-			}
-		}
-		return entry;
-	}
-
-	private DBItem decodeItem(byte[] bytes) throws IOException {
-		CodedInputStream input = CodedInputStream.newInstance(bytes);
-		DBItem item = new DBItem();
-		while (!input.isAtEnd()) {
-			int tag = input.readTag();
-			if (tag == 0) {
-				break;
-			}
-			switch (WireFormat.getTagFieldNumber(tag)) {
-				case FIELD_ITEM_SRL -> item.setItemSrl(input.readInt64());
-				case FIELD_ITEM_ID -> item.setItemId(input.readInt32());
-				case FIELD_ITEM_NAME -> item.setItemName(input.readString());
-				default -> input.skipField(tag);
-			}
-		}
-		item.setItemName(defaultString(item.getItemName()));
-		return item;
-	}
-
-	private void writeBytesField(CodedOutputStream output, int fieldNumber, byte[] bytes) throws IOException {
-		output.writeTag(fieldNumber, WireFormat.WIRETYPE_LENGTH_DELIMITED);
-		output.writeUInt32NoTag(bytes.length);
-		output.writeRawBytes(bytes);
+		player.setId(key);
+		player.dirty = false;
+		return player;
 	}
 
 	private MysqlRsp requireMysqlRsp(DBRsp rsp) {
@@ -355,26 +214,5 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 			builder.append('?');
 		}
 		return builder.toString();
-	}
-
-	private String defaultString(String value) {
-		return value == null ? "" : value;
-	}
-
-	private <T> T requireNotNull(T value, String fieldName) {
-		if (value == null) {
-			throw new IllegalArgumentException(fieldName + " 不能为空");
-		}
-		return value;
-	}
-
-	private static class IntIntEntry {
-		private int key;
-		private int value;
-	}
-
-	private static class ItemEntry {
-		private int key;
-		private DBItem item;
 	}
 }

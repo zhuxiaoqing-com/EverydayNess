@@ -23,7 +23,6 @@ public class DBPlayerDataDef{
     @DBDirtyTag(2)
     private String name;
     @DBDirtyTag(3)
-
     private int lv;
     @DBDirtyTag(4)
     private Map<Integer, Integer> intIntMap;
@@ -33,6 +32,10 @@ public class DBPlayerDataDef{
     private Set<Integer> intSet;
     @DBDirtyTag(7)
     private Map<Integer, DBItemDataDef> intDBItemMap;
+    @DBDirtyTag(8)
+    private DBItemDataDef obj1;
+    @DBDirtyTag(9)
+    private byte[] bytes;
 
 
     /**

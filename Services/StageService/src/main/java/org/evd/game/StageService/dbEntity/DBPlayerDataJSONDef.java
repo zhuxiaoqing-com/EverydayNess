@@ -13,7 +13,7 @@ import java.util.Set;
  * @Description: DBPlayer
  * @Date 2026/5/21 20:48
  **/
-@DBDirtyEntity(DBserialize.JSON)
+@DBDirtyEntity(value = DBserialize.JSON, table = true)
 public class DBPlayerDataJSONDef {
     /**
      * 字段是自己写
@@ -33,7 +33,10 @@ public class DBPlayerDataJSONDef {
     private Set<Integer> intSet;
     @DBDirtyTag(7)
     private Map<Integer, DBItemDataJSONDef> intDBItemMap;
-
+    @DBDirtyTag(8)
+    private DBItemDataJSONDef obj1;
+    @DBDirtyTag(9)
+    private byte[] bytes;
 
     /**
      * 操作方法全部自动生成

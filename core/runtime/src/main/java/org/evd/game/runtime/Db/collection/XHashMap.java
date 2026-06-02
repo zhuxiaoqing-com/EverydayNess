@@ -7,6 +7,10 @@ import java.util.HashMap;
 
 public class XHashMap<K,V> extends TrackedMap<K,V> {
 
+    public XHashMap() {
+        super(new HashMap<>(), null);
+    }
+
     public XHashMap(DirtyObject _xp_) {
         super(new HashMap<>(), _xp_);
     }

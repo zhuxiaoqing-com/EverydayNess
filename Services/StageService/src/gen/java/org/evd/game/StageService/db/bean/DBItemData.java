@@ -1,8 +1,15 @@
-package org.evd.game.StageService.db;
-import io.protostuff.Tag;
-import org.evd.game.base.DirtyObject;
+package org.evd.game.StageService.db.bean;
 
-public final class DBItemData extends DirtyObject {
+import org.evd.game.annotation.SerializeClass;
+import org.evd.game.base.DirtyObject;
+import org.evd.game.base.ISerializable;
+import org.evd.game.base.InputStreamBase;
+import org.evd.game.base.OutputStreamBase;
+import io.protostuff.Tag;
+import java.io.IOException;
+
+@SerializeClass(customized = true)
+public final class DBItemData extends DirtyObject implements ISerializable {
     @Tag(1)
     private long itemSrl;
     @Tag(2)
@@ -12,6 +19,8 @@ public final class DBItemData extends DirtyObject {
 
     DBItemData(DirtyObject _xp_) {
         super(_xp_);
+        this.itemSrl = 0L;
+        this.itemId = 0;
         this.itemName = "";
     }
 
@@ -63,6 +72,24 @@ public final class DBItemData extends DirtyObject {
     public void setItemName(String _v_){
         this.itemName = _v_;
         makeModify();
+    }
+
+    @Override
+    public void writeTo(OutputStreamBase out) throws IOException {
+        out.writeLong(this.itemSrl);
+        out.writeInt(this.itemId);
+        out.writeString(this.itemName);
+    }
+
+    @Override
+    public void readFrom(InputStreamBase in) throws IOException {
+        long _v_0 = in.readLong();
+        this.itemSrl = _v_0;
+        int _v_1 = in.readInt();
+        this.itemId = _v_1;
+        String _v_2 = in.readString();
+        this.itemName = _v_2;
+        this.dirty = false;
     }
 
     @Override

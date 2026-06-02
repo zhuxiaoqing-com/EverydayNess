@@ -28,6 +28,8 @@ allprojects {
         implementation group: 'org.apache.logging.log4j', name: 'log4j-slf4j2-impl', version: '2.23.1'
         implementation group: 'com.alibaba.fastjson2', name: 'fastjson2', version: '2.0.51'
         implementation 'io.protostuff:protostuff-api:1.8.0'
+        implementation 'io.protostuff:protostuff-core:1.8.0'
+        implementation 'io.protostuff:protostuff-runtime:1.8.0'
         implementation 'com.google.protobuf:protobuf-java:3.25.3'
         implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
         compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.34'

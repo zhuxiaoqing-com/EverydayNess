@@ -11,15 +11,15 @@ import org.evd.game.runtime.support.function.*;
 */
 public class DBServiceImpl extends RPCImplBase {
     public final static class EnumCall{
-        public final static int ENUM_DBSERVICE_ORG_EVD_GAME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_DB_SERIALIZE_DBREQ = 0;
+        public final static int ENUM_DBSERVICE_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBREQ = 0;
     }
 
     @Override
     public Object getMethodFunction(Service serv, int methodKey) {
         DBService service = (DBService) serv;
         switch (methodKey){
-            case EnumCall.ENUM_DBSERVICE_ORG_EVD_GAME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_DB_SERIALIZE_DBREQ:
-                return (ReturnFunction1<DBRsp, DBReq>)service::dbExec;
+            case EnumCall.ENUM_DBSERVICE_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBREQ:
+                return (ReturnFunction1<org.evd.game.runtime.Db.serialize.DBRsp, org.evd.game.runtime.Db.serialize.DBReq>)service::dbExec;
             default:
                 return null;
         }

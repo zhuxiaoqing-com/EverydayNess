@@ -1,25 +1,38 @@
-package org.evd.game.StageService.db;
-import org.evd.game.base.DirtyObject;
+package org.evd.game.StageService.db.bean;
 
-public final class DBItemDataMysql extends DirtyObject {
+import org.evd.game.annotation.SerializeClass;
+import org.evd.game.base.DirtyObject;
+import org.evd.game.base.ISerializable;
+import org.evd.game.base.InputStreamBase;
+import org.evd.game.base.OutputStreamBase;
+import com.alibaba.fastjson2.annotation.JSONField;
+import java.io.IOException;
+
+@SerializeClass(customized = true)
+public final class DBItemDataJSON extends DirtyObject implements ISerializable {
+    @JSONField(name = "1")
     private long itemSrl;
+    @JSONField(name = "2")
     private int itemId;
+    @JSONField(name = "3")
     private String itemName;
 
-    DBItemDataMysql(DirtyObject _xp_) {
+    DBItemDataJSON(DirtyObject _xp_) {
         super(_xp_);
+        this.itemSrl = 0L;
+        this.itemId = 0;
         this.itemName = "";
     }
 
-    public DBItemDataMysql() {
+    public DBItemDataJSON() {
         this((DirtyObject)null);
     }
 
-    public DBItemDataMysql(DBItemDataMysql _o_) {
+    public DBItemDataJSON(DBItemDataJSON _o_) {
         this(_o_, null);
     }
 
-    DBItemDataMysql(DBItemDataMysql _o_, DirtyObject _xp_) {
+    DBItemDataJSON(DBItemDataJSON _o_, DirtyObject _xp_) {
         super(_xp_);
         this.itemSrl = _o_.itemSrl;
         this.itemId = _o_.itemId;
@@ -27,7 +40,7 @@ public final class DBItemDataMysql extends DirtyObject {
         this.dirty = false;
     }
 
-    public void copyFrom(DBItemDataMysql _o_) {
+    public void copyFrom(DBItemDataJSON _o_) {
         this.itemSrl = _o_.itemSrl;
         this.itemId = _o_.itemId;
         this.itemName = _o_.itemName;
@@ -59,6 +72,24 @@ public final class DBItemDataMysql extends DirtyObject {
     public void setItemName(String _v_){
         this.itemName = _v_;
         makeModify();
+    }
+
+    @Override
+    public void writeTo(OutputStreamBase out) throws IOException {
+        out.writeLong(this.itemSrl);
+        out.writeInt(this.itemId);
+        out.writeString(this.itemName);
+    }
+
+    @Override
+    public void readFrom(InputStreamBase in) throws IOException {
+        long _v_0 = in.readLong();
+        this.itemSrl = _v_0;
+        int _v_1 = in.readInt();
+        this.itemId = _v_1;
+        String _v_2 = in.readString();
+        this.itemName = _v_2;
+        this.dirty = false;
     }
 
     @Override

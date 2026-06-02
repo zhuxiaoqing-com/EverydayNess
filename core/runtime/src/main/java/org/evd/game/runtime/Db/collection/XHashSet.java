@@ -7,6 +7,10 @@ import java.util.HashSet;
 
 public class XHashSet<E> extends TrackedSet<E> {
 
+    public XHashSet() {
+        super(new HashSet<>(), null);
+    }
+
     public XHashSet(DirtyObject _xp_) {
         super(new HashSet<>(), _xp_);
     }

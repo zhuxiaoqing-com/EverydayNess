@@ -1,20 +1,20 @@
 package org.evd.game.runtime.Db.table;
 
-import org.evd.game.runtime.Db.table.util.TimeCostPrint;
 import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
+import org.evd.game.runtime.Db.table.util.TimeCostPrint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Mdb {
     public static Logger logger = LoggerFactory.getLogger(Mdb.class.getName());
-    private static final String EXECUTOR_NAME = "mdb.scheduler";
-    private static final long CLEAR_CACHE_DELAY_SECONDS = 10 * TimeCostPrint.minuteMills / 1000;
-    private static final int VISIT_DB_EXECUTOR_THREAD_COUNT = Integer.getInteger("mdb.visit.db.executor", 4);
 
     public Mdb() {
     }
@@ -69,7 +69,6 @@ public class Mdb {
 
     }
 
-    @SuppressWarnings("unchecked")
     private TTable<?, ?> createTableInstance(Object tableOwner, Class<?> tableClass, Class<?> nestedTableClass) throws Exception {
         Constructor<?> tableConstructor;
         if (Modifier.isStatic(nestedTableClass.getModifiers())) {
@@ -88,8 +87,10 @@ public class Mdb {
      * 不 这个的直接加载,不然就要吧get方法拆开了;这里要么就直接加载吧;get拆开其cache就有问题;
      * 感觉不要这个方法算了;
      */
+    @SuppressWarnings("unchecked")
     public void loadPlayerAllTableToMemory(Object key) {
         logger.info("loadPlayerAllTableToMemory key {}", key);
+        TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "loadPlayerAllTableToMemory: " + key);
         try {
             for (TTable table : tableList) {
                 if (!table.isSupportFlush()) {
@@ -97,16 +98,17 @@ public class Mdb {
                 }
                 table.get(key);
             }
+            timeCostPrint.print();
         } catch (Exception e) {
             logger.error("Mdb loadPlayerAllTableToMemory error key {} ", key, e);
             throw new DBException(e);
         }
     }
 
-    /**
+    /*
      * flush 失败以后 需要业务层找机会再次调用;
      * 这里的flush按理来说应该是要一步的
-     *
+
      * 业务层必须有重试功能;
      */
 
@@ -116,25 +118,28 @@ public class Mdb {
      * 这里flush失败就失败了，clearCache里会保底，这里的clearCache里也会清理可以flush的数据，如果不能清理就麻烦了，比如flush失败以后预约下次flush;
      * 当然也可以业务层再次预约，看实现;底层只需要保证完善就行;
      */
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private void flush(Object key) {
         logger.info("flush flushLogicThread start key {}", key);
+
+        TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "flush: " + key);
 
         List<TRecord> jsonList = new ArrayList<>();
 
         for (TTable table : tableList) {
-            TTable tt = table;
-            if (!tt.isSupportFlush()) {
+            if (!table.isSupportFlush()) {
                 continue;
             }
 
-            TRecord tRecord = tt.getTRecordByCache(key);
+            TRecord tRecord = table.getTRecordByCache(key);
             if (tRecord == null) {
                 continue;
             }
 
             // 没有修改过
             if (!tRecord.isModified()) {
-                tt.deleteCache(key);
+                table.deleteCache(key);
                 continue;
             }
             // 修改过了
@@ -162,8 +167,7 @@ public class Mdb {
 
         logger.info("flush flushMdbSaveDB summary key {} jsonListSize {} successTRecordSize {} ", key, jsonList.size(), successTRecord.size());
 
-        boolean finalAllSuccess = allSuccess;
-        boolean success = finalAllSuccess;
+        boolean success = allSuccess;
         // 将保存到mysql成功的进行删除cache;
         for (TRecord record : successTRecord) {
             TRecord currTRecord = record.getTable().getTRecordByCache(record.getKey());
@@ -200,10 +204,10 @@ public class Mdb {
 
             }*/
 
-
+        timeCostPrint.print();
     }
 
-
+    @SuppressWarnings({"rawtypes"})
     public void tick() {
         long currTime = System.currentTimeMillis();
         for (TTable table : tableList) {
@@ -228,6 +232,7 @@ public class Mdb {
     }
 
 
+    @SuppressWarnings({"rawtypes"})
     private void closeInternal(boolean force, boolean runCheckpoint) {
         if (!force && !running) {
             return;

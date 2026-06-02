@@ -1,9 +1,6 @@
 package org.evd.game.StageService.dbEntity.demo;
 
 import com.alibaba.fastjson2.JSON;
-import org.evd.game.runtime.Db.collection.XArrayList;
-import org.evd.game.runtime.Db.collection.XHashMap;
-import org.evd.game.runtime.Db.collection.XHashSet;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DbOpType;
@@ -18,12 +15,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class _DBPlayerJsonTable_ extends TTable<Long, DBPlayer> {
-	private static final String TABLE_NAME = "db_player_json";
+	private static final String TABLE_NAME = "db_player";
 	private static final String CREATE_TABLE_SQL = """
-			CREATE TABLE IF NOT EXISTS db_player_json (
+			CREATE TABLE IF NOT EXISTS db_player (
 			    k BIGINT NOT NULL PRIMARY KEY,
 			    v MEDIUMTEXT NOT NULL
 			) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI
@@ -92,6 +88,13 @@ public class _DBPlayerJsonTable_ extends TTable<Long, DBPlayer> {
 		Map<Long, DBPlayer> result = new LinkedHashMap<>();
 		for (DbTableField tableField : mysqlRsp.getTablFieldList()) {
 			DBPlayer player = parseRow(tableField);
+			if (player == null) {
+				Long key = readRowKey(tableField);
+				if (key != null) {
+					result.put(key, null);
+				}
+				continue;
+			}
 			result.put(player.getId(), player);
 		}
 		return result;
@@ -127,101 +130,31 @@ public class _DBPlayerJsonTable_ extends TTable<Long, DBPlayer> {
 		Objects.requireNonNull(player, "player 不能为空");
 		List<DbValue> valueList = new ArrayList<>(2);
 		valueList.add(new DbValue(key));
-		valueList.add(new DbValue(JSON.toJSONString(toJsonValue(player))));
+		valueList.add(new DbValue(JSON.toJSONString(player)));
 		return new DbTableField(valueList);
 	}
 
 	private DBPlayer parseRow(DbTableField tableField) {
 		List<DbValue> valueList = tableField.getValueList();
 		if (valueList == null || valueList.size() != 2) {
-			throw new IllegalArgumentException("DBPlayerJson row column size error: " + (valueList == null ? 0 : valueList.size()));
+			return null;
 		}
 		long key = ((Number) valueList.get(0).getV()).longValue();
-		PlayerJsonValue jsonValue = JSON.parseObject((String) valueList.get(1).getV(), PlayerJsonValue.class);
-		DBPlayer player = fromJsonValue(key, jsonValue);
+		DBPlayer player = JSON.parseObject((String) valueList.get(1).getV(), DBPlayer.class);
+		if (player == null) {
+			player = new DBPlayer();
+		}
+		player.setId(key);
 		player.dirty = false;
 		return player;
 	}
 
-	private PlayerJsonValue toJsonValue(DBPlayer player) {
-		PlayerJsonValue value = new PlayerJsonValue();
-		value.name = requireNotNull(player.getName(), "name");
-		value.lv = player.getLv();
-		value.intIntMap = new LinkedHashMap<>(requireNotNull(player.getIntIntMap(), "intIntMap"));
-		value.intList = new ArrayList<>(requireNotNull(player.getIntList(), "intList"));
-		value.intSet = new java.util.LinkedHashSet<>(requireNotNull(player.getIntSet(), "intSet"));
-		value.intDBItemMap = new LinkedHashMap<>();
-		for (Map.Entry<Integer, DBItem> entry : requireNotNull(player.getIntDBItemMap(), "intDBItemMap").entrySet()) {
-			value.intDBItemMap.put(entry.getKey(), toJsonItem(entry.getValue()));
+	private Long readRowKey(DbTableField tableField) {
+		if (tableField == null || tableField.getValueList() == null || tableField.getValueList().isEmpty()) {
+			return null;
 		}
-		return value;
-	}
-
-	private ItemJsonValue toJsonItem(DBItem item) {
-		Objects.requireNonNull(item, "item 不能为空");
-		ItemJsonValue value = new ItemJsonValue();
-		value.itemSrl = item.getItemSrl();
-		value.itemId = item.getItemId();
-		value.itemName = requireNotNull(item.getItemName(), "itemName");
-		return value;
-	}
-
-	private DBPlayer fromJsonValue(long key, PlayerJsonValue value) {
-		PlayerJsonValue safeValue = value == null ? new PlayerJsonValue() : value;
-		DBPlayer player = new DBPlayer();
-		player.setId(key);
-		player.setName(defaultString(safeValue.name));
-		player.setLv(safeValue.lv);
-		player.setIntIntMap(toIntMap(player, safeValue.intIntMap));
-		player.setIntList(toIntList(player, safeValue.intList));
-		player.setIntSet(toIntSet(player, safeValue.intSet));
-		player.setIntDBItemMap(toItemMap(player, safeValue.intDBItemMap));
-		return player;
-	}
-
-	private XHashMap<Integer, Integer> toIntMap(DBPlayer player, Map<Integer, Integer> data) {
-		XHashMap<Integer, Integer> map = new XHashMap<>(player);
-		if (data != null) {
-			map.putAll(data);
-		}
-		return map;
-	}
-
-	private XArrayList<Integer> toIntList(DBPlayer player, List<Integer> data) {
-		XArrayList<Integer> list = new XArrayList<>(player);
-		if (data != null) {
-			list.addAll(data);
-		}
-		return list;
-	}
-
-	private XHashSet<Integer> toIntSet(DBPlayer player, Set<Integer> data) {
-		XHashSet<Integer> set = new XHashSet<>(player);
-		if (data != null) {
-			set.addAll(data);
-		}
-		return set;
-	}
-
-	private XHashMap<Integer, DBItem> toItemMap(DBPlayer player, Map<Integer, ItemJsonValue> data) {
-		XHashMap<Integer, DBItem> map = new XHashMap<>(player);
-		if (data != null) {
-			data.forEach((key, value) -> {
-				DBItem item = fromJsonItem(value);
-				item.setParent(map);
-				map.put(key, item);
-			});
-		}
-		return map;
-	}
-
-	private DBItem fromJsonItem(ItemJsonValue value) {
-		ItemJsonValue safeValue = value == null ? new ItemJsonValue() : value;
-		DBItem item = new DBItem();
-		item.setItemSrl(safeValue.itemSrl);
-		item.setItemId(safeValue.itemId);
-		item.setItemName(defaultString(safeValue.itemName));
-		return item;
+		Object key = tableField.getValueList().get(0).getV();
+		return key instanceof Number ? ((Number) key).longValue() : null;
 	}
 
 	private MysqlRsp requireMysqlRsp(DBRsp rsp) {
@@ -261,31 +194,5 @@ public class _DBPlayerJsonTable_ extends TTable<Long, DBPlayer> {
 			builder.append('?');
 		}
 		return builder.toString();
-	}
-
-	private String defaultString(String value) {
-		return value == null ? "" : value;
-	}
-
-	private <T> T requireNotNull(T value, String fieldName) {
-		if (value == null) {
-			throw new IllegalArgumentException(fieldName + " 不能为空");
-		}
-		return value;
-	}
-
-	private static class PlayerJsonValue {
-		public String name = "";
-		public int lv;
-		public Map<Integer, Integer> intIntMap = new LinkedHashMap<>();
-		public List<Integer> intList = new ArrayList<>();
-		public Set<Integer> intSet = new java.util.LinkedHashSet<>();
-		public Map<Integer, ItemJsonValue> intDBItemMap = new LinkedHashMap<>();
-	}
-
-	private static class ItemJsonValue {
-		public long itemSrl;
-		public int itemId;
-		public String itemName = "";
 	}
 }

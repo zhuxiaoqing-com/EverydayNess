@@ -7,6 +7,10 @@ import java.util.*;
 
 public class XArrayList<E> extends TrackedList<E> {
 
+    public XArrayList() {
+        super(new ArrayList<>(), null);
+    }
+
     public XArrayList(DirtyObject _xp_) {
         super(new ArrayList<>(), _xp_);
     }

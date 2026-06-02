@@ -13,7 +13,7 @@ import java.util.Set;
  * @Description: DBPlayer
  * @Date 2026/5/21 20:48
  **/
-@DBDirtyEntity(DBserialize.MYSQL)
+@DBDirtyEntity(value = DBserialize.MYSQL, table = true)
 public class DBPlayerDataMysqlDef {
     /**
      * 字段是自己写
@@ -32,7 +32,10 @@ public class DBPlayerDataMysqlDef {
     private Set<Integer> intSet;
     @DBDirtyTag(7)
     private Map<Integer, DBItemDataMysqlDef> intDBItemMap;
-
+    @DBDirtyTag(8)
+    private DBItemDataMysqlDef obj1;
+    @DBDirtyTag(9)
+    private byte[] bytes;
 
     /**
      * 操作方法全部自动生成
