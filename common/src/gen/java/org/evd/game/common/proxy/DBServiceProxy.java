@@ -13,6 +13,7 @@ public final class DBServiceProxy {
     private DBServiceProxy() {
     }
 
+
     public final static class EnumCall{
         public final static int ENUM_DBSERVICE_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBREQ = 0;
     }

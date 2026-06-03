@@ -24,7 +24,6 @@ repositories {
     mavenCentral()
 }
 
-
 sourceSets {
     main {
         proto {
@@ -33,6 +32,8 @@ sourceSets {
         java {
             srcDirs += 'src/main/java'
             srcDirs += 'src/gen/java'
+            exclude '**/*IOSerializer.java'
+            exclude '**/SerializerRegister.java'
         }
     }
 }
@@ -53,8 +54,13 @@ protobuf {
     }
 }
 
-tasks.named('compileJava') {
+tasks.named('compileJava', JavaCompile) {
     dependsOn tasks.named('generateProto')
+    options.generatedSourceOutputDirectory.set(file('src/gen-apt/java'))
+    options.compilerArgs += [
+            '-processor',
+            'org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
+    ]
 }
 
 tasks.named('processResources') {

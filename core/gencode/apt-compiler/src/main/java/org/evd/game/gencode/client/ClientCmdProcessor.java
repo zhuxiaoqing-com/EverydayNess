@@ -1,17 +1,12 @@
 package org.evd.game.gencode.client;
 
-import com.sun.source.tree.Tree;
-import com.sun.source.util.Trees;
 import com.google.auto.service.AutoService;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
-import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.ProcessorBase;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -19,12 +14,8 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import java.io.File;
-import java.io.OutputStreamWriter;
+import javax.tools.JavaFileObject;
 import java.io.Writer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -41,12 +32,10 @@ public class ClientCmdProcessor extends ProcessorBase {
     private static final String CLIENT_SESSION_REF_CLASS_NAME = "org.evd.game.runtime.client.ClientSessionRef";
     private static final String CLIENT_CMD_REGISTRY_BASE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRegistryBase";
     private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRouteTable";
-    private static final String MSG_ID_CLASS_NAME = "org.evd.game.common.proto.MsgId";
     private static final String PROTO_MESSAGE_CLASS_NAME = "com.google.protobuf.MessageLite";
     private static final String SERVICE_CLASS_NAME = "org.evd.game.runtime.Service";
 
     private final Set<String> generatedClasses = new HashSet<>();
-    private Trees trees;
 
     @Override
     protected Set<String> supportAnnotation() {
@@ -55,7 +44,6 @@ public class ClientCmdProcessor extends ProcessorBase {
 
     @Override
     protected void init() {
-        trees = Trees.instance(processingEnv);
     }
 
     @Override
@@ -100,7 +88,9 @@ public class ClientCmdProcessor extends ProcessorBase {
         }
 
         try {
-            writeJavaSource(packageName, className, buildRegistrySource(first.serviceOwnerClassName, className, packageName, methods));
+            writeJavaSource(fullClassName,
+                    buildRegistrySource(first.serviceOwnerClassName, className, packageName, methods),
+                    collectOriginatingElements(methods));
             println("generate success [" + className + ".java]");
         } catch (Exception e) {
             throw new RuntimeException("生成客户端协议分发表失败: " + className, e);
@@ -117,7 +107,9 @@ public class ClientCmdProcessor extends ProcessorBase {
         }
 
         try {
-            writeJavaSource(packageName, className, buildRouteRegistrySource(className, methods));
+            writeJavaSource(fullClassName,
+                    buildRouteRegistrySource(className, methods),
+                    collectOriginatingElements(methods));
             println("generate success [" + className + ".java]");
         } catch (Exception e) {
             throw new RuntimeException("生成客户端协议路由注册类失败: " + className, e);
@@ -131,7 +123,6 @@ public class ClientCmdProcessor extends ProcessorBase {
         StringBuilder source = new StringBuilder();
         source.append("package ").append(packageName).append(";\n\n");
         source.append("import com.google.protobuf.InvalidProtocolBufferException;\n");
-        source.append("import ").append(MSG_ID_CLASS_NAME).append(";\n");
         source.append("import ").append(CLIENT_CMD_REGISTRY_BASE_CLASS_NAME).append(";\n");
         source.append("import ").append(CLIENT_SESSION_REF_CLASS_NAME).append(";\n");
         for (String importPackage : collectImports(methods, packageName)) {
@@ -173,7 +164,6 @@ public class ClientCmdProcessor extends ProcessorBase {
         ClientCmdMethod first = methods.getFirst();
         StringBuilder source = new StringBuilder();
         source.append("package ").append(first.serviceOwnerPackageName).append(";\n\n");
-        source.append("import ").append(MSG_ID_CLASS_NAME).append(";\n");
         source.append("import ").append(CLIENT_CMD_ROUTE_TABLE_CLASS_NAME).append(";\n\n");
         source.append("/**\n");
         source.append(" * 根据").append(first.serviceOwnerClassName).append("生成的客户端协议路由注册类\n");
@@ -273,62 +263,15 @@ public class ClientCmdProcessor extends ProcessorBase {
                 ownerType.getQualifiedName().toString(),
                 method.getSimpleName().toString(),
                 cmd,
-                resolveCmdExpr(method, cmd),
+                resolveCmdExpr(cmd),
                 requestTypeName,
                 requestPackageName,
-                requestClassName
+                requestClassName,
+                method
         );
     }
 
-    private String resolveCmdExpr(ExecutableElement method, int cmd) {
-        AnnotationMirror clientCmdMirror = findAnnotationMirror(method, ClientCmd.class.getCanonicalName());
-        if (clientCmdMirror == null) {
-            return String.valueOf(cmd);
-        }
-        AnnotationValue value = findAnnotationValue(clientCmdMirror, "value");
-        if (value == null) {
-            return String.valueOf(cmd);
-        }
-        Tree valueTree = trees.getTree(method, clientCmdMirror, value);
-        if (valueTree == null) {
-            return String.valueOf(cmd);
-        }
-        return normalizeCmdExpr(valueTree.toString().trim(), cmd);
-    }
-
-    private AnnotationMirror findAnnotationMirror(ExecutableElement method, String annotationClassName) {
-        for (AnnotationMirror annotationMirror : method.getAnnotationMirrors()) {
-            Element annotationElement = annotationMirror.getAnnotationType().asElement();
-            if (annotationElement instanceof TypeElement typeElement
-                    && typeElement.getQualifiedName().contentEquals(annotationClassName)) {
-                return annotationMirror;
-            }
-        }
-        return null;
-    }
-
-    private AnnotationValue findAnnotationValue(AnnotationMirror annotationMirror, String name) {
-        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry
-                : annotationMirror.getElementValues().entrySet()) {
-            if (entry.getKey().getSimpleName().contentEquals(name)) {
-                return entry.getValue();
-            }
-        }
-        return null;
-    }
-
-    private String normalizeCmdExpr(String sourceExpr, int cmd) {
-        if (sourceExpr.matches("\\d+")) {
-            return sourceExpr;
-        }
-        String simpleMsgIdPrefix = MSG_ID_CLASS_NAME.substring(MSG_ID_CLASS_NAME.lastIndexOf('.') + 1) + ".";
-        if (sourceExpr.startsWith(MSG_ID_CLASS_NAME + ".")) {
-            return MSG_ID_CLASS_NAME.substring(MSG_ID_CLASS_NAME.lastIndexOf('.') + 1)
-                    + sourceExpr.substring(MSG_ID_CLASS_NAME.length());
-        }
-        if (sourceExpr.startsWith(simpleMsgIdPrefix) && sourceExpr.endsWith("_VALUE")) {
-            return sourceExpr;
-        }
+    private String resolveCmdExpr(int cmd) {
         return String.valueOf(cmd);
     }
 
@@ -411,15 +354,17 @@ public class ClientCmdProcessor extends ProcessorBase {
         return roundServiceOwner;
     }
 
-    private void writeJavaSource(String packageName, String className, String content) throws Exception {
-        String targetPath = getGenPath(packageName, className);
-        File dir = new File(targetPath);
-        if (!dir.exists()) {
-            dir.mkdirs();
+    private Element[] collectOriginatingElements(List<ClientCmdMethod> methods) {
+        LinkedHashSet<Element> originatingElements = new LinkedHashSet<>();
+        for (ClientCmdMethod method : methods) {
+            originatingElements.add(method.sourceElement);
         }
+        return originatingElements.toArray(Element[]::new);
+    }
 
-        Path filePath = Path.of(targetPath, className + ".java");
-        try (Writer writer = new OutputStreamWriter(Files.newOutputStream(filePath), StandardCharsets.UTF_8)) {
+    private void writeJavaSource(String fullClassName, String content, Element... originatingElements) throws Exception {
+        JavaFileObject sourceFile = filer.createSourceFile(fullClassName, originatingElements);
+        try (Writer writer = sourceFile.openWriter()) {
             writer.write(content);
         }
     }
@@ -437,6 +382,7 @@ public class ClientCmdProcessor extends ProcessorBase {
         private final String requestTypeName;
         private final String requestPackageName;
         private final String requestClassName;
+        private final ExecutableElement sourceElement;
         private String fieldName;
 
         private ClientCmdMethod(String serviceOwnerPackageName,
@@ -450,7 +396,8 @@ public class ClientCmdProcessor extends ProcessorBase {
                                  String cmdExpr,
                                  String requestTypeName,
                                  String requestPackageName,
-                                 String requestClassName) {
+                                 String requestClassName,
+                                 ExecutableElement sourceElement) {
             this.serviceOwnerPackageName = serviceOwnerPackageName;
             this.serviceOwnerClassName = serviceOwnerClassName;
             this.serviceOwnerFullClassName = serviceOwnerFullClassName;
@@ -463,6 +410,7 @@ public class ClientCmdProcessor extends ProcessorBase {
             this.requestTypeName = requestTypeName;
             this.requestPackageName = requestPackageName;
             this.requestClassName = requestClassName;
+            this.sourceElement = sourceElement;
         }
 
         private boolean isServiceOwnerTarget() {

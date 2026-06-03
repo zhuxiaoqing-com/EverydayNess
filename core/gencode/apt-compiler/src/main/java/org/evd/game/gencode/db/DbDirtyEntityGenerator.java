@@ -18,12 +18,11 @@ final class DbDirtyEntityGenerator {
 
     void generate(TypeElement typeElement) {
         DbDirtyEntityMeta entity = DbDirtyEntityMetaFactory.create(typeElement, processingEnv);
-        fileWriter.deleteLegacyFiles(entity);
-        fileWriter.writeJavaFile(entity.beanPackage, entity.beanClassName, beanRenderer.render(entity));
+        fileWriter.writeJavaFile(entity.beanPackage, entity.beanClassName, beanRenderer.render(entity), typeElement);
         if (!entity.table) {
             return;
         }
-        fileWriter.writeJavaFile(entity.tablePackage, entity.tableClassName, tableFacadeRenderer.render(entity));
-        fileWriter.writeJavaFile(entity.internalTablePackage, entity.internalTableClassName, storageTableRenderer.render(entity));
+        fileWriter.writeJavaFile(entity.tablePackage, entity.tableClassName, tableFacadeRenderer.render(entity), typeElement);
+        fileWriter.writeJavaFile(entity.internalTablePackage, entity.internalTableClassName, storageTableRenderer.render(entity), typeElement);
     }
 }

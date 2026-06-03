@@ -9,7 +9,6 @@ sourceSets {
     main {
         java {
             srcDirs += 'src/main/java'
-            srcDirs += 'src/gen/java'
         }
     }
 }
@@ -30,6 +29,15 @@ dependencies {
     implementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')
 }
+
+tasks.named('compileJava', JavaCompile) {
+    options.generatedSourceOutputDirectory.set(file('src/gen-apt/java'))
+    options.compilerArgs += [
+            '-processor',
+            'org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
+    ]
+}
+
 tasks.withType(JavaCompile) {
     options.compilerArgs.addAll(['--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED'])
 //        options.compilerArgs.addAll(['-Xlint:unchecked'])

@@ -2,11 +2,17 @@ plugins {
     id 'java'
 }
 
+def dbDefGeneratedJavaDir = layout.projectDirectory.dir('src/gen-db/java')
+
 group = 'org.example'
 version = '1.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
+}
+
+configurations {
+    dbDefImplementation.extendsFrom implementation
 }
 
 sourceSets {
@@ -17,7 +23,8 @@ sourceSets {
     }
     main {
         java {
-            srcDirs = ['src/main/java', 'src/gen/java']
+            srcDirs = ['src/main/java']
+            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap { it.options.generatedSourceOutputDirectory })
         }
     }
 }
@@ -35,13 +42,15 @@ dependencies {
     dbDefImplementation project(':common')
 }
 
-tasks.named('compileJava') {
+tasks.named('compileJava', JavaCompile) {
     dependsOn tasks.named('compileDbDefJava')
+    options.generatedSourceOutputDirectory.set(file('src/gen-apt/java'))
 }
 
 tasks.named('compileDbDefJava', JavaCompile) {
     options.compilerArgs += ['-proc:only']
-    outputs.dir(file('src/gen/java'))
+    options.generatedSourceOutputDirectory.set(dbDefGeneratedJavaDir)
+    outputs.dir(dbDefGeneratedJavaDir)
 }
 
 test {

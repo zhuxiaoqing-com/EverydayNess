@@ -13,6 +13,7 @@ public final class LocationServiceProxy {
     private LocationServiceProxy() {
     }
 
+
     public final static class EnumCall{
         public final static int ENUM_LOCATIONSERVICE_VOID_ADD_ORG_EVD_GAME_RUNTIME_ACTOR_ACTORID_ORG_EVD_GAME_RUNTIME_ACTOR_ACTORADDRESS = 0;
         public final static int ENUM_LOCATIONSERVICE_ORG_EVD_GAME_RUNTIME_ACTOR_ACTORADDRESS_GET_ORG_EVD_GAME_RUNTIME_ACTOR_ACTORID = 1;

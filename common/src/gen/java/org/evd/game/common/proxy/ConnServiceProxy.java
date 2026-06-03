@@ -13,6 +13,7 @@ public final class ConnServiceProxy {
     private ConnServiceProxy() {
     }
 
+
     public final static class EnumCall{
         public final static int ENUM_CONNSERVICE_STRING_CON = 0;
         public final static int ENUM_CONNSERVICE_VOID_CON1 = 1;
