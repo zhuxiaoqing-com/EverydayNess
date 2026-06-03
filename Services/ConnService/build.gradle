@@ -9,23 +9,44 @@ repositories {
     mavenCentral()
 }
 
+sourceSets {
+    dbDef {
+        java {
+            srcDirs = ['src/dbDef/java']
+        }
+    }
+    main {
+        java {
+            srcDirs = ['src/main/java']
+            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap { it.options.generatedSourceOutputDirectory })
+        }
+    }
+}
+
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation 'io.netty:netty-all:4.1.112.Final'
     implementation project(':common')
+    dbDefImplementation project(':common')
     implementation project(':core:runtime')
+    dbDefImplementation project(':core:runtime')
     implementation project(':core:gencode:apt-annotation')
-    implementation project(':Services:ConnService:ConnServiceDbDef')
+    dbDefImplementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')
+    dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
 }
 
 tasks.named('compileJava', JavaCompile) {
-    options.generatedSourceOutputDirectory.set(file('src/gen-apt/java'))
+    dependsOn tasks.named('compileDbDefJava')
     options.compilerArgs += [
             '-processor',
             'org.evd.game.gencode.ServiceProcessor,org.evd.game.gencode.rpc.RpcProcessor,org.evd.game.gencode.rpc.RpcImplProcessor,org.evd.game.gencode.client.ClientCmdProcessor,org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
     ]
+}
+
+tasks.named('compileDbDefJava', JavaCompile) {
+    options.compilerArgs += ['-proc:only']
 }
 
 test {

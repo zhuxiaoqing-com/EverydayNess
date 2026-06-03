@@ -9,18 +9,43 @@ repositories {
     mavenCentral()
 }
 
+configurations {
+    dbDefImplementation.extendsFrom implementation
+}
+
+sourceSets {
+    dbDef {
+        java {
+            srcDirs = ['src/dbDef/java']
+        }
+    }
+    main {
+        java {
+            srcDirs = ['src/main/java']
+            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap { it.options.generatedSourceOutputDirectory })
+        }
+    }
+}
+
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation project(':core:gencode:apt-annotation')
+    dbDefImplementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')
+    dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
     implementation project(':core:runtime')
+    dbDefImplementation project(':core:runtime')
     implementation project(':common')
-    implementation project(':Services:LocationService:LocationServiceDbDef')
+    dbDefImplementation project(':common')
 }
 
 tasks.named('compileJava', JavaCompile) {
-    options.generatedSourceOutputDirectory.set(file('src/gen-apt/java'))
+    dependsOn tasks.named('compileDbDefJava')
+}
+
+tasks.named('compileDbDefJava', JavaCompile) {
+    options.compilerArgs += ['-proc:only']
 }
 
 test {

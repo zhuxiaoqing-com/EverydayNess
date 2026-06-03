@@ -31,7 +31,6 @@ dependencies {
 }
 
 tasks.named('compileJava', JavaCompile) {
-    options.generatedSourceOutputDirectory.set(file('src/gen-apt/java'))
     options.compilerArgs += [
             '-processor',
             'org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'

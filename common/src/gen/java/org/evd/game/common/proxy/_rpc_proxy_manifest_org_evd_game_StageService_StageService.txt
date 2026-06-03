@@ -1,2 +1,0 @@
-HaHaHaActorProxy.java
-StageServiceProxy.java
