@@ -3,11 +3,14 @@ package org.evd.game.gencode.rpc;
 import com.google.auto.service.AutoService;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.gencode.ProcessorBase;
+import org.evd.game.gencode.struct.MethodStruct;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.TypeElement;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @AutoService(Processor.class)
@@ -31,10 +34,13 @@ public class RpcProcessor extends ProcessorBase {
         println("");
         println("开始执行Rpc Processor");
 
-        RpcGenerationContext context = support.buildContext(roundEnv);
-        if (context == null) {
+        List<MethodStruct<Rpc>> methods = support.buildRpcMethodStructs(roundEnv);
+        if (methods.isEmpty()) {
             return;
         }
-        proxyFileGenerator.generate(context);
+        Map<String, List<MethodStruct<Rpc>>> classMap = support.groupRpcMethodsByClass(methods);
+        for (List<MethodStruct<Rpc>> classMethods : classMap.values()) {
+            proxyFileGenerator.generate(classMethods.getFirst().getTypeElement(), classMethods);
+        }
     }
 }

@@ -22,14 +22,14 @@ import org.evd.game.runtime.actor.ActorType;
 /**
 * 根据${className}Service生成的代理类
 */
-public final class ${className}Proxy {
+public final class ${generatedClassName} {
 
-    private ${className}Proxy() {
+    private ${generatedClassName}() {
     }
 
     <#if needsLocationImport>
     private static MessageLocationSender createMessageLocationSender() {
-        return new MessageLocationSender(${className}Proxy::queryActorAddress);
+        return new MessageLocationSender(${generatedClassName}::queryActorAddress);
     }
 
     private static org.evd.game.runtime.actor.ActorAddress queryActorAddress(ActorId actorId) {

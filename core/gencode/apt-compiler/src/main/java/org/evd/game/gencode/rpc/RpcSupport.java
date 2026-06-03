@@ -54,11 +54,10 @@ final class RpcSupport {
         this.typeUtils = processingEnv.getTypeUtils();
     }
 
-    RpcGenerationContext buildContext(RoundEnvironment roundEnv) {
-        TypeElement ownerType = resolveServiceOwner(roundEnv.getElementsAnnotatedWith(Actor.class));
+    List<MethodStruct<Rpc>> buildRpcMethodStructs(RoundEnvironment roundEnv) {
         Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Rpc.class);
         if (elements == null || elements.isEmpty()) {
-            return null;
+            return Collections.emptyList();
         }
 
         List<MethodStruct<Rpc>> structList = StructFactory.convertMethod(elementUtils, elements, Rpc.class);
@@ -71,10 +70,107 @@ final class RpcSupport {
                 .thenComparing(m -> Arrays.stream(m.params)
                         .map(p -> p.paramType)
                         .collect(Collectors.joining(","))));
+        return structList;
+    }
 
+    Map<String, List<MethodStruct<Rpc>>> groupRpcMethodsByClass(List<MethodStruct<Rpc>> structList) {
         Map<String, List<MethodStruct<Rpc>>> classMap = new LinkedHashMap<>();
+        for (MethodStruct<Rpc> method : structList) {
+            classMap.computeIfAbsent(method.fullClassName, key -> new ArrayList<>()).add(method);
+        }
+        return classMap;
+    }
+
+    RpcGenerationContext buildContext(RoundEnvironment roundEnv) {
+        TypeElement ownerType = resolveServiceOwner(roundEnv.getElementsAnnotatedWith(Actor.class));
+        List<MethodStruct<Rpc>> structList = buildRpcMethodStructs(roundEnv);
+        if (structList.isEmpty()) {
+            return null;
+        }
+        Map<String, List<MethodStruct<Rpc>>> classMap = groupRpcMethodsByClass(structList);
         List<MethodStruct<Rpc>> ownerMethods = bindOwner(ownerType, structList, classMap);
         return new RpcGenerationContext(ownerType, structList, ownerMethods, classMap);
+    }
+
+    Map<String, Object> buildProxyRootMap(List<MethodStruct<Rpc>> methods) {
+        MethodStruct<Rpc> struct = methods.getFirst();
+        String generatedClassFullName = "org.evd.game.common.proxy." + struct.className + "Proxy";
+        int splitIndex = generatedClassFullName.lastIndexOf(".");
+        String generatedPackageName = generatedClassFullName.substring(0, splitIndex);
+        String generatedClassName = generatedClassFullName.substring(splitIndex + 1);
+
+        Map<String, Object> dataModel = new HashMap<>();
+        Set<String> importPackages = new LinkedHashSet<>();
+        List<String> importsModel = new ArrayList<>();
+        List<Map<String, Object>> methodsModel = new ArrayList<>();
+        boolean needsCallPointImport = false;
+        boolean needsLocationImport = false;
+        boolean needsActorIdImport = false;
+        boolean needsActorTypeImport = false;
+
+        dataModel.put("packageName", generatedPackageName);
+        dataModel.put("commonPackageName", generatedPackageName);
+        dataModel.put("className", struct.className);
+        dataModel.put("generatedClassName", generatedClassName);
+        dataModel.put("fullClassName", struct.fullClassName);
+        dataModel.put("importPackages", importsModel);
+        dataModel.put("methods", methodsModel);
+
+        for (MethodStruct<Rpc> method : methods) {
+            collectMethodImports(importPackages, generatedPackageName, method);
+            boolean routeService = method.rpcRoute == RpcRoute.SERVICE;
+            boolean routeLocation = method.rpcRoute == RpcRoute.LOCATION;
+            boolean usesFixedActorType = routeLocation && method.rpcActorType != RpcActorType.NONE;
+            String targetPrefix;
+            if (routeService) {
+                targetPrefix = "CallPoint remote";
+                needsCallPointImport = true;
+            } else if (usesFixedActorType) {
+                targetPrefix = "long actorUniqueId";
+                needsActorTypeImport = true;
+                needsActorIdImport = true;
+                needsLocationImport = true;
+            } else {
+                targetPrefix = "ActorId actorId";
+                needsActorIdImport = true;
+                needsLocationImport = true;
+            }
+            if (routeLocation) {
+                needsLocationImport = true;
+            }
+
+            Map<String, Object> methodModel = new HashMap<>();
+            methodsModel.add(methodModel);
+
+            AptUtils.StringExt enumCall = new AptUtils.StringExt()
+                    .appendJoin("ENUM", "_")
+                    .appendJoin(method.className.toUpperCase(), "_")
+                    .appendJoin(method.returnType.toUpperCase(), "_")
+                    .append(method.methodName.toUpperCase());
+            for (ParamStruct paramStruct : method.params) {
+                enumCall.append("_");
+                enumCall.append(paramStruct.paramType.toUpperCase());
+            }
+
+            methodModel.put("enumCall", toEnumToken(enumCall.toString()));
+            methodModel.put("methodKey", method.methodKey);
+            methodModel.put("methodName", method.methodName);
+            methodModel.put("returnType", method.returnType);
+            methodModel.put("formalParams", method.toParamTypeAndTypes());
+            methodModel.put("nameParams", method.toParamNames());
+            methodModel.put("targetPrefix", targetPrefix);
+            methodModel.put("routeService", routeService);
+            methodModel.put("routeLocation", routeLocation);
+            methodModel.put("usesFixedActorType", usesFixedActorType);
+            methodModel.put("actorTypeName", method.rpcActorType.name());
+        }
+
+        dataModel.put("needsCallPointImport", needsCallPointImport);
+        dataModel.put("needsLocationImport", needsLocationImport);
+        dataModel.put("needsActorIdImport", needsActorIdImport);
+        dataModel.put("needsActorTypeImport", needsActorTypeImport);
+        importsModel.addAll(importPackages);
+        return dataModel;
     }
 
     Map<String, Object> buildRootMap(List<MethodStruct<Rpc>> methods, TypeElement ownerType, String generatedClassFullName) {

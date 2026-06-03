@@ -36,6 +36,12 @@ sourceSets {
     }
 }
 
+idea {
+    module {
+        generatedSourceDirs += file('src/gen/java')
+    }
+}
+
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -54,7 +60,6 @@ protobuf {
 
 tasks.named('compileJava', JavaCompile) {
     dependsOn tasks.named('generateProto')
-    doFirst { delete file('src/gen/java/') }
     options.compilerArgs += [
             '-processor',
             'org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
