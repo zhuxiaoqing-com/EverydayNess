@@ -2,8 +2,6 @@ plugins {
     id 'java'
 }
 
-def dbDefGeneratedJavaDir = layout.projectDirectory.dir('src/gen-db/java')
-
 group = 'org.example'
 version = '1.0-SNAPSHOT'
 
@@ -11,23 +9,10 @@ repositories {
     mavenCentral()
 }
 
-configurations {
-    dbDefImplementation.extendsFrom implementation
-}
-
 sourceSets {
-    /**
-     * 这里是为了防止 Def 访问到生成的DB类;
-     */
-    dbDef {
-        java {
-            srcDirs = ['src/dbDef/java']
-        }
-    }
     main {
         java {
             srcDirs = ['src/main/java']
-            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap { it.options.generatedSourceOutputDirectory })
             exclude '**/*IOSerializer.java'
             exclude '**/SerializerRegister.java'
             exclude '**/*ClientCmdRegistry.java'
@@ -43,30 +28,20 @@ dependencies {
 
     // 导入自定义注解
     implementation project(":core:gencode:apt-annotation")
-    dbDefImplementation project(":core:gencode:apt-annotation")
+    implementation project(':Services:StageService:StageServiceDbDef')
     // 指定注释处理器
     annotationProcessor project(':core:gencode:apt-compiler')
-    dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
     implementation project(':core:runtime')
-    dbDefImplementation project(':core:runtime')
     implementation project(':common')
-    dbDefImplementation project(':common')
 
 }
 
 tasks.named('compileJava', JavaCompile) {
-    dependsOn tasks.named('compileDbDefJava')
     options.generatedSourceOutputDirectory.set(file('src/gen-apt/java'))
     options.compilerArgs += [
             '-processor',
             'org.evd.game.gencode.ServiceProcessor,org.evd.game.gencode.rpc.RpcProcessor,org.evd.game.gencode.rpc.RpcImplProcessor,org.evd.game.gencode.client.ClientCmdProcessor,org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
     ]
-}
-
-tasks.named('compileDbDefJava', JavaCompile) {
-    options.compilerArgs += ['-proc:only']
-    options.generatedSourceOutputDirectory.set(dbDefGeneratedJavaDir)
-    outputs.dir(dbDefGeneratedJavaDir)
 }
 
 test {

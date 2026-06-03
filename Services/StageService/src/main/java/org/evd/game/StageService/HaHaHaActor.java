@@ -1,5 +1,6 @@
 package org.evd.game.StageService;
 
+import org.evd.game.StageService.dbDef.DBItemDataDef;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcActorType;
@@ -17,7 +18,7 @@ public class HaHaHaActor {
 
     @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.PLAYER)
     public void rpc2(Object a,Object b) {
-
+        new DBItemDataDef();
     }
 
     @Rpc()
