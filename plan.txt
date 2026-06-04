@@ -1,0 +1,58 @@
+1. 跨服玩法节点连接设计
+    如果是跨服玩法的话 那就需要单独连接节点了，不能直接连接;
+   比如需要一个路由节点，路由到不同的跨服地图，如果是单个跨服玩法的话，我感觉可以全部直连，也可以全部走lobby然后再转发过去，这个可以后续再看
+
+
+2.ymal改成注册中心;
+
+3.db加上version;做dbService扩缩容;
+        将DB改成version格式的，因为batch可以每一条消息都返回;所以可以确定返回是否更新成功;
+        	不对checkpont 应该不需要等返回的; 或者也需要等返回; DB缺一个聚合RPC，把多个DBReq收集起来一起执行;
+        	省的一个RPC结束才能进行下一个 显得卡;
+
+
+4.切换地图流程;其实也就是游戏玩法基础流程;
+
+    切换地图流程
+        1. Client 请求切图
+           Client -> Gate -> MapA
+
+        2. MapA 本地锁玩家
+           player.state = TRANSFERING_OUT
+           transferId = newId
+
+        3. MapA 请求 Location 开始迁移
+           Location.BeginTransfer(roleId, MapA, transferId)
+
+        4. MapA 生成 TransferSnapshot
+
+        5. MapA 保存玩家永久数据到 DB
+           Save PlayerData
+           Save lastMapId / lastPosition
+
+        6. MapA 发送快照给 MapB
+           MapB.TransferIn(snapshot)
+
+        7. MapB 创建玩家
+           player.state = TRANSFERING_IN
+           初始化 Unit / AOI / 坐标 / Buff / CD
+
+        8. MapB 完成 Location 迁移
+           Location.CompleteTransfer(roleId, MapA, MapB, transferId)
+
+        9. MapB 通知 Gate 改路由
+           Gate.ChangeRoute(roleId, MapB)
+
+        10. MapB 激活玩家
+           player.state = NORMAL
+           下发 TransferComplete / 场景信息
+
+        11. MapB 通知 MapA 删除旧玩家
+           MapA.RemovePlayer(roleId, transferId)
+
+        传输的时候还有一些内存数据也需要传输的 别忘了！！！
+
+5.完善 MailBox;服务器之间消息流转流程:
+        其实client 也需要用MailBox的，而且应该是要默认就有MailBox的吧;当然也不是，比如客户端请求工会列表，这个时候应该就不用MailBox;
+        	客户端请求玩家数据，就要跟着玩家走;MailType 有点奇怪，现在在哪里都能标识，其实感觉应该只能在Service上标识，可以有哪几种MailBox;
+        	这个怎么弄;
