@@ -1,4 +1,4 @@
-import org.gradle.api.tasks.PathSensitivity
+
 
 plugins {
     id 'java'
@@ -18,15 +18,9 @@ configurations {
 }
 
 sourceSets {
-    dbDef {
-        java {
-            srcDirs = ['src/dbDef/java']
-        }
-    }
     main {
         java {
             srcDirs = ['src/main/java']
-            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap { it.options.generatedSourceOutputDirectory })
         }
     }
 }
@@ -45,19 +39,11 @@ dependencies {
 }
 
 tasks.named('compileJava', JavaCompile) {
-    dependsOn tasks.named('compileDbDefJava')
     inputs.dir(commonRpcProxyDir)
             .withPathSensitivity(PathSensitivity.RELATIVE)
             .optional()
-    options.compilerArgs += [
-            '-processor',
-            'org.evd.game.gencode.ServiceProcessor,org.evd.game.gencode.rpc.RpcProcessor,org.evd.game.gencode.rpc.RpcImplProcessor,org.evd.game.gencode.client.ClientCmdProcessor,org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
-    ]
 }
 
-tasks.named('compileDbDefJava', JavaCompile) {
-    options.compilerArgs += ['-proc:only']
-}
 
 test {
     useJUnitPlatform()

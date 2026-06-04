@@ -1,4 +1,4 @@
-import org.gradle.api.tasks.PathSensitivity
+
 
 plugins {
     id 'java'
@@ -18,23 +18,20 @@ configurations {
 }
 
 sourceSets {
-    /**
-     * 这里是为了防止 Def 访问到生成的DB类;
-     */
     dbDef {
         java {
             srcDirs = ['src/dbDef/java']
         }
     }
+
     main {
         java {
             srcDirs = ['src/main/java']
-            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap { it.options.generatedSourceOutputDirectory })
-            exclude '**/*IOSerializer.java'
-            exclude '**/SerializerRegister.java'
-            exclude '**/*ClientCmdRegistry.java'
-            exclude '**/*ClientCmdRouteRegistry.java'
-            exclude '**/*ServiceImpl.java'
+
+            // 只把 dbDef APT 生成源码给 main generatedSourceOutputDirectory这里指向的目录就是dbDef生成的目录
+            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap {
+                it.options.generatedSourceOutputDirectory
+            })
         }
     }
 }
@@ -45,28 +42,37 @@ dependencies {
 
     implementation project(":core:gencode:apt-annotation")
     dbDefImplementation project(":core:gencode:apt-annotation")
+
     annotationProcessor project(':core:gencode:apt-compiler')
     dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
+
     implementation project(':core:runtime')
     dbDefImplementation project(':core:runtime')
+
     implementation project(':common')
     dbDefImplementation project(':common')
 }
 
-tasks.named('compileJava', JavaCompile) {
-    dependsOn tasks.named('compileDbDefJava')
-    inputs.dir(commonRpcProxyDir)
-            .withPathSensitivity(PathSensitivity.RELATIVE)
-            .optional()
+// 这里默认 DbDef 的编译
+tasks.named('compileDbDefJava', JavaCompile) {
+    options.incremental = false
+    // 不要 -proc:only
+    // 需要正常产出 build/classes/java/dbDef，给下一次增量编译用
     options.compilerArgs += [
             '-processor',
-            'org.evd.game.gencode.ServiceProcessor,org.evd.game.gencode.rpc.RpcProcessor,org.evd.game.gencode.rpc.RpcImplProcessor,org.evd.game.gencode.client.ClientCmdProcessor,org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
+            'org.evd.game.gencode.db.DbDirtyEntityProcessor'
     ]
 }
 
-tasks.named('compileDbDefJava', JavaCompile) {
-    options.incremental = false
-    options.compilerArgs += ['-proc:only']
+tasks.named('compileJava', JavaCompile) {
+    dependsOn tasks.named('compileDbDefJava')
+
+    //compileJava 这个任务和 commonRpcProxyDir 目录有关。
+    //如果这个目录里的文件变了，compileJava 应该重新执行。
+    inputs.dir(commonRpcProxyDir)
+            .withPropertyName('commonRpcProxyDir')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .optional()
 }
 
 test {

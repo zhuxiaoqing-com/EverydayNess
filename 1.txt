@@ -19,3 +19,154 @@ Node之间互相连没关系，当然应该还要加一个字段标识是否需�
     地图service 网关service 感觉应该都是需要; 地图的话是要给指定的玩家发送消息,网关的话,是要将消息发送给客户端;
     那是不是rpc的调用内部，也不用扩展到外面，就内部是不是应该有一个errorId进行传递呢,然后就框架内部使用，也不开放给业务;
        感觉可以弄一个Context;然后如果有这个就传入errorID，如果没有就不传入(这感觉很难实现啊)
+
+
+
+
+Cause: org.evd.game.StageService.HaHaHaActor 不是 owner service，只能使用 RpcRoute.LOCATION ;
+我想的是RPC里标识什么就写什么啊，感觉生成的XXXProxy 可以直接都用static，
+然后每次固定传入actorId(最好是传入一个long 这样吧) 或者CallPoint; 感觉要new 会有很多new方法啊;
+
+
+你的locationService 不对啊，怎么东西都是自己手动生成的，改成Rpc生成啊;
+
+conService 接入netty，netty和@ClientCmd注解生成的方法接入,netty的接口要写的通用;
+
+我现在这所有的东西都抽成协程来运行 连tick也变成了协程 但是好像又只能协程，因为万一 tick里要进行rpc调用呢，但是进行了rpc调用的话 tick不是就很奇怪，
+可能后面10个tick都运行结束了 当前tick才开始 et里是怎么弄的
+
+
+我想将mdbPlayerThread接入，或者说可以自己写java类，然后加注解，但是怎么将dirty写入呢？
+	只允许写字段 不运行加方法？然后用APT生成方法标注apt,那集合呢？可以模拟mdbPlayerThread 生成对应的方法;
+	到时候看看吧
+	数据库类生成好了，应该有个方法，是否是要将某一个key的全部load出来？
+	那像是工会什么的呢，好友什么的呢？
+	玩家数据可以全部加载,那就需要一个方法获取service所有的表,
+
+增加DBService;
+Table获取从数据库查询使用callWait，
+	get 使用callWait;
+	checkpoint? 直接call checkPoint，根据dbService+key分组 一个一个更新吧 就不批量更新了;可能可以DBService 批量;
+	loadMemory呢？直接遍历调用get;
+	flush 根据tableName+key 全部打包好给dbService提供的接口？
+	clearCache不用说，就单个删除就行了;但是删除以后需要返回这个怎么弄呢？
+
+我决定了先弄第一版出来，不管什么version，就先可以批量和单个，然后直接全部用replace, remove；这两个;
+		只管pb json mysql;三种;
+		replace remove  get replacebatch 和 removeReplaceBatch getbatch
+		然后定义发送中间类 和接受中间类;
+		手写 TTable类，和 Mdb全局数据库类，
+		db类的话再生成继承TTable类，里面实现add remove get三个方法;
+		Mdb数据库类 启动的时候将所有的数据库类的TTable都加载，然后每个TTable都有一个hashMap<int,int>
+		也就是自己的内存缓存，然后其原来的查询数据库 存储数据库 就给翻译成放DBService里面;
+	get：
+	delete
+		json   getkey()
+		pb getkey()
+		mysql  getkey()
+	replace
+		json   Object[];
+		pb Object[]
+		mysql  Object[]
+
+	 现在有三种方式
+		DB数据类放common 直接序列化过去使用SerializeClass;
+		DB数据类放common 序列化过去使用专用序列化,根据mysql  pb json 变成对印的数据结构 比如F:\gittttt\EverydayNess\core\runtime\src\main\java\org\evd\game\runtime\DbEntity\serialize\MysqlReq.java;
+		我感觉理想的就是像Mdb那样，一个DB类，一个Table类 生成sql 或者其他，然后New对象，将数据序列化进DB类;
+		但是这里就没法做隔离DB类，除非而DB类 我是确定要隔离的;加一个描述类生成sql或者其他，
+		然后弄个Table类进行序列化DB类转成专门的Mysql请求类 反序列化mysql请求类序列化成DB类; 然后就是基础的 get replace remove;
+		描述类的话：create update get remove sql; 以及映射扫MysqlReturn类 这个MysqlReturn 映射到底是放Mysql访问类，还是说吧PreparedStatement和ResultSet传入进来操作
+
+	get 需要访问固定结构 加+固定序列化，这个可以做适配层吗;
+	checkpoint;
+	flush;
+	loamemory;
+	clearExprieCache;
+	本质上应该就是序列化 和反序列化的数据不一致;
+	序列化和反序列化用自己生成的Table来操作吗;
+	感觉需要一个序列化Table;这个table怎么弄，接具体的序列化操作吗,
+	除了序列化 还需要选dbService接口 难搞
+	一个add remove Table;
+	我悟了 其实就是MDB的 StorageMysql; 我只需要把对象传入进去，然后调用DB专门的序列化方法就行了;
+	那其实最好的方式DB序列化 还是放DB类里最好; 不然的话 写起来很麻烦;
+	还有一种就是 其实不需要专门的适配类，只需要序列化对象 和反序列化对象弄成单独的类，然后处理;
+
+	db数据类单个DBReq的可以直接用方法将其抽象出来，如果是batch形式的呢？其实也行，使用static就行了;
+	然后传入多个相同的对象，在里面构建; 没毛病！
+
+
+
+
+
+切换地图流程
+1. Client 请求切图
+   Client -> Gate -> MapA
+
+2. MapA 本地锁玩家
+   player.state = TRANSFERING_OUT
+   transferId = newId
+
+3. MapA 请求 Location 开始迁移
+   Location.BeginTransfer(roleId, MapA, transferId)
+
+4. MapA 生成 TransferSnapshot
+
+5. MapA 保存玩家永久数据到 DB
+   Save PlayerData
+   Save lastMapId / lastPosition
+
+6. MapA 发送快照给 MapB
+   MapB.TransferIn(snapshot)
+
+7. MapB 创建玩家
+   player.state = TRANSFERING_IN
+   初始化 Unit / AOI / 坐标 / Buff / CD
+
+8. MapB 完成 Location 迁移
+   Location.CompleteTransfer(roleId, MapA, MapB, transferId)
+
+9. MapB 通知 Gate 改路由
+   Gate.ChangeRoute(roleId, MapB)
+
+10. MapB 激活玩家
+   player.state = NORMAL
+   下发 TransferComplete / 场景信息
+
+11. MapB 通知 MapA 删除旧玩家
+   MapA.RemovePlayer(roleId, transferId)
+
+传输的时候还有一些内存数据也需要传输的 别忘了！！！
+
+
+这些弄好了 是不是就可以写例子了，现在已有 conService LocationService StageService, 再来个GuildService，感觉就已经可以写代码了，然后
+在StageService里进行场景代码写入,  来一个ActivityService
+
+这个架构要是弄跨服怎么弄呢？比如地图服务器 有本服地图服务器和跨服地图服务器; 地图服务器里加个标识吗;
+
+
+2184315555723333663
+2184621224083363891
+
+
+isolating / aggregating filer  将APT 修改为这个形式的; RPC的话common的数据特殊处理，使用File写入，每次先删除 再写入;
+
+其实client 也需要用MailBox的，而且应该是要默认就有MailBox的吧;当然也不是，比如客户端请求工会列表，这个时候应该就不用MailBox;
+	客户端请求玩家数据，就要跟着玩家走;MailType 有点奇怪，现在在哪里都能标识，其实感觉应该只能在Service上标识，可以有哪几种MailBox;
+	这个怎么弄;
+
+其实对应到传统的服务器就是，我在gw里就已经缓存了在哪个logic 在哪个map,然后看协议要往哪里转发- -;
+还有一个就是 是否一个service要对应多个MailType呢
+
+
+  用isolating / aggregating filer的概念生成; 我看ClientCmdProcessor 生成的都是聚合类把
+
+将DB改成version格式的，因为batch可以每一条消息都返回;所以可以确定返回是否更新成功;
+	不对checkpont 应该不需要等返回的; 或者也需要等返回; DB缺一个聚合RPC，把多个DBReq收集起来一起执行;
+	省的一个RPC结束才能进行下一个 显得卡;
+
+Processor的aggregating 类型的 最后将其分片一个源类就是一个生成类，然后启动的时候收集起来，防止后期协议多了太卡
+
+
+
+
+

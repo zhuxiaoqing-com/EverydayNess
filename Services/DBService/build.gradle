@@ -1,4 +1,4 @@
-import org.gradle.api.tasks.PathSensitivity
+
 
 plugins {
     id 'java'
@@ -12,21 +12,10 @@ def commonRpcProxyDir = rootProject.file('common/src/gen/java/org/evd/game/commo
 repositories {
     mavenCentral()
 }
-
-configurations {
-    dbDefImplementation.extendsFrom implementation
-}
-
 sourceSets {
-    dbDef {
-        java {
-            srcDirs = ['src/dbDef/java']
-        }
-    }
     main {
         java {
             srcDirs = ['src/main/java']
-            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap { it.options.generatedSourceOutputDirectory })
         }
     }
 }
@@ -35,31 +24,18 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation project(':core:gencode:apt-annotation')
-    dbDefImplementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')
-    dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
     implementation project(':core:runtime')
-    dbDefImplementation project(':core:runtime')
     implementation project(':common')
-    dbDefImplementation project(':common')
     implementation 'com.zaxxer:HikariCP:5.1.0'
     implementation 'org.mongodb:mongo-java-driver:3.12.14'
     runtimeOnly 'com.mysql:mysql-connector-j:8.4.0'
 }
 
 tasks.named('compileJava', JavaCompile) {
-    dependsOn tasks.named('compileDbDefJava')
     inputs.dir(commonRpcProxyDir)
             .withPathSensitivity(PathSensitivity.RELATIVE)
             .optional()
-    options.compilerArgs += [
-            '-processor',
-            'org.evd.game.gencode.ServiceProcessor,org.evd.game.gencode.rpc.RpcProcessor,org.evd.game.gencode.rpc.RpcImplProcessor,org.evd.game.gencode.client.ClientCmdProcessor,org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
-    ]
-}
-
-tasks.named('compileDbDefJava', JavaCompile) {
-    options.compilerArgs += ['-proc:only']
 }
 
 test {
