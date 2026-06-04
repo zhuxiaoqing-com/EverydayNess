@@ -22,6 +22,7 @@ import org.evd.game.runtime.mailbox.MailBoxComponent;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.CoroutineLockTimeoutException;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.SysException;
@@ -732,19 +733,33 @@ public class Service extends TickCase{
     }
 
     public final void awaitCoroutineLock(int type, Object key) {
+        awaitCoroutineLock(type, key, CoroutineLockManager.DEFAULT_TIMEOUT_MILLIS);
+    }
+
+    public final void awaitCoroutineLock(int type, Object key, int timeoutMillis) {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
         if (coroutineLockManager.tryAcquire(type, key, continuation)) {
             return;
         }
-        continuation.prepareWait();
+        long waitId = registerWait(timeoutMillis, (ctx, timeoutWaitId) -> {
+            if (!coroutineLockManager.cancelWait(ctx)) {
+                return;
+            }
+            ctx.setFailure(new CoroutineLockTimeoutException(id, type, key, timeoutWaitId, timeoutMillis));
+        });
+        coroutineLockManager.addWaiter(type, key, continuation, waitId);
         continuation.waitResult();
     }
 
     protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key) {
+        return awaitCoroutineLockScope(type, key, CoroutineLockManager.DEFAULT_TIMEOUT_MILLIS);
+    }
+
+    protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key, int timeoutMillis) {
         if (key == null) {
             return new ContinuationLockScope(null);
         }
-        awaitCoroutineLock(type, key);
+        awaitCoroutineLock(type, key, timeoutMillis);
         return new ContinuationLockScope(currentContinuation());
     }
 
@@ -761,12 +776,19 @@ public class Service extends TickCase{
     }
 
     private void releaseCoroutineLock(Task.ContinuationWrapper continuation) {
-        Task.ContinuationWrapper next = coroutineLockManager.release(continuation);
+        CoroutineLockManager.ReadyContinuation next = coroutineLockManager.release(continuation);
         if (next == null) {
             return;
         }
-        next.setResult(null);
-        continuationRuntime.queue(next, "lock");
+        Task.ContinuationWrapper waitContinuation = next.getWaitId() == 0
+                ? next.getContinuation()
+                : takeWaitContinuation(next.getWaitId());
+        if (waitContinuation == null) {
+            releaseCoroutineLock(next.getContinuation());
+            return;
+        }
+        waitContinuation.setResult(null);
+        continuationRuntime.queue(waitContinuation, "lock");
     }
 
     public void releaseContinuationLock(Task.ContinuationWrapper continuation) {
