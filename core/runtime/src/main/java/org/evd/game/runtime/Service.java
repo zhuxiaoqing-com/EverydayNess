@@ -16,14 +16,12 @@ import org.evd.game.runtime.client.ClientCmdRegistryBase;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
-import org.evd.game.runtime.continuation.CoroutineLockManager;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.mailbox.MailBoxComponent;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallTimeoutException;
-import org.evd.game.runtime.support.CoroutineLockTimeoutException;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.SysException;
@@ -74,7 +72,7 @@ public class Service extends TickCase{
                 return;
             }
             closed = true;
-            releaseContinuationLock(continuation);
+            coroutineLockManager.release(continuation);
         }
     }
 
@@ -104,7 +102,8 @@ public class Service extends TickCase{
     /** 协程的组，与service同名 */
     private final ContinuationScope scope; public ContinuationScope getScope() { return scope; }
     /** 通用协程锁 */
-    private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager();
+    private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager(this);
+    public CoroutineLockManager getCoroutineLockManager() { return coroutineLockManager; }
     /** 当前 service 内的 actor 注册表 */
     private final ActorRegistry actorRegistry = new ActorRegistry();
     /** 通用定时调度器 */
@@ -531,7 +530,7 @@ public class Service extends TickCase{
             }
             LogCore.core.error("协程锁未显式释放，走unHoldContinuation保底释放: service={}, conId={}, actorId={}",
                     id, conTask.getConId(), conTask.getActorId());
-            releaseCoroutineLock(conTask);
+            coroutineLockManager.release(conTask);
         });
     }
 
@@ -673,7 +672,7 @@ public class Service extends TickCase{
         sendCall_st(call);
     }
 
-    private Task.ContinuationWrapper requireRunningContinuation() {
+    Task.ContinuationWrapper requireRunningContinuation() {
         return continuationRuntime.requireRunning();
     }
 
@@ -681,7 +680,7 @@ public class Service extends TickCase{
         return continuationRuntime.requireRunning();
     }
 
-    private long registerWait(long timeoutMillis, ContinuationRuntime.WaitTimeoutHandler timeoutHandler) {
+    long registerWait(long timeoutMillis, ContinuationRuntime.WaitTimeoutHandler timeoutHandler) {
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
     }
 
@@ -689,7 +688,7 @@ public class Service extends TickCase{
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
     }
 
-    private Task.ContinuationWrapper takeWaitContinuation(long waitId) {
+    Task.ContinuationWrapper takeWaitContinuation(long waitId) {
         return continuationRuntime.takeWaitContinuation(waitId);
     }
 
@@ -715,6 +714,10 @@ public class Service extends TickCase{
         continuationRuntime.queue(continuation, "rpc");
     }
 
+    void queueLockContinuation(Task.ContinuationWrapper continuation) {
+        continuationRuntime.queue(continuation, "lock");
+    }
+
     protected final Task.ContinuationWrapper currentContinuation() {
         return requireRunningContinuation();
     }
@@ -736,22 +739,11 @@ public class Service extends TickCase{
     }
 
     public final void awaitCoroutineLock(int type, Object key) {
-        awaitCoroutineLock(type, key, CoroutineLockManager.DEFAULT_TIMEOUT_MILLIS);
+        coroutineLockManager.await(type, key);
     }
 
     public final void awaitCoroutineLock(int type, Object key, int timeoutMillis) {
-        Task.ContinuationWrapper continuation = requireRunningContinuation();
-        if (coroutineLockManager.tryAcquire(type, key, continuation)) {
-            return;
-        }
-        long waitId = registerWait(timeoutMillis, (ctx, timeoutWaitId) -> {
-            if (!coroutineLockManager.cancelWait(ctx)) {
-                return;
-            }
-            ctx.setFailure(new CoroutineLockTimeoutException(id, type, key, timeoutWaitId, timeoutMillis));
-        });
-        coroutineLockManager.addWaiter(type, key, continuation, waitId);
-        continuation.waitResult();
+        coroutineLockManager.await(type, key, timeoutMillis);
     }
 
     protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key) {
@@ -776,26 +768,6 @@ public class Service extends TickCase{
 
     protected final boolean removeTimer(long timerId) {
         return timerScheduler.cancel(timerId);
-    }
-
-    private void releaseCoroutineLock(Task.ContinuationWrapper continuation) {
-        CoroutineLockManager.ReadyContinuation next = coroutineLockManager.release(continuation);
-        if (next == null) {
-            return;
-        }
-        Task.ContinuationWrapper waitContinuation = next.getWaitId() == 0
-                ? next.getContinuation()
-                : takeWaitContinuation(next.getWaitId());
-        if (waitContinuation == null) {
-            releaseCoroutineLock(next.getContinuation());
-            return;
-        }
-        waitContinuation.setResult(null);
-        continuationRuntime.queue(waitContinuation, "lock");
-    }
-
-    public void releaseContinuationLock(Task.ContinuationWrapper continuation) {
-        releaseCoroutineLock(continuation);
     }
 
     protected void registerActor(ActorId actorId, Object actor, ActorExecutionMode executionMode) {

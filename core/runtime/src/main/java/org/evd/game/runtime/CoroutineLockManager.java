@@ -1,4 +1,7 @@
-package org.evd.game.runtime.continuation;
+package org.evd.game.runtime;
+
+import org.evd.game.runtime.continuation.Task;
+import org.evd.game.runtime.support.CoroutineLockTimeoutException;
 
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -36,21 +39,13 @@ public final class CoroutineLockManager {
         }
     }
 
-    public static final class ReadyContinuation {
+    private static final class ReadyContinuation {
         private final Task.ContinuationWrapper continuation;
         private final long waitId;
 
         private ReadyContinuation(Task.ContinuationWrapper continuation, long waitId) {
             this.continuation = continuation;
             this.waitId = waitId;
-        }
-
-        public Task.ContinuationWrapper getContinuation() {
-            return continuation;
-        }
-
-        public long getWaitId() {
-            return waitId;
         }
     }
 
@@ -69,11 +64,63 @@ public final class CoroutineLockManager {
         private final ArrayDeque<WaitingContinuation> waiters = new ArrayDeque<>();
     }
 
+    private final Service service;
     private final Map<LockKey, LockQueue> queues = new HashMap<>();
     private final IdentityHashMap<Task.ContinuationWrapper, LockKey> owners = new IdentityHashMap<>();
     private final IdentityHashMap<Task.ContinuationWrapper, LockKey> waiters = new IdentityHashMap<>();
 
-    public boolean tryAcquire(int type, Object key, Task.ContinuationWrapper continuation) {
+    public CoroutineLockManager(Service service) {
+        this.service = service;
+    }
+
+    public void await(int type, Object key) {
+        await(type, key, DEFAULT_TIMEOUT_MILLIS);
+    }
+
+    public void await(int type, Object key, int timeoutMillis) {
+        Task.ContinuationWrapper continuation = service.requireRunningContinuation();
+        if (tryAcquire(type, key, continuation)) {
+            return;
+        }
+
+        long waitId = service.registerWait(timeoutMillis, (ctx, timeoutWaitId) -> {
+            if (!cancelWait(ctx)) {
+                return;
+            }
+            ctx.setFailure(new CoroutineLockTimeoutException(
+                    service.getId(),
+                    type,
+                    key,
+                    timeoutWaitId,
+                    timeoutMillis));
+        });
+        addWaiter(type, key, continuation, waitId);
+        continuation.waitResult();
+    }
+
+    public boolean owns(Task.ContinuationWrapper continuation) {
+        return owners.containsKey(continuation);
+    }
+
+    public void release(Task.ContinuationWrapper continuation) {
+        ReadyContinuation next = releaseOwner(continuation);
+        if (next == null) {
+            return;
+        }
+
+        Task.ContinuationWrapper waitContinuation = next.waitId == 0
+                ? next.continuation
+                : service.takeWaitContinuation(next.waitId);
+        if (waitContinuation == null) {
+            release(next.continuation);
+            return;
+        }
+
+        waitContinuation.setResult(null);
+        service.queueLockContinuation(waitContinuation);
+    }
+
+    private boolean tryAcquire(int type, Object key, Task.ContinuationWrapper continuation) {
         LockKey lockKey = new LockKey(type, key);
         LockQueue queue = queues.computeIfAbsent(lockKey, ignore -> new LockQueue());
         if (queue.owner == null) {
@@ -81,13 +128,10 @@ public final class CoroutineLockManager {
             owners.put(continuation, lockKey);
             return true;
         }
-        if (queue.owner == continuation) {
-            return true;
-        }
-        return false;
+        return queue.owner == continuation;
     }
 
-    public void addWaiter(int type, Object key, Task.ContinuationWrapper continuation, long waitId) {
+    private void addWaiter(int type, Object key, Task.ContinuationWrapper continuation, long waitId) {
         LockKey lockKey = new LockKey(type, key);
         LockQueue queue = queues.computeIfAbsent(lockKey, ignore -> new LockQueue());
         if (queue.owner == null) {
@@ -102,11 +146,7 @@ public final class CoroutineLockManager {
         queue.waiters.addLast(new WaitingContinuation(continuation, waitId));
     }
 
-    public boolean owns(Task.ContinuationWrapper continuation) {
-        return owners.containsKey(continuation);
-    }
-
-    public boolean cancelWait(Task.ContinuationWrapper continuation) {
+    private boolean cancelWait(Task.ContinuationWrapper continuation) {
         LockKey lockKey = waiters.remove(continuation);
         if (lockKey == null) {
             return false;
@@ -132,7 +172,7 @@ public final class CoroutineLockManager {
         return false;
     }
 
-    public ReadyContinuation release(Task.ContinuationWrapper continuation) {
+    private ReadyContinuation releaseOwner(Task.ContinuationWrapper continuation) {
         LockKey lockKey = owners.remove(continuation);
         if (lockKey == null) {
             return null;

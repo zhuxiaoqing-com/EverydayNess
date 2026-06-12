@@ -1,8 +1,9 @@
 package org.evd.game.runtime.mailbox;
 
+import org.evd.game.runtime.CoroutineLockManager;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.call.ActorMessage;
+import org.evd.game.runtime.continuation.Task;
 
 public final class OrderedMailBoxHandler {
     private final Service service;
@@ -20,7 +21,8 @@ public final class OrderedMailBoxHandler {
 
     private void handle(MailBoxComponent mailBox, ActorMessage message) {
         Task.ContinuationWrapper continuation = service.requireRunningContinuationTransport();
-        service.awaitCoroutineLock(Service.COROUTINE_LOCK_TYPE_MAILBOX, mailBox.getOwnerInstanceId());
+        CoroutineLockManager lockManager = service.getCoroutineLockManager();
+        lockManager.await(Service.COROUTINE_LOCK_TYPE_MAILBOX, mailBox.getOwnerInstanceId());
         try {
             if (!service.hasSameMailBoxInstance(mailBox.getOwnerInstanceId(), message.getMailBoxInstanceId())) {
                 service.replyActorNotFound(message);
@@ -28,7 +30,7 @@ public final class OrderedMailBoxHandler {
             }
             service.dispatchMailBoxMessage_st(message);
         } finally {
-            service.releaseContinuationLock(continuation);
+            lockManager.release(continuation);
         }
     }
 }

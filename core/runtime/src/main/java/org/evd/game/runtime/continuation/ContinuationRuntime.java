@@ -116,6 +116,9 @@ public final class ContinuationRuntime {
         return waitId;
     }
 
+    /**
+     * 按 waitId 把“正在等结果的协程”从等待表里取出来，并顺手取消它的超时定时器。
+     */
     public Task.ContinuationWrapper takeWaitContinuation(long waitId) {
         WaitContext waitContext = waitContexts.remove(waitId);
         if (waitContext != null && waitContext.timerId != 0) {
