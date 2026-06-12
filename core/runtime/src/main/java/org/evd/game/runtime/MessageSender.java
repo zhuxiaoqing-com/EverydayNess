@@ -4,6 +4,7 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.ActorMessage;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.support.ActorRpcCallTimeoutException;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.SysException;
 
@@ -28,10 +29,11 @@ public final class MessageSender {
 
     public Object callWait(ActorAddress actorAddress, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
         Task.ContinuationWrapper continuation = service.requireRunningContinuationTransport();
+        ActorId targetActorId = actorId == null ? null : new ActorId(actorId);
+        ActorAddress targetActorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
         long waitId = service.registerTransportWait(timeoutMillis,
                 (ctx, timeoutWaitId) -> ctx.setFailure(
-                        new SysException("actor rpc call timeout: service={}, waitId={}, actorId={}",
-                                service.getId(), timeoutWaitId, actorId)));
+                        new ActorRpcCallTimeoutException(service.getId(), timeoutWaitId, timeoutMillis, targetActorId, targetActorAddress)));
 
         ActorMessage message = buildMessage(actorAddress, actorId, methodKey, params, true, waitId);
         if (!service.sendTransport_st(message)) {

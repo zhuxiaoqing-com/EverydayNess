@@ -22,6 +22,7 @@ import org.evd.game.runtime.mailbox.MailBoxComponent;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.RpcCallTimeoutException;
 import org.evd.game.runtime.support.CoroutineLockTimeoutException;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
@@ -578,9 +579,11 @@ public class Service extends TickCase{
 
     public Object callWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
         Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
+        CallPoint targetCallPoint = new CallPoint(toCallPoint);
+        ActorId targetActorId = actorId == null ? null : new ActorId(actorId);
         long waitId = registerWait(timeoutMillis,
                 (continuation, timeoutWaitId) -> continuation.setFailure(
-                        new SysException("rpc call timeout: service={}, waitId={}", id, timeoutWaitId)));
+                        new RpcCallTimeoutException(id, timeoutWaitId, timeoutMillis, targetCallPoint, targetActorId)));
 
         Call call = buildCall(toCallPoint, actorId, methodKey, params);
         call.id = waitId;

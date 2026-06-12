@@ -216,7 +216,12 @@ Processor的aggregating 类型的 最后将其分片一个源类就是一个生�
 服务器大致确认好了，就这样吧;
 然后还是MailBox怎么弄;我可以按两种，一个是按指定的key来分配，一个是就是发给执行服务器的操作来;
     但是是不是有些key要同步执行呢，这个东西怎么弄，比如player线程，玩家操作正常是要排队执行的;
-    那其实感觉要弄Server;然后就是协议里弄
+只有玩家操作需要order,其他全部unorder; 特别需要警惕玩家交易，应该放在公共服务器;进行交换;
+
+感觉一个Service 还是需要多个MailBox的;
+    比如场景Service,地图玩家Box，场景box,服务器本身box;为什么要分这么多，主要是因为需要找玩家，和找场景，我要给场景发协议，不管玩家当前在不在场景里，我要给玩家发协议，
+    不管玩家在哪个场景;Service上标识这个Service可以用哪几种MailBox;感觉应该是要在 RpcActorType 里标识，只能支持哪个Service吧，毕竟一个Service只能一个RpcActorType;
+    但是RpcActorType又没法引用具体的Service.class,所以其实可以吧Server弄个Type出来，CallPoint也就不需要写Service名字了;
 
 
 
