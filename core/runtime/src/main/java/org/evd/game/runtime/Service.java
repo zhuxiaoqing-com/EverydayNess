@@ -4,7 +4,6 @@ import jdk.internal.vm.ContinuationScope;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.call.ActorMessage;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
@@ -115,10 +114,6 @@ public class Service extends TickCase {
      */
     private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager(this);
 
-    public CoroutineLockManager getCoroutineLockManager() {
-        return coroutineLockManager;
-    }
-
     /**
      * 当前 service 内的 actor 注册表
      */
@@ -134,11 +129,11 @@ public class Service extends TickCase {
     /**
      * actor mailbox 分发
      */
-    private final ProcessInnerSender processInnerSender = new ProcessInnerSender(this);
+    private final ProcessInnerSender processInnerSender;
     /**
      * 已知 actor address 的 message sender
      */
-    private final MessageSender messageSender = new MessageSender(this);
+    private final MessageSender messageSender;
     /**
      * rpc 方法装配与调用
      */
@@ -179,12 +174,13 @@ public class Service extends TickCase {
         super(name, tickInterval);
         this.node = node;
         this.scheduledName = scheduledName;
+        this.scope = new ContinuationScope(name);
+        this.callPoint = new CallPoint(node.getId(), name);
         this.callTransport = new CallTransport(node, name);
-        this.rpcOutboundGateway = new RpcOutboundGateway(this, callTransport);
-        this.rpcInboundDispatcher = new RpcInboundDispatcher(this, processInnerSender, rpcMethodInvoker, rpcOutboundGateway);
-        // scope与service同名
-        scope = new ContinuationScope(name);
-        callPoint = new CallPoint(node.getId(), name);
+        this.messageSender = new MessageSender(this);
+        this.processInnerSender = new ProcessInnerSender(this);
+        this.rpcOutboundGateway = new RpcOutboundGateway(this);
+        this.rpcInboundDispatcher = new RpcInboundDispatcher(this);
         this.serviceInfo = serviceInfo;
     }
 
@@ -260,6 +256,47 @@ public class Service extends TickCase {
     private long getWaitBaseTime() {
         long now = getTimeCurrent();
         return now > 0 ? now : System.currentTimeMillis();
+    }
+
+    // 运行时协作对象统一从 Service 取上下文，避免构造参数层层透传。
+    public ActorRegistry actorRegistryInternal() {
+        return actorRegistry;
+    }
+
+    public ContinuationRuntime continuationRuntimeInternal() {
+        return continuationRuntime;
+    }
+
+    public CoroutineLockManager coroutineLockManagerInternal() {
+        return coroutineLockManager;
+    }
+
+    public boolean sendOutboundCall(CallBase call) {
+        return callTransport.send(call);
+    }
+
+    CallPoint copyCallPoint() {
+        return new CallPoint(callPoint);
+    }
+
+    long getWaitBaseTimeInternal() {
+        return getWaitBaseTime();
+    }
+
+    ProcessInnerSender getProcessInnerSender() {
+        return processInnerSender;
+    }
+
+    RpcMethodInvoker getRpcMethodInvoker() {
+        return rpcMethodInvoker;
+    }
+
+    RpcOutboundGateway getRpcOutboundGateway() {
+        return rpcOutboundGateway;
+    }
+
+    public void dispatchMailboxMessageInternal(org.evd.game.runtime.call.ActorMessage message) {
+        rpcInboundDispatcher.dispatchMailBoxMessage(message);
     }
 
     private void pulseEntity_st() {
@@ -420,15 +457,6 @@ public class Service extends TickCase {
         thisContinuation.waitResult();
     }
 
-    /**
-     * 发送call请求
-     *
-     * @param call
-     */
-    public boolean sendTransport_st(CallBase call) {
-        return rpcOutboundGateway.send(call);
-    }
-
     public void sendClientCmd(CallPoint toCallPoint, ActorId actorId, ClientSessionRef session, int msgId, Chunk body) {
         rpcOutboundGateway.sendClientCmd(toCallPoint, actorId, session, msgId, body);
     }
@@ -437,38 +465,12 @@ public class Service extends TickCase {
         return continuationRuntime.requireRunning();
     }
 
-    public Task.ContinuationWrapper requireRunningContinuationTransport() {
-        return continuationRuntime.requireRunning();
-    }
-
     long registerWait(long timeoutMillis, ContinuationRuntime.WaitTimeoutHandler timeoutHandler) {
-        return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
-    }
-
-    long registerTransportWait(long timeoutMillis, ContinuationRuntime.WaitTimeoutHandler timeoutHandler) {
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
     }
 
     Task.ContinuationWrapper takeWaitContinuation(long waitId) {
         return continuationRuntime.takeWaitContinuation(waitId);
-    }
-
-    Task.ContinuationWrapper takeTransportWaitContinuation(long waitId) {
-        return continuationRuntime.takeWaitContinuation(waitId);
-    }
-
-    public Task.ContinuationWrapper createActorMessageContinuation(Runnable task, ActorMessage message) {
-        return createRpcContinuation(task, message.getActorId(), message.getMethodKey());
-    }
-
-    Task.ContinuationWrapper createRpcContinuation(Runnable task, ActorId actorId, int methodKey) {
-        Task.ContinuationWrapper continuation = continuationRuntime.create(task, actorId);
-        continuation.bindDebugInfo(new Task.RpcDebugInfo(methodKey));
-        return continuation;
-    }
-
-    public void queueContinuation(Task.ContinuationWrapper continuation) {
-        continuationRuntime.queue(continuation, "rpc");
     }
 
     void queueLockContinuation(Task.ContinuationWrapper continuation) {
@@ -543,14 +545,6 @@ public class Service extends TickCase {
         return actorRegistry.require(actorId, type);
     }
 
-    public MailBoxComponent getMailBox(long ownerInstanceId) {
-        return actorRegistry.getMailBox(ownerInstanceId);
-    }
-
-    public boolean hasSameMailBoxInstance(long ownerInstanceId, long mailBoxInstanceId) {
-        return actorRegistry.hasSameMailBoxInstance(ownerInstanceId, mailBoxInstanceId);
-    }
-
     public ActorId requireCurrentActorId() {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
         if (continuation == null) {
@@ -568,14 +562,6 @@ public class Service extends TickCase {
 
     public <T> T requireCurrentActor(Class<T> type) {
         return requireActor(requireCurrentActorId(), type);
-    }
-
-    public void dispatchMailBoxMessage_st(ActorMessage message) {
-        rpcInboundDispatcher.dispatchMailBoxMessage(message);
-    }
-
-    public void replyActorNotFound(ActorMessage message) {
-        processInnerSender.replyActorNotFound(message);
     }
 
     public MessageSender getMessageSender() {
@@ -598,28 +584,11 @@ public class Service extends TickCase {
         actorAddressCache.cleanupIdle(getWaitBaseTime());
     }
 
-    CallPoint getCallPointInternal() {
-        return new CallPoint(callPoint);
-    }
-
-    CallPoint copyCallPoint(CallPoint source) {
-        return new CallPoint(source);
-    }
-
-    long getTransportCallWaitTimeout() {
-        return getCallWaitTimeout();
-    }
-
     protected ActorAddress getActorAddress(ActorId actorId) {
         ActorRegistry.Registration registration = actorRegistry.requireRegistration(actorId);
         MailBoxComponent mailBoxComponent = registration.getMailBoxComponent();
         return new ActorAddress(callPoint, mailBoxComponent.getOwnerInstanceId(), mailBoxComponent.getInstanceId());
     }
-
-    ActorRegistry.Registration requireActorRegistration(ActorId actorId) {
-        return actorRegistry.requireRegistration(actorId);
-    }
-
 
     @Override
     public void onClose() {

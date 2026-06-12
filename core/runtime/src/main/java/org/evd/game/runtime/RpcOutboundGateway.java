@@ -5,6 +5,7 @@ import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.DispatchType;
+import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.support.RpcCallTimeoutException;
@@ -12,11 +13,9 @@ import org.evd.game.runtime.support.SysException;
 
 final class RpcOutboundGateway {
     private final Service service;
-    private final CallTransport callTransport;
 
-    RpcOutboundGateway(Service service, CallTransport callTransport) {
+    RpcOutboundGateway(Service service) {
         this.service = service;
-        this.callTransport = callTransport;
     }
 
     void call(CallPoint toCallPoint, int methodKey, Object[] params) {
@@ -40,21 +39,22 @@ final class RpcOutboundGateway {
     }
 
     Object callWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
-        Task.ContinuationWrapper continuation = service.requireRunningContinuation();
+        ContinuationRuntime continuationRuntime = service.continuationRuntimeInternal();
+        Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         CallPoint targetCallPoint = new CallPoint(toCallPoint);
         ActorId targetActorId = actorId == null ? null : new ActorId(actorId);
-        long waitId = service.registerWait(timeoutMillis,
+        long waitId = continuationRuntime.registerWait(timeoutMillis, service.getWaitBaseTimeInternal(),
                 (ctx, timeoutWaitId) -> ctx.setFailure(
-                        new RpcCallTimeoutException(service.getId(), timeoutWaitId, timeoutMillis, targetCallPoint, targetActorId)));
+                        new RpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, targetCallPoint, targetActorId)));
 
         Call call = buildCall(toCallPoint, actorId, methodKey, params);
         call.id = waitId;
         call.needResult = true;
 
         if (!send(call)) {
-            service.takeWaitContinuation(waitId);
+            continuationRuntime.takeWaitContinuation(waitId);
             throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
-                    service.getId(), toCallPoint.nodeId, toCallPoint.servId, methodKey);
+                    service.id, toCallPoint.nodeId, toCallPoint.servId, methodKey);
         }
 
         return continuation.waitResult();
@@ -62,7 +62,7 @@ final class RpcOutboundGateway {
 
     void sendClientCmd(CallPoint toCallPoint, ActorId actorId, ClientSessionRef session, int msgId, Chunk body) {
         Call call = new Call();
-        call.from = service.getCallPointInternal();
+        call.from = copyLocalCallPoint();
         call.to = toCallPoint;
         call.actorId = actorId == null ? null : new ActorId(actorId);
         call.dispatchType = DispatchType.CLIENT_CMD;
@@ -73,16 +73,20 @@ final class RpcOutboundGateway {
     }
 
     boolean send(CallBase call) {
-        return callTransport.send(call);
+        return service.sendOutboundCall(call);
     }
 
     private Call buildCall(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
         Call call = new Call();
-        call.from = service.getCallPointInternal();
+        call.from = copyLocalCallPoint();
         call.to = toCallPoint;
         call.actorId = actorId == null ? null : new ActorId(actorId);
         call.methodKey = methodKey;
         call.methodParam = params;
         return call;
+    }
+
+    private CallPoint copyLocalCallPoint() {
+        return service.copyCallPoint();
     }
 }

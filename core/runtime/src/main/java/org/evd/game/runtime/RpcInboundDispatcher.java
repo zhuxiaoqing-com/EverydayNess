@@ -7,9 +7,10 @@ import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.call.DispatchType;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.mailbox.MailBoxComponent;
-import org.evd.game.runtime.mailbox.ProcessInnerSender;
+import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
@@ -17,32 +18,22 @@ import org.evd.game.runtime.support.SysException;
 
 final class RpcInboundDispatcher {
     private final Service service;
-    private final ProcessInnerSender processInnerSender;
-    private final RpcMethodInvoker rpcMethodInvoker;
-    private final RpcOutboundGateway rpcOutboundGateway;
 
-    RpcInboundDispatcher(
-            Service service,
-            ProcessInnerSender processInnerSender,
-            RpcMethodInvoker rpcMethodInvoker,
-            RpcOutboundGateway rpcOutboundGateway
-    ) {
+    RpcInboundDispatcher(Service service) {
         this.service = service;
-        this.processInnerSender = processInnerSender;
-        this.rpcMethodInvoker = rpcMethodInvoker;
-        this.rpcOutboundGateway = rpcOutboundGateway;
     }
 
     void handle(CallBase callBase) {
+        ContinuationRuntime continuationRuntime = service.continuationRuntimeInternal();
         Task.ContinuationWrapper context;
         if (callBase instanceof Call call) {
-            context = service.createRpcContinuation(() -> dispatch(call), call.getActorId(), call.methodKey);
+            context = createRpcContinuation(() -> dispatch(call), call.getActorId(), call.methodKey);
         } else if (callBase instanceof ActorMessage actorMessage) {
-            processInnerSender.dispatch(actorMessage);
+            service.getProcessInnerSender().dispatch(actorMessage);
             return;
         } else {
             CallResult callResult = (CallResult) callBase;
-            context = service.takeWaitContinuation(callResult.id);
+            context = continuationRuntime.takeWaitContinuation(callResult.id);
             if (context == null) {
                 LogCore.core.warn("callback is null or timeout, waitId={}", callResult.id);
                 return;
@@ -52,11 +43,11 @@ final class RpcInboundDispatcher {
             } else {
                 context.setFailure(new RpcCallException(
                         callResult.errorCode,
-                        "rpc call failed: service=" + service.getId() + ", waitId=" + callResult.id
+                        "rpc call failed: service=" + service.id + ", waitId=" + callResult.id
                                 + ", errorCode=" + callResult.errorCode + ", message=" + callResult.errorMessage));
             }
         }
-        service.queueContinuation(context);
+        continuationRuntime.queue(context, "rpc");
     }
 
     void dispatch(Call call) {
@@ -69,8 +60,8 @@ final class RpcInboundDispatcher {
 
     void dispatchMailBoxMessage(ActorMessage message) {
         Call call = new Call();
-        call.from = service.copyCallPoint(message.getFrom());
-        call.to = service.copyCallPoint(message.getTo());
+        call.from = new CallPoint(message.getFrom());
+        call.to = new CallPoint(message.getTo());
         call.id = message.getId();
         call.actorId = message.getActorId() == null ? null : new ActorId(message.getActorId());
         call.dispatchType = message.getDispatchType();
@@ -91,15 +82,16 @@ final class RpcInboundDispatcher {
             dispatchActorCall(call);
         } catch (Throwable e) {
             LogCore.core.error("actor rpc dispatch failed: service={}, actorId={}, methodKey={}",
-                    service.getId(), call.actorId, call.methodKey, e);
+                    service.id, call.actorId, call.methodKey, e);
             fillRpcFailure(callReturn, e);
-            rpcOutboundGateway.send(callReturn);
+            service.getRpcOutboundGateway().send(callReturn);
         }
     }
 
     private void dispatchActorCall(Call call) {
-        ActorRegistry.Registration registration = service.requireActorRegistration(call.actorId);
-        processInnerSender.dispatch(toActorMessage(call, registration));
+        ActorRegistry actorRegistry = service.actorRegistryInternal();
+        ActorRegistry.Registration registration = actorRegistry.requireRegistration(call.actorId);
+        service.getProcessInnerSender().dispatch(toActorMessage(call, registration));
     }
 
     private void dispatchBusinessCall(Call call) {
@@ -112,20 +104,20 @@ final class RpcInboundDispatcher {
         if (call.needResult) {
             CallResult callReturn = call.createReturn();
             try {
-                callReturn.result = rpcMethodInvoker.invokeBusiness(call.methodKey, args);
+                callReturn.result = service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
             } catch (Throwable e) {
                 LogCore.core.error("rpc return dispatch failed: service={}, methodKey={}",
-                        service.getId(), call.methodKey, e);
+                        service.id, call.methodKey, e);
                 fillRpcFailure(callReturn, e);
             }
-            rpcOutboundGateway.send(callReturn);
+            service.getRpcOutboundGateway().send(callReturn);
             return;
         }
 
         try {
-            rpcMethodInvoker.invokeBusiness(call.methodKey, args);
+            service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
         } catch (Exception e) {
-            LogCore.core.error("rpc dispatch failed: service={}, methodKey={}", service.getId(), call.methodKey, e);
+            LogCore.core.error("rpc dispatch failed: service={}, methodKey={}", service.id, call.methodKey, e);
         }
     }
 
@@ -133,29 +125,29 @@ final class RpcInboundDispatcher {
         if (call.needResult) {
             CallResult callReturn = call.createReturn();
             try {
-                rpcMethodInvoker.dispatchClientCmd(call.methodKey, call.methodParam);
+                service.getRpcMethodInvoker().dispatchClientCmd(call.methodKey, call.methodParam);
             } catch (Throwable e) {
                 LogCore.core.error("client cmd return dispatch failed: service={}, msgId={}",
-                        service.getId(), call.methodKey, e);
+                        service.id, call.methodKey, e);
                 fillRpcFailure(callReturn, e);
             }
-            rpcOutboundGateway.send(callReturn);
+            service.getRpcOutboundGateway().send(callReturn);
             return;
         }
 
         try {
-            rpcMethodInvoker.dispatchClientCmd(call.methodKey, call.methodParam);
+            service.getRpcMethodInvoker().dispatchClientCmd(call.methodKey, call.methodParam);
         } catch (Exception e) {
             LogCore.core.error("client cmd dispatch failed: service={}, msgId={}",
-                    service.getId(), call.methodKey, e);
+                    service.id, call.methodKey, e);
         }
     }
 
     private ActorMessage toActorMessage(Call call, ActorRegistry.Registration registration) {
         MailBoxComponent mailBoxComponent = registration.getMailBoxComponent();
         ActorMessage actorMessage = new ActorMessage();
-        actorMessage.setFrom(service.copyCallPoint(call.from));
-        actorMessage.setTo(service.copyCallPoint(call.to));
+        actorMessage.setFrom(new CallPoint(call.from));
+        actorMessage.setTo(new CallPoint(call.to));
         actorMessage.setId(call.id);
         actorMessage.setActorId(call.actorId == null ? null : new ActorId(call.actorId));
         actorMessage.setOwnerInstanceId(mailBoxComponent.getOwnerInstanceId());
@@ -181,5 +173,12 @@ final class RpcInboundDispatcher {
         }
         callReturn.errorCode = RpcErrorCodes.UNKNOWN;
         callReturn.errorMessage = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    private Task.ContinuationWrapper createRpcContinuation(Runnable task, ActorId actorId, int methodKey) {
+        ContinuationRuntime continuationRuntime = service.continuationRuntimeInternal();
+        Task.ContinuationWrapper continuation = continuationRuntime.create(task, actorId);
+        continuation.bindDebugInfo(new Task.RpcDebugInfo(methodKey));
+        return continuation;
     }
 }
