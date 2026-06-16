@@ -1,0 +1,70 @@
+
+
+plugins {
+    id 'java'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+def commonRpcProxyDir = rootProject.file('common/src/gen/java/org/evd/game/common/proxy')
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    dbDefImplementation.extendsFrom implementation
+}
+
+sourceSets {
+    dbDef {
+        java {
+            srcDirs = ['src/dbDef/java']
+        }
+    }
+    main {
+        java {
+            srcDirs = ['src/main/java']
+            srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap {
+                it.options.generatedSourceOutputDirectory
+            })
+        }
+    }
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    implementation project(':core:gencode:apt-annotation')
+    dbDefImplementation project(':core:gencode:apt-annotation')
+
+    annotationProcessor project(':core:gencode:apt-compiler')
+    dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
+
+    implementation project(':core:runtime')
+    dbDefImplementation project(':core:runtime')
+
+    implementation project(':common')
+    dbDefImplementation project(':common')
+}
+
+tasks.named('compileJava', JavaCompile) {
+    dependsOn tasks.named('compileDbDefJava')
+    inputs.dir(commonRpcProxyDir)
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .optional()
+}
+
+tasks.named('compileDbDefJava', JavaCompile) {
+    options.incremental = false
+    options.compilerArgs += [
+            '-processor',
+            'org.evd.game.gencode.db.DbDirtyEntityProcessor'
+    ]
+}
+
+test {
+    useJUnitPlatform()
+}

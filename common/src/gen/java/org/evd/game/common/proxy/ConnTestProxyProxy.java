@@ -44,7 +44,7 @@ public final class ConnTestProxyProxy {
     */
     public static void connTest2(long actorUniqueId, int a, Object b, org.evd.game.common.serializeBean.ConnInfo connInfo){
         Service service = Service.getCurrent();
-        ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
+        ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO, new Object[]{a, b, connInfo});
     }
     /**
@@ -52,7 +52,7 @@ public final class ConnTestProxyProxy {
     */
     public static void connTest3(long actorUniqueId){
         Service service = Service.getCurrent();
-        ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
+        ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST3, new Object[]{});
     }
 }

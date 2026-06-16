@@ -21,6 +21,7 @@ dependencies {
     implementation project(':Services:LocationService')
     implementation project(':Services:StageService')
     implementation project(':Services:DBService')
+    implementation project(':Services:PlayerService')
 
 }
 

@@ -8,13 +8,14 @@ import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.GlobalConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.config.InfraConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 
-@Actor
+@Actor(serviceType = ServiceType.DBService)
 public class DBService extends Service {
     StorageEngine storageEngine;
 

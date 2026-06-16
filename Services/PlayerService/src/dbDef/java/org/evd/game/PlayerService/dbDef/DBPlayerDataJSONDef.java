@@ -1,4 +1,4 @@
-package org.evd.game.StageService.dbDef;
+package org.evd.game.PlayerService.dbDef;
 
 import org.evd.game.annotation.DBDirtyEntity;
 import org.evd.game.annotation.DBDirtyTag;

@@ -1,4 +1,4 @@
-package org.evd.game.StageService.dbDef;
+package org.evd.game.PlayerService.dbDef;
 
 import org.evd.game.annotation.DBDirtyEntity;
 import org.evd.game.annotation.DBDirtyTag;
@@ -13,13 +13,13 @@ import java.util.Set;
  * @Description: DBPlayer
  * @Date 2026/5/21 20:48
  **/
-@DBDirtyEntity(value = DBserialize.PB, table = true)
-public class DBPlayerDataDef{
+@DBDirtyEntity(value = DBserialize.MYSQL, table = true)
+public class DBPlayerDataMysqlDef {
     /**
      * 字段是自己写
      */
-    @DBDirtyTag(value = 1, primaryKey = true)
-    private long id;
+    @DBDirtyTag(value = 1,primaryKey = true)
+    private int id;
     @DBDirtyTag(2)
     private String name;
     @DBDirtyTag(3)
@@ -31,12 +31,11 @@ public class DBPlayerDataDef{
     @DBDirtyTag(6)
     private Set<Integer> intSet;
     @DBDirtyTag(7)
-    private Map<Integer, DBItemDataDef> intDBItemMap;
+    private Map<Integer, DBItemDataMysqlDef> intDBItemMap;
     @DBDirtyTag(8)
-    private DBItemDataDef obj1;
+    private DBItemDataMysqlDef obj1;
     @DBDirtyTag(9)
     private byte[] bytes;
-
 
     /**
      * 操作方法全部自动生成

@@ -2,6 +2,7 @@ package org.evd.game.StageService;
 
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proxy.ConnServiceProxy;
 import org.evd.game.common.proxy.LocationServiceProxy;
 import org.evd.game.common.proto.C2S_Login;
@@ -22,7 +23,7 @@ import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
 
-@Actor
+@Actor(serviceType = ServiceType.StageService)
 public class StageService extends Service {
     public int a;
     private final MessageLocationSender actorLocationSender = new MessageLocationSender(this::queryActorAddress);

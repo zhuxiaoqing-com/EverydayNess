@@ -20,6 +20,10 @@ nodes:
           name: db
           num: -1
           interval: 5
+        - className: PlayerService
+          name: player
+          num: 2
+          interval: 5
         - className: StageService
           name: stage
           num: 2
@@ -33,6 +37,10 @@ nodes:
         services:
         - className: StageService
           name: stage
+          num: 2
+          interval: 5
+        - className: PlayerService
+          name: player
           num: 2
           interval: 5
 
