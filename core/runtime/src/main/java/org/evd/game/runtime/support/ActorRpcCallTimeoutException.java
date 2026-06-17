@@ -7,22 +7,24 @@ public class ActorRpcCallTimeoutException extends SysException {
     private final String serviceId;
     private final long waitId;
     private final long timeoutMillis;
+    private final int methodKey;
     private final ActorId actorId;
     private final ActorAddress actorAddress;
 
-    public ActorRpcCallTimeoutException(String serviceId, long waitId, long timeoutMillis, ActorId actorId, ActorAddress actorAddress) {
-        super("actor rpc call timeout: service={}, waitId={}, timeoutMillis={}, actorId={}, toNode={}, toService={}, ownerInstanceId={}, mailBoxInstanceId={}",
+    public ActorRpcCallTimeoutException(String serviceId, long waitId, long timeoutMillis, int methodKey, ActorId actorId, ActorAddress actorAddress) {
+        super("actor rpc call timeout: service={}, waitId={}, timeoutMillis={}, methodKey={}, actorId={}, toNode={}, toService={}, mailBoxEpoch={}",
                 serviceId,
                 waitId,
                 timeoutMillis,
+                methodKey,
                 actorId,
                 actorAddress == null || actorAddress.getCallPoint() == null ? null : actorAddress.getCallPoint().nodeId,
                 actorAddress == null || actorAddress.getCallPoint() == null ? null : actorAddress.getCallPoint().servId,
-                actorAddress == null ? null : actorAddress.getOwnerInstanceId(),
-                actorAddress == null ? null : actorAddress.getMailBoxInstanceId());
+                actorAddress == null ? null : actorAddress.getMailBoxEpoch());
         this.serviceId = serviceId;
         this.waitId = waitId;
         this.timeoutMillis = timeoutMillis;
+        this.methodKey = methodKey;
         this.actorId = actorId == null ? null : new ActorId(actorId);
         this.actorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
     }
@@ -37,6 +39,10 @@ public class ActorRpcCallTimeoutException extends SysException {
 
     public long getTimeoutMillis() {
         return timeoutMillis;
+    }
+
+    public int getMethodKey() {
+        return methodKey;
     }
 
     public ActorId getActorId() {

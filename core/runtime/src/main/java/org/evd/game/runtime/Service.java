@@ -417,10 +417,6 @@ public class Service extends TickCase {
         rpcOutboundGateway.call(toCallPoint, methodKey, params);
     }
 
-    public void call(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
-        rpcOutboundGateway.call(toCallPoint, actorId, methodKey, params);
-    }
-
     /**
      * 创建call请求，并发送到目标service
      * 针对需要返回结果的call请求
@@ -433,16 +429,8 @@ public class Service extends TickCase {
         return rpcOutboundGateway.callWait(toCallPoint, methodKey, params);
     }
 
-    public Object callWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params) {
-        return rpcOutboundGateway.callWait(toCallPoint, actorId, methodKey, params);
-    }
-
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
         return rpcOutboundGateway.callWait(toCallPoint, methodKey, params, timeoutMillis);
-    }
-
-    public Object callWait(CallPoint toCallPoint, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
-        return rpcOutboundGateway.callWait(toCallPoint, actorId, methodKey, params, timeoutMillis);
     }
 
     /**
@@ -457,8 +445,8 @@ public class Service extends TickCase {
         thisContinuation.waitResult();
     }
 
-    public void sendClientCmd(CallPoint toCallPoint, ActorId actorId, ClientSessionRef session, int msgId, Chunk body) {
-        rpcOutboundGateway.sendClientCmd(toCallPoint, actorId, session, msgId, body);
+    public void sendClientCmd(CallPoint toCallPoint, ClientSessionRef session, int msgId, Chunk body) {
+        rpcOutboundGateway.sendClientCmd(toCallPoint, session, msgId, body);
     }
 
     Task.ContinuationWrapper requireRunningContinuation() {
@@ -587,7 +575,7 @@ public class Service extends TickCase {
     protected ActorAddress getActorAddress(ActorId actorId) {
         ActorRegistry.Registration registration = actorRegistry.requireRegistration(actorId);
         MailBoxComponent mailBoxComponent = registration.getMailBoxComponent();
-        return new ActorAddress(callPoint, mailBoxComponent.getOwnerInstanceId(), mailBoxComponent.getInstanceId());
+        return new ActorAddress(callPoint, mailBoxComponent.getEpoch());
     }
 
     @Override

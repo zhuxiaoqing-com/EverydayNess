@@ -223,6 +223,16 @@ Processor的aggregating 类型的 最后将其分片一个源类就是一个生�
     不管玩家在哪个场景;Service上标识这个Service可以用哪几种MailBox;感觉应该是要在 RpcActorType 里标识，只能支持哪个Service吧，毕竟一个Service只能一个RpcActorType;
     但是RpcActorType又没法引用具体的Service.class,所以其实可以吧Server弄个Type出来，CallPoint也就不需要写Service名字了;
 
+MailBox+ActorId
+    ActorId直接指向MailBox不行吗，为什么要加一个MailBoxInstanceId呢;
+    因为切换地图以后，正常会删除MailBox+新增一个MailBox,如果没有MailBoxInstanceId 消息有可能在旧的MailBoxInstanceId处理消息的时候,
+    直接运行消息，破坏协程锁的线性执行;
+
+    那我是不是不用协程锁？直接用个队列不行吗，也不行，这个时候旧的队列处理完，引用新的队列的数据也会报错;
+    但是发送消息的时候是不是不需要知道MailBox呢?在消息处理的时候在知道MailBox不就行了吗？
+
+    RPC怎么投放MailBox已经知道了;看了ET的Unity/Assets/Scripts/Hotfix/Server/Demo/Gate/NetComponentOnReadInvoker_Gate.cs:13
+    也知道了Cmd是怎么投放的了，就和RPC一样，然后几种Actor类型，分别代码写死找对应的服务器;
 
 跨服模型;
 需要一个serverId;需要一个服务器id;
@@ -240,6 +250,8 @@ Processor的aggregating 类型的 最后将其分片一个源类就是一个生�
     按之前的lobby 直接lobby名字发送，按logic的话，就直接获取logicId发送;
     按battle的话之前是根据 本服还是跨服地图，发送到不同的服务器;然后也有服务器id的;
     这里有一个问题就是Service怎么复用，这是一个很大的问题;
+
+
 
 
 

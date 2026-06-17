@@ -180,8 +180,7 @@ public class LocationService extends Service {
         if (left.getCallPoint() == null || right.getCallPoint() == null) {
             return false;
         }
-        return left.getOwnerInstanceId() == right.getOwnerInstanceId()
-                && left.getMailBoxInstanceId() == right.getMailBoxInstanceId()
+        return left.getMailBoxEpoch() == right.getMailBoxEpoch()
                 && left.getCallPoint().getNodeId().equals(right.getCallPoint().getNodeId())
                 && left.getCallPoint().getServId().equals(right.getCallPoint().getServId());
     }

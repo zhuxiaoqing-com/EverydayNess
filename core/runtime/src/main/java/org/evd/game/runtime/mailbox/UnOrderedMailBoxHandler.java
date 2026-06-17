@@ -24,9 +24,9 @@ public final class UnOrderedMailBoxHandler {
     }
 
     private void handle(MailBoxComponent mailBox, ActorMessage message) {
-        if (!service.actorRegistryInternal().hasSameMailBoxInstance(
-                mailBox.getOwnerInstanceId(),
-                message.getMailBoxInstanceId())) {
+        if (!service.actorRegistryInternal().hasSameMailBoxEpoch(
+                mailBox.getActorId(),
+                message.getMailBoxEpoch())) {
             processInnerSender.replyActorNotFound(message);
             return;
         }

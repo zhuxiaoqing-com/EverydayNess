@@ -8,6 +8,8 @@ public class CallResult extends CallBase {
     @SerializeField
     public boolean success = true;
     @SerializeField
+    public int methodKey;
+    @SerializeField
     public int errorCode;
     @SerializeField
     public String errorMessage;
@@ -24,6 +26,14 @@ public class CallResult extends CallBase {
 
     public int getErrorCode() {
         return errorCode;
+    }
+
+    public int getMethodKey() {
+        return methodKey;
+    }
+
+    public void setMethodKey(int methodKey) {
+        this.methodKey = methodKey;
     }
 
     public void setErrorCode(int errorCode) {

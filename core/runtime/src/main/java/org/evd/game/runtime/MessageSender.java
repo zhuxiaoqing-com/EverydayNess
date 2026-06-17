@@ -35,7 +35,7 @@ public final class MessageSender {
         ActorAddress targetActorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
         long waitId = continuationRuntime.registerWait(timeoutMillis, service.getWaitBaseTimeInternal(),
                 (ctx, timeoutWaitId) -> ctx.setFailure(
-                        new ActorRpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, targetActorId, targetActorAddress)));
+                        new ActorRpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, methodKey, targetActorId, targetActorAddress)));
 
         ActorMessage message = buildMessage(actorAddress, actorId, methodKey, params, true, waitId);
         if (!service.sendOutboundCall(message)) {
@@ -63,8 +63,7 @@ public final class MessageSender {
         message.setTo(new CallPoint(actorAddress.getCallPoint()));
         message.setActorId(actorId == null ? null : new ActorId(actorId));
         message.setId(waitId);
-        message.setOwnerInstanceId(actorAddress.getOwnerInstanceId());
-        message.setMailBoxInstanceId(actorAddress.getMailBoxInstanceId());
+        message.setMailBoxEpoch(actorAddress.getMailBoxEpoch());
         message.setMethodKey(methodKey);
         message.setMethodParam(params);
         message.setNeedResult(needResult);

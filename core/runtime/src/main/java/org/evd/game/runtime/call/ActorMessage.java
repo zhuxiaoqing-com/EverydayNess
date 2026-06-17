@@ -2,13 +2,14 @@ package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
+import org.evd.game.runtime.actor.ActorId;
 
 @SerializeClass
 public class ActorMessage extends CallBase {
     @SerializeField
-    private long ownerInstanceId;
+    private ActorId actorId;
     @SerializeField
-    private long mailBoxInstanceId;
+    private long mailBoxEpoch;
     @SerializeField
     private int dispatchType = DispatchType.RPC;
     @SerializeField
@@ -23,23 +24,24 @@ public class ActorMessage extends CallBase {
         callResult.from = new CallPoint(this.to);
         callResult.to = new CallPoint(this.from);
         callResult.id = this.id;
+        callResult.methodKey = this.methodKey;
         return callResult;
     }
 
-    public long getOwnerInstanceId() {
-        return ownerInstanceId;
+    public ActorId getActorId() {
+        return actorId;
     }
 
-    public void setOwnerInstanceId(long ownerInstanceId) {
-        this.ownerInstanceId = ownerInstanceId;
+    public void setActorId(ActorId actorId) {
+        this.actorId = actorId;
     }
 
-    public long getMailBoxInstanceId() {
-        return mailBoxInstanceId;
+    public long getMailBoxEpoch() {
+        return mailBoxEpoch;
     }
 
-    public void setMailBoxInstanceId(long mailBoxInstanceId) {
-        this.mailBoxInstanceId = mailBoxInstanceId;
+    public void setMailBoxEpoch(long mailBoxEpoch) {
+        this.mailBoxEpoch = mailBoxEpoch;
     }
 
     public int getMethodKey() {

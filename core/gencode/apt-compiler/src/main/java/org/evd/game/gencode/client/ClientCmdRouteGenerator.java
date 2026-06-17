@@ -188,7 +188,7 @@ public final class ClientCmdRouteGenerator {
             source.append("            throw new IllegalStateException(\"找不到客户端协议目标服务: cmd=")
                     .append(route.cmd()).append(", service=").append(route.serviceFullClassName()).append("\");\n");
             source.append("        }\n");
-            source.append("        Service.getCurrent().sendClientCmd(callPoint, null, session, cmd, new Chunk(body));\n");
+            source.append("        Service.getCurrent().sendClientCmd(callPoint, session, cmd, new Chunk(body));\n");
             source.append("    }\n\n");
         }
         source.append("}\n");

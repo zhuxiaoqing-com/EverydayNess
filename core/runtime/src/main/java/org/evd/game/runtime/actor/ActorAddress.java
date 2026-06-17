@@ -11,21 +11,18 @@ public class ActorAddress implements ISerializable {
     @SerializeField
     private CallPoint callPoint;
     @SerializeField
-    private long ownerInstanceId;
-    @SerializeField
-    private long mailBoxInstanceId;
+    private long mailBoxEpoch;
 
     public ActorAddress() {
     }
 
-    public ActorAddress(CallPoint callPoint, long ownerInstanceId, long mailBoxInstanceId) {
+    public ActorAddress(CallPoint callPoint, long mailBoxEpoch) {
         this.callPoint = callPoint == null ? null : new CallPoint(callPoint);
-        this.ownerInstanceId = ownerInstanceId;
-        this.mailBoxInstanceId = mailBoxInstanceId;
+        this.mailBoxEpoch = mailBoxEpoch;
     }
 
     public ActorAddress(ActorAddress other) {
-        this(other.callPoint, other.ownerInstanceId, other.mailBoxInstanceId);
+        this(other.callPoint, other.mailBoxEpoch);
     }
 
     public CallPoint getCallPoint() {
@@ -36,28 +33,19 @@ public class ActorAddress implements ISerializable {
         this.callPoint = callPoint == null ? null : new CallPoint(callPoint);
     }
 
-    public long getOwnerInstanceId() {
-        return ownerInstanceId;
+    public long getMailBoxEpoch() {
+        return mailBoxEpoch;
     }
 
-    public void setOwnerInstanceId(long ownerInstanceId) {
-        this.ownerInstanceId = ownerInstanceId;
-    }
-
-    public long getMailBoxInstanceId() {
-        return mailBoxInstanceId;
-    }
-
-    public void setMailBoxInstanceId(long mailBoxInstanceId) {
-        this.mailBoxInstanceId = mailBoxInstanceId;
+    public void setMailBoxEpoch(long mailBoxEpoch) {
+        this.mailBoxEpoch = mailBoxEpoch;
     }
 
     @Override
     public String toString() {
         return new ToStringBuilder(this)
                 .append("callPoint", callPoint)
-                .append("ownerInstanceId", ownerInstanceId)
-                .append("mailBoxInstanceId", mailBoxInstanceId)
+                .append("mailBoxEpoch", mailBoxEpoch)
                 .toString();
     }
 }

@@ -36,7 +36,7 @@ public final class ClientCmdRouteTable {
 
     private record RouteEntry(String serviceClassName) {
         private void forward(Service sender, CallPoint callPoint, ClientSessionRef session, int msgId, byte[] body) {
-            sender.sendClientCmd(callPoint, null, session, msgId, new Chunk(body));
+            sender.sendClientCmd(callPoint, session, msgId, new Chunk(body));
         }
     }
 }

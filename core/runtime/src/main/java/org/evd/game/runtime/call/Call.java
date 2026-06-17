@@ -24,6 +24,7 @@ public class Call extends CallBase {
         callResult.from = new CallPoint(this.to);
         callResult.to = new CallPoint(this.from);
         callResult.id = this.id;
+        callResult.methodKey = this.methodKey;
 
         return callResult;
     }
