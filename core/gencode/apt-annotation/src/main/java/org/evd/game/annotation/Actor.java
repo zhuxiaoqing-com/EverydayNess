@@ -9,5 +9,4 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)
 public @interface Actor {
     boolean single() default false;
-    ServiceType serviceType();
 }

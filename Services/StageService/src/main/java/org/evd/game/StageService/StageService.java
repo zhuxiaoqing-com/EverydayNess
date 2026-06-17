@@ -23,7 +23,7 @@ import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
 
-@Actor(serviceType = ServiceType.StageService)
+@Actor()
 public class StageService extends Service {
     public int a;
     private final MessageLocationSender actorLocationSender = new MessageLocationSender(this::queryActorAddress);

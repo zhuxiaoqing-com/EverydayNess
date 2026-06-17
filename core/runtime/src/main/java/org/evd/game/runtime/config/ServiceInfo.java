@@ -1,18 +1,24 @@
 package org.evd.game.runtime.config;
 
+import org.evd.game.annotation.ServiceType;
+
 public class ServiceInfo {
-    private String className;
+    private String serviceType;
     private String name;
     private int num;
     private int interval = 5;
     private String publicAddr;
 
-    public String getClassName() {
-        return className;
+    public String getServiceType() {
+        return serviceType;
     }
 
-    public void setClassName(String className) {
-        this.className = className;
+    public void setServiceType(String serviceType) {
+        this.serviceType = serviceType;
+    }
+
+    public String getClassName() {
+        return ServiceType.valueOf(serviceType).getClassName();
     }
 
     public String getName() {

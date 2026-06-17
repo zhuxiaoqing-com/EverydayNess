@@ -10,35 +10,36 @@ import java.util.stream.Collectors;
 
 @Log4j2
 public enum ServiceType {
-    ConnService(1,"ConnService"),
-    DBService(2,"DBService"),
-    LocationService(3,"LocationService"),
-    StageService(4,"StageService"),
-    PlayerService(5,"PlayerService"),
+    CONN(1,"ConnService"),
+    DB(2,"DBService"),
+    LOC(3,"LocationService"),
+    STAGE(4,"StageService"),
+    PLAYER(5,"PlayerService"),
+    GSTAGE(6,"StageService"),
 
     ;
     int type;
-    String name;
+    String className;
 
 
     ServiceType(int type, String name) {
         this.type = type;
-        this.name = name;
+        this.className = name;
     }
 
     public int getType() {
         return type;
     }
 
-    public String getName() {
-        return name;
+    public String getClassName() {
+        return className;
     }
 
     @Override
     public String toString() {
         return "ServiceType{" +
                 "type=" + type +
-                ", name='" + name + '\'' +
+                ", name='" + className + '\'' +
                 '}';
     }
 
@@ -64,9 +65,9 @@ public enum ServiceType {
         return null;
     }
 
-    public static ServiceType byName(String name) {
+    public static ServiceType byName(String className) {
         for (ServiceType serviceType : typeArray) {
-            if(Objects.equals(serviceType.name, name)) {
+            if(Objects.equals(serviceType.className, className)) {
                 return serviceType;
             }
         }

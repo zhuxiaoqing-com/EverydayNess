@@ -11,12 +11,12 @@ import org.evd.game.runtime.client.ClientSessionRef;
 
 public class HaHaHaActor {
 
-    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.PLAYER)
+    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.MAP_PLAYER)
     public void rpc1(int a,int b ) {
 
     }
 
-    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.PLAYER)
+    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.MAP_PLAYER)
     public void rpc2(Object a,Object b) {
     }
 
@@ -25,7 +25,7 @@ public class HaHaHaActor {
 
     }
 
-    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.GUILD)
+    @Rpc(route = RpcRoute.LOCATION, actorType = RpcActorType.MAP_PLAYER)
     public void rpc4(Object a,Object b) {
 
     }

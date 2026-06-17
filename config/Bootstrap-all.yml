@@ -7,24 +7,24 @@ nodes:
       - name: logic  #线程池名
         num: 10
         services:
-        - className: ConnService
+        - serviceType: CONN
           name: conn
           num: 1
           interval: 5
           publicAddr: 0.0.0.0:18080
-        - className: LocationService
+        - serviceType: LOC
           name: location
           num: -1
           interval: 5
-        - className: DBService
+        - serviceType: DB
           name: db
           num: -1
           interval: 5
-        - className: PlayerService
+        - serviceType: PLAYER
           name: player
           num: 2
           interval: 5
-        - className: StageService
+        - serviceType: STAGE
           name: stage
           num: 2
           interval: 5
@@ -35,13 +35,8 @@ nodes:
       - name: logic  #线程池
         num: 10
         services:
-        - className: StageService
-          name: stage
+        - serviceType: GSTAGE
+          name: gStage
           num: 2
           interval: 5
-        - className: PlayerService
-          name: player
-          num: 2
-          interval: 5
-
       - name: io  #线程池

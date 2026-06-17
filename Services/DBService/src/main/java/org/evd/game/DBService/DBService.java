@@ -15,7 +15,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.config.InfraConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 
-@Actor(serviceType = ServiceType.DBService)
+@Actor()
 public class DBService extends Service {
     StorageEngine storageEngine;
 

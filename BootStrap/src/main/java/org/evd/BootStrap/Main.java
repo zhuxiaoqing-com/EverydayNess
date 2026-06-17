@@ -62,9 +62,11 @@ public class Main {
         // addService
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()){
             for (ServiceInfo serviceInfo : scheduleInfo.getServices()){
-                Class<ServiceInfo> clazz = (Class<ServiceInfo>) Class.forName("org.evd.game." + serviceInfo.getClassName() + "." + serviceInfo.getClassName());
+                String className = serviceInfo.getClassName();
+                String serviceClassName = "org.evd.game." + className + "." + className;
+                Class<ServiceInfo> clazz = (Class<ServiceInfo>) Class.forName(serviceClassName);
                 if (clazz == null){
-                    throw new SysException("service class not exist org.evd.service.{}", serviceInfo.getClassName());
+                    throw new SysException("service class not exist {}", serviceClassName);
                 }
                 // TODO 按service名加载 XXXService.jar
 
@@ -134,7 +136,8 @@ public class Main {
         for (NodeInfo configNode : config.getNodes()) {
             for (ScheduleInfo scheduleInfo : configNode.getSchedule()) {
                 for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
-                    String serviceClassName = "org.evd.game." + serviceInfo.getClassName() + "." + serviceInfo.getClassName();
+                    String className = serviceInfo.getClassName();
+                    String serviceClassName = "org.evd.game." + className + "." + className;
                     if (serviceInfo.getNum() < 0) {
                         DistributeConfig.addServiceNode(serviceClassName, new org.evd.game.runtime.call.CallPoint(configNode.getName(), serviceInfo.getName()));
                     } else {

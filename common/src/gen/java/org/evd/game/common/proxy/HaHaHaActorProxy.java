@@ -46,7 +46,7 @@ public final class HaHaHaActorProxy {
     */
     public static void rpc1(long actorUniqueId, int a, int b){
         Service service = Service.getCurrent();
-        ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
+        ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC1_INT_INT, new Object[]{a, b});
     }
     /**
@@ -54,7 +54,7 @@ public final class HaHaHaActorProxy {
     */
     public static void rpc2(long actorUniqueId, Object a, Object b){
         Service service = Service.getCurrent();
-        ActorId actorId = new ActorId(ActorType.PLAYER, actorUniqueId);
+        ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC2_OBJECT_OBJECT, new Object[]{a, b});
     }
     /**
@@ -69,7 +69,7 @@ public final class HaHaHaActorProxy {
     */
     public static void rpc4(long actorUniqueId, Object a, Object b){
         Service service = Service.getCurrent();
-        ActorId actorId = new ActorId(ActorType.GUILD, actorUniqueId);
+        ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_VOID_RPC4_OBJECT_OBJECT, new Object[]{a, b});
     }
 }

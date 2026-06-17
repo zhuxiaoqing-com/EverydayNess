@@ -5,7 +5,6 @@ public enum RpcActorType {
     PLAYER("PlayerService"),
     MAP("StageService"),
     GATE("ConnService"),
-    GUILD("StageService"),
     MAP_PLAYER("StageService"),
     ;
 

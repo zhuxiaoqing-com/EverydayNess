@@ -20,7 +20,7 @@ import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
 
-@Actor(serviceType = ServiceType.ConnService)
+@Actor()
 public class ConnService extends Service {
     boolean first = true;
     private final ConnServiceClientCmdRouter clientCmdRouter;

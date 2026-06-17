@@ -14,7 +14,7 @@ import org.evd.game.runtime.support.LogCore;
 import java.util.HashMap;
 import java.util.Map;
 
-@Actor(single = true, serviceType = ServiceType.LocationService)
+@Actor(single = true)
 public class LocationService extends Service {
     private static final int COROUTINE_LOCK_TYPE_LOCATION = 3;
 
