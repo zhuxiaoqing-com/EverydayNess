@@ -6,7 +6,6 @@ import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcActorType;
 import org.evd.game.annotation.RpcRoute;
-import org.evd.game.annotation.ServiceType;
 import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.struct.MethodStruct;
@@ -62,10 +61,9 @@ final class RpcSupport {
         }
 
         TypeElement ownerType = resolveServiceOwner(roundEnv.getElementsAnnotatedWith(Actor.class));
-        ServiceType ownerServiceType = resolveActorServiceType(ownerType);
         List<MethodStruct<Rpc>> structList = StructFactory.convertMethod(elementUtils, elements, Rpc.class);
         for (MethodStruct<Rpc> method : structList) {
-            initRpcMetadata(method, ownerType, ownerServiceType);
+            initRpcMetadata(method, ownerType);
         }
         structList.sort(Comparator
                 .comparing((MethodStruct<Rpc> m) -> m.fullClassName)
@@ -351,14 +349,6 @@ final class RpcSupport {
         return typeElement;
     }
 
-    private ServiceType resolveActorServiceType(TypeElement ownerType) {
-        Actor actor = ownerType.getAnnotation(Actor.class);
-        if (actor == null) {
-            throw new IllegalStateException(ownerType.getQualifiedName() + " 缺少 @Actor 注解");
-        }
-        return actor.serviceType();
-    }
-
     private void collectMethodImports(Set<String> importPackages, String generatedPackageName, MethodStruct<Rpc> method) {
         ExecutableElement executableElement = method.getExecutableElement();
         collectTypeImports(importPackages, generatedPackageName, executableElement.getReturnType());
@@ -408,32 +398,33 @@ final class RpcSupport {
         return value.toUpperCase().replace('.', '_').replaceAll("[^A-Z0-9_]", "_");
     }
 
-    private void initRpcMetadata(MethodStruct<Rpc> method, TypeElement ownerType, ServiceType ownerServiceType) {
+    private void initRpcMetadata(MethodStruct<Rpc> method, TypeElement ownerType) {
         Rpc rpc = method.getExecutableElement().getAnnotation(Rpc.class);
         if (rpc == null) {
             throw new IllegalStateException("找不到 @Rpc 注解: " + method.fullClassName + "#" + method.methodName);
         }
         method.rpcRoute = rpc.route();
         method.rpcActorType = rpc.actorType();
-        validateRpcActorType(method, ownerType, ownerServiceType);
+        validateRpcActorType(method, ownerType);
     }
 
-    private void validateRpcActorType(MethodStruct<Rpc> method, TypeElement ownerType, ServiceType ownerServiceType) {
+    private void validateRpcActorType(MethodStruct<Rpc> method, TypeElement ownerType) {
         if (method.rpcActorType == RpcActorType.NONE) {
             return;
         }
-        ServiceType actorOwnerServiceType = method.rpcActorType.getOwnerServiceType();
-        if (actorOwnerServiceType == null) {
+        String actorOwnerServiceClassName = method.rpcActorType.getOwnerServiceClassName();
+        if (actorOwnerServiceClassName == null || actorOwnerServiceClassName.isEmpty()) {
             throw new IllegalStateException("RpcActorType." + method.rpcActorType.name()
-                    + " 缺少 ownerServiceType，无法生成 RPC: "
+                    + " 缺少 ownerServiceClassName，无法生成 RPC: "
                     + method.fullClassName + "#" + method.methodName);
         }
-        if (actorOwnerServiceType != ownerServiceType) {
-            throw new IllegalStateException("RPC actorType 归属的 ServiceType 不匹配: "
+        String ownerServiceClassName = ownerType.getSimpleName().toString();
+        if (!actorOwnerServiceClassName.equals(ownerServiceClassName)) {
+            throw new IllegalStateException("RPC actorType 归属的 Service 类名不匹配: "
                     + method.fullClassName + "#" + method.methodName
                     + " 使用了 RpcActorType." + method.rpcActorType.name()
-                    + "，要求宿主服务是 " + actorOwnerServiceType.name()
-                    + "，实际是 " + ownerType.getQualifiedName() + " 上的 " + ownerServiceType.name());
+                    + "，要求宿主服务类名是 " + actorOwnerServiceClassName
+                    + "，实际是 " + ownerType.getSimpleName().toString());
         }
     }
 

@@ -224,5 +224,24 @@ Processor的aggregating 类型的 最后将其分片一个源类就是一个生�
     但是RpcActorType又没法引用具体的Service.class,所以其实可以吧Server弄个Type出来，CallPoint也就不需要写Service名字了;
 
 
+跨服模型;
+需要一个serverId;需要一个服务器id;
+     然后连接的话，因为默认如果该Node在配置里不存在会自动将其加入到内存里;
+     现在就是这么调用的问题了;
+     比如global服务器按传统的逻辑，全部和Lobby相连;
+     global_battle除外也和logic相连;
+
+    然后之前battle数据存到了lobby,所以lobby连接上battle以后需要将数据发送到battle让其恢复地图数据;
+    service里应该怎么做
+
+    然后我怎么让本服访问地图，和跨服访问地图一样简单呢?
+    之前传统的话 是用同一套代码，这里的话怎么弄;
+
+    按之前的lobby 直接lobby名字发送，按logic的话，就直接获取logicId发送;
+    按battle的话之前是根据 本服还是跨服地图，发送到不同的服务器;然后也有服务器id的;
+    这里有一个问题就是Service怎么复用，这是一个很大的问题;
+
+
+
 
 

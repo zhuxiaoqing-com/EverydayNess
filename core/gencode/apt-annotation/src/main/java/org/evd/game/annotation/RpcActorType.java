@@ -2,20 +2,20 @@ package org.evd.game.annotation;
 
 public enum RpcActorType {
     NONE(null),
-    PLAYER(ServiceType.StageService),
-    MAP(ServiceType.StageService),
-    GATE(ServiceType.ConnService),
-    GUILD(ServiceType.StageService),
-    MAP_PLAYER(ServiceType.StageService),
+    PLAYER("PlayerService"),
+    MAP("StageService"),
+    GATE("ConnService"),
+    GUILD("StageService"),
+    MAP_PLAYER("StageService"),
     ;
 
-    private final ServiceType ownerServiceType;
+    private final String ownerServiceClassName;
 
-    RpcActorType(ServiceType ownerServiceType) {
-        this.ownerServiceType = ownerServiceType;
+    RpcActorType(String ownerServiceClassName) {
+        this.ownerServiceClassName = ownerServiceClassName;
     }
 
-    public ServiceType getOwnerServiceType() {
-        return ownerServiceType;
+    public String getOwnerServiceClassName() {
+        return ownerServiceClassName;
     }
 }
