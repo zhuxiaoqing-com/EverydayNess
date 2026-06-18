@@ -4,7 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.common.location.MessageLocationSender;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
-        import org.evd.game.common.serializeBean.ConnInfo;
+import org.evd.game.common.serializeBean.ConnInfo;
 
 /**
 * 根据ConnTestProxyService生成的代理类
@@ -35,24 +35,28 @@ public final class ConnTestProxyProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO = 4;
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST3 = 5;
+        public final static int ENUM_CONNTESTPROXY_CONNTEST2_4 = 4;
+        public final static int ENUM_CONNTESTPROXY_CONNTEST3_5 = 5;
     }
 
     /**
     * @see org.evd.game.ConnService.ConnTestProxy#connTest2()
     */
-    public static void connTest2(long actorUniqueId, int a, Object b, org.evd.game.common.serializeBean.ConnInfo connInfo){
+    public static void connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO, new Object[]{a, b, connInfo});
+        createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST2_4, new Object[]{a, b, connInfo});
     }
+
+
     /**
     * @see org.evd.game.ConnService.ConnTestProxy#connTest3()
     */
     public static void connTest3(long actorUniqueId){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_VOID_CONNTEST3, new Object[]{});
+        createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST3_5, new Object[]{});
     }
+
+
 }

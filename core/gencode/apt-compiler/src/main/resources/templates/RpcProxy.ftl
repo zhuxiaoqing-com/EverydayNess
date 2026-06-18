@@ -14,9 +14,9 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
 </#if>
 <#if importPackages??>
-    <#list importPackages as package>
-        import ${package};
-    </#list>
+<#list importPackages as package>
+import ${package};
+</#list>
 </#if>
 
 /**
@@ -84,6 +84,7 @@ public final class ${generatedClassName} {
         </#if>
         </#if>
     }
+
     <#if method.returnType != "void">
     public static ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
         Service service = Service.getCurrent();
@@ -97,5 +98,6 @@ public final class ${generatedClassName} {
         </#if>
     }
     </#if>
+
     </#list>
 }

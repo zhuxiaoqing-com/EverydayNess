@@ -2,8 +2,8 @@ package org.evd.game.common.proxy;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-        import org.evd.game.runtime.Db.serialize.DBRsp;
-        import org.evd.game.runtime.Db.serialize.DBReq;
+import org.evd.game.runtime.Db.serialize.DBRsp;
+import org.evd.game.runtime.Db.serialize.DBReq;
 
 /**
 * 根据DBServiceService生成的代理类
@@ -15,18 +15,20 @@ public final class DBServiceProxy {
 
 
     public final static class EnumCall{
-        public final static int ENUM_DBSERVICE_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBREQ = 0;
+        public final static int ENUM_DBSERVICE_DBEXEC_0 = 0;
     }
 
     /**
     * @see org.evd.game.DBService.DBService#dbExec()
     */
-    public static org.evd.game.runtime.Db.serialize.DBRsp dbExec(CallPoint remote, org.evd.game.runtime.Db.serialize.DBReq dbReq){
+    public static DBRsp dbExec(CallPoint remote, DBReq dbReq){
         Service service = Service.getCurrent();
-        return (org.evd.game.runtime.Db.serialize.DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICE_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBREQ, new Object[]{dbReq});
+        return (DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICE_DBEXEC_0, new Object[]{dbReq});
     }
-    public static org.evd.game.runtime.Db.serialize.DBRsp dbExec(CallPoint remote, org.evd.game.runtime.Db.serialize.DBReq dbReq, long timeoutMillis){
+
+    public static DBRsp dbExec(CallPoint remote, DBReq dbReq, long timeoutMillis){
         Service service = Service.getCurrent();
-        return (org.evd.game.runtime.Db.serialize.DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICE_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBRSP_DBEXEC_ORG_EVD_GAME_RUNTIME_DB_SERIALIZE_DBREQ, new Object[]{dbReq}, timeoutMillis);
+        return (DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICE_DBEXEC_0, new Object[]{dbReq}, timeoutMillis);
     }
+
 }

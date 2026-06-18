@@ -116,4 +116,24 @@ public class AptUtils {
         return type.equals("Object");
     }
 
+    public static String shortTypeName(String typeName) {
+        if (typeName == null || typeName.isEmpty()) {
+            return typeName;
+        }
+
+        Matcher matcher = Pattern.compile("(?<![\\w$])(?:[A-Za-z_$][\\w$]*\\.)+[A-Za-z_$][\\w$]*")
+                .matcher(typeName.replace("java.lang.", ""));
+        StringBuffer out = new StringBuffer();
+        while (matcher.find()) {
+            matcher.appendReplacement(out, Matcher.quoteReplacement(shortQualifiedType(matcher.group())));
+        }
+        matcher.appendTail(out);
+        return out.toString();
+    }
+
+    private static String shortQualifiedType(String qualifiedType) {
+        int lastDot = qualifiedType.lastIndexOf('.');
+        return lastDot >= 0 ? qualifiedType.substring(lastDot + 1) : qualifiedType;
+    }
+
 }

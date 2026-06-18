@@ -80,7 +80,7 @@ public class MethodStruct<T> {
             }
             for (int i=0; i<params.length; ++i){
                 ParamStruct paramStruct = params[i];
-                typeParams.append(paramStruct.paramTypeWrapper);
+                typeParams.append(AptUtils.shortTypeName(paramStruct.paramTypeWrapper));
                 if (i < params.length - 1){
                     typeParams.append(", ");
                 }
@@ -90,11 +90,11 @@ public class MethodStruct<T> {
             }
         }else{
             typeParams.append("<");
-            typeParams.append(returnTypeWrapper);
+            typeParams.append(AptUtils.shortTypeName(returnTypeWrapper));
             for (int i=0; i<params.length; ++i){
                 ParamStruct paramStruct = params[i];
                 typeParams.append(", ");
-                typeParams.append(paramStruct.paramTypeWrapper);
+                typeParams.append(AptUtils.shortTypeName(paramStruct.paramTypeWrapper));
             }
             typeParams.append(">");
         }
@@ -105,12 +105,18 @@ public class MethodStruct<T> {
         StringBuilder formalParams = new StringBuilder();
         for (int i=0; i<params.length; ++i) {
             ParamStruct paramStruct = params[i];
-            formalParams.append(paramStruct.paramType).append(" ").append(paramStruct.paramName);
+            formalParams.append(AptUtils.shortTypeName(paramStruct.paramType))
+                    .append(" ")
+                    .append(paramStruct.paramName);
             if (i < params.length - 1){
                 formalParams.append(", ");
             }
         }
         return formalParams.toString();
+    }
+
+    public String getDisplayReturnType() {
+        return AptUtils.shortTypeName(returnType);
     }
 
 

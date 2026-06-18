@@ -143,20 +143,10 @@ final class RpcSupport {
             Map<String, Object> methodModel = new HashMap<>();
             methodsModel.add(methodModel);
 
-            AptUtils.StringExt enumCall = new AptUtils.StringExt()
-                    .appendJoin("ENUM", "_")
-                    .appendJoin(method.className.toUpperCase(), "_")
-                    .appendJoin(method.returnType.toUpperCase(), "_")
-                    .append(method.methodName.toUpperCase());
-            for (ParamStruct paramStruct : method.params) {
-                enumCall.append("_");
-                enumCall.append(paramStruct.paramType.toUpperCase());
-            }
-
-            methodModel.put("enumCall", toEnumToken(enumCall.toString()));
+            methodModel.put("enumCall", buildEnumCallName(method));
             methodModel.put("methodKey", method.methodKey);
             methodModel.put("methodName", method.methodName);
-            methodModel.put("returnType", method.returnType);
+            methodModel.put("returnType", method.getDisplayReturnType());
             methodModel.put("formalParams", method.toParamTypeAndTypes());
             methodModel.put("nameParams", method.toParamNames());
             methodModel.put("targetPrefix", targetPrefix);
@@ -236,17 +226,7 @@ final class RpcSupport {
             Map<String, Object> methodModel = new HashMap<>();
             methodsModel.add(methodModel);
 
-            AptUtils.StringExt enumCall = new AptUtils.StringExt()
-                    .appendJoin("ENUM", "_")
-                    .appendJoin(method.className.toUpperCase(), "_")
-                    .appendJoin(method.returnType.toUpperCase(), "_")
-                    .append(method.methodName.toUpperCase());
-            for (ParamStruct paramStruct : method.params) {
-                enumCall.append("_");
-                enumCall.append(paramStruct.paramType.toUpperCase());
-            }
-
-            methodModel.put("enumCall", toEnumToken(enumCall.toString()));
+            methodModel.put("enumCall", buildEnumCallName(method));
             methodModel.put("methodKey", method.methodKey);
             methodModel.put("paramSize", method.params.length);
             methodModel.put("methodName", method.methodName);
@@ -262,7 +242,7 @@ final class RpcSupport {
             String func = method.returnType.equals("void") ? "Function" : "ReturnFunction";
             methodModel.put("func", func);
             methodModel.put("typeParams", method.toParamTypesWitchReturn());
-            methodModel.put("returnType", method.returnType);
+            methodModel.put("returnType", method.getDisplayReturnType());
             methodModel.put("formalParams", method.toParamTypeAndTypes());
             methodModel.put("nameParams", method.toParamNames());
 
@@ -394,6 +374,10 @@ final class RpcSupport {
 
     private String toEnumToken(String value) {
         return value.toUpperCase().replace('.', '_').replaceAll("[^A-Z0-9_]", "_");
+    }
+
+    private String buildEnumCallName(MethodStruct<Rpc> method) {
+        return toEnumToken("ENUM_" + method.className + "_" + method.methodName + "_" + method.methodKey);
     }
 
     private void initRpcMetadata(MethodStruct<Rpc> method, TypeElement ownerType) {
