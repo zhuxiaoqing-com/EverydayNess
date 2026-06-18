@@ -24,6 +24,12 @@ repositories {
     mavenCentral()
 }
 
+configurations {
+    genImplementation.extendsFrom implementation // gen 代码模块可以用 main 的依赖
+    genCompileOnly.extendsFrom compileOnly // genCompileOnly = compileOnly（只编译不打包）
+    genAnnotationProcessor.extendsFrom annotationProcessor
+}
+
 sourceSets {
     main {
         proto {
@@ -31,10 +37,23 @@ sourceSets {
         }
         java {
             srcDirs += 'src/main/java'
-            srcDirs += 'src/gen/java'
+        }
+    }
+    gen {
+        java {
+            srcDirs = ['src/gen/java']
         }
     }
 }
+
+def compileJavaTask = tasks.named('compileJava', JavaCompile)
+def compileGenJavaTask = tasks.named('compileGenJava', JavaCompile)
+
+// 将compileGenJavaTask 也算入sourceSet目录，这样其他模块使用引用common就能用gen
+sourceSets.main.output.dir(
+        compileGenJavaTask.flatMap { it.destinationDirectory },
+        builtBy: compileGenJavaTask
+)
 
 idea {
     module {
@@ -64,6 +83,11 @@ tasks.named('compileJava', JavaCompile) {
             '-processor',
             'org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor'
     ]
+}
+
+tasks.named('compileGenJava', JavaCompile) {
+    dependsOn compileJavaTask
+    classpath = files(compileJavaTask.flatMap { it.destinationDirectory }) + configurations.genCompileClasspath
 }
 
 tasks.named('processResources') {

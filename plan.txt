@@ -60,3 +60,5 @@
 6.Cmd怎么接入也按照ET的来;将ActorAddressCache和MessageLocationSender 结合起来
 
 7.考虑业务逻辑怎么写，要不要用接口，要什么东西直接继承一下接口，RPC要不要先定义接口;
+
+8.Mdb考虑加上批量处理接口;用于 checkpoint 这种接口，然后考虑是否加上 version;保证DBService 扩容和缩容，然后DB怎么接入实际其实也没确定;
