@@ -88,8 +88,8 @@ final class RpcSupport {
         if (structList.isEmpty()) {
             return null;
         }
-        Map<String, List<MethodStruct<Rpc>>> classMap = groupRpcMethodsByClass(structList);
-        List<MethodStruct<Rpc>> ownerMethods = bindOwner(ownerType, structList, classMap);
+        List<MethodStruct<Rpc>> ownerMethods = bindOwner(ownerType, structList);
+        Map<String, List<MethodStruct<Rpc>>> classMap = groupRpcMethodsByClass(ownerMethods);
         return new RpcGenerationContext(ownerType, structList, ownerMethods, classMap);
     }
 
@@ -302,14 +302,12 @@ final class RpcSupport {
     }
 
     private List<MethodStruct<Rpc>> bindOwner(TypeElement ownerType,
-                                              List<MethodStruct<Rpc>> structList,
-                                              Map<String, List<MethodStruct<Rpc>>> classMap) {
+                                              List<MethodStruct<Rpc>> structList) {
         String ownerFullClassName = ownerType.getQualifiedName().toString();
         String ownerClassName = ownerType.getSimpleName().toString();
         for (MethodStruct<Rpc> method : structList) {
             method.ownerFullClassName = ownerFullClassName;
             method.ownerClassName = ownerClassName;
-            classMap.computeIfAbsent(method.fullClassName, k -> new ArrayList<>()).add(method);
         }
 
         List<MethodStruct<Rpc>> ownerMethods = new ArrayList<>(structList);

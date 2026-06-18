@@ -16,9 +16,9 @@ public final class ConnServiceProxy {
 
     public final static class EnumCall{
         public final static int ENUM_CONNSERVICE_STRING_CON = 0;
-        public final static int ENUM_CONNSERVICE_VOID_CON1 = 0;
-        public final static int ENUM_CONNSERVICE_VOID_CON4 = 0;
-        public final static int ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENT_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 0;
+        public final static int ENUM_CONNSERVICE_VOID_CON1 = 1;
+        public final static int ENUM_CONNSERVICE_VOID_CON4 = 2;
+        public final static int ENUM_CONNSERVICE_VOID_PUSHTOCLIENT_ORG_EVD_GAME_RUNTIME_CLIENT_CLIENTSESSIONREF_INT_ORG_EVD_GAME_RUNTIME_CHUNK = 3;
     }
 
     /**

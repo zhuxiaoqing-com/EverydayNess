@@ -14,10 +14,10 @@ public final class StageServiceProxy {
 
     public final static class EnumCall{
         public final static int ENUM_STAGESERVICE_VOID_CALLHAHAHAACTORRPC1_LONG_INT_INT = 0;
-        public final static int ENUM_STAGESERVICE_VOID_CALLHAHAHAACTORRPC2_LONG_OBJECT_OBJECT = 0;
-        public final static int ENUM_STAGESERVICE_STRING_DOSOME1_INT_INT = 0;
-        public final static int ENUM_STAGESERVICE_VOID_DOSOME2_INT_INT = 0;
-        public final static int ENUM_STAGESERVICE_STRING_DOSOME3_INT = 0;
+        public final static int ENUM_STAGESERVICE_VOID_CALLHAHAHAACTORRPC2_LONG_OBJECT_OBJECT = 1;
+        public final static int ENUM_STAGESERVICE_STRING_DOSOME1_INT_INT = 2;
+        public final static int ENUM_STAGESERVICE_VOID_DOSOME2_INT_INT = 3;
+        public final static int ENUM_STAGESERVICE_STRING_DOSOME3_INT = 4;
     }
 
     /**

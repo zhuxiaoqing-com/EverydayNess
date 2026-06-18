@@ -35,8 +35,8 @@ public final class ConnTestProxyProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO = 0;
-        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST3 = 0;
+        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST2_INT_OBJECT_ORG_EVD_GAME_COMMON_SERIALIZEBEAN_CONNINFO = 4;
+        public final static int ENUM_CONNTESTPROXY_VOID_CONNTEST3 = 5;
     }
 
     /**

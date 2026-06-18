@@ -56,3 +56,7 @@
         其实client 也需要用MailBox的，而且应该是要默认就有MailBox的吧;当然也不是，比如客户端请求工会列表，这个时候应该就不用MailBox;
         	客户端请求玩家数据，就要跟着玩家走;MailType 有点奇怪，现在在哪里都能标识，其实感觉应该只能在Service上标识，可以有哪几种MailBox;
         	这个怎么弄;
+
+6.Cmd怎么接入也按照ET的来;将ActorAddressCache和MessageLocationSender 结合起来
+
+7.考虑业务逻辑怎么写，要不要用接口，要什么东西直接继承一下接口，RPC要不要先定义接口;

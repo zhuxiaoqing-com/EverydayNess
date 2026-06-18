@@ -34,11 +34,12 @@ public class RpcProcessor extends ProcessorBase {
         println("");
         println("开始执行Rpc Processor");
 
-        List<MethodStruct<Rpc>> methods = support.buildRpcMethodStructs(roundEnv);
-        if (methods.isEmpty()) {
+        RpcGenerationContext context = support.buildContext(roundEnv);
+        if (context == null) {
             return;
         }
-        Map<String, List<MethodStruct<Rpc>>> classMap = support.groupRpcMethodsByClass(methods);
+
+        Map<String, List<MethodStruct<Rpc>>> classMap = support.groupRpcMethodsByClass(context.ownerMethods);
         for (List<MethodStruct<Rpc>> classMethods : classMap.values()) {
             proxyFileGenerator.generate(classMethods.getFirst().getTypeElement(), classMethods);
         }
