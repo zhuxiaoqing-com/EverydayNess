@@ -11,7 +11,13 @@ import org.evd.game.runtime.actor.ActorType;
 */
 public final class HaHaHaActorProxy {
 
+    private static final HaHaHaActorProxy INSTANCE = new HaHaHaActorProxy();
+
     private HaHaHaActorProxy() {
+    }
+
+    public static HaHaHaActorProxy inst() {
+        return INSTANCE;
     }
 
     private static MessageLocationSender createMessageLocationSender() {
@@ -19,7 +25,7 @@ public final class HaHaHaActorProxy {
     }
 
     private static org.evd.game.runtime.actor.ActorAddress queryActorAddress(ActorId actorId) {
-        return LocationServiceProxy.get(locationServiceRemote(), actorId);
+        return LocationServiceProxy.inst().get(locationServiceRemote(), actorId);
     }
 
     private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
@@ -44,7 +50,7 @@ public final class HaHaHaActorProxy {
     /**
     * @see org.evd.game.StageService.HaHaHaActor#rpc1()
     */
-    public static void rpc1(long actorUniqueId, int a, int b){
+    public void rpc1(long actorUniqueId, int a, int b){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC1_5, new Object[]{a, b});
@@ -54,7 +60,7 @@ public final class HaHaHaActorProxy {
     /**
     * @see org.evd.game.StageService.HaHaHaActor#rpc2()
     */
-    public static void rpc2(long actorUniqueId, Object a, Object b){
+    public void rpc2(long actorUniqueId, Object a, Object b){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC2_6, new Object[]{a, b});
@@ -64,7 +70,7 @@ public final class HaHaHaActorProxy {
     /**
     * @see org.evd.game.StageService.HaHaHaActor#rpc3()
     */
-    public static void rpc3(CallPoint remote, Object a, Object b){
+    public void rpc3(CallPoint remote, Object a, Object b){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_HAHAHAACTOR_RPC3_7, new Object[]{a, b});
     }
@@ -73,7 +79,7 @@ public final class HaHaHaActorProxy {
     /**
     * @see org.evd.game.StageService.HaHaHaActor#rpc4()
     */
-    public static void rpc4(long actorUniqueId, Object a, Object b){
+    public void rpc4(long actorUniqueId, Object a, Object b){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC4_8, new Object[]{a, b});

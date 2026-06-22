@@ -50,7 +50,7 @@ public class ConnService extends Service {
 
     private void requestStageDemo() {
         CallPoint callPoint = new CallPoint("node2", "stage1");
-        String s = StageServiceProxy.doSome1(callPoint, 1, 2);
+        String s = StageServiceProxy.inst().doSome1(callPoint, 1, 2);
         System.out.println("receive = " + s);
     }
 
@@ -69,7 +69,7 @@ public class ConnService extends Service {
 
     @Rpc
     public void con4(){
-        String s = StageServiceProxy.doSome3(new CallPoint("", ""), 1);
+        String s = StageServiceProxy.inst().doSome3(new CallPoint("", ""), 1);
     }
 
     public void dispatchClientCmd(NetChannel session, int cmd, byte[] body) {

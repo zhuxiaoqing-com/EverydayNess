@@ -10,7 +10,13 @@ import org.evd.game.runtime.Chunk;
 */
 public final class ConnServiceProxy {
 
+    private static final ConnServiceProxy INSTANCE = new ConnServiceProxy();
+
     private ConnServiceProxy() {
+    }
+
+    public static ConnServiceProxy inst() {
+        return INSTANCE;
     }
 
 
@@ -24,12 +30,12 @@ public final class ConnServiceProxy {
     /**
     * @see org.evd.game.ConnService.ConnService#con()
     */
-    public static String con(CallPoint remote){
+    public String con(CallPoint remote){
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_CONNSERVICE_CON_0, new Object[]{});
     }
 
-    public static String con(CallPoint remote, long timeoutMillis){
+    public String con(CallPoint remote, long timeoutMillis){
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_CONNSERVICE_CON_0, new Object[]{}, timeoutMillis);
     }
@@ -37,7 +43,7 @@ public final class ConnServiceProxy {
     /**
     * @see org.evd.game.ConnService.ConnService#con1()
     */
-    public static void con1(CallPoint remote){
+    public void con1(CallPoint remote){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_CONNSERVICE_CON1_1, new Object[]{});
     }
@@ -46,7 +52,7 @@ public final class ConnServiceProxy {
     /**
     * @see org.evd.game.ConnService.ConnService#con4()
     */
-    public static void con4(CallPoint remote){
+    public void con4(CallPoint remote){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_CONNSERVICE_CON4_2, new Object[]{});
     }
@@ -55,7 +61,7 @@ public final class ConnServiceProxy {
     /**
     * @see org.evd.game.ConnService.ConnService#pushToClient()
     */
-    public static void pushToClient(CallPoint remote, ClientSessionRef session, int msgId, Chunk body){
+    public void pushToClient(CallPoint remote, ClientSessionRef session, int msgId, Chunk body){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_CONNSERVICE_PUSHTOCLIENT_3, new Object[]{session, msgId, body});
     }

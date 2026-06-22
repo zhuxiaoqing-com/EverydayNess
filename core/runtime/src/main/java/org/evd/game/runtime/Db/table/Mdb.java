@@ -3,6 +3,7 @@ package org.evd.game.runtime.Db.table;
 import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
+import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

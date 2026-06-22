@@ -1,6 +1,5 @@
-package org.evd.game.runtime.mailbox;
+package org.evd.game.runtime.rpcProxyInterface;
 
-import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;

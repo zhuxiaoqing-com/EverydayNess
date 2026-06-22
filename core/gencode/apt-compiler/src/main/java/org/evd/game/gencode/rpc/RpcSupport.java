@@ -6,7 +6,7 @@ import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcActorType;
 import org.evd.game.annotation.RpcRoute;
-import org.evd.game.gencode.AptUtils;
+import org.evd.game.annotation.RpcService;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.struct.MethodStruct;
 import org.evd.game.gencode.struct.ParamStruct;
@@ -15,7 +15,9 @@ import org.evd.game.gencode.struct.StructFactory;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -44,12 +46,10 @@ final class RpcSupport {
     static final String TEMPLATE_RPC_IMP = "RpcImp.ftl";
     static final String TEMPLATE_RPC_PROXY = "RpcProxy.ftl";
 
-    private final ProcessingEnvironment processingEnv;
     private final Elements elementUtils;
     private final Types typeUtils;
 
     RpcSupport(ProcessingEnvironment processingEnv) {
-        this.processingEnv = processingEnv;
         this.elementUtils = processingEnv.getElementUtils();
         this.typeUtils = processingEnv.getTypeUtils();
     }
@@ -108,6 +108,7 @@ final class RpcSupport {
         boolean needsLocationImport = false;
         boolean needsActorIdImport = false;
         boolean needsActorTypeImport = false;
+        ProxyInterfaceMetadata proxyInterfaceMetadata = resolveProxyInterface(struct);
 
         dataModel.put("packageName", generatedPackageName);
         dataModel.put("commonPackageName", generatedPackageName);
@@ -116,6 +117,14 @@ final class RpcSupport {
         dataModel.put("fullClassName", struct.fullClassName);
         dataModel.put("importPackages", importsModel);
         dataModel.put("methods", methodsModel);
+        dataModel.put("implementsProxyInterface", proxyInterfaceMetadata != null);
+        dataModel.put("proxyInterfaceSimpleName",
+                proxyInterfaceMetadata == null ? "" : proxyInterfaceMetadata.simpleName);
+
+        if (proxyInterfaceMetadata != null) {
+            validateProxyInterface(proxyInterfaceMetadata.typeElement, methods);
+            collectTypeImports(importPackages, generatedPackageName, proxyInterfaceMetadata.typeElement.asType());
+        }
 
         for (MethodStruct<Rpc> method : methods) {
             collectMethodImports(importPackages, generatedPackageName, method);
@@ -406,12 +415,134 @@ final class RpcSupport {
                     + method.fullClassName + "#" + method.methodName
                     + " 使用了 RpcActorType." + method.rpcActorType.name()
                     + "，要求宿主服务类名是 " + actorOwnerServiceClassName
-                    + "，实际是 " + ownerType.getSimpleName().toString());
+                    + "，实际是 " + ownerType.getSimpleName());
         }
     }
 
     private String getActorFieldName(String className) {
         return Character.toLowerCase(className.charAt(0)) + className.substring(1);
+    }
+
+    private ProxyInterfaceMetadata resolveProxyInterface(MethodStruct<Rpc> struct) {
+        if (!struct.fullClassName.equals(struct.ownerFullClassName)) {
+            return null;
+        }
+        TypeElement ownerType = elementUtils.getTypeElement(struct.ownerFullClassName);
+        if (ownerType == null) {
+            return null;
+        }
+        TypeElement proxyInterfaceType = resolveRpcServiceInterface(ownerType);
+        if (proxyInterfaceType == null) {
+            return null;
+        }
+        return new ProxyInterfaceMetadata(
+                proxyInterfaceType.getQualifiedName().toString(),
+                proxyInterfaceType.getSimpleName().toString(),
+                proxyInterfaceType);
+    }
+
+    private TypeElement resolveRpcServiceInterface(TypeElement ownerType) {
+        for (var annotationMirror : elementUtils.getAllAnnotationMirrors(ownerType)) {
+            Element annotationElement = annotationMirror.getAnnotationType().asElement();
+            if (!(annotationElement instanceof TypeElement annotationType)) {
+                continue;
+            }
+            if (!annotationType.getQualifiedName().contentEquals(RpcService.class.getCanonicalName())) {
+                continue;
+            }
+            for (var entry : elementUtils.getElementValuesWithDefaults(annotationMirror).entrySet()) {
+                if (!entry.getKey().getSimpleName().contentEquals("value")) {
+                    continue;
+                }
+                Object value = entry.getValue().getValue();
+                if (!(value instanceof TypeMirror typeMirror)) {
+                    throw new IllegalStateException("@RpcService value 不是合法类型: " + ownerType.getQualifiedName());
+                }
+                if (typeMirror.getKind() == TypeKind.VOID) {
+                    return null;
+                }
+                Element interfaceElement = typeUtils.asElement(typeMirror);
+                if (!(interfaceElement instanceof TypeElement interfaceType)) {
+                    throw new IllegalStateException("@RpcService value 不是 TypeElement: " + ownerType.getQualifiedName());
+                }
+                if (interfaceType.getKind() != ElementKind.INTERFACE) {
+                    throw new IllegalStateException("@RpcService 要求配置 interface，实际是: "
+                            + interfaceType.getQualifiedName());
+                }
+                return interfaceType;
+            }
+        }
+        return null;
+    }
+
+    private void validateProxyInterface(TypeElement proxyInterfaceType, List<MethodStruct<Rpc>> methods) {
+        Set<String> generatedSignatures = collectGeneratedProxySignatures(methods);
+        for (Element member : elementUtils.getAllMembers(proxyInterfaceType)) {
+            if (!(member instanceof ExecutableElement executableElement)) {
+                continue;
+            }
+            if (member.getKind() != ElementKind.METHOD) {
+                continue;
+            }
+            Set<Modifier> modifiers = executableElement.getModifiers();
+            if (modifiers.contains(Modifier.STATIC) || modifiers.contains(Modifier.DEFAULT)) {
+                continue;
+            }
+            if (!modifiers.contains(Modifier.ABSTRACT)) {
+                continue;
+            }
+            String interfaceSignature = buildExecutableSignature(executableElement);
+            if (!generatedSignatures.contains(interfaceSignature)) {
+                throw new IllegalStateException("RPC 代理未覆盖接口方法: "
+                        + proxyInterfaceType.getQualifiedName() + "#" + interfaceSignature);
+            }
+        }
+    }
+
+    private Set<String> collectGeneratedProxySignatures(List<MethodStruct<Rpc>> methods) {
+        Set<String> signatures = new LinkedHashSet<>();
+        for (MethodStruct<Rpc> method : methods) {
+            signatures.add(buildGeneratedSignature(method, false));
+            if (!"void".equals(method.returnType)) {
+                signatures.add(buildGeneratedSignature(method, true));
+            }
+        }
+        return signatures;
+    }
+
+    private String buildGeneratedSignature(MethodStruct<Rpc> method, boolean timeoutOverload) {
+        List<String> paramTypes = new ArrayList<>();
+        boolean routeService = method.rpcRoute == RpcRoute.SERVICE;
+        boolean usesFixedActorType = method.rpcRoute == RpcRoute.LOCATION
+                && method.rpcActorType != RpcActorType.NONE;
+        if (routeService) {
+            paramTypes.add("org.evd.game.runtime.call.CallPoint");
+        } else if (usesFixedActorType) {
+            paramTypes.add("long");
+        } else {
+            paramTypes.add("org.evd.game.runtime.actor.ActorId");
+        }
+        for (ParamStruct param : method.params) {
+            paramTypes.add(param.paramType);
+        }
+        if (timeoutOverload) {
+            paramTypes.add("long");
+        }
+        return buildSignature(method.methodName, paramTypes, method.returnType);
+    }
+
+    private String buildExecutableSignature(ExecutableElement executableElement) {
+        List<String> paramTypes = executableElement.getParameters().stream()
+                .map(parameter -> parameter.asType().toString())
+                .collect(Collectors.toList());
+        return buildSignature(
+                executableElement.getSimpleName().toString(),
+                paramTypes,
+                executableElement.getReturnType().toString());
+    }
+
+    private String buildSignature(String methodName, List<String> paramTypes, String returnType) {
+        return methodName + "(" + String.join(",", paramTypes) + "):" + returnType;
     }
 }
 
@@ -429,5 +560,17 @@ final class RpcGenerationContext {
         this.structList = structList;
         this.ownerMethods = ownerMethods;
         this.classMap = classMap;
+    }
+}
+
+final class ProxyInterfaceMetadata {
+    final String qualifiedName;
+    final String simpleName;
+    final TypeElement typeElement;
+
+    ProxyInterfaceMetadata(String qualifiedName, String simpleName, TypeElement typeElement) {
+        this.qualifiedName = qualifiedName;
+        this.simpleName = simpleName;
+        this.typeElement = typeElement;
     }
 }

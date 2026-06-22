@@ -39,7 +39,7 @@ public class StageService extends Service {
         System.out.println(str);
         LogCore.core.info(str);
 
-        String result = ConnServiceProxy.con(new CallPoint("node1", "conn1"));
+        String result = ConnServiceProxy.inst().con(new CallPoint("node1", "conn1"));
         System.out.println("receive = " + result);
 
         return str;
@@ -78,7 +78,7 @@ public class StageService extends Service {
                 .setRoleId(actorId)
                 .setToken("token-" + req.getAccount())
                 .build();
-        ConnServiceProxy.pushToClient(session.getGate(), session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
+        ConnServiceProxy.inst().pushToClient(session.getGate(), session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
     }
 
     public MessageLocationSender getActorLocationSender() {
@@ -94,7 +94,7 @@ public class StageService extends Service {
         registerActor(actorRef, new HaHaHaActor(), ActorExecutionMode.ORDERED);
         ActorAddress actorAddress = getActorAddress(actorRef);
         CallPoint locationService = getLocationServiceRemote();
-        LocationServiceProxy.add(locationService, actorRef, actorAddress);
+        LocationServiceProxy.inst().add(locationService, actorRef, actorAddress);
         actorLocationSender.cache(actorRef, actorAddress);
     }
 
@@ -103,7 +103,7 @@ public class StageService extends Service {
     }
 
     private ActorAddress queryActorAddress(ActorId actorId) {
-        return LocationServiceProxy.get(getLocationServiceRemote(), actorId);
+        return LocationServiceProxy.inst().get(getLocationServiceRemote(), actorId);
     }
 
     private CallPoint getLocationServiceRemote() {

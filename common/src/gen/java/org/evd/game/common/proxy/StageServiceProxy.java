@@ -8,7 +8,13 @@ import org.evd.game.runtime.call.CallPoint;
 */
 public final class StageServiceProxy {
 
+    private static final StageServiceProxy INSTANCE = new StageServiceProxy();
+
     private StageServiceProxy() {
+    }
+
+    public static StageServiceProxy inst() {
+        return INSTANCE;
     }
 
 
@@ -23,7 +29,7 @@ public final class StageServiceProxy {
     /**
     * @see org.evd.game.StageService.StageService#callHaHaHaActorRpc1()
     */
-    public static void callHaHaHaActorRpc1(CallPoint remote, long actorId, int a, int b){
+    public void callHaHaHaActorRpc1(CallPoint remote, long actorId, int a, int b){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_STAGESERVICE_CALLHAHAHAACTORRPC1_0, new Object[]{actorId, a, b});
     }
@@ -32,7 +38,7 @@ public final class StageServiceProxy {
     /**
     * @see org.evd.game.StageService.StageService#callHaHaHaActorRpc2()
     */
-    public static void callHaHaHaActorRpc2(CallPoint remote, long actorId, Object a, Object b){
+    public void callHaHaHaActorRpc2(CallPoint remote, long actorId, Object a, Object b){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_STAGESERVICE_CALLHAHAHAACTORRPC2_1, new Object[]{actorId, a, b});
     }
@@ -41,12 +47,12 @@ public final class StageServiceProxy {
     /**
     * @see org.evd.game.StageService.StageService#doSome1()
     */
-    public static String doSome1(CallPoint remote, int a, int b){
+    public String doSome1(CallPoint remote, int a, int b){
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_STAGESERVICE_DOSOME1_2, new Object[]{a, b});
     }
 
-    public static String doSome1(CallPoint remote, int a, int b, long timeoutMillis){
+    public String doSome1(CallPoint remote, int a, int b, long timeoutMillis){
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_STAGESERVICE_DOSOME1_2, new Object[]{a, b}, timeoutMillis);
     }
@@ -54,7 +60,7 @@ public final class StageServiceProxy {
     /**
     * @see org.evd.game.StageService.StageService#doSome2()
     */
-    public static void doSome2(CallPoint remote, int a, int b){
+    public void doSome2(CallPoint remote, int a, int b){
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.ENUM_STAGESERVICE_DOSOME2_3, new Object[]{a, b});
     }
@@ -63,12 +69,12 @@ public final class StageServiceProxy {
     /**
     * @see org.evd.game.StageService.StageService#doSome3()
     */
-    public static String doSome3(CallPoint remote, int a){
+    public String doSome3(CallPoint remote, int a){
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_STAGESERVICE_DOSOME3_4, new Object[]{a});
     }
 
-    public static String doSome3(CallPoint remote, int a, long timeoutMillis){
+    public String doSome3(CallPoint remote, int a, long timeoutMillis){
         Service service = Service.getCurrent();
         return (String)service.callWait(remote, EnumCall.ENUM_STAGESERVICE_DOSOME3_4, new Object[]{a}, timeoutMillis);
     }

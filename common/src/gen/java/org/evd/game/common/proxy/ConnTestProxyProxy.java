@@ -11,7 +11,13 @@ import org.evd.game.common.serializeBean.ConnInfo;
 */
 public final class ConnTestProxyProxy {
 
+    private static final ConnTestProxyProxy INSTANCE = new ConnTestProxyProxy();
+
     private ConnTestProxyProxy() {
+    }
+
+    public static ConnTestProxyProxy inst() {
+        return INSTANCE;
     }
 
     private static MessageLocationSender createMessageLocationSender() {
@@ -19,7 +25,7 @@ public final class ConnTestProxyProxy {
     }
 
     private static org.evd.game.runtime.actor.ActorAddress queryActorAddress(ActorId actorId) {
-        return LocationServiceProxy.get(locationServiceRemote(), actorId);
+        return LocationServiceProxy.inst().get(locationServiceRemote(), actorId);
     }
 
     private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
@@ -42,7 +48,7 @@ public final class ConnTestProxyProxy {
     /**
     * @see org.evd.game.ConnService.ConnTestProxy#connTest2()
     */
-    public static void connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
+    public void connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST2_4, new Object[]{a, b, connInfo});
@@ -52,7 +58,7 @@ public final class ConnTestProxyProxy {
     /**
     * @see org.evd.game.ConnService.ConnTestProxy#connTest3()
     */
-    public static void connTest3(long actorUniqueId){
+    public void connTest3(long actorUniqueId){
         Service service = Service.getCurrent();
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
         createMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST3_5, new Object[]{});

@@ -22,9 +22,15 @@ import ${package};
 /**
 * 根据${className}Service生成的代理类
 */
-public final class ${generatedClassName} {
+public final class ${generatedClassName}<#if implementsProxyInterface> implements ${proxyInterfaceSimpleName}</#if> {
+
+    private static final ${generatedClassName} INSTANCE = new ${generatedClassName}();
 
     private ${generatedClassName}() {
+    }
+
+    public static ${generatedClassName} inst() {
+        return INSTANCE;
     }
 
     <#if needsLocationImport>
@@ -33,7 +39,7 @@ public final class ${generatedClassName} {
     }
 
     private static org.evd.game.runtime.actor.ActorAddress queryActorAddress(ActorId actorId) {
-        return LocationServiceProxy.get(locationServiceRemote(), actorId);
+        return LocationServiceProxy.inst().get(locationServiceRemote(), actorId);
     }
 
     private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
@@ -59,7 +65,7 @@ public final class ${generatedClassName} {
     /**
     * @see ${fullClassName}#${method.methodName}()
     */
-    public static ${method.returnType} ${method.methodName}(${method.targetPrefix}<#if method.formalParams?has_content>, </#if>${method.formalParams}){
+    public ${method.returnType} ${method.methodName}(${method.targetPrefix}<#if method.formalParams?has_content>, </#if>${method.formalParams}){
         Service service = Service.getCurrent();
         <#if method.returnType == "void">
         <#if method.routeService>
@@ -86,7 +92,7 @@ public final class ${generatedClassName} {
     }
 
     <#if method.returnType != "void">
-    public static ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
+    public ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
         Service service = Service.getCurrent();
         <#if method.routeService>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);

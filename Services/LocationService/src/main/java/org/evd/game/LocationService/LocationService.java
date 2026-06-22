@@ -2,19 +2,21 @@ package org.evd.game.LocationService;
 
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.RpcService;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @Actor(single = true)
+@RpcService(LocationInterface.class)
 public class LocationService extends Service {
     private static final int COROUTINE_LOCK_TYPE_LOCATION = 3;
 
