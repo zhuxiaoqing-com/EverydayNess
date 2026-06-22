@@ -3,13 +3,11 @@ package org.evd.game.runtime.client;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.mailbox.MessageLocationSender;
-import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,7 +42,6 @@ public final class ClientCmdRouteTable {
 
     private record RouteEntry(String serviceClassName, ActorType actorType) {
         private void forward(MessageLocationSender locationSender, Service sender, ClientSessionRef session, int msgId, byte[] body) {
-            // todo 进行转发
 
             switch (actorType) {
                 case NONE -> {
@@ -55,15 +52,10 @@ public final class ClientCmdRouteTable {
                     }
                     sender.sendClientCmd(callPoint, session, msgId, new Chunk(body));
                 }
-                case PLAYER -> {
-                    LocationInterface locationInterface = Service.getCurrent().getLocationInterface();
-                    CallPoint callPoint = DistributeConfig.getNodeByServiceClass(ServiceType.fullClassName(ServiceType.LOC.getClassName()), 0);
-                    ActorAddress actorAddress = locationInterface.get(callPoint, new ActorId(actorType, session.getPlayerId()));
-                    //locationSender.send();
+                case PLAYER,MAP_PLAYER -> {
+                    locationSender.sendClientCmd(new ActorId(actorType, session.getPlayerId()), session, msgId, new Chunk(body));
                 }
-                case MAP_PLAYER -> {
-                }
-                case MAP, GATE, GUILD -> throw new IllegalStateException("不能有 "+actorType +  " 类型: msgId=" + msgId
+                case MAP, GATE -> throw new IllegalStateException("不能有 "+actorType +  " 类型: msgId=" + msgId
                         + ", service=" + serviceClassName);
 
             }

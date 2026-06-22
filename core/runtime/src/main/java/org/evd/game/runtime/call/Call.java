@@ -18,6 +18,9 @@ public class Call extends CallBase {
     @SerializeField
     public boolean needResult;
 
+    public Call() {
+    }
+
     public CallResult createReturn() {
         CallResult callResult = new CallResult();
 

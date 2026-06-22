@@ -1,9 +1,7 @@
 package org.evd.game.runtime;
 
-import org.evd.game.runtime.call.Call;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.call.DispatchType;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -18,7 +16,7 @@ final class RpcOutboundGateway {
     }
 
     void call(CallPoint toCallPoint, int methodKey, Object[] params) {
-        send(buildCall(toCallPoint, methodKey, params));
+        send(CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, false, 0L));
     }
 
     Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
@@ -33,9 +31,7 @@ final class RpcOutboundGateway {
                 (ctx, timeoutWaitId) -> ctx.setFailure(
                         new RpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, targetCallPoint, methodKey)));
 
-        Call call = buildCall(toCallPoint, methodKey, params);
-        call.id = waitId;
-        call.needResult = true;
+        CallBase call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, waitId);
 
         if (!send(call)) {
             continuationRuntime.takeWaitContinuation(waitId);
@@ -47,30 +43,10 @@ final class RpcOutboundGateway {
     }
 
     void sendClientCmd(CallPoint toCallPoint, ClientSessionRef session, int msgId, Chunk body) {
-        Call call = new Call();
-        call.from = copyLocalCallPoint();
-        call.to = toCallPoint;
-        call.dispatchType = DispatchType.CLIENT_CMD;
-        call.methodKey = msgId;
-        call.methodParam = new Object[]{session, body};
-        call.needResult = false;
-        send(call);
+        send(CallFactory.buildServiceClientCmd(service, toCallPoint, session, msgId, body));
     }
 
     boolean send(CallBase call) {
         return service.sendOutboundCall(call);
-    }
-
-    private Call buildCall(CallPoint toCallPoint, int methodKey, Object[] params) {
-        Call call = new Call();
-        call.from = copyLocalCallPoint();
-        call.to = toCallPoint;
-        call.methodKey = methodKey;
-        call.methodParam = params;
-        return call;
-    }
-
-    private CallPoint copyLocalCallPoint() {
-        return service.copyCallPoint();
     }
 }

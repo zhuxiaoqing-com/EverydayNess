@@ -1,8 +1,11 @@
 package org.evd.game.runtime.mailbox;
 
+import org.evd.game.runtime.Chunk;
+import org.evd.game.runtime.CallFactory;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
@@ -78,6 +81,20 @@ public class MessageLocationSender {
     public void send(ActorId actorId, int methodKey, Object[] params) {
         callWithRetry(actorId, (actorAddress, logicalActorId) -> {
             Service.getCurrent().getMessageSender().send(actorAddress, logicalActorId, methodKey, params);
+            return null;
+        });
+    }
+
+    public void sendClientCmd(ActorId actorId, ClientSessionRef session, int msgId, Chunk body) {
+        callWithRetry(actorId, (actorAddress, logicalActorId) -> {
+            Service current = Service.getCurrent();
+            current.sendOutboundCall(CallFactory.buildActorClientCmd(
+                    current,
+                    actorAddress,
+                    logicalActorId,
+                    msgId,
+                    session,
+                    body));
             return null;
         });
     }

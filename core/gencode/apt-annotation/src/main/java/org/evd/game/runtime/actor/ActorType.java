@@ -5,8 +5,7 @@ public enum ActorType {
     PLAYER(1, "PlayerService"),
     MAP(2, "StageService"),
     GATE(3, "ConnService"),
-    GUILD(4, null),
-    MAP_PLAYER(5, "StageService");
+    MAP_PLAYER(4, "StageService");
 
     private final int code;
     private final String ownerServiceClassName;
