@@ -16,6 +16,8 @@ public class ClientSessionRef implements ISerializable {
     private long sessionId;
     @SerializeField
     private long routeKey;
+    @SerializeField
+    private long playerId;
 
     public ClientSessionRef() {
     }
@@ -48,5 +50,13 @@ public class ClientSessionRef implements ISerializable {
 
     public void setRouteKey(long routeKey) {
         this.routeKey = routeKey;
+    }
+
+    public long getPlayerId() {
+        return playerId;
+    }
+
+    public void setPlayerId(long playerId) {
+        this.playerId = playerId;
     }
 }

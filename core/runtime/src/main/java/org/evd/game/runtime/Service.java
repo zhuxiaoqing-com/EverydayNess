@@ -187,7 +187,7 @@ public class Service extends TickCase {
         this.rpcInboundDispatcher = new RpcInboundDispatcher(this);
         this.serviceInfo = serviceInfo;
         try {
-            Class<?> clazz = Class.forName(ServiceType.LOC.fullClassName());
+            Class<?> clazz = Class.forName(ServiceType.fullClassName(ServiceType.LOC.getClassName()));
             Constructor<?> con = clazz.getConstructor();
             this.locationInterface = (LocationInterface)con.newInstance();
         } catch (Exception e) {

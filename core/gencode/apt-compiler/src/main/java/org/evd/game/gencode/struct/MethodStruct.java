@@ -1,7 +1,7 @@
 package org.evd.game.gencode.struct;
 
-import org.evd.game.annotation.RpcActorType;
 import org.evd.game.gencode.AptUtils;
+import org.evd.game.runtime.actor.ActorType;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
@@ -27,7 +27,7 @@ public class MethodStruct<T> {
     /** RPC 分发时使用的方法编号，对应生成代码里的 EnumCall 值 */
     public int methodKey;
     /** NONE 表示 Service 路由，非 NONE 表示按 actorType 做 Location 路由 */
-    public RpcActorType rpcActorType = RpcActorType.NONE;
+    public ActorType rpcActorType = ActorType.NONE;
 
     /** 返回值基础类型名，例如 int / String / void */
     public String returnType;

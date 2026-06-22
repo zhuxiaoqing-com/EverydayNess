@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.gencode.ProcessorBase;
+import org.evd.game.runtime.actor.ActorType;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -34,6 +35,7 @@ public class ClientCmdProcessor extends ProcessorBase {
     private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRouteTable";
     private static final String PROTO_MESSAGE_CLASS_NAME = "com.google.protobuf.MessageLite";
     private static final String SERVICE_CLASS_NAME = "org.evd.game.runtime.Service";
+    private static final String ACTOR_TYPE_CLASS_NAME = "org.evd.game.runtime.actor.ActorType";
 
     private final Set<String> generatedClasses = new HashSet<>();
 
@@ -164,7 +166,8 @@ public class ClientCmdProcessor extends ProcessorBase {
         ClientCmdMethod first = methods.getFirst();
         StringBuilder source = new StringBuilder();
         source.append("package ").append(first.serviceOwnerPackageName).append(";\n\n");
-        source.append("import ").append(CLIENT_CMD_ROUTE_TABLE_CLASS_NAME).append(";\n\n");
+        source.append("import ").append(CLIENT_CMD_ROUTE_TABLE_CLASS_NAME).append(";\n");
+        source.append("import ").append(ACTOR_TYPE_CLASS_NAME).append(";\n\n");
         source.append("/**\n");
         source.append(" * 根据").append(first.serviceOwnerClassName).append("生成的客户端协议路由注册类\n");
         source.append(" */\n");
@@ -177,7 +180,9 @@ public class ClientCmdProcessor extends ProcessorBase {
                     .append(method.cmdExpr)
                     .append(", \"")
                     .append(method.serviceOwnerFullClassName)
-                    .append("\");\n");
+                    .append("\", ActorType.")
+                    .append(method.actorType.name())
+                    .append(");\n");
         }
         source.append("    }\n");
         source.append("}\n");
@@ -217,7 +222,12 @@ public class ClientCmdProcessor extends ProcessorBase {
         TypeElement ownerType = (TypeElement) method.getEnclosingElement();
         TypeElement serviceOwner = resolveServiceOwner(ownerType, serviceType, roundServiceOwner);
         ClientCmd clientCmd = method.getAnnotation(ClientCmd.class);
+        if (clientCmd == null) {
+            throw new IllegalStateException(ownerType.getQualifiedName() + "#" + method.getSimpleName()
+                    + " 找不到 @ClientCmd 注解");
+        }
         int cmd = clientCmd.value();
+        ActorType actorType = clientCmd.actorType();
         if (cmd <= 0) {
             throw new IllegalStateException(ownerType.getQualifiedName() + "#" + method.getSimpleName()
                     + " 的 @ClientCmd value 必须大于 0");
@@ -264,6 +274,7 @@ public class ClientCmdProcessor extends ProcessorBase {
                 method.getSimpleName().toString(),
                 cmd,
                 resolveCmdExpr(cmd),
+                actorType,
                 requestTypeName,
                 requestPackageName,
                 requestClassName,
@@ -379,6 +390,7 @@ public class ClientCmdProcessor extends ProcessorBase {
         private final String methodName;
         private final int cmd;
         private final String cmdExpr;
+        private final ActorType actorType;
         private final String requestTypeName;
         private final String requestPackageName;
         private final String requestClassName;
@@ -390,10 +402,11 @@ public class ClientCmdProcessor extends ProcessorBase {
                                 String serviceOwnerFullClassName,
                                 String targetPackageName,
                                 String targetClassName,
-                                String targetFullClassName,
+                                 String targetFullClassName,
                                  String methodName,
                                  int cmd,
                                  String cmdExpr,
+                                 ActorType actorType,
                                  String requestTypeName,
                                  String requestPackageName,
                                  String requestClassName,
@@ -407,6 +420,7 @@ public class ClientCmdProcessor extends ProcessorBase {
             this.methodName = methodName;
             this.cmd = cmd;
             this.cmdExpr = cmdExpr;
+            this.actorType = actorType;
             this.requestTypeName = requestTypeName;
             this.requestPackageName = requestPackageName;
             this.requestClassName = requestClassName;

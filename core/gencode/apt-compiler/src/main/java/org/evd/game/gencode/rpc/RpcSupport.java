@@ -4,12 +4,12 @@ import freemarker.template.Configuration;
 import freemarker.template.Template;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcActorType;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.struct.MethodStruct;
 import org.evd.game.gencode.struct.ParamStruct;
 import org.evd.game.gencode.struct.StructFactory;
+import org.evd.game.runtime.actor.ActorType;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
@@ -393,12 +393,12 @@ final class RpcSupport {
     }
 
     private void validateRpcActorType(MethodStruct<Rpc> method, TypeElement ownerType) {
-        if (method.rpcActorType == RpcActorType.NONE) {
+        if (method.rpcActorType == ActorType.NONE) {
             return;
         }
         String actorOwnerServiceClassName = method.rpcActorType.getOwnerServiceClassName();
         if (actorOwnerServiceClassName == null || actorOwnerServiceClassName.isEmpty()) {
-            throw new IllegalStateException("RpcActorType." + method.rpcActorType.name()
+            throw new IllegalStateException("ActorType." + method.rpcActorType.name()
                     + " 缺少 ownerServiceClassName，无法生成 RPC: "
                     + method.fullClassName + "#" + method.methodName);
         }
@@ -406,7 +406,7 @@ final class RpcSupport {
         if (!actorOwnerServiceClassName.equals(ownerServiceClassName)) {
             throw new IllegalStateException("RPC actorType 归属的 Service 类名不匹配: "
                     + method.fullClassName + "#" + method.methodName
-                    + " 使用了 RpcActorType." + method.rpcActorType.name()
+                    + " 使用了 ActorType." + method.rpcActorType.name()
                     + "，要求宿主服务类名是 " + actorOwnerServiceClassName
                     + "，实际是 " + ownerType.getSimpleName());
         }
@@ -535,11 +535,11 @@ final class RpcSupport {
     }
 
     private boolean isServiceRoute(MethodStruct<Rpc> method) {
-        return method.rpcActorType == RpcActorType.NONE;
+        return method.rpcActorType == ActorType.NONE;
     }
 
     private boolean isLocationRoute(MethodStruct<Rpc> method) {
-        return method.rpcActorType != RpcActorType.NONE;
+        return method.rpcActorType != ActorType.NONE;
     }
 }
 

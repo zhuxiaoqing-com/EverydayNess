@@ -94,7 +94,7 @@ public class MessageLocationSender {
                 (T) Service.getCurrent().getMessageSender().callWait(actorAddress, logicalActorId, methodKey, params, timeoutMillis));
     }
 
-    public <T> T callWithRetry(ActorId actorId, ActorAddressCaller<T> caller) {
+    private  <T> T callWithRetry(ActorId actorId, ActorAddressCaller<T> caller) {
         int failTimes = 0;
 
         while (true) {
