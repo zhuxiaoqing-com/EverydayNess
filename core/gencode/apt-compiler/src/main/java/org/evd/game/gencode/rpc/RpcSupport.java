@@ -5,7 +5,6 @@ import freemarker.template.Template;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcActorType;
-import org.evd.game.annotation.RpcRoute;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.struct.MethodStruct;
@@ -129,21 +128,17 @@ final class RpcSupport {
 
         for (MethodStruct<Rpc> method : methods) {
             collectMethodImports(importPackages, generatedPackageName, method);
-            boolean routeService = method.rpcRoute == RpcRoute.SERVICE;
-            boolean routeLocation = method.rpcRoute == RpcRoute.LOCATION;
-            boolean usesFixedActorType = routeLocation && method.rpcActorType != RpcActorType.NONE;
+            boolean routeService = isServiceRoute(method);
+            boolean routeLocation = isLocationRoute(method);
+            boolean usesFixedActorType = routeLocation;
             String targetPrefix;
             if (routeService) {
                 targetPrefix = "CallPoint remote";
                 needsCallPointImport = true;
                 needsServiceImport = true;
-            } else if (usesFixedActorType) {
+            } else {
                 targetPrefix = "long actorUniqueId";
                 needsActorTypeImport = true;
-                needsActorIdImport = true;
-                needsLocationImport = true;
-            } else {
-                targetPrefix = "ActorId actorId";
                 needsActorIdImport = true;
                 needsLocationImport = true;
             }
@@ -214,20 +209,16 @@ final class RpcSupport {
 
         for (MethodStruct<Rpc> method : methods) {
             collectMethodImports(importPackages, generatedPackageName, method);
-            boolean routeService = method.rpcRoute == RpcRoute.SERVICE;
-            boolean routeLocation = method.rpcRoute == RpcRoute.LOCATION;
-            boolean usesFixedActorType = routeLocation && method.rpcActorType != RpcActorType.NONE;
+            boolean routeService = isServiceRoute(method);
+            boolean routeLocation = isLocationRoute(method);
+            boolean usesFixedActorType = routeLocation;
             String targetPrefix;
             if (routeService) {
                 targetPrefix = "CallPoint remote";
                 needsCallPointImport = true;
-            } else if (usesFixedActorType) {
+            } else {
                 targetPrefix = "long actorUniqueId";
                 needsActorTypeImport = true;
-                needsActorIdImport = true;
-                needsLocationImport = true;
-            } else {
-                targetPrefix = "ActorId actorId";
                 needsActorIdImport = true;
                 needsLocationImport = true;
             }
@@ -397,7 +388,6 @@ final class RpcSupport {
         if (rpc == null) {
             throw new IllegalStateException("找不到 @Rpc 注解: " + method.fullClassName + "#" + method.methodName);
         }
-        method.rpcRoute = rpc.route();
         method.rpcActorType = rpc.actorType();
         validateRpcActorType(method, ownerType);
     }
@@ -515,15 +505,11 @@ final class RpcSupport {
 
     private String buildGeneratedSignature(MethodStruct<Rpc> method, boolean timeoutOverload) {
         List<String> paramTypes = new ArrayList<>();
-        boolean routeService = method.rpcRoute == RpcRoute.SERVICE;
-        boolean usesFixedActorType = method.rpcRoute == RpcRoute.LOCATION
-                && method.rpcActorType != RpcActorType.NONE;
+        boolean routeService = isServiceRoute(method);
         if (routeService) {
             paramTypes.add("org.evd.game.runtime.call.CallPoint");
-        } else if (usesFixedActorType) {
-            paramTypes.add("long");
         } else {
-            paramTypes.add("org.evd.game.runtime.actor.ActorId");
+            paramTypes.add("long");
         }
         for (ParamStruct param : method.params) {
             paramTypes.add(param.paramType);
@@ -546,6 +532,14 @@ final class RpcSupport {
 
     private String buildSignature(String methodName, List<String> paramTypes, String returnType) {
         return methodName + "(" + String.join(",", paramTypes) + "):" + returnType;
+    }
+
+    private boolean isServiceRoute(MethodStruct<Rpc> method) {
+        return method.rpcActorType == RpcActorType.NONE;
+    }
+
+    private boolean isLocationRoute(MethodStruct<Rpc> method) {
+        return method.rpcActorType != RpcActorType.NONE;
     }
 }
 

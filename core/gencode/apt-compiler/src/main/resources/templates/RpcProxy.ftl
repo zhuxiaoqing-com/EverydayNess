@@ -54,9 +54,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         Service service = Service.getCurrent();
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
-        <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-        </#if>
         locationSender.send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         <#else>
@@ -64,9 +62,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         Service service = Service.getCurrent();
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
-        <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-        </#if>
         return (${method.returnType})locationSender.callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         </#if>
@@ -78,9 +74,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         Service service = Service.getCurrent();
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         <#else>
-        <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-        </#if>
         return (${method.returnType})locationSender.callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         </#if>
     }

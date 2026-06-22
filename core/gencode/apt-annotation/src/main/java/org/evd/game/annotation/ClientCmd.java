@@ -9,4 +9,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)
 public @interface ClientCmd {
     int value();
+    RpcActorType actorType() default RpcActorType.NONE;
 }

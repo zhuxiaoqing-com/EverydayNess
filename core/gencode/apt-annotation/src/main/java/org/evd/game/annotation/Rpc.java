@@ -9,6 +9,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)
 public @interface Rpc {
     boolean http() default false;
-    RpcRoute route() default RpcRoute.SERVICE;
     RpcActorType actorType() default RpcActorType.NONE;
 }
