@@ -1,11 +1,13 @@
 package ${commonPackageName};
 
+<#if needsServiceImport>
 import org.evd.game.runtime.Service;
+</#if>
 <#if needsCallPointImport>
 import org.evd.game.runtime.call.CallPoint;
 </#if>
 <#if needsLocationImport>
-import org.evd.game.common.location.MessageLocationSender;
+import org.evd.game.runtime.mailbox.MessageLocationSender;
 </#if>
 <#if needsActorIdImport>
 import org.evd.game.runtime.actor.ActorId;
@@ -25,6 +27,9 @@ import ${package};
 public final class ${generatedClassName}<#if implementsProxyInterface> implements ${proxyInterfaceSimpleName}</#if> {
 
     private static final ${generatedClassName} INSTANCE = new ${generatedClassName}();
+    <#if needsLocationImport>
+    private static final MessageLocationSender locationSender = new MessageLocationSender();
+    </#if>
 
     private ${generatedClassName}() {
     }
@@ -32,28 +37,6 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
     public static ${generatedClassName} inst() {
         return INSTANCE;
     }
-
-    <#if needsLocationImport>
-    private static MessageLocationSender createMessageLocationSender() {
-        return new MessageLocationSender(${generatedClassName}::queryActorAddress);
-    }
-
-    private static org.evd.game.runtime.actor.ActorAddress queryActorAddress(ActorId actorId) {
-        return LocationServiceProxy.inst().get(locationServiceRemote(), actorId);
-    }
-
-    private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
-        org.evd.game.runtime.call.CallPoint remote =
-                org.evd.game.runtime.config.DistributeConfig.getNodeByServiceClass(
-                        "org.evd.game.LocationService.LocationService",
-                        0L);
-        if (remote == null) {
-            throw new IllegalStateException(
-                    "找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
-        }
-        return remote;
-    }
-    </#if>
 
     public final static class EnumCall{
     <#list methods as method>
@@ -63,44 +46,42 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
 
     <#list methods as method>
     /**
-    * @see ${fullClassName}#${method.methodName}()
+    * 对应源方法: ${fullClassName}#${method.methodName}()
     */
     public ${method.returnType} ${method.methodName}(${method.targetPrefix}<#if method.formalParams?has_content>, </#if>${method.formalParams}){
-        Service service = Service.getCurrent();
         <#if method.returnType == "void">
         <#if method.routeService>
+        Service service = Service.getCurrent();
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        createMessageLocationSender().send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        locationSender.send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         <#else>
         <#if method.routeService>
-        <#if method.usesFixedActorType>
-        ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-        </#if>
+        Service service = Service.getCurrent();
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        return (${method.returnType})createMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        return (${method.returnType})locationSender.callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         </#if>
     }
 
     <#if method.returnType != "void">
     public ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
-        Service service = Service.getCurrent();
         <#if method.routeService>
+        Service service = Service.getCurrent();
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         <#else>
         <#if method.usesFixedActorType>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
         </#if>
-        return (${method.returnType})createMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+        return (${method.returnType})locationSender.callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         </#if>
     }
     </#if>

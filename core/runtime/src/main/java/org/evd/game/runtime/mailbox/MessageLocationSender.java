@@ -1,8 +1,9 @@
-package org.evd.game.common.location;
+package org.evd.game.runtime.mailbox;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 
@@ -10,25 +11,27 @@ public class MessageLocationSender {
     private static final int RETRY_TIMES = 20;
     private static final long RETRY_INTERVAL_MILLIS = 500L;
 
-    @FunctionalInterface
-    public interface ActorAddressResolver {
-        ActorAddress query(ActorId actorId);
-    }
 
     @FunctionalInterface
     public interface ActorAddressCaller<T> {
         T call(ActorAddress actorAddress, ActorId actorId);
     }
 
-    private final ActorAddressResolver actorAddressResolver;
-
-    public MessageLocationSender(ActorAddressResolver actorAddressResolver) {
-        if (actorAddressResolver == null) {
-            throw new IllegalArgumentException("actorAddressResolver 不能为空");
-        }
-        this.actorAddressResolver = actorAddressResolver;
+    public MessageLocationSender() {
     }
 
+
+    private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
+        org.evd.game.runtime.call.CallPoint remote =
+                org.evd.game.runtime.config.DistributeConfig.getNodeByServiceClass(
+                        "org.evd.game.LocationService.LocationService",
+                        0L);
+        if (remote == null) {
+            throw new IllegalStateException(
+                    "找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
+        }
+        return remote;
+    }
     public ActorAddress get(ActorId actorId) {
         Service service = Service.getCurrent();
         return service.getCachedActorAddress(actorId);
@@ -40,13 +43,17 @@ public class MessageLocationSender {
             return cached;
         }
 
-        ActorAddress remote = actorAddressResolver.query(actorId);
+        ActorAddress remote = getLocationInterface().get(locationServiceRemote(), actorId);
         if (remote == null) {
             return null;
         }
 
         this.cache(actorId, remote);
         return new ActorAddress(remote);
+    }
+
+    private LocationInterface getLocationInterface() {
+        return Service.getCurrent().getLocationInterface();
     }
 
     public void cache(ActorId actorId, ActorAddress actorAddress) {
@@ -58,7 +65,7 @@ public class MessageLocationSender {
     }
 
     public ActorAddress refresh(ActorId actorId) {
-        ActorAddress remote = actorAddressResolver.query(actorId);
+        ActorAddress remote = getLocationInterface().get(locationServiceRemote(), actorId);
         if (remote == null) {
             remove(actorId);
             return null;

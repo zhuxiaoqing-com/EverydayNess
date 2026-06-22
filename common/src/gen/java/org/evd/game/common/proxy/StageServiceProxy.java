@@ -17,7 +17,6 @@ public final class StageServiceProxy {
         return INSTANCE;
     }
 
-
     public final static class EnumCall{
         public final static int ENUM_STAGESERVICE_CALLHAHAHAACTORRPC1_0 = 0;
         public final static int ENUM_STAGESERVICE_CALLHAHAHAACTORRPC2_1 = 1;
@@ -27,7 +26,7 @@ public final class StageServiceProxy {
     }
 
     /**
-    * @see org.evd.game.StageService.StageService#callHaHaHaActorRpc1()
+    * 对应源方法: org.evd.game.StageService.StageService#callHaHaHaActorRpc1()
     */
     public void callHaHaHaActorRpc1(CallPoint remote, long actorId, int a, int b){
         Service service = Service.getCurrent();
@@ -36,7 +35,7 @@ public final class StageServiceProxy {
 
 
     /**
-    * @see org.evd.game.StageService.StageService#callHaHaHaActorRpc2()
+    * 对应源方法: org.evd.game.StageService.StageService#callHaHaHaActorRpc2()
     */
     public void callHaHaHaActorRpc2(CallPoint remote, long actorId, Object a, Object b){
         Service service = Service.getCurrent();
@@ -45,7 +44,7 @@ public final class StageServiceProxy {
 
 
     /**
-    * @see org.evd.game.StageService.StageService#doSome1()
+    * 对应源方法: org.evd.game.StageService.StageService#doSome1()
     */
     public String doSome1(CallPoint remote, int a, int b){
         Service service = Service.getCurrent();
@@ -58,7 +57,7 @@ public final class StageServiceProxy {
     }
 
     /**
-    * @see org.evd.game.StageService.StageService#doSome2()
+    * 对应源方法: org.evd.game.StageService.StageService#doSome2()
     */
     public void doSome2(CallPoint remote, int a, int b){
         Service service = Service.getCurrent();
@@ -67,7 +66,7 @@ public final class StageServiceProxy {
 
 
     /**
-    * @see org.evd.game.StageService.StageService#doSome3()
+    * 对应源方法: org.evd.game.StageService.StageService#doSome3()
     */
     public String doSome3(CallPoint remote, int a){
         Service service = Service.getCurrent();

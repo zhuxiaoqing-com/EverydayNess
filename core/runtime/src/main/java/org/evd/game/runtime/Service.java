@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
@@ -14,11 +15,13 @@ import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.mailbox.MailBoxComponent;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
+import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.SysException;
 
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -142,6 +145,7 @@ public class Service extends TickCase {
      * location sender 缓存
      */
     private final ActorAddressCache actorAddressCache = new ActorAddressCache();
+    private final LocationInterface locationInterface;
     /**
      * call transport 与发送缓冲
      */
@@ -182,6 +186,13 @@ public class Service extends TickCase {
         this.rpcOutboundGateway = new RpcOutboundGateway(this);
         this.rpcInboundDispatcher = new RpcInboundDispatcher(this);
         this.serviceInfo = serviceInfo;
+        try {
+            Class<?> clazz = Class.forName(ServiceType.LOC.fullClassName());
+            Constructor<?> con = clazz.getConstructor();
+            this.locationInterface = (LocationInterface)con.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -602,5 +613,9 @@ public class Service extends TickCase {
 
     public Mdb getMdb() {
         return mdb;
+    }
+
+    public LocationInterface getLocationInterface() {
+        return locationInterface;
     }
 }

@@ -105,6 +105,7 @@ final class RpcSupport {
         List<String> importsModel = new ArrayList<>();
         List<Map<String, Object>> methodsModel = new ArrayList<>();
         boolean needsCallPointImport = false;
+        boolean needsServiceImport = false;
         boolean needsLocationImport = false;
         boolean needsActorIdImport = false;
         boolean needsActorTypeImport = false;
@@ -135,6 +136,7 @@ final class RpcSupport {
             if (routeService) {
                 targetPrefix = "CallPoint remote";
                 needsCallPointImport = true;
+                needsServiceImport = true;
             } else if (usesFixedActorType) {
                 targetPrefix = "long actorUniqueId";
                 needsActorTypeImport = true;
@@ -165,6 +167,7 @@ final class RpcSupport {
             methodModel.put("actorTypeName", method.rpcActorType.name());
         }
 
+        dataModel.put("needsServiceImport", needsServiceImport);
         dataModel.put("needsCallPointImport", needsCallPointImport);
         dataModel.put("needsLocationImport", needsLocationImport);
         dataModel.put("needsActorIdImport", needsActorIdImport);

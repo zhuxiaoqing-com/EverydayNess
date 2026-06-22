@@ -20,7 +20,6 @@ public final class LocationServiceProxy implements LocationInterface {
         return INSTANCE;
     }
 
-
     public final static class EnumCall{
         public final static int ENUM_LOCATIONSERVICE_ADD_0 = 0;
         public final static int ENUM_LOCATIONSERVICE_GET_1 = 1;
@@ -30,7 +29,7 @@ public final class LocationServiceProxy implements LocationInterface {
     }
 
     /**
-    * @see org.evd.game.LocationService.LocationService#add()
+    * 对应源方法: org.evd.game.LocationService.LocationService#add()
     */
     public void add(CallPoint remote, ActorId actorId, ActorAddress actorAddress){
         Service service = Service.getCurrent();
@@ -39,7 +38,7 @@ public final class LocationServiceProxy implements LocationInterface {
 
 
     /**
-    * @see org.evd.game.LocationService.LocationService#get()
+    * 对应源方法: org.evd.game.LocationService.LocationService#get()
     */
     public ActorAddress get(CallPoint remote, ActorId actorId){
         Service service = Service.getCurrent();
@@ -52,7 +51,7 @@ public final class LocationServiceProxy implements LocationInterface {
     }
 
     /**
-    * @see org.evd.game.LocationService.LocationService#lock()
+    * 对应源方法: org.evd.game.LocationService.LocationService#lock()
     */
     public void lock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, int timeMillis){
         Service service = Service.getCurrent();
@@ -61,7 +60,7 @@ public final class LocationServiceProxy implements LocationInterface {
 
 
     /**
-    * @see org.evd.game.LocationService.LocationService#remove()
+    * 对应源方法: org.evd.game.LocationService.LocationService#remove()
     */
     public void remove(CallPoint remote, ActorId actorId){
         Service service = Service.getCurrent();
@@ -70,7 +69,7 @@ public final class LocationServiceProxy implements LocationInterface {
 
 
     /**
-    * @see org.evd.game.LocationService.LocationService#unlock()
+    * 对应源方法: org.evd.game.LocationService.LocationService#unlock()
     */
     public void unlock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress){
         Service service = Service.getCurrent();

@@ -20,13 +20,12 @@ public final class DBServiceProxy implements DBExecInterface {
         return INSTANCE;
     }
 
-
     public final static class EnumCall{
         public final static int ENUM_DBSERVICE_DBEXEC_0 = 0;
     }
 
     /**
-    * @see org.evd.game.DBService.DBService#dbExec()
+    * 对应源方法: org.evd.game.DBService.DBService#dbExec()
     */
     public DBRsp dbExec(CallPoint remote, DBReq dbReq){
         Service service = Service.getCurrent();

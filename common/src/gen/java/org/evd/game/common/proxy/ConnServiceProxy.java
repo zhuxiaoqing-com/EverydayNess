@@ -19,7 +19,6 @@ public final class ConnServiceProxy {
         return INSTANCE;
     }
 
-
     public final static class EnumCall{
         public final static int ENUM_CONNSERVICE_CON_0 = 0;
         public final static int ENUM_CONNSERVICE_CON1_1 = 1;
@@ -28,7 +27,7 @@ public final class ConnServiceProxy {
     }
 
     /**
-    * @see org.evd.game.ConnService.ConnService#con()
+    * 对应源方法: org.evd.game.ConnService.ConnService#con()
     */
     public String con(CallPoint remote){
         Service service = Service.getCurrent();
@@ -41,7 +40,7 @@ public final class ConnServiceProxy {
     }
 
     /**
-    * @see org.evd.game.ConnService.ConnService#con1()
+    * 对应源方法: org.evd.game.ConnService.ConnService#con1()
     */
     public void con1(CallPoint remote){
         Service service = Service.getCurrent();
@@ -50,7 +49,7 @@ public final class ConnServiceProxy {
 
 
     /**
-    * @see org.evd.game.ConnService.ConnService#con4()
+    * 对应源方法: org.evd.game.ConnService.ConnService#con4()
     */
     public void con4(CallPoint remote){
         Service service = Service.getCurrent();
@@ -59,7 +58,7 @@ public final class ConnServiceProxy {
 
 
     /**
-    * @see org.evd.game.ConnService.ConnService#pushToClient()
+    * 对应源方法: org.evd.game.ConnService.ConnService#pushToClient()
     */
     public void pushToClient(CallPoint remote, ClientSessionRef session, int msgId, Chunk body){
         Service service = Service.getCurrent();

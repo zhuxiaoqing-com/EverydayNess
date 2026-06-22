@@ -73,4 +73,8 @@ public enum ServiceType {
         }
         return null;
     }
+
+    public  String fullClassName() {
+        return "org.evd.game." + className + "." + className;
+    }
 }
