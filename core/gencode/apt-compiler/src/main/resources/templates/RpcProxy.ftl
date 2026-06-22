@@ -6,9 +6,6 @@ import org.evd.game.runtime.Service;
 <#if needsCallPointImport>
 import org.evd.game.runtime.call.CallPoint;
 </#if>
-<#if needsLocationImport>
-import org.evd.game.runtime.mailbox.MessageLocationSender;
-</#if>
 <#if needsActorIdImport>
 import org.evd.game.runtime.actor.ActorId;
 </#if>
@@ -27,9 +24,6 @@ import ${package};
 public final class ${generatedClassName}<#if implementsProxyInterface> implements ${proxyInterfaceSimpleName}</#if> {
 
     private static final ${generatedClassName} INSTANCE = new ${generatedClassName}();
-    <#if needsLocationImport>
-    private static final MessageLocationSender locationSender = new MessageLocationSender();
-    </#if>
 
     private ${generatedClassName}() {
     }
@@ -55,7 +49,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-        locationSender.send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         <#else>
         <#if method.routeService>
@@ -63,7 +57,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-        return (${method.returnType})locationSender.callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+        return (${method.returnType})Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         </#if>
         </#if>
     }
@@ -75,7 +69,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         <#else>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-        return (${method.returnType})locationSender.callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
+        return (${method.returnType})Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         </#if>
     }
     </#if>

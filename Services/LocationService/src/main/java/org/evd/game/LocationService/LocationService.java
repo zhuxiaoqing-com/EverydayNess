@@ -186,4 +186,15 @@ public class LocationService extends Service {
                 && left.getCallPoint().getNodeId().equals(right.getCallPoint().getNodeId())
                 && left.getCallPoint().getServId().equals(right.getCallPoint().getServId());
     }
+
+
+    @Override
+    protected boolean supportLocation() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportMdb() {
+        return false;
+    }
 }

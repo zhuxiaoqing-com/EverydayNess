@@ -7,20 +7,18 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.config.DistributeConfig;
-import org.evd.game.runtime.mailbox.MessageLocationSender;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class ClientCmdRouteTable {
     private final Map<Integer, RouteEntry> routes = new LinkedHashMap<>();
-    private MessageLocationSender locationSender = new MessageLocationSender();
 
     /**
      *
      * @param msgId 消息号id
      * @param serviceClassName LocationService,className简写
-     * @param actorType atorType
+     * @param actorType actorType
      */
     public void register(int msgId, String serviceClassName, ActorType actorType) {
         RouteEntry routeEntry = new RouteEntry(serviceClassName, actorType);
@@ -37,11 +35,11 @@ public final class ClientCmdRouteTable {
         if (routeEntry == null) {
             throw new IllegalStateException("未注册的客户端协议: msgId=" + msgId);
         }
-        routeEntry.forward(locationSender, sender, session, msgId, body);
+        routeEntry.forward(sender, session, msgId, body);
     }
 
     private record RouteEntry(String serviceClassName, ActorType actorType) {
-        private void forward(MessageLocationSender locationSender, Service sender, ClientSessionRef session, int msgId, byte[] body) {
+        private void forward(Service sender, ClientSessionRef session, int msgId, byte[] body) {
 
             switch (actorType) {
                 case NONE -> {
@@ -52,9 +50,9 @@ public final class ClientCmdRouteTable {
                     }
                     sender.sendClientCmd(callPoint, session, msgId, new Chunk(body));
                 }
-                case PLAYER,MAP_PLAYER -> {
-                    locationSender.sendClientCmd(new ActorId(actorType, session.getPlayerId()), session, msgId, new Chunk(body));
-                }
+                case PLAYER,MAP_PLAYER ->
+                        sender.getMessageLocationSender()
+                                .sendClientCmd(new ActorId(actorType, session.getPlayerId()), session, msgId, new Chunk(body));
                 case MAP, GATE -> throw new IllegalStateException("不能有 "+actorType +  " 类型: msgId=" + msgId
                         + ", service=" + serviceClassName);
 

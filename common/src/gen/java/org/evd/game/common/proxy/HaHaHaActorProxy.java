@@ -2,7 +2,6 @@ package org.evd.game.common.proxy;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
 
@@ -12,7 +11,6 @@ import org.evd.game.runtime.actor.ActorType;
 public final class HaHaHaActorProxy {
 
     private static final HaHaHaActorProxy INSTANCE = new HaHaHaActorProxy();
-    private static final MessageLocationSender locationSender = new MessageLocationSender();
 
     private HaHaHaActorProxy() {
     }
@@ -33,7 +31,7 @@ public final class HaHaHaActorProxy {
     */
     public void rpc1(long actorUniqueId, int a, int b){
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
-        locationSender.send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC1_5, new Object[]{a, b});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC1_5, new Object[]{a, b});
     }
 
 
@@ -42,7 +40,7 @@ public final class HaHaHaActorProxy {
     */
     public void rpc2(long actorUniqueId, Object a, Object b){
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
-        locationSender.send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC2_6, new Object[]{a, b});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC2_6, new Object[]{a, b});
     }
 
 
@@ -60,7 +58,7 @@ public final class HaHaHaActorProxy {
     */
     public void rpc4(long actorUniqueId, Object a, Object b){
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
-        locationSender.send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC4_8, new Object[]{a, b});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC4_8, new Object[]{a, b});
     }
 
 

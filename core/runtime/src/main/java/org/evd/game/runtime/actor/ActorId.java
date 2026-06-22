@@ -42,10 +42,6 @@ public class ActorId implements ISerializable {
         return new ActorId(ActorType.GATE, uniqueId);
     }
 
-    public static ActorId guild(long uniqueId) {
-        return new ActorId(ActorType.GUILD, uniqueId);
-    }
-
     public static ActorId mapPlayer(long uniqueId) {
         return new ActorId(ActorType.MAP_PLAYER, uniqueId);
     }

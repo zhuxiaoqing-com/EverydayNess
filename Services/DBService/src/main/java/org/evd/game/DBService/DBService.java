@@ -89,4 +89,13 @@ public class DBService extends Service {
         return dbRsp;
     }
 
+    @Override
+    protected boolean supportLocation() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportMdb() {
+        return false;
+    }
 }

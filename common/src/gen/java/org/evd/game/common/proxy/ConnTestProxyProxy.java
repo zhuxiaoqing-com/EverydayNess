@@ -1,6 +1,6 @@
 package org.evd.game.common.proxy;
 
-import org.evd.game.runtime.mailbox.MessageLocationSender;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
 import org.evd.game.common.serializeBean.ConnInfo;
@@ -11,7 +11,6 @@ import org.evd.game.common.serializeBean.ConnInfo;
 public final class ConnTestProxyProxy {
 
     private static final ConnTestProxyProxy INSTANCE = new ConnTestProxyProxy();
-    private static final MessageLocationSender locationSender = new MessageLocationSender();
 
     private ConnTestProxyProxy() {
     }
@@ -30,7 +29,7 @@ public final class ConnTestProxyProxy {
     */
     public void connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        locationSender.send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST2_4, new Object[]{a, b, connInfo});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST2_4, new Object[]{a, b, connInfo});
     }
 
 
@@ -39,7 +38,7 @@ public final class ConnTestProxyProxy {
     */
     public void connTest3(long actorUniqueId){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        locationSender.send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST3_5, new Object[]{});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST3_5, new Object[]{});
     }
 
 

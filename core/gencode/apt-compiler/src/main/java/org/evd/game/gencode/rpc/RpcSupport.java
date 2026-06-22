@@ -138,6 +138,7 @@ final class RpcSupport {
                 needsServiceImport = true;
             } else {
                 targetPrefix = "long actorUniqueId";
+                needsServiceImport = true;
                 needsActorTypeImport = true;
                 needsActorIdImport = true;
                 needsLocationImport = true;

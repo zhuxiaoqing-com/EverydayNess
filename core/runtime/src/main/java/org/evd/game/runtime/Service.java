@@ -14,7 +14,9 @@ import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.mailbox.MailBoxComponent;
+import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
+import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
@@ -142,10 +144,9 @@ public class Service extends TickCase {
      */
     private final RpcMethodInvoker rpcMethodInvoker = new RpcMethodInvoker(this);
     /**
-     * location sender 缓存
+     * actor location 查询、缓存与投递
      */
-    private final ActorAddressCache actorAddressCache = new ActorAddressCache();
-    private final LocationInterface locationInterface;
+    private MessageLocationSender messageLocationSender;
     /**
      * call transport 与发送缓冲
      */
@@ -158,7 +159,6 @@ public class Service extends TickCase {
      * rpc 入站分发
      */
     private final RpcInboundDispatcher rpcInboundDispatcher;
-    private long actorAddressCacheCleanupTimerId;
     /**
      * ThreadLocal
      */
@@ -186,12 +186,18 @@ public class Service extends TickCase {
         this.rpcOutboundGateway = new RpcOutboundGateway(this);
         this.rpcInboundDispatcher = new RpcInboundDispatcher(this);
         this.serviceInfo = serviceInfo;
-        try {
-            Class<?> clazz = Class.forName(ServiceType.fullClassName(ServiceType.LOC.getClassName()));
-            Constructor<?> con = clazz.getConstructor();
-            this.locationInterface = (LocationInterface)con.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+
+
+        if(supportLocation()) this.messageLocationSender = new MessageLocationSender(this);
+        if(supportMdb()) {
+            this.mdb = new Mdb();
+            try {
+                Class<?> clazz = Class.forName(ServiceType.fullClassName(ServiceType.LOC.getClassName()));
+                Constructor<?> constructor = clazz.getConstructor();
+                mdb.start(getClass().getSimpleName(), (DBExecInterface) constructor.newInstance());
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
         }
     }
 
@@ -199,10 +205,12 @@ public class Service extends TickCase {
     protected void init_t() {
         // 加入到services
         node.attachToNode(this);
-        actorAddressCacheCleanupTimerId = newRepeatedTimer(
-                ActorAddressCache.CLEANUP_INTERVAL_MILLIS,
-                false,
-                this::cleanupIdleActorAddressCache);
+        if(messageLocationSender != null) {
+            newRepeatedTimer(
+                    MessageLocationSender.getCleanupIntervalMillis(),
+                    false,
+                    messageLocationSender::cleanupIdle);
+        }
 
         // 修改状态
         status = CaseStatus.Running;
@@ -567,20 +575,8 @@ public class Service extends TickCase {
         return messageSender;
     }
 
-    public ActorAddress getCachedActorAddress(ActorId actorId) {
-        return actorAddressCache.get(actorId, getWaitBaseTime());
-    }
-
-    public void cacheActorAddress(ActorId actorId, ActorAddress actorAddress) {
-        actorAddressCache.put(actorId, actorAddress, getWaitBaseTime());
-    }
-
-    public void removeActorAddress(ActorId actorId) {
-        actorAddressCache.remove(actorId);
-    }
-
-    private void cleanupIdleActorAddressCache() {
-        actorAddressCache.cleanupIdle(getWaitBaseTime());
+    public MessageLocationSender getMessageLocationSender() {
+        return messageLocationSender;
     }
 
     protected ActorAddress getActorAddress(ActorId actorId) {
@@ -591,11 +587,7 @@ public class Service extends TickCase {
 
     @Override
     public void onClose() {
-        if (actorAddressCacheCleanupTimerId != 0L) {
-            removeTimer(actorAddressCacheCleanupTimerId);
-            actorAddressCacheCleanupTimerId = 0L;
-        }
-        actorAddressCache.clear();
+        messageLocationSender.close();
 
         node.remove(this);
 
@@ -615,7 +607,12 @@ public class Service extends TickCase {
         return mdb;
     }
 
-    public LocationInterface getLocationInterface() {
-        return locationInterface;
+    protected boolean supportMdb() {
+        return true;
     }
+
+    protected boolean supportLocation() {
+        return true;
+    }
+
 }

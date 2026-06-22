@@ -7,7 +7,6 @@ import org.evd.game.common.proxy.LocationServiceProxy;
 import org.evd.game.common.proto.C2S_Login;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
-import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.Node;
 import org.evd.game.annotation.Rpc;
@@ -25,8 +24,6 @@ import org.evd.game.runtime.support.RuntimeUtils;
 @Actor()
 public class StageService extends Service {
     public int a;
-    private final MessageLocationSender actorLocationSender = new MessageLocationSender();
-
 
     public StageService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
@@ -80,21 +77,13 @@ public class StageService extends Service {
         ConnServiceProxy.inst().pushToClient(session.getGate(), session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
     }
 
-    public MessageLocationSender getActorLocationSender() {
-        return actorLocationSender;
-    }
-
-    public MessageLocationSender getMessageLocationSender() {
-        return actorLocationSender;
-    }
-
     private void bindActorLocation(long actorId) {
         ActorId actorRef = ActorId.player(actorId);
         registerActor(actorRef, new HaHaHaActor(), ActorExecutionMode.ORDERED);
         ActorAddress actorAddress = getActorAddress(actorRef);
         CallPoint locationService = getLocationServiceRemote();
         LocationServiceProxy.inst().add(locationService, actorRef, actorAddress);
-        actorLocationSender.cache(actorRef, actorAddress);
+        getMessageLocationSender().cache(actorRef, actorAddress);
     }
 
     private HaHaHaActor requireHaHaHaActor(long actorId) {
