@@ -5,6 +5,7 @@ import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;

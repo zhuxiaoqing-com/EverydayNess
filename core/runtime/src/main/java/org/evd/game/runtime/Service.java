@@ -11,6 +11,7 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorRegistry;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.mailbox.MailBoxComponent;
@@ -41,23 +42,6 @@ public class Service extends TickCase {
      */
     public static final int COROUTINE_LOCK_TYPE_MAILBOX = 2;
 
-    protected final class ContinuationLockScope implements AutoCloseable {
-        private final Task.ContinuationWrapper continuation;
-        private boolean closed;
-
-        private ContinuationLockScope(Task.ContinuationWrapper continuation) {
-            this.continuation = continuation;
-        }
-
-        @Override
-        public void close() {
-            if (closed || continuation == null) {
-                return;
-            }
-            closed = true;
-            coroutineLockManager.release(continuation);
-        }
-    }
 
     public void addCall_snt(CallBase call) {
         calls.add(call);
@@ -518,10 +502,10 @@ public class Service extends TickCase {
 
     protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key, int timeoutMillis) {
         if (key == null) {
-            return new ContinuationLockScope(null);
+            return new ContinuationLockScope(coroutineLockManager,null);
         }
         awaitCoroutineLock(type, key, timeoutMillis);
-        return new ContinuationLockScope(currentContinuation());
+        return new ContinuationLockScope(coroutineLockManager, currentContinuation());
     }
 
     protected final long newOnceTimer(long delayMillis, Runnable callback) {
