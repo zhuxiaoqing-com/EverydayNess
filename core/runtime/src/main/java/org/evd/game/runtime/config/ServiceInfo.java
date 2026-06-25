@@ -3,22 +3,23 @@ package org.evd.game.runtime.config;
 import org.evd.game.annotation.ServiceType;
 
 public class ServiceInfo {
-    private String serviceType;
+    private ServiceType serviceType;
     private String name;
     private int num;
     private int interval = 5;
     private String publicAddr;
 
-    public String getServiceType() {
+
+    public ServiceType getServiceType() {
         return serviceType;
     }
 
-    public void setServiceType(String serviceType) {
+    public void setServiceType(ServiceType serviceType) {
         this.serviceType = serviceType;
     }
 
     public String getClassName() {
-        return ServiceType.valueOf(serviceType).getClassName();
+        return serviceType.getClassName();
     }
 
     public String getName() {
@@ -51,6 +52,17 @@ public class ServiceInfo {
 
     public void setPublicAddr(String publicAddr) {
         this.publicAddr = publicAddr;
+    }
+
+    @Override
+    public String toString() {
+        return "ServiceInfo{" +
+                "serviceType=" + serviceType +
+                ", name='" + name + '\'' +
+                ", num=" + num +
+                ", interval=" + interval +
+                ", publicAddr='" + publicAddr + '\'' +
+                '}';
     }
 }
 

@@ -6,7 +6,6 @@ import org.evd.game.runtime.config.NodeConfig;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.ScheduleInfo;
 import org.evd.game.runtime.config.ServiceInfo;
-import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.LogCore;
@@ -44,8 +43,6 @@ public class Main {
         GlobalConfig.init(bootStrapName);
         NodeConfig config = GlobalConfig.requireNodeConfig();
 
-        registerServiceRoutes(config);
-
         NodeInfo nodeInfo = GlobalConfig.requireNodeInfo(nodeId);
         Node node = new Node(nodeId, nodeInfo.getAddr());
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
@@ -69,13 +66,10 @@ public class Main {
                     throw new SysException("service class not exist {}", serviceClassName);
                 }
                 // TODO 按service名加载 XXXService.jar
-
-
                 Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class, ServiceInfo.class);
                 if (serviceInfo.getNum() < 0){
                     Service service = (Service)con.newInstance(node, serviceInfo.getName(), scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
                     node.addService(service);
-                    DistributeConfig.addSingleService(service);
                 }else{
                     for (int i=1; i<=serviceInfo.getNum(); ++i){
                         Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
@@ -131,23 +125,4 @@ public class Main {
         }));
 
     }
-
-    private static void registerServiceRoutes(NodeConfig config) {
-        for (NodeInfo configNode : config.getNodes()) {
-            for (ScheduleInfo scheduleInfo : configNode.getSchedule()) {
-                for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
-                    String className = serviceInfo.getClassName();
-                    String serviceClassName = "org.evd.game." + className + "." + className;
-                    if (serviceInfo.getNum() < 0) {
-                        DistributeConfig.addServiceNode(serviceClassName, new org.evd.game.runtime.call.CallPoint(configNode.getName(), serviceInfo.getName()));
-                    } else {
-                        for (int i = 1; i <= serviceInfo.getNum(); i++) {
-                            DistributeConfig.addServiceNode(serviceClassName, new org.evd.game.runtime.call.CallPoint(configNode.getName(), serviceInfo.getName() + i));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
 }

@@ -10,12 +10,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public enum ServiceType {
-    CONN(1,"ConnService"),
-    DB(2,"DBService"),
-    LOC(3,"LocationService"),
-    STAGE(4,"StageService"),
-    PLAYER(5,"PlayerService"),
-    GSTAGE(6,"StageService"),
+    CONN(1, ServiceName.CONN_SERVICE),
+    DB(2, ServiceName.DB_SERVICE),
+    LOC(3, ServiceName.LOCATION_SERVICE),
+    STAGE(4, ServiceName.STAGE_SERVICE),
+    PLAYER(5, ServiceName.PLAYER_SERVICE),
+    GSTAGE(6, ServiceName.STAGE_SERVICE),
 
     ;
     int type;
@@ -32,6 +32,10 @@ public enum ServiceType {
     }
 
     public String getClassName() {
+        return className;
+    }
+
+    public String getServiceClassName() {
         return className;
     }
 
@@ -72,9 +76,5 @@ public enum ServiceType {
             }
         }
         return null;
-    }
-
-    public static String fullClassName(String className) {
-        return "org.evd.game." + className + "." + className;
     }
 }

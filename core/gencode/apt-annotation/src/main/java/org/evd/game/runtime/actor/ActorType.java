@@ -1,11 +1,13 @@
 package org.evd.game.runtime.actor;
 
+import org.evd.game.annotation.ServiceName;
+
 public enum ActorType {
     NONE(0, null),
-    PLAYER(1, "PlayerService"),
-    MAP(2, "StageService"),
-    GATE(3, "ConnService"),
-    MAP_PLAYER(4, "StageService");
+    PLAYER(1, ServiceName.PLAYER_SERVICE),
+    MAP(2, ServiceName.STAGE_SERVICE),
+    GATE(3, ServiceName.CONN_SERVICE),
+    MAP_PLAYER(4, ServiceName.STAGE_SERVICE);
 
     private final int code;
     private final String ownerServiceClassName;
@@ -20,6 +22,10 @@ public enum ActorType {
     }
 
     public String getOwnerServiceClassName() {
+        return ownerServiceClassName;
+    }
+
+    public String getOwnerServiceClass() {
         return ownerServiceClassName;
     }
 

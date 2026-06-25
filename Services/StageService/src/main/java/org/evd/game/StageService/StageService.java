@@ -2,6 +2,7 @@ package org.evd.game.StageService;
 
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proxy.ConnServiceProxy;
 import org.evd.game.common.proxy.LocationServiceProxy;
 import org.evd.game.common.proto.C2S_Login;
@@ -16,10 +17,12 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.config.DistributeConfig;
+import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
+
+import java.util.List;
 
 @Actor()
 public class StageService extends Service {
@@ -91,12 +94,12 @@ public class StageService extends Service {
     }
 
     private CallPoint getLocationServiceRemote() {
-        CallPoint remote = DistributeConfig.getNodeByServiceClass(
-                "org.evd.game.LocationService.LocationService",
-                0L);
-        if (remote == null) {
+        List<RegisteredService> servicesByType = node.getServicesByType(ServiceType.LOC);
+        if (servicesByType.isEmpty()) {
             throw new IllegalStateException("找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
         }
-        return remote;
+
+        RegisteredService registeredService = servicesByType.getFirst();
+        return new CallPoint(registeredService.getNodeId(), registeredService.getNodeId());
     }
 }

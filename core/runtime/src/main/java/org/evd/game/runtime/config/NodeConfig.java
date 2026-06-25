@@ -4,15 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class NodeConfig {
-    private String infraConfig;
+    private String dbConfigPath;
     private List<NodeInfo> nodes = new ArrayList<>();
 
-    public String getInfraConfig() {
-        return infraConfig;
+    public String getDbConfigPath() {
+        return dbConfigPath;
     }
 
-    public void setInfraConfig(String infraConfig) {
-        this.infraConfig = infraConfig;
+    public void setDbConfigPath(String dbConfigPath) {
+        this.dbConfigPath = dbConfigPath;
     }
 
     public List<NodeInfo> getNodes() {

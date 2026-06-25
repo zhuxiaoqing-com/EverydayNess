@@ -69,6 +69,7 @@ tasks.named('compileJava', JavaCompile) {
 
     //compileJava 这个任务和 commonRpcProxyDir 目录有关。
     //如果这个目录里的文件变了，compileJava 应该重新执行。
+    // 为的就是这个目录被删了 可以重新运行生成
     inputs.dir(commonRpcProxyDir)
             .withPropertyName('commonRpcProxyDir')
             .withPathSensitivity(PathSensitivity.RELATIVE)

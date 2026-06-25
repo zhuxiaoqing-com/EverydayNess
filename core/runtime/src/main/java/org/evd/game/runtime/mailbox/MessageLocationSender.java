@@ -1,12 +1,16 @@
 package org.evd.game.runtime.mailbox;
 
+import org.evd.game.annotation.ServiceName;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.CallFactory;
+import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
@@ -14,6 +18,7 @@ import org.evd.game.runtime.support.RpcErrorCodes;
 import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class MessageLocationSender {
@@ -61,21 +66,21 @@ public class MessageLocationSender {
         return CLEANUP_INTERVAL_MILLIS;
     }
 
-    private static org.evd.game.runtime.call.CallPoint locationServiceRemote() {
-        org.evd.game.runtime.call.CallPoint remote =
-                org.evd.game.runtime.config.DistributeConfig.getNodeByServiceClass(
-                        "org.evd.game.LocationService.LocationService",
-                        0L);
-        if (remote == null) {
+    private org.evd.game.runtime.call.CallPoint locationServiceRemote() {
+        Node node = Service.getCurrent().getNode();
+        List<RegisteredService> servicesByType = node.getServicesByType(ServiceType.LOC);
+        if (servicesByType.isEmpty()) {
             throw new IllegalStateException(
                     "找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
         }
-        return remote;
+
+        RegisteredService registeredService = servicesByType.getFirst();
+        return new CallPoint(registeredService.getNodeId(), registeredService.getNodeId());
     }
 
     private static LocationInterface createLocationInterface() {
         try {
-            Class<?> clazz = Class.forName(ServiceType.fullClassName(ServiceType.LOC.getClassName()));
+            Class<?> clazz = Class.forName(ServiceName.fullClassName(ServiceType.LOC.getClassName()));
             Constructor<?> constructor = clazz.getConstructor();
             return (LocationInterface) constructor.newInstance();
         } catch (Exception exception) {

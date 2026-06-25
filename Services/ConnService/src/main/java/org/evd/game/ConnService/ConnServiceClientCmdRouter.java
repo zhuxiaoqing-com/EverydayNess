@@ -1,8 +1,8 @@
 package org.evd.game.ConnService;
 
+import org.evd.game.annotation.ServiceName;
 import org.evd.game.runtime.client.ClientCmdRouteTable;
 import org.evd.game.runtime.client.ClientSessionRef;
-import org.evd.game.runtime.config.DistributeConfig;
 import org.evd.game.runtime.netty.NetChannel;
 
 import java.lang.reflect.InvocationTargetException;
@@ -26,7 +26,7 @@ final class ConnServiceClientCmdRouter {
     }
 
     private void registerAllRoutes() {
-        for (String serviceClassName : DistributeConfig.getServiceClassNames()) {
+        for (String serviceClassName : ServiceName.values()) {
             registerServiceRoute(serviceClassName);
         }
     }

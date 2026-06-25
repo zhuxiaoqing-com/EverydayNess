@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
+import org.evd.game.annotation.ServiceName;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.call.CallBase;
@@ -10,6 +11,7 @@ import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorRegistry;
 import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
@@ -176,7 +178,7 @@ public class Service extends TickCase {
         if(supportMdb()) {
             this.mdb = new Mdb();
             try {
-                Class<?> clazz = Class.forName(ServiceType.fullClassName(ServiceType.LOC.getClassName()));
+                Class<?> clazz = Class.forName(ServiceName.fullClassName(ServiceType.LOC.getClassName()));
                 Constructor<?> constructor = clazz.getConstructor();
                 mdb.start(getClass().getSimpleName(), (DBExecInterface) constructor.newInstance());
             } catch (Exception exception) {
@@ -599,4 +601,17 @@ public class Service extends TickCase {
         return true;
     }
 
+    /**
+     * 有新的service连接进来;可能包含自己
+     */
+    protected void onServiceConnect(List<RegisteredService> serviceList) {
+
+    }
+
+    /**
+     * 有新的service断链;可能包含自己
+     */
+    protected void onServiceDisConnect(List<RegisteredService> serviceList) {
+
+    }
 }

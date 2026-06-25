@@ -54,7 +54,6 @@ final class ConnServiceClientTransport {
         owner.registerClientSessionActor(session);
         return new ClientSessionRef(
                 new CallPoint(owner.getNode().getId(), owner.getId()),
-                session.getChannelId(),
                 session.getChannelId());
     }
 

@@ -15,17 +15,14 @@ public class ClientSessionRef implements ISerializable {
     @SerializeField
     private long sessionId;
     @SerializeField
-    private long routeKey;
-    @SerializeField
     private long playerId;
 
     public ClientSessionRef() {
     }
 
-    public ClientSessionRef(CallPoint gate, long sessionId, long routeKey) {
+    public ClientSessionRef(CallPoint gate, long sessionId) {
         this.gate = gate;
         this.sessionId = sessionId;
-        this.routeKey = routeKey;
     }
 
     public CallPoint getGate() {
@@ -42,14 +39,6 @@ public class ClientSessionRef implements ISerializable {
 
     public void setSessionId(long sessionId) {
         this.sessionId = sessionId;
-    }
-
-    public long getRouteKey() {
-        return routeKey;
-    }
-
-    public void setRouteKey(long routeKey) {
-        this.routeKey = routeKey;
     }
 
     public long getPlayerId() {

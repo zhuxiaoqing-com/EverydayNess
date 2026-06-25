@@ -1,24 +1,25 @@
 package org.evd.game.common;
 
-import org.evd.game.runtime.config.InfraConfig;
-import org.evd.game.runtime.config.NodeConfig;
-import org.evd.game.runtime.config.NodeInfo;
+import org.evd.game.annotation.ServiceType;
+import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.config.*;
 import org.evd.game.runtime.support.SysException;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 public final class GlobalConfig {
     private static NodeConfig nodeConfig;
-    private static InfraConfig infraConfig;
+    private static DbConfig dbConfig;
 
     private GlobalConfig() {
     }
 
     public static synchronized void init(String bootStrapName) {
-        if (nodeConfig != null && infraConfig != null) {
+        if (nodeConfig != null && dbConfig != null) {
             return;
         }
 
@@ -27,14 +28,14 @@ public final class GlobalConfig {
         if (nodeConfig == null) {
             throw new SysException("bootstrap config is empty: {}", configPath);
         }
-        if (nodeConfig.getInfraConfig() == null || nodeConfig.getInfraConfig().isBlank()) {
-            throw new SysException("bootstrap infraConfig is empty: {}", configPath);
+        if (nodeConfig.getDbConfigPath() == null || nodeConfig.getDbConfigPath().isBlank()) {
+            throw new SysException("bootstrap dbConfig is empty: {}", configPath);
         }
 
-        String infraPath = ConstPath.CONFIGURATION_PATH + nodeConfig.getInfraConfig();
-        infraConfig = loadYaml(infraPath, InfraConfig.class);
-        if (infraConfig == null) {
-            throw new SysException("infra config is empty: {}", infraPath);
+        String dbPath = ConstPath.CONFIGURATION_PATH + nodeConfig.getDbConfigPath();
+        dbConfig = loadYaml(dbPath, DbConfig.class);
+        if (dbConfig == null) {
+            throw new SysException("db config is empty: {}", dbPath);
         }
     }
 
@@ -45,11 +46,11 @@ public final class GlobalConfig {
         return nodeConfig;
     }
 
-    public static InfraConfig requireInfraConfig() {
-        if (infraConfig == null) {
-            throw new SysException("GlobalConfig infraConfig not initialized");
+    public static DbConfig requireDbConfig() {
+        if (dbConfig == null) {
+            throw new SysException("GlobalConfig dbConfig not initialized");
         }
-        return infraConfig;
+        return dbConfig;
     }
 
     public static NodeInfo requireNodeInfo(String nodeId) {
@@ -60,6 +61,18 @@ public final class GlobalConfig {
         }
         throw new SysException("node config not exist: {}", nodeId);
     }
+
+  /*  public static List<CallPoint> getCallLocalPoint(ServiceType serviceType) {
+        for (NodeInfo node : nodeConfig.getNodes()) {
+            for (ScheduleInfo scheduleInfo : node.getSchedule()) {
+                for (ServiceInfo service : scheduleInfo.getServices()) {
+                    serviceType
+                }
+            }
+        }
+    }*/
+
+
 
     private static <T> T loadYaml(String path, Class<T> type) {
         Yaml yaml = new Yaml();

@@ -1,7 +1,9 @@
 package org.evd.game.runtime;
 
 import org.apache.commons.lang3.RegExUtils;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
+import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
@@ -27,6 +29,11 @@ public class Node extends TickCase{
     private final List<ScheduledExecutor> scheduledExecutors = new ArrayList<>();
     /** node包含的services */
     private final ConcurrentHashMap<Object, Service> services = new ConcurrentHashMap<>();
+    /** 远程node -> services镜像 */
+    private final ConcurrentHashMap<String, List<RegisteredService>> remoteNodeServices = new ConcurrentHashMap<>();
+    /** serviceType -> services缓存 */
+    private final ConcurrentHashMap<ServiceType, List<RegisteredService>> type2ServiceMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<CallPoint, RegisteredService> callPoint2ServiceMap = new ConcurrentHashMap<>();
     /** 地址 */
     private final String addr;
     /** 本次心跳要发送给远程note的call请求 */
@@ -39,6 +46,10 @@ public class Node extends TickCase{
     private final byte[] remoteReceiveBuffer = BufferPool.allocate();
     /** 远程Node调用定时器 */
     private final TickTimer remoteNodePulseTimer = new TickTimer(RemoteNode.INTERVAL_PING, true);
+    /** 本地服务注册版本 */
+    private long localServiceVersion;
+    /** 本地服务注册是否有变化 */
+    private volatile boolean localServicesDirty;
 
     public Node(String name, String addr){
         super(name, 1);
@@ -76,6 +87,8 @@ public class Node extends TickCase{
         pulseCallPuller_nt();
         //调用远程Node的心跳操作
         pulseRemoteNodes_nt();
+        // 本地服务注册变化后，广播给已连接节点
+        pulseServiceRegistry_nt();
     }
 
     private void pulseAffirmRemoteCall_nt() {
@@ -159,6 +172,13 @@ public class Node extends TickCase{
         }
     }
 
+    private void pulseServiceRegistry_nt() {
+        if (!localServicesDirty) {
+            return;
+        }
+        broadcastLocalServices_nt();
+    }
+
     /**
      * 启动
      * @throws RuntimeException
@@ -204,6 +224,7 @@ public class Node extends TickCase{
 
     void attachToNode(Service service){
         services.put(service.getId(), service);
+        refreshLocalServices();
     }
 
 
@@ -283,6 +304,10 @@ public class Node extends TickCase{
                 node.pingHandle_nt();
             }
             break;
+            case CallNodeServicesSync callNodeServicesSync: {
+                syncRemoteServices_nt(call.from.nodeId, callNodeServicesSync.getServices());
+            }
+            break;
             default:
                 throw new SysException("Unexpected call type: {}" + call.getClass());
         }
@@ -305,11 +330,155 @@ public class Node extends TickCase{
 
     public void remove(Service service) {
         services.remove(service.getId());
+        refreshLocalServices();
     }
 
     public String getAddr() {
         return addr;
     }
+
+    public List<RegisteredService> getRemoteNodeServices(String nodeId) {
+        return copyServices(remoteNodeServices.get(nodeId));
+    }
+
+    public List<RegisteredService> getServicesByType(ServiceType serviceType) {
+        return copyServices(type2ServiceMap.get(serviceType));
+    }
+
+    void onRemoteNodeConnected_nt(RemoteNode remoteNode) {
+        sendLocalServicesToRemote_nt(remoteNode);
+    }
+
+    void onRemoteNodeDisconnected_nt(RemoteNode remoteNode) {
+        remoteNodeServices.remove(remoteNode.getRemoteId());
+        rebuildServiceIndexes();
+    }
+
+    private void refreshLocalServices() {
+        ++localServiceVersion;
+        localServicesDirty = true;
+
+        List<RegisteredService> snapshot = buildLocalServicesSnapshot();
+        remoteNodeServices.put(id, snapshot);
+        rebuildServiceIndexes();
+    }
+
+    private void syncRemoteServices_nt(String nodeId, List<RegisteredService> services) {
+        List<RegisteredService> snapshot = copyServices(services);
+        remoteNodeServices.put(nodeId, snapshot);
+        rebuildServiceIndexes();
+    }
+
+    private void broadcastLocalServices_nt() {
+        for (RemoteNode remoteNode : remoteNodes.values()) {
+            if (!remoteNode.isActive()) {
+                continue;
+            }
+            sendLocalServicesToRemote_nt(remoteNode);
+        }
+        localServicesDirty = false;
+    }
+
+    private void sendLocalServicesToRemote_nt(RemoteNode remoteNode) {
+        CallNodeServicesSync call = new CallNodeServicesSync();
+        call.from = new CallPoint(id, null);
+        call.to = new CallPoint(remoteNode.getRemoteId(), null);
+        call.setVersion(localServiceVersion);
+        call.setServices(buildLocalServicesSnapshot());
+        remoteNode.sendCall(call);
+    }
+
+    private List<RegisteredService> buildLocalServicesSnapshot() {
+        List<RegisteredService> snapshot = new ArrayList<>();
+        for (Service service : services.values()) {
+            if (service == null || service.serviceInfo == null) {
+                continue;
+            }
+
+            String shortClassName = service.serviceInfo.getClassName();
+            snapshot.add(new RegisteredService(
+                    service.serviceInfo.getServiceType(),
+                    "org.evd.game." + shortClassName + "." + shortClassName,
+                    service.getId(),
+                    id));
+        }
+        snapshot.sort(Comparator.comparing(RegisteredService::getServiceClassName)
+                .thenComparing(RegisteredService::getServiceId));
+        return snapshot;
+    }
+
+    private List<RegisteredService> copyServices(List<RegisteredService> services) {
+        List<RegisteredService> copies = new ArrayList<>();
+        if (services == null) {
+            return copies;
+        }
+        for (RegisteredService service : services) {
+            if (service != null) {
+                copies.add(new RegisteredService(service));
+            }
+        }
+        return copies;
+    }
+
+    private void rebuildServiceIndexes() {
+        Map<CallPoint, RegisteredService> oldMap = new HashMap<>(callPoint2ServiceMap);
+        List<RegisteredService> addList = new ArrayList<>();
+        List<RegisteredService> removeList = new ArrayList<>();
+
+        type2ServiceMap.clear();
+        callPoint2ServiceMap.clear();
+        for (List<RegisteredService> nodeServices : remoteNodeServices.values()) {
+            if (nodeServices == null) {
+                continue;
+            }
+            for (RegisteredService service : nodeServices) {
+                if (service == null || service.getServiceType() == null) {
+                    continue;
+                }
+                type2ServiceMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
+                        .add(new RegisteredService(service));
+
+                callPoint2ServiceMap.put(new CallPoint(service.getNodeId(), service.getServiceId()), service);
+            }
+        }
+        for (List<RegisteredService> services : type2ServiceMap.values()) {
+            services.sort(Comparator.comparing(RegisteredService::getServiceClassName)
+                    .thenComparing(RegisteredService::getServiceId));
+        }
+
+
+        HashSet<CallPoint> eachKey = new HashSet<>();
+        eachKey.addAll(oldMap.keySet());
+        eachKey.addAll(callPoint2ServiceMap.keySet());
+
+        for (CallPoint callPoint : eachKey) {
+            boolean oldContain = oldMap.containsKey(callPoint);
+            boolean newContain = callPoint2ServiceMap.containsKey(callPoint);
+            if (oldContain && newContain) {
+                continue;
+            }
+            if (newContain) {
+                addList.add(callPoint2ServiceMap.get(callPoint));
+            }
+            if (oldContain) {
+                removeList.add(oldMap.get(callPoint));
+            }
+
+            // 给每一个Service触发
+            for (Service value : services.values()) {
+                if (!addList.isEmpty()) {
+                    value.post(() -> value.onServiceConnect(addList));
+                }
+
+                if (!removeList.isEmpty()) {
+                    value.post(() -> value.onServiceDisConnect(removeList));
+                }
+            }
+        }
+
+
+    }
+
 }
 
 

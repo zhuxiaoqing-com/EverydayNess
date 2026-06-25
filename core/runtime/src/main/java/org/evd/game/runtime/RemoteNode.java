@@ -51,9 +51,10 @@ public class RemoteNode {
 		
 		this.zmqContext = new ZContext();
 		this.zmqPush = zmqContext.createSocket(SocketType.PUSH);
-		this.zmqPush.setLinger(3000);
+		this.zmqPush.setLinger(0);
 		// 默认不限制消息缓存数量(可能会导致占用过多内存)
-		this.zmqPush.setSndHWM(0);
+		//this.zmqPush.setSndHWM(0);
+		this.zmqPush.setImmediate(false);
 		this.zmqPush.setReconnectIVL(2000);
 		this.zmqPush.setReconnectIVLMax(5000);
 		this.zmqPush.connect(remoteAddr);
@@ -73,6 +74,7 @@ public class RemoteNode {
 		if (isActive() && (timeCurr - lastRecvPingTime) > RemoteNode.INTERVAL_LOST) {
 			connected = false;
 			LogCore.remote.error("失去与远程Node的连接：name={}, addr={}", remoteId, remoteAddr);
+			localNode.onRemoteNodeDisconnected_nt(this);
 		}
 	}
 	
@@ -93,8 +95,9 @@ public class RemoteNode {
 	 * 处理连接测试请求
 	 */
 	public void pingHandle_nt() {
+		boolean wasActive = isActive();
 		// 非活跃的情况下收到连接测试
-		if (!isActive()) {
+		if (!wasActive) {
 			LogCore.remote.info("远程Node激活：id={}, addr={}", remoteId, remoteAddr);
 		}
 		
@@ -104,6 +107,9 @@ public class RemoteNode {
 		// 设置为已连接状态
 		if (!connected) {
 			connected = true;
+		}
+		if (!wasActive && isActive()) {
+			localNode.onRemoteNodeConnected_nt(this);
 		}
 	}
 	

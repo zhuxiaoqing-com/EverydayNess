@@ -1,6 +1,6 @@
 package org.evd.game.runtime.config;
 
-public class InfraConfig {
+public class DbConfig {
     private DbServiceConfig db = new DbServiceConfig();
 
     public DbServiceConfig getDb() {

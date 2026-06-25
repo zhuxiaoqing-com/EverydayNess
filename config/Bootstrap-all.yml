@@ -1,4 +1,4 @@
-infraConfig: infra-dev.yml
+dbConfigPath: db-dev.yml
 
 nodes:
   - name: node1 # 节点

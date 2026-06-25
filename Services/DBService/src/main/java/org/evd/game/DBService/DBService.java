@@ -12,7 +12,7 @@ import org.evd.game.annotation.RpcService;
 import org.evd.game.common.GlobalConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.config.InfraConfig;
+import org.evd.game.runtime.config.DbConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 
@@ -27,11 +27,11 @@ public class DBService extends Service {
 
     @Override
     public void init() {
-        InfraConfig infraConfig = GlobalConfig.requireInfraConfig();
-        switch (infraConfig.getDb().getEngine()) {
+        DbConfig dbConfig = GlobalConfig.requireDbConfig();
+        switch (dbConfig.getDb().getEngine()) {
             case "mysql" :
-                LoggerMysql loggerMysql = new LoggerMysql(infraConfig.getDb().getMysql());
-                storageEngine = new StorageMysql(loggerMysql, infraConfig.getDb().getStorage());
+                LoggerMysql loggerMysql = new LoggerMysql(dbConfig.getDb().getMysql());
+                storageEngine = new StorageMysql(loggerMysql, dbConfig.getDb().getStorage());
                 break;
         }
     }
