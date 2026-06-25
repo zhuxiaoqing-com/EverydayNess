@@ -7,7 +7,7 @@ import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proto.C2S_ConnPing;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_ConnPing;
-import org.evd.game.common.proxy.StageServiceProxy;
+import org.evd.game.common.proxy.StageService.StageServiceProxy;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.call.CallPoint;

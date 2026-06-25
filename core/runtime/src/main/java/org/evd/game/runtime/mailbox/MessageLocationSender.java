@@ -11,6 +11,7 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
@@ -79,13 +80,7 @@ public class MessageLocationSender {
     }
 
     private static LocationInterface createLocationInterface() {
-        try {
-            Class<?> clazz = Class.forName(ServiceName.fullClassName(ServiceType.LOC.getClassName()));
-            Constructor<?> constructor = clazz.getConstructor();
-            return (LocationInterface) constructor.newInstance();
-        } catch (Exception exception) {
-            throw new RuntimeException(exception);
-        }
+        return (LocationInterface) ServiceName.getRpcProxyObj(ServiceName.LOCATION_SERVICE);
     }
 
     private Service requireOwnerService() {

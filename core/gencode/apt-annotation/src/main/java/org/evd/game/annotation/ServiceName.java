@@ -1,5 +1,6 @@
 package org.evd.game.annotation;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 
 public final class ServiceName {
@@ -27,4 +28,23 @@ public final class ServiceName {
     public static String fullClassName(String className) {
         return "org.evd.game." + className + "." + className;
     }
+
+    public static String fullProxyClassName(String className) {
+        return "org.evd.game.common.proxy." + className + "." + className+"Proxy";
+    }
+
+    public static Object getRpcProxyObj(String className) {
+        String proxyClassName = fullProxyClassName(className);
+        try {
+            Class<?> aClass = Class.forName(proxyClassName);
+
+            Field field = aClass.getDeclaredField("INSTANCE");
+            field.setAccessible(true);
+
+            return field.get(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }

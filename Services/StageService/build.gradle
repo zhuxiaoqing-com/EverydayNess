@@ -7,7 +7,10 @@ plugins {
 group = 'org.example'
 version = '1.0-SNAPSHOT'
 
-def commonRpcProxyDir = rootProject.file('common/src/gen/java/org/evd/game/common/proxy')
+def commonRpcProxyDir = rootProject.file("common/src/gen/java/org/evd/game/common/proxy/${project.name}")
+def commonRpcProxyInputs = providers.provider {
+    commonRpcProxyDir.exists() ? fileTree(commonRpcProxyDir) : files()
+}
 
 repositories {
     mavenCentral()
@@ -70,7 +73,7 @@ tasks.named('compileJava', JavaCompile) {
     //compileJava 这个任务和 commonRpcProxyDir 目录有关。
     //如果这个目录里的文件变了，compileJava 应该重新执行。
     // 为的就是这个目录被删了 可以重新运行生成
-    inputs.dir(commonRpcProxyDir)
+    inputs.files(commonRpcProxyInputs)
             .withPropertyName('commonRpcProxyDir')
             .withPathSensitivity(PathSensitivity.RELATIVE)
             .optional()

@@ -7,7 +7,10 @@ plugins {
 group = 'org.example'
 version = '1.0-SNAPSHOT'
 
-def commonRpcProxyDir = rootProject.file('common/src/gen/java/org/evd/game/common/proxy')
+def commonRpcProxyDir = rootProject.file("common/src/gen/java/org/evd/game/common/proxy/${project.name}")
+def commonRpcProxyInputs = providers.provider {
+    commonRpcProxyDir.exists() ? fileTree(commonRpcProxyDir) : files()
+}
 
 repositories {
     mavenCentral()
@@ -31,7 +34,7 @@ dependencies {
 }
 
 tasks.named('compileJava', JavaCompile) {
-    inputs.dir(commonRpcProxyDir)
+    inputs.files(commonRpcProxyInputs)
             .withPathSensitivity(PathSensitivity.RELATIVE)
             .optional()
 }

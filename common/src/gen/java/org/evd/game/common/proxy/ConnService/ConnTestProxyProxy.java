@@ -1,4 +1,4 @@
-package org.evd.game.common.proxy;
+package org.evd.game.common.proxy.ConnService;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;

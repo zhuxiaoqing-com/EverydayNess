@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 final class RpcSupport {
     static final String TEMPLATE_RPC_IMP = "RpcImp.ftl";
     static final String TEMPLATE_RPC_PROXY = "RpcProxy.ftl";
+    private static final String COMMON_PROXY_PACKAGE = "org.evd.game.common.proxy";
 
     private final Elements elementUtils;
     private final Types typeUtils;
@@ -94,7 +95,7 @@ final class RpcSupport {
 
     Map<String, Object> buildProxyRootMap(List<MethodStruct<Rpc>> methods) {
         MethodStruct<Rpc> struct = methods.getFirst();
-        String generatedClassFullName = "org.evd.game.common.proxy." + struct.className + "Proxy";
+        String generatedClassFullName = buildProxyClassFullName(struct.ownerClassName, struct.className);
         int splitIndex = generatedClassFullName.lastIndexOf(".");
         String generatedPackageName = generatedClassFullName.substring(0, splitIndex);
         String generatedClassName = generatedClassFullName.substring(splitIndex + 1);
@@ -170,6 +171,10 @@ final class RpcSupport {
         dataModel.put("needsActorTypeImport", needsActorTypeImport);
         importsModel.addAll(importPackages);
         return dataModel;
+    }
+
+    private String buildProxyClassFullName(String ownerServiceClassName, String targetClassName) {
+        return COMMON_PROXY_PACKAGE + "." + ownerServiceClassName + "." + targetClassName + "Proxy";
     }
 
     Map<String, Object> buildRootMap(List<MethodStruct<Rpc>> methods, TypeElement ownerType, String generatedClassFullName) {

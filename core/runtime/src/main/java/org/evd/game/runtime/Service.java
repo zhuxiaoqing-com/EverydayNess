@@ -174,13 +174,11 @@ public class Service extends TickCase {
         this.serviceInfo = serviceInfo;
 
 
-        if(supportLocation()) this.messageLocationSender = new MessageLocationSender(this);
-        if(supportMdb()) {
+        if (supportLocation()) this.messageLocationSender = new MessageLocationSender(this);
+        if (supportMdb()) {
             this.mdb = new Mdb();
             try {
-                Class<?> clazz = Class.forName(ServiceName.fullClassName(ServiceType.LOC.getClassName()));
-                Constructor<?> constructor = clazz.getConstructor();
-                mdb.start(getClass().getSimpleName(), (DBExecInterface) constructor.newInstance());
+                mdb.start(getClass().getSimpleName(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE));
             } catch (Exception exception) {
                 throw new RuntimeException(exception);
             }
