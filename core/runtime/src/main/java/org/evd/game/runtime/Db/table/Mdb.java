@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,8 +29,8 @@ public class Mdb {
     private volatile boolean closing = false;
 
 
-    public synchronized void start(String name, DBExecInterface dbExecInterface) throws Exception {
-        logger.warn("@@@@@@@@@@@@@@@@ mdb start begin @@@@@@@@@@@@@@@@ mdb metadata {}", name);
+    public synchronized void start(Class<?> ownerClass, DBExecInterface dbExecInterface) throws Exception {
+        logger.warn("@@@@@@@@@@@@@@@@ mdb start begin @@@@@@@@@@@@@@@@ mdb metadata {}", ownerClass.getName());
         closing = false;
         if(dbExecInterface == null){
             throw  new DBException("DBExecInterface is null !!!");
@@ -39,26 +38,9 @@ public class Mdb {
         this.dbExecInterface = dbExecInterface;
 
         try {
-            //todo 换成指定的类
-            Class<?> tableClass = Class.forName("table." + name + "._Tables_");
-            Constructor<?> constructor = tableClass.getDeclaredConstructor();
-            constructor.setAccessible(true);
-            Object tableOwner = constructor.newInstance();
-            Class<?>[] classes = tableClass.getDeclaredClasses();
-            for (Class<?> aClass : classes) {
-                if (!TTable.class.isAssignableFrom(aClass)) {
-                    continue;
-                }
-                TTable<?, ?> tTable = createTableInstance(tableOwner, tableClass, aClass);
-                tTable.setMdb(this);
-                tableList.add(tTable);
-                TTable<?, ?> old = class2TableMap.putIfAbsent(aClass, tTable);
-                if (old != null) {
-                    logger.error("aClass 重复！！！！ {} ", aClass);
-                    throw new DBException("aClass 重复！！！！ " + aClass);
-                }
-            }
-            logger.warn("{} has {} tables ......", name, tableList.size());
+            TableRegistry tableRegistry = loadTableRegistry(ownerClass);
+            tableRegistry.register(this);
+            logger.warn("{} has {} tables ......", ownerClass.getSimpleName(), tableList.size());
 
             logger.warn("@@@@@@@@@@@@@@@@  mdb start end  @@@@@@@@@@@@@@@@");
             running = true;
@@ -70,16 +52,51 @@ public class Mdb {
 
     }
 
-    private TTable<?, ?> createTableInstance(Object tableOwner, Class<?> tableClass, Class<?> nestedTableClass) throws Exception {
-        Constructor<?> tableConstructor;
-        if (Modifier.isStatic(nestedTableClass.getModifiers())) {
-            tableConstructor = nestedTableClass.getDeclaredConstructor();
-            tableConstructor.setAccessible(true);
-            return (TTable<?, ?>) tableConstructor.newInstance();
+    private TableRegistry loadTableRegistry(Class<?> ownerClass) throws Exception {
+        String registryClassName = ownerClass.getPackageName() + ".db.DbTableRegistry";
+        Class<?> registryClass;
+        try {
+            registryClass = Class.forName(registryClassName);
+        } catch (ClassNotFoundException e) {
+            throw new DBException("未找到 DbTableRegistry: " + registryClassName, e);
         }
-        tableConstructor = nestedTableClass.getDeclaredConstructor(tableClass);
+
+        if (!TableRegistry.class.isAssignableFrom(registryClass)) {
+            throw new DBException("DbTableRegistry 未实现 TableRegistry: " + registryClassName);
+        }
+
+        Constructor<?> constructor = registryClass.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        return (TableRegistry) constructor.newInstance();
+    }
+
+    private TTable<?, ?> createTableInstance(Class<? extends TTable<?, ?>> tableClass) throws Exception {
+        Constructor<?> tableConstructor = tableClass.getDeclaredConstructor();
         tableConstructor.setAccessible(true);
-        return (TTable<?, ?>) tableConstructor.newInstance(tableOwner);
+        return (TTable<?, ?>) tableConstructor.newInstance();
+    }
+
+    public void registerTable(Class<?> apiClass, Class<? extends TTable<?, ?>> implClass) {
+        try {
+            TTable<?, ?> tTable = createTableInstance(implClass);
+            registerTableAlias(apiClass, tTable);
+            if (apiClass != implClass) {
+                registerTableAlias(implClass, tTable);
+            }
+            tTable.setMdb(this);
+            tableList.add(tTable);
+        } catch (Exception e) {
+            throw new DBException("registerTable fail apiClass=" + apiClass + " implClass=" + implClass, e);
+        }
+    }
+
+    private void registerTableAlias(Class<?> tableClass, TTable<?, ?> tTable) {
+        tTable.setMdb(this);
+        TTable<?, ?> old = class2TableMap.putIfAbsent(tableClass, tTable);
+        if (old != null) {
+            logger.error("tableClass 重复！！！！ {} ", tableClass);
+            throw new DBException("tableClass 重复！！！！ " + tableClass);
+        }
     }
 
 
@@ -254,7 +271,7 @@ public class Mdb {
 
 
     @SuppressWarnings("unchecked")
-    public <K, V extends DirtyObject> TTable<K, V> getTTable(Class<? extends TTable<K, V>> clazz) {
+    public <K, V extends DirtyObject> TTable<K, V> getTTable(Class<?> clazz) {
         return (TTable<K, V>) class2TableMap.get(clazz);
     }
 

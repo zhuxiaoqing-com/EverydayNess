@@ -63,7 +63,7 @@ tasks.named('compileDbDefJava', JavaCompile) {
     // 需要正常产出 build/classes/java/dbDef，给下一次增量编译用
     options.compilerArgs += [
             '-processor',
-            'org.evd.game.gencode.db.DbDirtyEntityProcessor'
+            'org.evd.game.gencode.db.DbDirtyEntityProcessor,org.evd.game.gencode.db.DbDirtyTableRegistryProcessor'
     ]
 }
 

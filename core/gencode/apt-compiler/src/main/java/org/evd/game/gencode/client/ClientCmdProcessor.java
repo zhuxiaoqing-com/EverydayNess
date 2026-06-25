@@ -1,9 +1,9 @@
 package org.evd.game.gencode.client;
 
 import com.google.auto.service.AutoService;
-import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.gencode.ProcessorBase;
+import org.evd.game.gencode.ServiceOwnerResolver;
 import org.evd.game.runtime.actor.ActorType;
 
 import javax.annotation.processing.Processor;
@@ -34,10 +34,10 @@ public class ClientCmdProcessor extends ProcessorBase {
     private static final String CLIENT_CMD_REGISTRY_BASE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRegistryBase";
     private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRouteTable";
     private static final String PROTO_MESSAGE_CLASS_NAME = "com.google.protobuf.MessageLite";
-    private static final String SERVICE_CLASS_NAME = "org.evd.game.runtime.Service";
     private static final String ACTOR_TYPE_CLASS_NAME = "org.evd.game.runtime.actor.ActorType";
 
     private final Set<String> generatedClasses = new HashSet<>();
+    private ServiceOwnerResolver serviceOwnerResolver;
 
     @Override
     protected Set<String> supportAnnotation() {
@@ -46,6 +46,7 @@ public class ClientCmdProcessor extends ProcessorBase {
 
     @Override
     protected void init() {
+        serviceOwnerResolver = new ServiceOwnerResolver(elementUtils, typeUtils);
     }
 
     @Override
@@ -60,15 +61,12 @@ public class ClientCmdProcessor extends ProcessorBase {
 
         TypeElement sessionType = requireType(CLIENT_SESSION_REF_CLASS_NAME);
         TypeElement protoMessageType = requireType(PROTO_MESSAGE_CLASS_NAME);
-        TypeElement serviceType = requireType(SERVICE_CLASS_NAME);
-        TypeElement roundServiceOwner = resolveRoundServiceOwner(roundEnv, serviceType);
-
         Map<String, List<ClientCmdMethod>> classMethods = new LinkedHashMap<>();
         for (Element element : elements) {
             if (!(element instanceof ExecutableElement executableElement)) {
                 throw new IllegalStateException("@ClientCmd 只能标记在方法上: " + element);
             }
-            ClientCmdMethod method = parseMethod(executableElement, sessionType, protoMessageType, serviceType, roundServiceOwner);
+            ClientCmdMethod method = parseMethod(executableElement, sessionType, protoMessageType);
             classMethods.computeIfAbsent(method.serviceOwnerFullClassName, key -> new ArrayList<>()).add(method);
         }
 
@@ -216,11 +214,9 @@ public class ClientCmdProcessor extends ProcessorBase {
 
     private ClientCmdMethod parseMethod(ExecutableElement method,
                                         TypeElement sessionType,
-                                        TypeElement protoMessageType,
-                                        TypeElement serviceType,
-                                        TypeElement roundServiceOwner) {
+                                        TypeElement protoMessageType) {
         TypeElement ownerType = (TypeElement) method.getEnclosingElement();
-        TypeElement serviceOwner = resolveServiceOwner(ownerType, serviceType, roundServiceOwner);
+        TypeElement serviceOwner = resolveServiceOwner(ownerType);
         ClientCmd clientCmd = method.getAnnotation(ClientCmd.class);
         if (clientCmd == null) {
             throw new IllegalStateException(ownerType.getQualifiedName() + "#" + method.getSimpleName()
@@ -335,34 +331,8 @@ public class ClientCmdProcessor extends ProcessorBase {
         return type;
     }
 
-    private TypeElement resolveRoundServiceOwner(RoundEnvironment roundEnv, TypeElement serviceType) {
-        Set<? extends Element> actorElements = roundEnv.getElementsAnnotatedWith(Actor.class);
-        if (actorElements.isEmpty()) {
-            return null;
-        }
-        if (actorElements.size() > 1) {
-            throw new IllegalStateException("一个 RoundEnvironment 只能有一个 @Actor Service 宿主: " + actorElements);
-        }
-        Element actorElement = actorElements.iterator().next();
-        if (!(actorElement instanceof TypeElement typeElement)) {
-            throw new IllegalStateException("@Actor 目标不是 TypeElement: " + actorElement);
-        }
-        if (!typeUtils.isSubtype(typeElement.asType(), serviceType.asType())) {
-            throw new IllegalStateException(typeElement.getQualifiedName() + " 标了 @Actor，但不是 Service 子类");
-        }
-        return typeElement;
-    }
-
-    private TypeElement resolveServiceOwner(TypeElement ownerType,
-                                            TypeElement serviceType,
-                                            TypeElement roundServiceOwner) {
-        if (typeUtils.isSubtype(ownerType.asType(), serviceType.asType())) {
-            return ownerType;
-        }
-        if (roundServiceOwner == null) {
-            throw new IllegalStateException(ownerType.getQualifiedName() + " 上的 @ClientCmd 找不到宿主 Service");
-        }
-        return roundServiceOwner;
+    private TypeElement resolveServiceOwner(TypeElement ownerType) {
+        return serviceOwnerResolver.resolve(ownerType);
     }
 
     private Element[] collectOriginatingElements(List<ClientCmdMethod> methods) {

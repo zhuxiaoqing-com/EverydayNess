@@ -2,10 +2,10 @@ package org.evd.game.gencode.rpc;
 
 import freemarker.template.Configuration;
 import freemarker.template.Template;
-import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.gencode.GenConst;
+import org.evd.game.gencode.ServiceOwnerResolver;
 import org.evd.game.gencode.struct.MethodStruct;
 import org.evd.game.gencode.struct.ParamStruct;
 import org.evd.game.gencode.struct.StructFactory;
@@ -48,10 +48,12 @@ final class RpcSupport {
 
     private final Elements elementUtils;
     private final Types typeUtils;
+    private final ServiceOwnerResolver serviceOwnerResolver;
 
     RpcSupport(ProcessingEnvironment processingEnv) {
         this.elementUtils = processingEnv.getElementUtils();
         this.typeUtils = processingEnv.getTypeUtils();
+        this.serviceOwnerResolver = new ServiceOwnerResolver(elementUtils, typeUtils);
     }
 
     List<MethodStruct<Rpc>> buildRpcMethodStructs(RoundEnvironment roundEnv) {
@@ -60,10 +62,11 @@ final class RpcSupport {
             return Collections.emptyList();
         }
 
-        TypeElement ownerType = resolveServiceOwner(roundEnv.getElementsAnnotatedWith(Actor.class));
         List<MethodStruct<Rpc>> structList = StructFactory.convertMethod(elementUtils, elements, Rpc.class);
         for (MethodStruct<Rpc> method : structList) {
+            TypeElement ownerType = resolveServiceOwner(method);
             initRpcMetadata(method, ownerType);
+            bindMethodOwner(method, ownerType);
         }
         structList.sort(Comparator
                 .comparing((MethodStruct<Rpc> m) -> m.fullClassName)
@@ -83,11 +86,11 @@ final class RpcSupport {
     }
 
     RpcGenerationContext buildContext(RoundEnvironment roundEnv) {
-        TypeElement ownerType = resolveServiceOwner(roundEnv.getElementsAnnotatedWith(Actor.class));
         List<MethodStruct<Rpc>> structList = buildRpcMethodStructs(roundEnv);
         if (structList.isEmpty()) {
             return null;
         }
+        TypeElement ownerType = resolveSingleServiceOwner(structList);
         List<MethodStruct<Rpc>> ownerMethods = bindOwner(ownerType, structList);
         Map<String, List<MethodStruct<Rpc>>> classMap = groupRpcMethodsByClass(ownerMethods);
         return new RpcGenerationContext(ownerType, structList, ownerMethods, classMap);
@@ -131,7 +134,6 @@ final class RpcSupport {
             collectMethodImports(importPackages, generatedPackageName, method);
             boolean routeService = isServiceRoute(method);
             boolean routeLocation = isLocationRoute(method);
-            boolean usesFixedActorType = routeLocation;
             String targetPrefix;
             if (routeService) {
                 targetPrefix = "CallPoint remote";
@@ -160,7 +162,7 @@ final class RpcSupport {
             methodModel.put("targetPrefix", targetPrefix);
             methodModel.put("routeService", routeService);
             methodModel.put("routeLocation", routeLocation);
-            methodModel.put("usesFixedActorType", usesFixedActorType);
+            methodModel.put("usesFixedActorType", routeLocation);
             methodModel.put("actorTypeName", method.rpcActorType.name());
         }
 
@@ -177,7 +179,7 @@ final class RpcSupport {
         return COMMON_PROXY_PACKAGE + "." + ownerServiceClassName + "." + targetClassName + "Proxy";
     }
 
-    Map<String, Object> buildRootMap(List<MethodStruct<Rpc>> methods, TypeElement ownerType, String generatedClassFullName) {
+    Map<String, Object> buildRootMap(List<MethodStruct<Rpc>> methods, String generatedClassFullName) {
         MethodStruct<Rpc> struct = methods.getFirst();
         int splitIndex = generatedClassFullName.lastIndexOf(".");
         String generatedPackageName = generatedClassFullName.substring(0, splitIndex);
@@ -207,17 +209,10 @@ final class RpcSupport {
         dataModel.put("actorFields", actorFieldsModel);
         dataModel.put("serviceTargetFields", serviceTargetFieldsModel);
 
-        Actor serviceAnnotation = ownerType.getAnnotation(Actor.class);
-        if (serviceAnnotation == null) {
-            return dataModel;
-        }
-        dataModel.put("singleton", serviceAnnotation.single());
-
         for (MethodStruct<Rpc> method : methods) {
             collectMethodImports(importPackages, generatedPackageName, method);
             boolean routeService = isServiceRoute(method);
             boolean routeLocation = isLocationRoute(method);
-            boolean usesFixedActorType = routeLocation;
             String targetPrefix;
             if (routeService) {
                 targetPrefix = "CallPoint remote";
@@ -244,7 +239,7 @@ final class RpcSupport {
             methodModel.put("targetIsOwner", method.fullClassName.equals(method.ownerFullClassName));
             methodModel.put("routeService", routeService);
             methodModel.put("routeLocation", routeLocation);
-            methodModel.put("usesFixedActorType", usesFixedActorType);
+            methodModel.put("usesFixedActorType", routeLocation);
             methodModel.put("actorTypeName", method.rpcActorType.name());
             methodModel.put("targetPrefix", targetPrefix);
 
@@ -292,11 +287,8 @@ final class RpcSupport {
 
     private List<MethodStruct<Rpc>> bindOwner(TypeElement ownerType,
                                               List<MethodStruct<Rpc>> structList) {
-        String ownerFullClassName = ownerType.getQualifiedName().toString();
-        String ownerClassName = ownerType.getSimpleName().toString();
         for (MethodStruct<Rpc> method : structList) {
-            method.ownerFullClassName = ownerFullClassName;
-            method.ownerClassName = ownerClassName;
+            bindMethodOwner(method, ownerType);
         }
 
         List<MethodStruct<Rpc>> ownerMethods = new ArrayList<>(structList);
@@ -314,26 +306,27 @@ final class RpcSupport {
         return ownerMethods;
     }
 
-    private TypeElement resolveServiceOwner(Set<? extends Element> actorElements) {
-        if (actorElements.isEmpty()) {
-            throw new IllegalStateException("当前 RoundEnvironment 找不到 @Actor Service 宿主");
+    private TypeElement resolveSingleServiceOwner(List<MethodStruct<Rpc>> structList) {
+        TypeElement ownerType = elementUtils.getTypeElement(structList.getFirst().ownerFullClassName);
+        if (ownerType == null) {
+            throw new IllegalStateException("找不到宿主 Service: " + structList.getFirst().ownerFullClassName);
         }
-        if (actorElements.size() > 1) {
-            throw new IllegalStateException("一个 RoundEnvironment 只能有一个 @Actor Service 宿主: " + actorElements);
+        for (MethodStruct<Rpc> method : structList) {
+            if (!ownerType.getQualifiedName().contentEquals(method.ownerFullClassName)) {
+                throw new IllegalStateException("当前编译单元的 @Rpc 方法解析到多个宿主 Service，无法合并生成: "
+                        + ownerType.getQualifiedName() + " / " + method.ownerFullClassName);
+            }
         }
-        Element actorElement = actorElements.iterator().next();
-        if (!(actorElement instanceof TypeElement typeElement)) {
-            throw new IllegalStateException("@Actor 目标不是 TypeElement: " + actorElement);
-        }
-        return requireServiceOwner(typeElement);
+        return ownerType;
     }
 
-    private TypeElement requireServiceOwner(TypeElement typeElement) {
-        TypeElement serviceElement = elementUtils.getTypeElement("org.evd.game.runtime.Service");
-        if (!typeUtils.isSubtype(typeElement.asType(), serviceElement.asType())) {
-            throw new IllegalStateException(typeElement.getQualifiedName() + " 标了 @Actor，但不是 Service 子类");
-        }
-        return typeElement;
+    private TypeElement resolveServiceOwner(MethodStruct<Rpc> method) {
+        return serviceOwnerResolver.resolve(method.getTypeElement());
+    }
+
+    private void bindMethodOwner(MethodStruct<Rpc> method, TypeElement ownerType) {
+        method.ownerFullClassName = ownerType.getQualifiedName().toString();
+        method.ownerClassName = ownerType.getSimpleName().toString();
     }
 
     private void collectMethodImports(Set<String> importPackages, String generatedPackageName, MethodStruct<Rpc> method) {

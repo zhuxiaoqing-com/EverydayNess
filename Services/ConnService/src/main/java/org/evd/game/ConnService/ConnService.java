@@ -133,4 +133,9 @@ public class ConnService extends Service {
     private ActorId gateActorId(long sessionId) {
         return ActorId.gate(sessionId);
     }
+
+    @Override
+    protected boolean supportMdb() {
+        return false;
+    }
 }

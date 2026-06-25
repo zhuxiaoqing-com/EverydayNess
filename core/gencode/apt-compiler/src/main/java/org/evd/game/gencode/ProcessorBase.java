@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.Set;
 
 public abstract class ProcessorBase extends AbstractProcessor {
@@ -104,8 +105,10 @@ public abstract class ProcessorBase extends AbstractProcessor {
 
     @Override
     public final boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        if (annotations == null || annotations.isEmpty()) return false;
-        gen(annotations, roundEnv);
+        if ((annotations == null || annotations.isEmpty()) && !roundEnv.processingOver()) {
+            return false;
+        }
+        gen(annotations == null ? Collections.emptySet() : annotations, roundEnv);
         return false;
     }
 

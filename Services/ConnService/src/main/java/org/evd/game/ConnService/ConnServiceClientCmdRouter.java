@@ -32,7 +32,7 @@ final class ConnServiceClientCmdRouter {
     }
 
     private void registerServiceRoute(String serviceClassName) {
-        String registryClassName = toRegistryClassName(serviceClassName);
+        String registryClassName = ServiceName.fullClassName(serviceClassName) + ROUTE_REGISTRY_SUFFIX;
         try {
             Class<?> registryClass = Class.forName(registryClassName);
             Method registerMethod = registryClass.getMethod(REGISTER_METHOD_NAME, ClientCmdRouteTable.class);
@@ -42,13 +42,6 @@ final class ConnServiceClientCmdRouter {
             throw new RuntimeException("初始化客户端协议路由失败: serviceClass=" + serviceClassName,
                     unwrapReflectiveException(e));
         }
-    }
-
-    private static String toRegistryClassName(String serviceClassName) {
-        int lastDot = serviceClassName.lastIndexOf('.');
-        String packageName = serviceClassName.substring(0, lastDot);
-        String simpleClassName = serviceClassName.substring(lastDot + 1);
-        return packageName + "." + simpleClassName + ROUTE_REGISTRY_SUFFIX;
     }
 
     private static Throwable unwrapReflectiveException(ReflectiveOperationException e) {

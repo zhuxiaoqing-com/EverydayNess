@@ -178,7 +178,7 @@ public class Service extends TickCase {
         if (supportMdb()) {
             this.mdb = new Mdb();
             try {
-                mdb.start(getClass().getSimpleName(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE));
+                mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE));
             } catch (Exception exception) {
                 throw new RuntimeException(exception);
             }

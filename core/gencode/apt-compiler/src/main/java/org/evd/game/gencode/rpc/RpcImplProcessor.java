@@ -13,7 +13,6 @@ import javax.tools.JavaFileObject;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,7 +41,7 @@ public class RpcImplProcessor extends ProcessorBase {
         }
 
         String ownerFullClassName = context.ownerType.getQualifiedName().toString();
-        Map<String, Object> rootMap = support.buildRootMap(context.ownerMethods, context.ownerType, ownerFullClassName);
+        Map<String, Object> rootMap = support.buildRootMap(context.ownerMethods, ownerFullClassName);
         String implFullClassName = ownerFullClassName + "Impl";
         try {
             String content = support.renderTemplate(RpcSupport.TEMPLATE_RPC_IMP, rootMap);

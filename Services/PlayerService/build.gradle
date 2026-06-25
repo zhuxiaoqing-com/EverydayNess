@@ -64,7 +64,7 @@ tasks.named('compileDbDefJava', JavaCompile) {
     options.incremental = false
     options.compilerArgs += [
             '-processor',
-            'org.evd.game.gencode.db.DbDirtyEntityProcessor'
+            'org.evd.game.gencode.db.DbDirtyEntityProcessor,org.evd.game.gencode.db.DbDirtyTableRegistryProcessor'
     ]
 }
 

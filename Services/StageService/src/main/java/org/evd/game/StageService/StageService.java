@@ -102,4 +102,9 @@ public class StageService extends Service {
         RegisteredService registeredService = servicesByType.getFirst();
         return new CallPoint(registeredService.getNodeId(), registeredService.getNodeId());
     }
+
+    @Override
+    protected boolean supportMdb() {
+        return false;
+    }
 }

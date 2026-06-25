@@ -21,6 +21,7 @@ import java.util.StringJoiner;
 final class DbDirtyEntityMetaFactory {
     private static final String DATA_DEF_SUFFIX = "Def";
     private static final String DB_ENTITY_PACKAGE_SEGMENT = ".dbEntity";
+    private static final String DB_DEF_PACKAGE_SEGMENT = ".dbDef";
     private static final String DB_PACKAGE_SEGMENT = ".db";
 
     private DbDirtyEntityMetaFactory() {
@@ -37,6 +38,7 @@ final class DbDirtyEntityMetaFactory {
         String beanPackage = buildPackage(layout.dbRootPackage(), "bean", layout.relativePackage());
         String tablePackage = buildPackage(layout.dbRootPackage(), "table", layout.relativePackage());
         String internalTablePackage = buildPackage(layout.dbRootPackage(), "_table_", layout.relativePackage());
+        String registryPackage = resolveRegistryPackage(sourcePackage);
         String legacyFlatPackage = buildPackage(layout.dbRootPackage(), null, layout.relativePackage());
         String legacyBrokenPackage = sourcePackage + DB_PACKAGE_SEGMENT;
 
@@ -48,7 +50,7 @@ final class DbDirtyEntityMetaFactory {
         }
 
         DbDirtyFieldMeta primaryKeyField = validateFields(sourceClassName, table, fields);
-        return new DbDirtyEntityMeta(sourcePackage, layout.dbRootPackage(), layout.relativePackage(),
+        return new DbDirtyEntityMeta(sourcePackage, layout.dbRootPackage(), layout.relativePackage(), registryPackage,
                 legacyFlatPackage, legacyBrokenPackage, beanPackage, tablePackage, internalTablePackage,
                 beanClassName, beanClassName + "Table", "_" + beanClassName + "Table_",
                 dbType, table, fields, primaryKeyField);
@@ -91,6 +93,17 @@ final class DbDirtyEntityMetaFactory {
         String prefix = sourcePackage.substring(0, index);
         String suffix = sourcePackage.substring(index + DB_ENTITY_PACKAGE_SEGMENT.length());
         return new DbDirtyPackageLayout(prefix + DB_PACKAGE_SEGMENT, suffix);
+    }
+
+    static String resolveRegistryPackage(String sourcePackage) {
+        int index = sourcePackage.indexOf(DB_ENTITY_PACKAGE_SEGMENT);
+        if (index < 0) {
+            index = sourcePackage.indexOf(DB_DEF_PACKAGE_SEGMENT);
+        }
+        if (index < 0) {
+            return sourcePackage + DB_PACKAGE_SEGMENT;
+        }
+        return sourcePackage.substring(0, index) + DB_PACKAGE_SEGMENT;
     }
 
     static String buildPackage(String dbRootPackage, String category, String relativePackage) {
@@ -161,6 +174,7 @@ final class DbDirtyEntityMeta {
     final String sourcePackage;
     final String dbRootPackage;
     final String relativePackage;
+    final String registryPackage;
     final String legacyFlatPackage;
     final String legacyBrokenPackage;
     final String beanPackage;
@@ -174,7 +188,7 @@ final class DbDirtyEntityMeta {
     final List<DbDirtyFieldMeta> fields;
     final DbDirtyFieldMeta primaryKeyField;
 
-    DbDirtyEntityMeta(String sourcePackage, String dbRootPackage, String relativePackage,
+    DbDirtyEntityMeta(String sourcePackage, String dbRootPackage, String relativePackage, String registryPackage,
                       String legacyFlatPackage, String legacyBrokenPackage, String beanPackage,
                       String tablePackage, String internalTablePackage, String beanClassName,
                       String tableClassName, String internalTableClassName, DBserialize dbType,
@@ -182,6 +196,7 @@ final class DbDirtyEntityMeta {
         this.sourcePackage = sourcePackage;
         this.dbRootPackage = dbRootPackage;
         this.relativePackage = relativePackage;
+        this.registryPackage = registryPackage;
         this.legacyFlatPackage = legacyFlatPackage;
         this.legacyBrokenPackage = legacyBrokenPackage;
         this.beanPackage = beanPackage;
@@ -228,6 +243,14 @@ final class DbDirtyEntityMeta {
 
     String tableName() {
         return DbDirtyEntityMetaFactory.toSnakeCase(beanClassName);
+    }
+
+    String tableTypeName() {
+        return tablePackage + "." + tableClassName;
+    }
+
+    String internalTableTypeName() {
+        return internalTablePackage + "." + internalTableClassName;
     }
 }
 
