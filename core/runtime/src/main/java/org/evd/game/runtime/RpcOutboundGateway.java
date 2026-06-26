@@ -24,7 +24,7 @@ final class RpcOutboundGateway {
     }
 
     Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
-        ContinuationRuntime continuationRuntime = service.continuationRuntimeInternal();
+        ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         CallPoint targetCallPoint = new CallPoint(toCallPoint);
         long waitId = continuationRuntime.registerWait(timeoutMillis, service.getWaitBaseTimeInternal(),

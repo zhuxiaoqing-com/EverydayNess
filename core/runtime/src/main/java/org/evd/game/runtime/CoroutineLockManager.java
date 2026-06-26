@@ -118,7 +118,7 @@ public final class CoroutineLockManager {
         }
 
         waitContinuation.setResult(null);
-        service.queueLockContinuation(waitContinuation);
+        service.queueUnlockContinuation(waitContinuation);
     }
 
     private boolean tryAcquire(int type, Object key, Task.ContinuationWrapper continuation) {

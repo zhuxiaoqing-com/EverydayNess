@@ -7,8 +7,6 @@ db:
     password: "123456"
     database: "game"
     autoCreate: true
-    minPoolSize: 4
-    maxPoolSize: 16
     connectionTimeoutMs: 4000
     testQuery: "SELECT 1"
 

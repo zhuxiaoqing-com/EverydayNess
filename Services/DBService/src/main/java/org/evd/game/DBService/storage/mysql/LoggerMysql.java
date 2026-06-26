@@ -12,6 +12,7 @@ import java.sql.*;
 public class LoggerMysql implements LoggerEngine {
 
 	private static Logger logger = LoggerFactory.getLogger(LoggerMysql.class);
+    private static final int FIXED_POOL_SIZE = 1;
 
 	private final String databaseUrl;
     private final String bootstrapUrl;
@@ -40,10 +41,10 @@ public class LoggerMysql implements LoggerEngine {
 			}else {
 				this.bootstrapUrl = config.getJdbcUrl();
 			}
-            initConnections(config.getMinPoolSize(), config.getMaxPoolSize(), bootstrapUrl);
+            initConnections(bootstrapUrl);
 			checkDatabase(database);
             if (autoCreate) {
-                resetConnections(config.getMinPoolSize(), config.getMaxPoolSize(), databaseUrl);
+                resetConnections(databaseUrl);
             }
 			if (readConnection == null || writeConnection == null) {
 				logger.error("MySQL Connection Pool Init Error, System Exit!");
@@ -102,7 +103,7 @@ public class LoggerMysql implements LoggerEngine {
 		return tableName;
 	}
 
-	private HikariConfig InitHikariConfig(String poolName, String url, int minPool, int maxPool) {
+	private HikariConfig InitHikariConfig(String poolName, String url) {
 		HikariConfig hikariConfig = new HikariConfig();
 		hikariConfig.setPoolName(poolName);
 		hikariConfig.setDriverClassName(driverClass);
@@ -119,19 +120,22 @@ public class LoggerMysql implements LoggerEngine {
 		hikariConfig.setConnectionTimeout(connectionTimeoutMs);
 		hikariConfig.setConnectionTestQuery(testQuery);
 		hikariConfig.setAutoCommit(true);
-		hikariConfig.setMinimumIdle(minPool);
-		hikariConfig.setMaximumPoolSize(maxPool);
+		hikariConfig.setMinimumIdle(FIXED_POOL_SIZE);
+		hikariConfig.setMaximumPoolSize(FIXED_POOL_SIZE);
 		return hikariConfig;
 	}
 
-    private void initConnections(int minPool, int maxPool, String jdbcUrl) {
-        this.writeConnection = new HikariDataSource(InitHikariConfig("mdb-write-pool", jdbcUrl, minPool, maxPool));
-        this.readConnection = new HikariDataSource(InitHikariConfig("mdb-read-pool", jdbcUrl, minPool, maxPool));
+    private void initConnections(String jdbcUrl) {
+        this.writeConnection = new HikariDataSource(InitHikariConfig("mdb-write-read-pool", jdbcUrl));
+		readConnection = writeConnection;
+
+//		this.writeConnection = new HikariDataSource(InitHikariConfig("mdb-write-pool", jdbcUrl));
+//		this.readConnection = new HikariDataSource(InitHikariConfig("mdb-read-pool", jdbcUrl));
     }
 
-    private void resetConnections(int minPool, int maxPool, String jdbcUrl) {
+    private void resetConnections(String jdbcUrl) {
         close();
-        initConnections(minPool, maxPool, jdbcUrl);
+        initConnections(jdbcUrl);
     }
 
 	@Override
@@ -140,9 +144,9 @@ public class LoggerMysql implements LoggerEngine {
             if (writeConnection != null) {
 			    writeConnection.close();
             }
-            if (readConnection != null) {
-			    readConnection.close();
-            }
+			if (writeConnection != readConnection && readConnection != null) {
+				readConnection.close();
+			}
 		} catch (Exception e) {
 			logger.error("close connection", e);
 		}

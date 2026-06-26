@@ -7,8 +7,6 @@ public class DbMysqlConfig {
     private String password;
     private String database;
     private boolean autoCreate = true;
-    private int minPoolSize = 4;
-    private int maxPoolSize = 16;
     private int connectionTimeoutMs = 4000;
     private String testQuery = "SELECT 1";
 
@@ -58,22 +56,6 @@ public class DbMysqlConfig {
 
     public void setAutoCreate(boolean autoCreate) {
         this.autoCreate = autoCreate;
-    }
-
-    public int getMinPoolSize() {
-        return minPoolSize;
-    }
-
-    public void setMinPoolSize(int minPoolSize) {
-        this.minPoolSize = minPoolSize;
-    }
-
-    public int getMaxPoolSize() {
-        return maxPoolSize;
-    }
-
-    public void setMaxPoolSize(int maxPoolSize) {
-        this.maxPoolSize = maxPoolSize;
     }
 
     public int getConnectionTimeoutMs() {

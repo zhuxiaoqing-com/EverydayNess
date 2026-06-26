@@ -54,6 +54,20 @@ public final class ContinuationRuntime {
         return context;
     }
 
+    public void createAndEnterQueue(Runnable task, ActorId actorId, Task.Reason queueReason, Task.DebugInfo debugInfo) {
+        Task.ContinuationWrapper context = continuationPool.apply();
+        context.bindTask(task, nextConId(), actorId);
+        context.bindDebugInfo(debugInfo);
+        queue(context, queueReason);
+    }
+
+
+    public void createAndRun(Runnable task, ActorId actorId) {
+        Task.ContinuationWrapper context = continuationPool.apply();
+        context.bindTask(task, nextConId(), actorId);
+        runImmediate(context);
+    }
+
     public void runImmediate(Task.ContinuationWrapper continuation) {
         runningContinuation = continuation;
         try {
@@ -73,7 +87,7 @@ public final class ContinuationRuntime {
         continuationPool.recycle(continuation);
     }
 
-    public void queue(Task.ContinuationWrapper continuation, String queueReason) {
+    public void queue(Task.ContinuationWrapper continuation, Task.Reason queueReason) {
         continuation.markQueued(queueReason);
         readyContinuations.addLast(continuation);
     }
@@ -133,7 +147,7 @@ public final class ContinuationRuntime {
             return;
         }
         waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
-        queue(waitContext.continuation, "timer");
+        queue(waitContext.continuation, Task.Reason.TIMER);
     }
 
     private void logDrainState(String title, String phase, int resumed) {
@@ -152,8 +166,8 @@ public final class ContinuationRuntime {
             if (debugInfo == null) {
                 continue;
             }
-            String queueReason = pending.getQueueReason();
-            String key = debugInfo + " | " + (queueReason == null ? "unknown" : queueReason);
+            Task.Reason queueReason = pending.getQueueReason();
+            String key = debugInfo + " | " + (queueReason == null ? "unknown" : queueReason.name());
             pendingDebugCounts.merge(key, 1, Integer::sum);
         }
         sb.append("pending rpc continuations:\n");

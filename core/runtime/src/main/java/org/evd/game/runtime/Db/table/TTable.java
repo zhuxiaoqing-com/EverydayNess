@@ -3,11 +3,14 @@ package org.evd.game.runtime.Db.table;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.config.RegisteredService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -243,6 +246,10 @@ public abstract class TTable<K, V extends DirtyObject> {
             logger.info(" tableName {}  allCountGetMiss {} countGetMiss {} TICK_INTERVAL {}",
                     getName(), allCountGetMiss, count, TICK_INTERVAL);
         }
+
+        for (TRecord<K, V> kvtRecord : getCacheList()) {
+            kvtRecord.checkWillCallPoint(currTime);
+        }
     }
 
     /**
@@ -375,20 +382,15 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     public CallPoint findDBServiceCallPoint(K key) {
-        int length = 0;
-        Math.floorMod(hash(key.hashCode()), length);
-        return null;
-    }
-    static final int hash(Object key) {
-        int h;
-        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+       return mdb.findDBServiceCallPoint(key);
     }
 
+
     /**
-     * todo 获取所有callPoint
+     * 获取所有callPoint
      */
-    public Collection<CallPoint> allCallPoint() {
-        return Collections.emptyList();
+    public List<CallPoint> allCallPoint() {
+        return mdb.allCallPoint();
     }
 
 

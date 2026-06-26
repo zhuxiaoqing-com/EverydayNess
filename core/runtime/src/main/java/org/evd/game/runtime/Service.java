@@ -2,14 +2,13 @@ package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
 import org.evd.game.annotation.ServiceName;
-import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Db.table.Mdb;
-import org.evd.game.runtime.call.CallBase;
-import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorRegistry;
+import org.evd.game.runtime.call.CallBase;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
@@ -20,14 +19,13 @@ import org.evd.game.runtime.mailbox.MailBoxComponent;
 import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
-import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.SysException;
 
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -207,8 +205,7 @@ public class Service extends TickCase {
      * 因为init中可能存在异步操作，异步可能触发协程yield，导致线程yield
      */
     private void initVirtual_t() {
-        Task.ContinuationWrapper continuation = continuationRuntime.create(new Task.TaskParam0(this::init), null);
-        continuationRuntime.runImmediate(continuation);
+        continuationRuntime.createAndRun(new Task.TaskParam0(this::init), null);
     }
 
     @Override
@@ -245,7 +242,9 @@ public class Service extends TickCase {
     }
 
     public void tick() {
-
+        if (mdb != null) {
+            mdb.tick(getTime());
+        }
     }
 
     /**
@@ -266,7 +265,7 @@ public class Service extends TickCase {
         return actorRegistry;
     }
 
-    public ContinuationRuntime continuationRuntimeInternal() {
+    public ContinuationRuntime continuationRuntime() {
         return continuationRuntime;
     }
 
@@ -373,24 +372,23 @@ public class Service extends TickCase {
      * 在当前service线程里启动一个独立业务协程。
      * 适合从同步tick/普通回调里触发需要callWait/sleep的业务流程。
      */
-    protected final void launchCoroutine(Runnable task) {
+    public final void launchCoroutine(Runnable task) {
         if (task == null) {
             throw new SysException("launch coroutine task is null: service={}", id);
         }
-        Task.ContinuationWrapper continuation = continuationRuntime.create(() -> {
+        continuationRuntime.createAndEnterQueue(() -> {
             try {
                 task.run();
             } catch (Throwable e) {
                 LogCore.core.error("service coroutine failed: service={}", id, e);
             }
-        }, null);
-        continuationRuntime.queue(continuation, "manual");
+        }, null, Task.Reason.NORMAL, null);
     }
 
     /**
      * 线程安全地投递一个业务协程到service线程启动。
      */
-    protected final void postCoroutine(Runnable task) {
+    public final void postCoroutine(Runnable task) {
         if (task == null) {
             throw new SysException("post coroutine task is null: service={}", id);
         }
@@ -464,8 +462,8 @@ public class Service extends TickCase {
         return continuationRuntime.takeWaitContinuation(waitId);
     }
 
-    void queueLockContinuation(Task.ContinuationWrapper continuation) {
-        continuationRuntime.queue(continuation, "lock");
+    void queueUnlockContinuation(Task.ContinuationWrapper continuation) {
+        continuationRuntime.queue(continuation, Task.Reason.UNLOCK);
     }
 
     protected final Task.ContinuationWrapper currentContinuation() {
@@ -477,7 +475,7 @@ public class Service extends TickCase {
             return;
         }
         continuation.setResult(result);
-        continuationRuntime.queue(continuation, "rpc");
+        continuationRuntime.queue(continuation, Task.Reason.RPC);
     }
 
     protected final void failContinuation(Task.ContinuationWrapper continuation, RuntimeException failure) {
@@ -485,7 +483,7 @@ public class Service extends TickCase {
             return;
         }
         continuation.setFailure(failure);
-        continuationRuntime.queue(continuation, "rpc");
+        continuationRuntime.queue(continuation, Task.Reason.RPC);
     }
 
     public final void awaitCoroutineLock(int type, Object key) {
@@ -602,14 +600,16 @@ public class Service extends TickCase {
     /**
      * 有新的service连接进来;可能包含自己
      */
-    protected void onServiceConnect(List<RegisteredService> serviceList) {
+    protected void onServiceConnect(Collection<RegisteredService> serviceList) {
 
     }
 
     /**
      * 有新的service断链;可能包含自己
      */
-    protected void onServiceDisConnect(List<RegisteredService> serviceList) {
-
+    protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        if(mdb != null) {
+            mdb.disconnectService(serviceList);
+        }
     }
 }

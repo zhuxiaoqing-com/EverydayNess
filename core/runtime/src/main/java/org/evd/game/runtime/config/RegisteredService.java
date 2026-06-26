@@ -4,6 +4,7 @@ import org.evd.game.annotation.ServiceType;
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
+import org.evd.game.runtime.call.CallPoint;
 
 @SerializeClass
 public class RegisteredService implements ISerializable {
@@ -15,6 +16,8 @@ public class RegisteredService implements ISerializable {
     private String serviceId;
     @SerializeField
     private String nodeId;
+
+    private CallPoint callPoint;
 
     public RegisteredService() {
     }
@@ -60,5 +63,12 @@ public class RegisteredService implements ISerializable {
 
     public void setNodeId(String nodeId) {
         this.nodeId = nodeId;
+    }
+
+    public CallPoint getCallPoint() {
+        if(callPoint == null) {
+            callPoint = new CallPoint(nodeId, serviceId);
+        }
+        return callPoint;
     }
 }

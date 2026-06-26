@@ -1,11 +1,15 @@
 package org.evd.game.runtime.Db.table;
 
+import lombok.extern.slf4j.Slf4j;
 import org.evd.game.base.DirtyObject;
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.TimeUtils;
 import org.evd.game.runtime.call.CallPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class TRecord<K, V extends DirtyObject> {
     public static final int ADD = 1;
@@ -19,6 +23,12 @@ public class TRecord<K, V extends DirtyObject> {
     private V value;
 
     private CallPoint ownerCallPoint;
+
+    /**
+     * 过期设置的callPoint需要一个设置时间，防止DBService连接断开了，但是DBService还在运行存数据导致脏数据
+     */
+    private CallPoint willCallPoint;
+    private long setWillCallPointMill;
 
 
     /**
@@ -94,13 +104,30 @@ public class TRecord<K, V extends DirtyObject> {
         return ownerCallPoint;
     }
 
-    /**
-     * 只有dbService缩容的时候才能用到; 扩容已有的数据不管;只有新数据才会分配过去;
-     *
-     * @param ownerCallPoint
-     */
-    public void setOwnerCallPoint(CallPoint ownerCallPoint) {
-        this.ownerCallPoint = ownerCallPoint;
+
+    public void clearCallPoint() {
+        this.ownerCallPoint = null;
+    }
+
+    public void setWillCallPoint(CallPoint willCallPoint) {
+        if (willCallPoint == null) {
+            return;
+        }
+        this.willCallPoint = willCallPoint;
+        this.setWillCallPointMill = Service.getTime();
+    }
+
+    public void checkWillCallPoint(long currTime) {
+        if (willCallPoint == null) {
+            return;
+        }
+        if (currTime < setWillCallPointMill + TimeUtils.MIN * 5) {
+            return;
+        }
+        ownerCallPoint = willCallPoint;
+        setWillCallPointMill = 0;
+        willCallPoint = null;
+        logger.info("重新设置callPoint table {} key {} callPoint {} ", table.getName(), key, ownerCallPoint);
     }
 
     public boolean checkCallPoint(CallPoint callPoint) {

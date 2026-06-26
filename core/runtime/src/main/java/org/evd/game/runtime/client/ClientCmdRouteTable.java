@@ -1,16 +1,13 @@
 package org.evd.game.runtime.client;
 
-import org.evd.game.annotation.ServiceName;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorType;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.RegisteredService;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 public final class ClientCmdRouteTable {
@@ -45,13 +42,11 @@ public final class ClientCmdRouteTable {
 
             switch (actorType) {
                 case NONE -> {
-                    List<RegisteredService> servicesByType = sender.getNode().getServicesByType(ServiceType.byName(serviceClassName));
-                    if(servicesByType.isEmpty()) {
+                    CallPoint callPoint = sender.getNode().getAnyCallPointByType(ServiceType.byName(serviceClassName));
+                    if(callPoint == null) {
                         throw new IllegalStateException("找不到客户端协议目标服务: msgId=" + msgId
                                 + ", service=" + serviceClassName);
                     }
-                    RegisteredService registeredService = servicesByType.getFirst();
-                    CallPoint callPoint = new CallPoint(registeredService.getNodeId(), registeredService.getServiceId());
                     sender.sendClientCmd(callPoint, session, msgId, new Chunk(body));
                 }
                 case PLAYER,MAP_PLAYER ->

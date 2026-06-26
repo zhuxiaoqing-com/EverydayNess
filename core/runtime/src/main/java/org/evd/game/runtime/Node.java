@@ -15,6 +15,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 节点，代表一个进程
@@ -32,8 +33,9 @@ public class Node extends TickCase{
     /** 远程node -> services镜像 */
     private final ConcurrentHashMap<String, List<RegisteredService>> remoteNodeServices = new ConcurrentHashMap<>();
     /** serviceType -> services缓存 */
-    private final ConcurrentHashMap<ServiceType, List<RegisteredService>> type2ServiceMap = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<CallPoint, RegisteredService> callPoint2ServiceMap = new ConcurrentHashMap<>();
+    private volatile Map<ServiceType, List<RegisteredService>> type2ServiceMap = new HashMap<>();
+    private volatile Map<CallPoint, RegisteredService> callPoint2ServiceMap = new HashMap<>();
+    private volatile Map<ServiceType, List<CallPoint>> type2CallMap = new HashMap<>();
     /** 地址 */
     private final String addr;
     /** 本次心跳要发送给远程note的call请求 */
@@ -47,9 +49,9 @@ public class Node extends TickCase{
     /** 远程Node调用定时器 */
     private final TickTimer remoteNodePulseTimer = new TickTimer(RemoteNode.INTERVAL_PING, true);
     /** 本地服务注册版本 */
-    private long localServiceVersion;
+    private volatile AtomicLong localServiceVersion = new AtomicLong();
     /** 本地服务注册是否有变化 */
-    private volatile boolean localServicesDirty;
+    private long syncLocalServicesDirty;
 
     public Node(String name, String addr){
         super(name, 1);
@@ -173,10 +175,19 @@ public class Node extends TickCase{
     }
 
     private void pulseServiceRegistry_nt() {
-        if (!localServicesDirty) {
+        long version = localServiceVersion.get();
+        if (version == syncLocalServicesDirty) {
             return;
         }
-        broadcastLocalServices_nt();
+        syncLocalServicesDirty = version;
+
+        refreshLocalServices();
+        for (RemoteNode remoteNode : remoteNodes.values()) {
+            if (!remoteNode.isActive()) {
+                continue;
+            }
+            sendLocalServicesToRemote_nt(remoteNode);
+        }
     }
 
     /**
@@ -224,7 +235,7 @@ public class Node extends TickCase{
 
     void attachToNode(Service service){
         services.put(service.getId(), service);
-        refreshLocalServices();
+        localServiceVersion.incrementAndGet();
     }
 
 
@@ -330,7 +341,7 @@ public class Node extends TickCase{
 
     public void remove(Service service) {
         services.remove(service.getId());
-        refreshLocalServices();
+        localServiceVersion.incrementAndGet();
     }
 
     public String getAddr() {
@@ -338,12 +349,22 @@ public class Node extends TickCase{
     }
 
     public List<RegisteredService> getRemoteNodeServices(String nodeId) {
-        return copyServices(remoteNodeServices.get(nodeId));
+        return remoteNodeServices.get(nodeId);
     }
 
     public List<RegisteredService> getServicesByType(ServiceType serviceType) {
-        return copyServices(type2ServiceMap.get(serviceType));
+        return type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
     }
+
+    public List<CallPoint> getCallPointByType(ServiceType serviceType) {
+        return type2CallMap.getOrDefault(serviceType, Collections.emptyList());
+    }
+
+    public CallPoint getAnyCallPointByType(ServiceType serviceType) {
+        List<RegisteredService> registeredServices = type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
+        return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
+    }
+
 
     void onRemoteNodeConnected_nt(RemoteNode remoteNode) {
         sendLocalServicesToRemote_nt(remoteNode);
@@ -355,35 +376,21 @@ public class Node extends TickCase{
     }
 
     private void refreshLocalServices() {
-        ++localServiceVersion;
-        localServicesDirty = true;
-
         List<RegisteredService> snapshot = buildLocalServicesSnapshot();
         remoteNodeServices.put(id, snapshot);
         rebuildServiceIndexes();
     }
 
     private void syncRemoteServices_nt(String nodeId, List<RegisteredService> services) {
-        List<RegisteredService> snapshot = copyServices(services);
-        remoteNodeServices.put(nodeId, snapshot);
+        remoteNodeServices.put(nodeId, services);
         rebuildServiceIndexes();
-    }
-
-    private void broadcastLocalServices_nt() {
-        for (RemoteNode remoteNode : remoteNodes.values()) {
-            if (!remoteNode.isActive()) {
-                continue;
-            }
-            sendLocalServicesToRemote_nt(remoteNode);
-        }
-        localServicesDirty = false;
     }
 
     private void sendLocalServicesToRemote_nt(RemoteNode remoteNode) {
         CallNodeServicesSync call = new CallNodeServicesSync();
         call.from = new CallPoint(id, null);
         call.to = new CallPoint(remoteNode.getRemoteId(), null);
-        call.setVersion(localServiceVersion);
+        call.setVersion(syncLocalServicesDirty);
         call.setServices(buildLocalServicesSnapshot());
         remoteNode.sendCall(call);
     }
@@ -407,26 +414,14 @@ public class Node extends TickCase{
         return snapshot;
     }
 
-    private List<RegisteredService> copyServices(List<RegisteredService> services) {
-        List<RegisteredService> copies = new ArrayList<>();
-        if (services == null) {
-            return copies;
-        }
-        for (RegisteredService service : services) {
-            if (service != null) {
-                copies.add(new RegisteredService(service));
-            }
-        }
-        return copies;
-    }
-
     private void rebuildServiceIndexes() {
         Map<CallPoint, RegisteredService> oldMap = new HashMap<>(callPoint2ServiceMap);
         List<RegisteredService> addList = new ArrayList<>();
         List<RegisteredService> removeList = new ArrayList<>();
 
-        type2ServiceMap.clear();
-        callPoint2ServiceMap.clear();
+        Map<ServiceType, List<RegisteredService>> tempType2ServiceMap = new HashMap<>();
+        Map<CallPoint, RegisteredService> tempCallPoint2ServiceMap = new HashMap<>();
+        Map<ServiceType, List<CallPoint>> tempType2CallMap = new HashMap<>();
         for (List<RegisteredService> nodeServices : remoteNodeServices.values()) {
             if (nodeServices == null) {
                 continue;
@@ -435,44 +430,59 @@ public class Node extends TickCase{
                 if (service == null || service.getServiceType() == null) {
                     continue;
                 }
-                type2ServiceMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
+                tempType2ServiceMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
                         .add(new RegisteredService(service));
 
-                callPoint2ServiceMap.put(new CallPoint(service.getNodeId(), service.getServiceId()), service);
+                tempCallPoint2ServiceMap.put(new CallPoint(service.getNodeId(), service.getServiceId()), service);
+                tempType2CallMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
+                        .add(new RegisteredService(service).getCallPoint());
             }
         }
-        for (List<RegisteredService> services : type2ServiceMap.values()) {
-            services.sort(Comparator.comparing(RegisteredService::getServiceClassName)
+        for (List<RegisteredService> services : tempType2ServiceMap.values()) {
+            services.sort(Comparator.comparing(RegisteredService::getNodeId)
                     .thenComparing(RegisteredService::getServiceId));
         }
+        for (List<CallPoint> value : tempType2CallMap.values()) {
+            value.sort(Comparator.comparing(CallPoint::getNodeId)
+                    .thenComparing(CallPoint::getServId));
+        }
+
+        // 标记为不可修改
+        tempType2ServiceMap.replaceAll((k, v) -> Collections.unmodifiableList(v));
+        tempType2CallMap.replaceAll((k, v) -> Collections.unmodifiableList(v));
+
+        type2ServiceMap = tempType2ServiceMap;
+        callPoint2ServiceMap = tempCallPoint2ServiceMap;
+        type2CallMap = tempType2CallMap;
 
 
         HashSet<CallPoint> eachKey = new HashSet<>();
         eachKey.addAll(oldMap.keySet());
-        eachKey.addAll(callPoint2ServiceMap.keySet());
+        eachKey.addAll(tempCallPoint2ServiceMap.keySet());
 
         for (CallPoint callPoint : eachKey) {
             boolean oldContain = oldMap.containsKey(callPoint);
-            boolean newContain = callPoint2ServiceMap.containsKey(callPoint);
+            boolean newContain = tempCallPoint2ServiceMap.containsKey(callPoint);
             if (oldContain && newContain) {
                 continue;
             }
             if (newContain) {
-                addList.add(callPoint2ServiceMap.get(callPoint));
+                addList.add(tempCallPoint2ServiceMap.get(callPoint));
             }
             if (oldContain) {
                 removeList.add(oldMap.get(callPoint));
             }
+        }
 
-            // 给每一个Service触发
-            for (Service value : services.values()) {
-                if (!addList.isEmpty()) {
-                    value.post(() -> value.onServiceConnect(addList));
-                }
 
-                if (!removeList.isEmpty()) {
-                    value.post(() -> value.onServiceDisConnect(removeList));
-                }
+        // 给每一个Service触发
+        for (Service value : services.values()) {
+            if (!addList.isEmpty()) {
+                value.post(() -> value.onServiceConnect(addList));
+            }
+
+            if (!removeList.isEmpty()) {
+                value.post(() -> value.onServiceDisconnect(removeList));
             }
         }
 

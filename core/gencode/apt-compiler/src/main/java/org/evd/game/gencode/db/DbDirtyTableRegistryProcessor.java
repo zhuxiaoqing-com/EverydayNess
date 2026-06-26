@@ -39,6 +39,9 @@ public class DbDirtyTableRegistryProcessor extends ProcessorBase {
             }
         }
 
+        // 这里要等到最后一轮再生成注册表。
+        // 前面的轮次里，其他 APT 还可能继续产出带有 DBDirtyEntity 的类型；
+        // 如果提前 generateAll()，就可能漏掉后续轮次才出现的表定义。
         if (!roundEnv.processingOver()) {
             return;
         }

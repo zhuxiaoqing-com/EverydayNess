@@ -28,7 +28,7 @@ public final class MessageSender {
     }
 
     public Object callWait(ActorAddress actorAddress, ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
-        ContinuationRuntime continuationRuntime = service.continuationRuntimeInternal();
+        ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         ActorId targetActorId = actorId == null ? null : new ActorId(actorId);
         ActorAddress targetActorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);

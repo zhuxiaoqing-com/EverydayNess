@@ -1,16 +1,8 @@
 package org.evd.game.runtime;
 
-import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.actor.ActorRegistry;
-import org.evd.game.runtime.call.ActorMessage;
-import org.evd.game.runtime.call.Call;
-import org.evd.game.runtime.call.CallBase;
-import org.evd.game.runtime.call.CallResult;
-import org.evd.game.runtime.call.DispatchType;
-import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.continuation.Task;
-import org.evd.game.runtime.mailbox.MailBoxComponent;
+import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
+import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
@@ -24,10 +16,11 @@ final class RpcInboundDispatcher {
     }
 
     void handle(CallBase callBase) {
-        ContinuationRuntime continuationRuntime = service.continuationRuntimeInternal();
+        ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper context;
         if (callBase instanceof Call call) {
-            context = createRpcContinuation(() -> dispatch(call), null, call.methodKey);
+            service.continuationRuntime().createAndEnterQueue(() -> dispatch(call), null, Task.Reason.RPC, new Task.RpcDebugInfo(call.methodKey));
+            return;
         } else if (callBase instanceof ActorMessage actorMessage) {
             service.getProcessInnerSender().dispatch(actorMessage);
             return;
@@ -48,8 +41,9 @@ final class RpcInboundDispatcher {
                                 + ", methodKey=" + callResult.methodKey
                                 + ", errorCode=" + callResult.errorCode + ", message=" + callResult.errorMessage));
             }
+            continuationRuntime.queue(context, Task.Reason.RPC);
+            return;
         }
-        continuationRuntime.queue(context, "rpc");
     }
 
     void dispatch(Call call) {
@@ -131,12 +125,5 @@ final class RpcInboundDispatcher {
         }
         callReturn.errorCode = RpcErrorCodes.UNKNOWN;
         callReturn.errorMessage = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-    }
-
-    private Task.ContinuationWrapper createRpcContinuation(Runnable task, ActorId actorId, int methodKey) {
-        ContinuationRuntime continuationRuntime = service.continuationRuntimeInternal();
-        Task.ContinuationWrapper continuation = continuationRuntime.create(task, actorId);
-        continuation.bindDebugInfo(new Task.RpcDebugInfo(methodKey));
-        return continuation;
     }
 }

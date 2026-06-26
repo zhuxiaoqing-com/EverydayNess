@@ -28,6 +28,13 @@ public class Task {
         }
     }
 
+    public enum Reason{
+        RPC,
+        NORMAL,
+        UNLOCK,
+        TIMER, ORDER_RPC;
+    }
+
     /**
      * 对协程栈的封装
      */
@@ -51,7 +58,7 @@ public class Task {
         /** 调试信息 */
         private DebugInfo debugInfo;
         /** 最近一次入队列理由 */
-        private String queueReason;
+        private Reason queueReason;
 
         public ContinuationWrapper(Service service) {
             this.service = service;
@@ -79,7 +86,7 @@ public class Task {
             this.debugInfo = debugInfo;
         }
 
-        public void markQueued(String queueReason) {
+        public void markQueued(Reason queueReason) {
             this.queueReason = queueReason;
         }
 
@@ -145,7 +152,7 @@ public class Task {
             return debugInfo;
         }
 
-        public String getQueueReason() {
+        public Task.Reason getQueueReason() {
             return queueReason;
         }
 

@@ -17,12 +17,9 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorExecutionMode;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RuntimeUtils;
-
-import java.util.List;
 
 @Actor()
 public class StageService extends Service {
@@ -94,13 +91,12 @@ public class StageService extends Service {
     }
 
     private CallPoint getLocationServiceRemote() {
-        List<RegisteredService> servicesByType = node.getServicesByType(ServiceType.LOC);
-        if (servicesByType.isEmpty()) {
+        CallPoint callPoint = node.getAnyCallPointByType(ServiceType.LOC);
+        if (callPoint == null) {
             throw new IllegalStateException("找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
         }
 
-        RegisteredService registeredService = servicesByType.getFirst();
-        return new CallPoint(registeredService.getNodeId(), registeredService.getNodeId());
+        return callPoint;
     }
 
     @Override

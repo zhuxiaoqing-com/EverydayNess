@@ -11,12 +11,10 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
-import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 
-import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -69,14 +67,13 @@ public class MessageLocationSender {
 
     private org.evd.game.runtime.call.CallPoint locationServiceRemote() {
         Node node = Service.getCurrent().getNode();
-        List<RegisteredService> servicesByType = node.getServicesByType(ServiceType.LOC);
-        if (servicesByType.isEmpty()) {
+        CallPoint callPoint = node.getAnyCallPointByType(ServiceType.LOC);
+        if (callPoint == null) {
             throw new IllegalStateException(
                     "找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");
         }
 
-        RegisteredService registeredService = servicesByType.getFirst();
-        return new CallPoint(registeredService.getNodeId(), registeredService.getNodeId());
+        return callPoint;
     }
 
     private static LocationInterface createLocationInterface() {

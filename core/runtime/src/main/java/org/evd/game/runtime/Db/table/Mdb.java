@@ -1,17 +1,20 @@
 package org.evd.game.runtime.Db.table;
 
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.spi.ServiceRegistry;
 import java.lang.reflect.Constructor;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class Mdb {
     public static Logger logger = LoggerFactory.getLogger(Mdb.class.getName());
@@ -135,6 +138,8 @@ public class Mdb {
      * 如果在这个期间玩家重新登录的话，那是不是就不应该删除呢?所以来一个function判断是否删除该数据就行了;这个先不弄吧;
      * 这里flush失败就失败了，clearCache里会保底，这里的clearCache里也会清理可以flush的数据，如果不能清理就麻烦了，比如flush失败以后预约下次flush;
      * 当然也可以业务层再次预约，看实现;底层只需要保证完善就行;
+     *
+     * todo flush这里其实还没弄好;flush成功以后需要同步给location服务器，将其退出，否则就还在Location服务器，不变;
      */
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -225,9 +230,19 @@ public class Mdb {
         timeCostPrint.print();
     }
 
+    public static final int TICK_INTERVAL = 1000 * 10;
+    public long nextTickTime;
     @SuppressWarnings({"rawtypes"})
-    public void tick() {
-        long currTime = System.currentTimeMillis();
+    public void tick(long currTime) {
+        if (currTime < nextTickTime) {
+            return;
+        }
+        nextTickTime = currTime + TICK_INTERVAL;
+
+       Service.getCurrent().launchCoroutine(()-> tickCoroutine(Service.getTime()));
+    }
+
+    public void tickCoroutine(long currTime) {
         for (TTable table : tableList) {
             table.tick(currTime);
         }
@@ -284,5 +299,60 @@ public class Mdb {
         return dbExecInterface;
     }
 
+
+    public void disconnectService(Collection<RegisteredService> collection) {
+        Set<CallPoint> disconnCallPointSet = collection.stream()
+                .filter(a -> a.getServiceType() == ServiceType.DB)
+                .map(RegisteredService::getCallPoint).collect(Collectors.toSet());
+
+        if(disconnCallPointSet.isEmpty()) {
+            return;
+        }
+
+        Collection<TRecord<?, ?>> expireTRecord = new ArrayList<>();
+        // 将过期的CallPoint的对象重新分配;
+        for (TTable<?, ?> tTable : tableList) {
+            for (TRecord<?, ?> tRecord : tTable.getCacheList()) {
+                if (disconnCallPointSet.contains(tRecord.getOwnerCallPoint())) {
+                    tRecord.clearCallPoint();
+                }
+
+                // 不止现在过期的，之前有没分配的也会在这里分配
+                if (tRecord.getOwnerCallPoint() == null) {
+                    expireTRecord.add(tRecord);
+                }
+            }
+        }
+
+        List<CallPoint> callPoints = allCallPoint();
+        if (callPoints.isEmpty()) {
+            return;
+        }
+        for (TRecord<?, ?> tRecord : expireTRecord) {
+            CallPoint dbServiceCallPoint = findDBServiceCallPoint(tRecord.getKey());
+            tRecord.setWillCallPoint(dbServiceCallPoint);
+        }
+    }
+
+    public CallPoint findDBServiceCallPoint(Object key) {
+        List<CallPoint> callPoints = allCallPoint();
+        int length = callPoints.size();
+        if (length <= 0) {
+            return null;
+        }
+        int i = Math.floorMod(hash(key.hashCode()), length);
+        return callPoints.get(i);
+    }
+    static final int hash(Object key) {
+        int h;
+        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+    }
+
+    /**
+     * 获取所有callPoint
+     */
+    public List<CallPoint> allCallPoint() {
+        return Service.getCurrent().getNode().getCallPointByType(ServiceType.DB);
+    }
 
 }
