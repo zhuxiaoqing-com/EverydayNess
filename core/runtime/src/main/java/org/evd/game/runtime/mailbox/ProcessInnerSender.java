@@ -18,7 +18,7 @@ public final class ProcessInnerSender {
     }
 
     public void dispatch(ActorMessage message) {
-        MailBoxComponent mailBox = service.actorRegistryInternal().getMailBox(message.getActorId());
+        MailBoxBean mailBox = service.actorRegistryInternal().getMailBox(message.getActorId());
         if (mailBox == null) {
             replyActorNotFound(message);
             return;

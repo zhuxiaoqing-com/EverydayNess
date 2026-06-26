@@ -4,6 +4,7 @@ import org.evd.game.annotation.ServiceType;
 import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
+import org.evd.game.runtime.RuntimeUtils;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.config.RegisteredService;
@@ -336,16 +337,7 @@ public class Mdb {
 
     public CallPoint findDBServiceCallPoint(Object key) {
         List<CallPoint> callPoints = allCallPoint();
-        int length = callPoints.size();
-        if (length <= 0) {
-            return null;
-        }
-        int i = Math.floorMod(hash(key.hashCode()), length);
-        return callPoints.get(i);
-    }
-    static final int hash(Object key) {
-        int h;
-        return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+        return RuntimeUtils.mod(key, callPoints);
     }
 
     /**

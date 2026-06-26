@@ -1,26 +1,32 @@
 package org.evd.game.runtime.actor;
 
-import org.evd.game.runtime.mailbox.MailBoxComponent;
+import lombok.extern.slf4j.Slf4j;
+import org.evd.game.annotation.ServiceName;
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.mailbox.MailBoxType;
+import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.RpcCallException;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 public class ActorRegistry {
     public static final class Registration {
         private final Object actor;
         private final ActorExecutionMode executionMode;
-        private final MailBoxComponent mailBoxComponent;
+        private final MailBoxBean mailBoxBean;
 
         private Registration(
                 Object actor,
                 ActorExecutionMode executionMode,
-                MailBoxComponent mailBoxComponent
+                MailBoxBean mailBoxComponent
         ) {
             this.actor = actor;
             this.executionMode = executionMode;
-            this.mailBoxComponent = mailBoxComponent;
+            this.mailBoxBean = mailBoxComponent;
         }
 
         public Object getActor() {
@@ -31,25 +37,45 @@ public class ActorRegistry {
             return executionMode;
         }
 
-        public MailBoxComponent getMailBoxComponent() {
-            return mailBoxComponent;
+        public MailBoxBean getMailBoxBean() {
+            return mailBoxBean;
         }
     }
+
 
     private final Map<ActorId, Registration> actors = new HashMap<>();
     private long nextMailBoxEpoch = 1L;
 
+    private final LocationInterface locationInterface;
+    private final Service service;
+
+    public ActorRegistry(Service service) {
+        locationInterface = (LocationInterface) ServiceName.getRpcProxyObj(ServiceName.LOCATION_SERVICE);
+        this.service = service;
+    }
+
     public void register(ActorId actorId, Object actor, ActorExecutionMode executionMode) {
         ActorId key = new ActorId(actorId);
-        MailBoxComponent mailBoxComponent = new MailBoxComponent(
+        MailBoxBean mailBoxBean = new MailBoxBean(
                 key,
                 nextMailBoxEpoch++,
                 executionMode == ActorExecutionMode.ORDERED ? MailBoxType.ORDERED : MailBoxType.UNORDERED);
-        actors.put(key, new Registration(actor, executionMode, mailBoxComponent));
+        actors.put(key, new Registration(actor, executionMode, mailBoxBean));
+
+        CallPoint callPoint = service.copyCallPoint();
+        ActorAddress actorAddress = new ActorAddress(callPoint, mailBoxBean.getEpoch());
+        locationInterface.add(callPoint, actorId, actorAddress);
     }
 
     public void unregister(ActorId actorId) {
-        actors.remove(actorId);
+        Registration remove = actors.remove(actorId);
+        if(remove == null) {
+            log.error("ActorRegistry unregister is null {} ", actorId);
+            return;
+        }
+        CallPoint callPoint = service.copyCallPoint();
+        ActorAddress actorAddress = new ActorAddress(callPoint, remove.getMailBoxBean().getEpoch());
+        locationInterface.add(callPoint, actorId, actorAddress);
     }
 
     public boolean contains(ActorId actorId) {
@@ -69,13 +95,13 @@ public class ActorRegistry {
         return registration;
     }
 
-    public MailBoxComponent getMailBox(ActorId actorId) {
+    public MailBoxBean getMailBox(ActorId actorId) {
         Registration registration = actors.get(actorId);
-        return registration == null ? null : registration.getMailBoxComponent();
+        return registration == null ? null : registration.getMailBoxBean();
     }
 
     public boolean hasSameMailBoxEpoch(ActorId actorId, long mailBoxEpoch) {
-        MailBoxComponent mailBoxComponent = getMailBox(actorId);
+        MailBoxBean mailBoxComponent = getMailBox(actorId);
         return mailBoxComponent != null && mailBoxComponent.getEpoch() == mailBoxEpoch;
     }
 

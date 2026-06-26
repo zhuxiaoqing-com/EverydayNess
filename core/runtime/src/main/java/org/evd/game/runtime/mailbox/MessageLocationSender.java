@@ -10,14 +10,12 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
-import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class MessageLocationSender {
@@ -50,7 +48,7 @@ public class MessageLocationSender {
             throw new IllegalArgumentException("service 不能为空");
         }
         ownerService = service;
-        locationInterface = createLocationInterface();
+        locationInterface = (LocationInterface) ServiceName.getRpcProxyObj(ServiceName.LOCATION_SERVICE);
     }
 
     public void close() {
@@ -74,10 +72,6 @@ public class MessageLocationSender {
         }
 
         return callPoint;
-    }
-
-    private static LocationInterface createLocationInterface() {
-        return (LocationInterface) ServiceName.getRpcProxyObj(ServiceName.LOCATION_SERVICE);
     }
 
     private Service requireOwnerService() {

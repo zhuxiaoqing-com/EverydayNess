@@ -348,23 +348,6 @@ public class Node extends TickCase{
         return addr;
     }
 
-    public List<RegisteredService> getRemoteNodeServices(String nodeId) {
-        return remoteNodeServices.get(nodeId);
-    }
-
-    public List<RegisteredService> getServicesByType(ServiceType serviceType) {
-        return type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
-    }
-
-    public List<CallPoint> getCallPointByType(ServiceType serviceType) {
-        return type2CallMap.getOrDefault(serviceType, Collections.emptyList());
-    }
-
-    public CallPoint getAnyCallPointByType(ServiceType serviceType) {
-        List<RegisteredService> registeredServices = type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
-        return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
-    }
-
 
     void onRemoteNodeConnected_nt(RemoteNode remoteNode) {
         sendLocalServicesToRemote_nt(remoteNode);
@@ -447,13 +430,10 @@ public class Node extends TickCase{
                     .thenComparing(CallPoint::getServId));
         }
 
-        // 标记为不可修改
-        tempType2ServiceMap.replaceAll((k, v) -> Collections.unmodifiableList(v));
-        tempType2CallMap.replaceAll((k, v) -> Collections.unmodifiableList(v));
 
-        type2ServiceMap = tempType2ServiceMap;
+        type2ServiceMap = RuntimeUtils.convertModifyListMap(tempType2ServiceMap);
         callPoint2ServiceMap = tempCallPoint2ServiceMap;
-        type2CallMap = tempType2CallMap;
+        type2CallMap = RuntimeUtils.convertModifyListMap(tempType2CallMap);
 
 
         HashSet<CallPoint> eachKey = new HashSet<>();
@@ -487,6 +467,26 @@ public class Node extends TickCase{
         }
 
 
+    }
+
+
+
+
+    public List<RegisteredService> getRemoteNodeServices(String nodeId) {
+        return remoteNodeServices.get(nodeId);
+    }
+
+    public List<RegisteredService> getServicesByType(ServiceType serviceType) {
+        return type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
+    }
+
+    public List<CallPoint> getCallPointByType(ServiceType serviceType) {
+        return type2CallMap.getOrDefault(serviceType, Collections.emptyList());
+    }
+
+    public CallPoint getAnyCallPointByType(ServiceType serviceType) {
+        List<RegisteredService> registeredServices = type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
+        return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
     }
 
 }

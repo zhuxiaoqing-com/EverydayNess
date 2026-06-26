@@ -16,13 +16,13 @@ public final class OrderedMailBoxHandler {
         this.processInnerSender = processInnerSender;
     }
 
-    public void dispatch(MailBoxComponent mailBox, ActorMessage message) {
+    public void dispatch(MailBoxBean mailBox, ActorMessage message) {
         service.continuationRuntime().createAndEnterQueue(
                 () -> handle(mailBox, message),
                 message.getActorId(),Task.Reason.ORDER_RPC, new Task.RpcDebugInfo(message.getMethodKey()));
     }
 
-    private void handle(MailBoxComponent mailBox, ActorMessage message) {
+    private void handle(MailBoxBean mailBox, ActorMessage message) {
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
         CoroutineLockManager lockManager = service.coroutineLockManagerInternal();
         ActorId actorId = mailBox.getActorId();

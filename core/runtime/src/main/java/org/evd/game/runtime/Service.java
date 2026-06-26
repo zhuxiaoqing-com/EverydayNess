@@ -15,7 +15,7 @@ import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
-import org.evd.game.runtime.mailbox.MailBoxComponent;
+import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
@@ -106,7 +106,7 @@ public class Service extends TickCase {
     /**
      * 当前 service 内的 actor 注册表
      */
-    private final ActorRegistry actorRegistry = new ActorRegistry();
+    private final ActorRegistry actorRegistry = new ActorRegistry(this);
     /**
      * 通用定时调度器
      */
@@ -277,7 +277,7 @@ public class Service extends TickCase {
         return callTransport.send(call);
     }
 
-    CallPoint copyCallPoint() {
+    public CallPoint copyCallPoint() {
         return new CallPoint(callPoint);
     }
 
@@ -559,12 +559,6 @@ public class Service extends TickCase {
 
     public MessageLocationSender getMessageLocationSender() {
         return messageLocationSender;
-    }
-
-    protected ActorAddress getActorAddress(ActorId actorId) {
-        ActorRegistry.Registration registration = actorRegistry.requireRegistration(actorId);
-        MailBoxComponent mailBoxComponent = registration.getMailBoxComponent();
-        return new ActorAddress(callPoint, mailBoxComponent.getEpoch());
     }
 
     @Override

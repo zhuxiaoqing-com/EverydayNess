@@ -70,7 +70,12 @@
 
 10.ConcurrentLinkedQueue 像这种类似的，其实都可以用双指针无锁队列来弄得吧;默认获取读锁，切换的时候才进行写锁
 
-11.mdb的DBService绑定还没做，做一下;
+11.mdb的DBService绑定还没做，做一下;mdb的flush需要实现下，和Player的locationService做匹配
 
 12.service应该要有个想关闭的状态，这个状态下，是缩容的意思，不会给他分配新的玩家之类的，但是老的还可以用;老的都下线完了,或者直接关掉- -,
+
+13.location是不是也可以弄多个，然后里面是不是应该只保存playerId，还是scene也保存，而且还需要加一个sceneManager，地图管理类;
+    location也保存scene，的话就是cache可以缓存;
+
+14.将ZMQ换了，换成netty,因为ZMQ连接和断开连接状态模糊，可能会丢数据;
 
