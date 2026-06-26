@@ -1,6 +1,6 @@
 package org.evd.game.runtime.actor;
 
-public enum ActorExecutionMode {
+public enum MailBoxType {
     ORDERED,
     UNORDERED
 }

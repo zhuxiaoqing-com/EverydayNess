@@ -20,7 +20,7 @@ public final class UnOrderedMailBoxHandler {
     }
 
     private void handle(MailBoxBean mailBox, ActorMessage message) {
-        if (!service.actorRegistryInternal().hasSameMailBoxEpoch(
+        if (!service.actorMailBoxRegistry().hasSameMailBoxEpoch(
                 mailBox.getActorId(),
                 message.getMailBoxEpoch())) {
             processInnerSender.replyActorNotFound(message);

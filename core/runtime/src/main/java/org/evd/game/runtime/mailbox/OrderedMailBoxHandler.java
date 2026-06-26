@@ -29,7 +29,7 @@ public final class OrderedMailBoxHandler {
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         lockManager.await(Service.COROUTINE_LOCK_TYPE_MAILBOX, actorId);
         try {
-            if (!service.actorRegistryInternal().hasSameMailBoxEpoch(actorId, message.getMailBoxEpoch())) {
+            if (!service.actorMailBoxRegistry().hasSameMailBoxEpoch(actorId, message.getMailBoxEpoch())) {
                 processInnerSender.replyActorNotFound(message);
                 return;
             }

@@ -15,7 +15,7 @@ import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
-import org.evd.game.runtime.actor.ActorExecutionMode;
+import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
@@ -24,6 +24,7 @@ import org.evd.game.runtime.support.RuntimeUtils;
 @Actor()
 public class StageService extends Service {
     public int a;
+    private final HaHaHaActor haHaHaActor = new HaHaHaActor();
 
     public StageService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
@@ -54,15 +55,6 @@ public class StageService extends Service {
         return "from StageService doSome3";
     }
 
-    @Rpc
-    public void callHaHaHaActorRpc1(long actorId, int a, int b) {
-        requireHaHaHaActor(actorId).rpc1(a, b);
-    }
-
-    @Rpc
-    public void callHaHaHaActorRpc2(long actorId, Object a, Object b) {
-        requireHaHaHaActor(actorId).rpc2(a, b);
-    }
 
     @ClientCmd(MsgId.C2S_LOGIN_VALUE)
     public void login(ClientSessionRef session, C2S_Login req) {
@@ -79,15 +71,11 @@ public class StageService extends Service {
 
     private void bindActorLocation(long actorId) {
         ActorId actorRef = ActorId.player(actorId);
-        registerActor(actorRef, new HaHaHaActor(), ActorExecutionMode.ORDERED);
+        registerActor(actorRef, MailBoxType.ORDERED);
         ActorAddress actorAddress = getActorAddress(actorRef);
         CallPoint locationService = getLocationServiceRemote();
         LocationServiceProxy.inst().add(locationService, actorRef, actorAddress);
         getMessageLocationSender().cache(actorRef, actorAddress);
-    }
-
-    private HaHaHaActor requireHaHaHaActor(long actorId) {
-        return requireActor(ActorId.player(actorId), HaHaHaActor.class);
     }
 
     private CallPoint getLocationServiceRemote() {

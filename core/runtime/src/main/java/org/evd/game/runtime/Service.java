@@ -4,9 +4,9 @@ import jdk.internal.vm.ContinuationScope;
 import org.evd.game.annotation.ServiceName;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.actor.ActorAddress;
-import org.evd.game.runtime.actor.ActorExecutionMode;
+import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.actor.ActorRegistry;
+import org.evd.game.runtime.actor.ActorMailBoxRegistry;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -20,8 +20,6 @@ import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.RpcCallException;
-import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.SysException;
 
 import java.util.ArrayList;
@@ -104,9 +102,9 @@ public class Service extends TickCase {
     private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager(this);
 
     /**
-     * 当前 service 内的 actor 注册表
+     * 当前 service 内的 actor mailbox 注册表
      */
-    private final ActorRegistry actorRegistry = new ActorRegistry(this);
+    private final ActorMailBoxRegistry actorMailBoxRegistry = new ActorMailBoxRegistry(this);
     /**
      * 通用定时调度器
      */
@@ -261,8 +259,8 @@ public class Service extends TickCase {
     }
 
     // 运行时协作对象统一从 Service 取上下文，避免构造参数层层透传。
-    public ActorRegistry actorRegistryInternal() {
-        return actorRegistry;
+    public ActorMailBoxRegistry actorMailBoxRegistry() {
+        return actorMailBoxRegistry;
     }
 
     public ContinuationRuntime continuationRuntime() {
@@ -518,39 +516,21 @@ public class Service extends TickCase {
         return timerScheduler.cancel(timerId);
     }
 
-    protected void registerActor(ActorId actorId, Object actor, ActorExecutionMode executionMode) {
-        actorRegistry.register(actorId, actor, executionMode);
+    protected void registerActor(ActorId actorId, MailBoxType executionMode) {
+        actorMailBoxRegistry.register(actorId, executionMode);
     }
 
     protected void unregisterActor(ActorId actorId) {
-        actorRegistry.unregister(actorId);
+        actorMailBoxRegistry.unregister(actorId);
     }
 
     protected boolean hasActor(ActorId actorId) {
-        return actorRegistry.contains(actorId);
+        return actorMailBoxRegistry.contains(actorId);
     }
 
-    protected <T> T requireActor(ActorId actorId, Class<T> type) {
-        return actorRegistry.require(actorId, type);
-    }
-
-    public ActorId requireCurrentActorId() {
-        Task.ContinuationWrapper continuation = requireRunningContinuation();
-        if (continuation == null) {
-            throw new SysException("current actor must run inside continuation: service={}", id);
-        }
-
-        ActorId actorId = continuation.getActorId();
-        if (actorId == null) {
-            throw new RpcCallException(
-                    RpcErrorCodes.ACTOR_CONTEXT_MISSING,
-                    "rpc actor context missing: service=" + id);
-        }
-        return new ActorId(actorId);
-    }
-
-    public <T> T requireCurrentActor(Class<T> type) {
-        return requireActor(requireCurrentActorId(), type);
+    protected ActorAddress getActorAddress(ActorId actorId) {
+        MailBoxBean mailBoxBean = actorMailBoxRegistry.requireMailBox(actorId);
+        return new ActorAddress(copyCallPoint(), mailBoxBean.getEpoch());
     }
 
     public MessageSender getMessageSender() {
