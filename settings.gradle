@@ -6,19 +6,22 @@ include 'core:gencode'
 findProject(':core:gencode')?.name = 'gencode'
 include 'BootStrap'
 include 'Services'
-include 'Services:ConnService'
-findProject(':Services:ConnService')?.name = 'ConnService'
 include 'common'
-include 'Services:StageService'
-findProject(':Services:StageService')?.name = 'StageService'
-include 'Services:LocationService'
-findProject(':Services:LocationService')?.name = 'LocationService'
-include 'Services:DBService'
-findProject(':Services:DBService')?.name = 'DBService'
-include 'Services:PlayerService'
-findProject(':Services:PlayerService')?.name = 'PlayerService'
 include 'core:gencode:apt-annotation'
 findProject(':core:gencode:apt-annotation')?.name = 'apt-annotation'
 include 'core:gencode:apt-compiler'
 findProject(':core:gencode:apt-compiler')?.name = 'apt-compiler'
 include 'Release'
+
+def servicesRootDir = file('Services')
+if (servicesRootDir.exists()) {
+    servicesRootDir.eachDir { serviceDir ->
+        if (!new File(serviceDir, 'build.gradle').exists()) {
+            return
+        }
+
+        def serviceProjectPath = "Services:${serviceDir.name}"
+        include serviceProjectPath
+        findProject(":${serviceProjectPath}")?.name = serviceDir.name
+    }
+}

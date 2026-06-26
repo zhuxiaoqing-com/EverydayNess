@@ -31,7 +31,7 @@ public abstract class TickCase {
 
     public TickCase(String name, long tickInterval){
         this.id = name;
-        this.tickInterval = tickInterval;
+        this.tickInterval = Math.max(TICK_INTERVAL, tickInterval);
     }
     /**
      * 当前线程开始时间(毫秒)

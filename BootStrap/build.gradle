@@ -5,6 +5,10 @@ plugins {
 group = 'org.evd'
 version = '1.0-SNAPSHOT'
 
+def serviceProjectPaths = (rootProject.findProject(':Services')?.childProjects?.values() ?: [])
+        .collect { it.path }
+        .sort()
+
 repositories {
     mavenCentral()
 }
@@ -17,11 +21,9 @@ dependencies {
 
     implementation project(':core:runtime')
     implementation project(':common')
-    implementation project(':Services:ConnService')
-    implementation project(':Services:LocationService')
-    implementation project(':Services:StageService')
-    implementation project(':Services:DBService')
-    implementation project(':Services:PlayerService')
+    serviceProjectPaths.each { serviceProjectPath ->
+        implementation project(serviceProjectPath)
+    }
 
 }
 

@@ -6,6 +6,8 @@ import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
+import java.util.Objects;
+
 @SerializeClass
 public class ActorAddress implements ISerializable {
     @SerializeField
@@ -47,5 +49,18 @@ public class ActorAddress implements ISerializable {
                 .append("callPoint", callPoint)
                 .append("mailBoxEpoch", mailBoxEpoch)
                 .toString();
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ActorAddress that = (ActorAddress) o;
+        return mailBoxEpoch == that.mailBoxEpoch && Objects.equals(callPoint, that.callPoint);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(callPoint, mailBoxEpoch);
     }
 }

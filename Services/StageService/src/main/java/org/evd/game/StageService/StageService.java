@@ -66,7 +66,7 @@ public class StageService extends Service {
                 .setRoleId(actorId)
                 .setToken("token-" + req.getAccount())
                 .build();
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
+        ConnServiceProxy.inst().pushToClient(session.getSessionId(), session, MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
     }
 
     private void bindActorLocation(long actorId) {

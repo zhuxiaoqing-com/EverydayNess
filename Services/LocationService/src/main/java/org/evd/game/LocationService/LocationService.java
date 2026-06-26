@@ -76,14 +76,14 @@ public class LocationService extends Service {
             return;
         }
 
-        ActorId key = copyActorId(actorId);
+        ActorId key = actorId;
         LockInfo lockInfo = lockInfos.get(key);
         if (lockInfo == null) {
             LogCore.core.error("LocationService 解锁失败，未找到锁: actorId={}, oldAddress={}",
                     actorId, oldActorAddress);
             return;
         }
-        if (!sameAddress(lockInfo.lockActorAddress, oldActorAddress)) {
+        if (!lockInfo.lockActorAddress.equals(oldActorAddress)) {
             LogCore.core.error("LocationService 解锁失败，锁宿主不匹配: actorId={}, oldAddress={}, lockAddress={}",
                     actorId, oldActorAddress, lockInfo.lockActorAddress);
             return;
@@ -96,7 +96,7 @@ public class LocationService extends Service {
         if (newActorAddress == null) {
             actorLocations.remove(key);
         } else {
-            actorLocations.put(key, copyAddress(newActorAddress));
+            actorLocations.put(key, newActorAddress);
         }
         lockInfos.remove(key);
 
@@ -116,7 +116,7 @@ public class LocationService extends Service {
         if (actorId == null || actorAddress == null) {
             return;
         }
-        actorLocations.put(copyActorId(actorId), copyAddress(actorAddress));
+        actorLocations.put(actorId, actorAddress);
         LogCore.core.info("LocationService 添加actor: actorId={}, address={}",
                 actorId, actorAddress);
     }
@@ -125,13 +125,13 @@ public class LocationService extends Service {
         if (actorId == null) {
             return;
         }
-        actorLocations.remove(copyActorId(actorId));
+        actorLocations.remove(actorId);
         LogCore.core.info("LocationService 移除actor: actorId={}", actorId);
     }
 
     private void lockNow(ActorId actorId, ActorAddress oldActorAddress, int timeMillis) {
-        ActorId key = copyActorId(actorId);
-        ActorAddress lockActorAddress = copyAddress(oldActorAddress);
+        ActorId key = actorId;
+        ActorAddress lockActorAddress = oldActorAddress;
         Task.ContinuationWrapper lockContinuation = currentContinuation();
         long revision = nextLockRevision++;
         long timerId = timeMillis > 0
@@ -149,7 +149,7 @@ public class LocationService extends Service {
         if (actorId == null) {
             return null;
         }
-        ActorAddress actorAddress = actorLocations.get(copyActorId(actorId));
+        ActorAddress actorAddress = actorLocations.get(actorId);
         return actorAddress == null ? null : new ActorAddress(actorAddress);
     }
 
@@ -165,27 +165,7 @@ public class LocationService extends Service {
     }
 
     private ContinuationLockScope awaitLocationLockScope(ActorId actorId) {
-        return awaitCoroutineLockScope(COROUTINE_LOCK_TYPE_LOCATION, copyActorId(actorId));
-    }
-
-    private ActorId copyActorId(ActorId actorId) {
-        return actorId == null ? null : new ActorId(actorId);
-    }
-
-    private ActorAddress copyAddress(ActorAddress actorAddress) {
-        return actorAddress == null ? null : new ActorAddress(actorAddress);
-    }
-
-    private boolean sameAddress(ActorAddress left, ActorAddress right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        if (left.getCallPoint() == null || right.getCallPoint() == null) {
-            return false;
-        }
-        return left.getMailBoxEpoch() == right.getMailBoxEpoch()
-                && left.getCallPoint().getNodeId().equals(right.getCallPoint().getNodeId())
-                && left.getCallPoint().getServId().equals(right.getCallPoint().getServId());
+        return awaitCoroutineLockScope(COROUTINE_LOCK_TYPE_LOCATION, actorId);
     }
 
 

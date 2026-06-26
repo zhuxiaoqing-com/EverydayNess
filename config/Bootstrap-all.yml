@@ -9,25 +9,26 @@ nodes:
         services:
         - serviceType: CONN
           name: conn
-          num: 1
-          interval: 5
           publicAddr: 0.0.0.0:18080
         - serviceType: LOC
           name: location
           num: -1
-          interval: 5
         - serviceType: DB
           name: db
-          num: -1
-          interval: 5
+          num: 5
+          interval: 100
         - serviceType: PLAYER
           name: player
           num: 2
-          interval: 5
+        - serviceType: SCENE_MANAGER
+          name: sceneManager
+        - serviceType: LOBBY
+          name: lobby
+        - serviceType: ONLINE
+          name: online
         - serviceType: STAGE
           name: stage
           num: 2
-          interval: 5
 
   - name: node2 # 节点
     addr: tcp://127.0.0.1:15002
@@ -38,5 +39,4 @@ nodes:
         - serviceType: GSTAGE
           name: gStage
           num: 2
-          interval: 5
       - name: io  #线程池

@@ -5,7 +5,7 @@ import org.evd.game.annotation.ServiceType;
 public class ServiceInfo {
     private ServiceType serviceType;
     private String name;
-    private int num;
+    private int num = 1;
     private int interval = 5;
     private String publicAddr;
 

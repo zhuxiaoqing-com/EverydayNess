@@ -249,8 +249,18 @@ MailBox+ActorId
 
     按之前的lobby 直接lobby名字发送，按logic的话，就直接获取logicId发送;
     按battle的话之前是根据 本服还是跨服地图，发送到不同的服务器;然后也有服务器id的;
-    这里有一个问题就是Service怎么复用，这是一个很大的问题;
+    这里有一个问题就是Service怎么复用，这是一个很大的问题;解决了+ServiceType
 
+    location架构迎来了大动荡;加了跨服玩法以后Location就失效了;比如我在本服,给玩家发数据,使用ActorType.Gate,id玩家id,
+    在跨服呢?location是单服的东西啊,
+    想了一个法子，location也有跨服的,然后id全部使用idFactory生成带平台id和服务器id,然后跨服的服务器id直接固定死一个数值就好了;可以是0?
+    然后本地和跨服都直接根据id来进行查看是访问Location,还是GlobalLocation;
+    场景还有一个问题，就是场景按之前的项目来说，其实用mapType+map创建方式来创建一个字符串更好用;比如这样系统副本也可以创建多个,想进哪个还不需要特殊处理;
+    那actorId是不是应该用String替换?还是根据type获取long还是String的;
+    	public String getKey(int dungeonId, long groupId, int serverGroupId, int areaId) {
+    		return keys.getKey(BattleMonitorServer.getLobbyId(), dungeonId, groupId);
+    	}
+    	想这样子的,系统也可以用groupId来区分
 
 
 

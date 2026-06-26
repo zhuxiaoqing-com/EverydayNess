@@ -2,6 +2,8 @@ package org.evd.game.common.proxy.ConnService;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.actor.ActorType;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.Chunk;
 
@@ -60,9 +62,9 @@ public final class ConnServiceProxy {
     /**
     * 对应源方法: org.evd.game.ConnService.ConnService#pushToClient()
     */
-    public void pushToClient(CallPoint remote, ClientSessionRef session, int msgId, Chunk body){
-        Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNSERVICE_PUSHTOCLIENT_3, new Object[]{session, msgId, body});
+    public void pushToClient(long actorUniqueId, ClientSessionRef session, int msgId, Chunk body){
+        ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNSERVICE_PUSHTOCLIENT_3, new Object[]{session, msgId, body});
     }
 
 

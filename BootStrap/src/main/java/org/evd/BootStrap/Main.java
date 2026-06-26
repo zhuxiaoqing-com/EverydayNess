@@ -67,7 +67,7 @@ public class Main {
                 }
                 // TODO 按service名加载 XXXService.jar
                 Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class, ServiceInfo.class);
-                if (serviceInfo.getNum() < 0){
+           /*     if (serviceInfo.getNum() < 0){
                     Service service = (Service)con.newInstance(node, serviceInfo.getName(), scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
                     node.addService(service);
                 }else{
@@ -75,6 +75,13 @@ public class Main {
                         Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
                         node.addService(service);
                     }
+                }*/
+
+                int num = serviceInfo.getNum();
+                num = Math.max(1, num);
+                for (int i = 1; i<= num; ++i){
+                    Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
+                    node.addService(service);
                 }
             }
         }

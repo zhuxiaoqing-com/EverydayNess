@@ -1,0 +1,88 @@
+import org.gradle.api.tasks.PathSensitivity
+
+apply plugin: 'java'
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+def hasDbDef = project.ext.has('hasDbDef') ? project.ext.hasDbDef : false
+
+def commonRpcProxyDir = rootProject.file("common/src/gen/java/org/evd/game/common/proxy/${project.name}")
+def commonRpcProxyInputs = providers.provider {
+    commonRpcProxyDir.exists() ? fileTree(commonRpcProxyDir) : files()
+}
+
+repositories {
+    mavenCentral()
+}
+
+if (hasDbDef) {
+    configurations {
+        dbDefImplementation.extendsFrom implementation
+    }
+}
+
+sourceSets {
+    if (hasDbDef) {
+        dbDef {
+            java {
+                srcDirs = ['src/dbDef/java']
+            }
+        }
+    }
+
+    main {
+        java {
+            srcDirs = ['src/main/java']
+
+            if (hasDbDef) {
+                // 只把 dbDef APT 生成源码给 main，避免每个 Service 重复维护同一套配置
+                srcDir(tasks.named('compileDbDefJava', JavaCompile).flatMap {
+                    it.options.generatedSourceOutputDirectory
+                })
+            }
+        }
+    }
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    implementation project(':core:gencode:apt-annotation')
+    annotationProcessor project(':core:gencode:apt-compiler')
+    implementation project(':core:runtime')
+    implementation project(':common')
+
+    if (hasDbDef) {
+        dbDefImplementation project(':core:gencode:apt-annotation')
+        dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
+        dbDefImplementation project(':core:runtime')
+        dbDefImplementation project(':common')
+    }
+}
+
+if (hasDbDef) {
+    tasks.named('compileDbDefJava', JavaCompile) {
+        options.incremental = false
+        options.compilerArgs += [
+                '-processor',
+                'org.evd.game.gencode.db.DbDirtyEntityProcessor,org.evd.game.gencode.db.DbDirtyTableRegistryProcessor'
+        ]
+    }
+}
+
+tasks.named('compileJava', JavaCompile) {
+    if (hasDbDef) {
+        dependsOn tasks.named('compileDbDefJava')
+    }
+
+    inputs.files(commonRpcProxyInputs)
+            .withPropertyName('commonRpcProxyDir')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+            .optional()
+}
+
+test {
+    useJUnitPlatform()
+}
