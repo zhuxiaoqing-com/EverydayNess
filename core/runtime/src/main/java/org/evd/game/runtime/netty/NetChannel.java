@@ -4,6 +4,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.util.Attribute;
+import org.evd.game.runtime.client.ClientSessionRef;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -14,6 +15,13 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class NetChannel {
+    private static final int CMD_LOGIN = 1001;
+    private static final int CMD_CONN_PING = 1002;
+    private static final int CMD_LOGIN2 = 1003;
+    private static final int CMD_LOGIN3 = 1004;
+    private static final int CMD_CREATE_ROLE = 1005;
+    private static final int CMD_SELECT_ROLE_ENTER = 1006;
+
     public static final int MESSAGE_GW_TIME = 30;
     public static final int MESSAGE_GW_COUNT = 150;
 
@@ -41,6 +49,9 @@ public class NetChannel {
 
     private String userId;
 
+    private final ClientSessionRef sessionRef;
+    private SessionState sessionState = SessionState.CONNECTED;
+
 
     private InetSocketAddress playerEnterAddress;
 
@@ -63,15 +74,31 @@ public class NetChannel {
         attribute.set(this.channelId);
         this.channel = channel;
         this.remoteAddress = remoteAddress(channel.remoteAddress());
+        this.sessionRef = new ClientSessionRef();
+        this.sessionRef.setSessionId(this.channelId);
+        this.lastPingTime = System.currentTimeMillis();
+        setBrokenType(BrokenType.NONE);
     }
 
 
     public long getPlayerId() {
-        return playerId;
+        return sessionRef.getPlayerId();
     }
 
     public void setPlayerId(long playerId) {
-        this.playerId = playerId;
+        sessionRef.setPlayerId(playerId);
+    }
+
+    public SessionState getSessionState() {
+        return sessionState;
+    }
+
+    public void setSessionState(SessionState sessionState) {
+        this.sessionState = sessionState == null ? SessionState.CONNECTED : sessionState;
+    }
+
+    public boolean canProcessClientCmd(int msgId) {
+        return sessionState.canProcess(msgId);
     }
 
     public void write(Object obj) {
@@ -89,6 +116,11 @@ public class NetChannel {
 
     public void close() {
         this.channel.close();
+    }
+
+    public void close(BrokenType brokenType) {
+        setBrokenType(brokenType);
+        close();
     }
 
     public <T> T call(Object obj, Class<T> cls) {
@@ -110,6 +142,7 @@ public class NetChannel {
 
     public void setChannelId(long channelId) {
         this.channelId = channelId;
+        sessionRef.setSessionId(channelId);
     }
 
     public Channel getChannel() {
@@ -137,11 +170,11 @@ public class NetChannel {
     }
 
     public String getUserId() {
-        return userId;
+        return sessionRef.getUserId();
     }
 
     public void setUserId(String userId) {
-        this.userId = userId;
+        sessionRef.setUserId(userId);
     }
 
     public long getLastMessageTime() {
@@ -189,6 +222,18 @@ public class NetChannel {
         this.lastPingTime = lastPingTime;
     }
 
+    public boolean isAuthorized() {
+        return sessionRef.isAuthorized();
+    }
+
+    public void setAuthorized(boolean authorized) {
+        sessionRef.setAuthorized(authorized);
+    }
+
+    public ClientSessionRef getSessionRef() {
+        return sessionRef;
+    }
+
     public List<HisMessage> getFrequentlyMessageList() {
         return frequentlyMessageList;
     }
@@ -201,11 +246,50 @@ public class NetChannel {
         this.remoteClientIp = remoteClientIp;
     }
 
+    public BrokenType getBrokenType() {
+        return BrokenType.fromCode(channel.attr(ServerAttributeKey.brokenType).get());
+    }
+
+    public int getBrokenTypeCode() {
+        return getBrokenType().getCode();
+    }
+
+    public void setBrokenType(BrokenType brokenType) {
+        channel.attr(ServerAttributeKey.brokenType).set(
+                (brokenType == null ? BrokenType.NONE : brokenType).getCode());
+    }
+
     public Set<Integer> getMergedIds() {
         return mergedIds;
     }
 
     private static String remoteAddress(SocketAddress remoteAddress) {
         return remoteAddress == null ? "unknown" : remoteAddress.toString();
+    }
+
+    public enum SessionState {
+        CONNECTED(Set.of(
+                CMD_LOGIN,
+                CMD_LOGIN2
+        )),
+        SELECT_ROLE_READY(Set.of(
+                CMD_CREATE_ROLE,
+                CMD_SELECT_ROLE_ENTER,
+                CMD_CONN_PING
+        )),
+        LOGIN_READY(Set.of(
+                CMD_LOGIN3,
+                CMD_CONN_PING
+        ));
+
+        private final Set<Integer> allowedCmds;
+
+        SessionState(Set<Integer> allowedCmds) {
+            this.allowedCmds = allowedCmds;
+        }
+
+        boolean canProcess(int msgId) {
+            return allowedCmds.contains(msgId);
+        }
     }
 }

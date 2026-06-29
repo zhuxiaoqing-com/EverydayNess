@@ -20,8 +20,8 @@ public final class ConnTestProxyProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNTESTPROXY_CONNTEST2_4 = 4;
-        public final static int ENUM_CONNTESTPROXY_CONNTEST3_5 = 5;
+        public final static int ENUM_CONNTESTPROXY_CONNTEST2_6 = 6;
+        public final static int ENUM_CONNTESTPROXY_CONNTEST3_7 = 7;
     }
 
     /**
@@ -29,7 +29,7 @@ public final class ConnTestProxyProxy {
     */
     public void connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST2_4, new Object[]{a, b, connInfo});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST2_6, new Object[]{a, b, connInfo});
     }
 
 
@@ -38,7 +38,7 @@ public final class ConnTestProxyProxy {
     */
     public void connTest3(long actorUniqueId){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST3_5, new Object[]{});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTPROXY_CONNTEST3_7, new Object[]{});
     }
 
 

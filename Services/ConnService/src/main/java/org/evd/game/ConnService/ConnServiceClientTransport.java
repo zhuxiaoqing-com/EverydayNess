@@ -13,8 +13,8 @@ import org.evd.game.runtime.support.LogCore;
 import java.util.Arrays;
 
 final class ConnServiceClientTransport {
-    private final ConnService owner;
-    private final ChannelManager clientChannelManager = new ChannelManager();
+    public final ConnService owner;
+    private final ChannelManager clientChannelManager;
 
     private volatile NetAcceptor clientAcceptor;
     private String publicAddr;
@@ -22,8 +22,9 @@ final class ConnServiceClientTransport {
     private int clientWorkerThreads = 0;
     private int clientMaxFrameLength = 8 * 1024 * 1024;
 
-    ConnServiceClientTransport(ConnService owner, String publicAddr) {
+    ConnServiceClientTransport(ConnService owner, ChannelManager clientChannelManager, String publicAddr) {
         this.owner = owner;
+        this.clientChannelManager = clientChannelManager;
         this.publicAddr = publicAddr;
     }
 
@@ -37,7 +38,7 @@ final class ConnServiceClientTransport {
         int port = Integer.parseInt(publicAddr.substring(split + 1).trim());
         clientAcceptor = new NetAcceptor(
                 new NetAcceptorConfig(host, port, clientBossThreads, clientWorkerThreads),
-                new ConnServiceClientChannelInitializer(this, clientMaxFrameLength));
+                new ConnServiceClientChannelInitializer(this, clientChannelManager, clientMaxFrameLength));
         LogCore.core.info("ConnService Netty 启动完成: service={}, publicAddr={}", owner.getId(), publicAddr);
     }
 
@@ -52,30 +53,23 @@ final class ConnServiceClientTransport {
 
     ClientSessionRef buildClientSessionRef(NetChannel session) {
         owner.registerClientSessionActor(session);
-        return new ClientSessionRef(
-                new CallPoint(owner.getNode().getId(), owner.getId()),
-                session.getChannelId());
+        ClientSessionRef sessionRef = session.getSessionRef();
+        if (sessionRef.getGate() == null) {
+            sessionRef.setGate(new CallPoint(owner.getNode().getId(), owner.getId()));
+        }
+        return sessionRef;
     }
 
-    void pushToClient(ClientSessionRef session, int msgId, Chunk body) {
-        NetChannel channel = requireClientChannel(session.getSessionId());
+    void pushToClient(long sessionId, int msgId, Chunk body) {
+        NetChannel channel = requireClientChannel(sessionId);
         byte[] payload = copyChunkBody(body);
         channel.write(encodeClientPacket(msgId, payload));
         LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, msgId={}, bytes={}",
-                owner.getId(), session.getSessionId(), msgId, payload.length);
-    }
-
-    NetChannel createClientSession(Channel channel) {
-        return new NetChannel(channel);
+                owner.getId(), sessionId, msgId, payload.length);
     }
 
     void onClientChannelActive(NetChannel session) {
-        clientChannelManager.addChannel(session);
-        owner.post(() -> {
-            owner.registerClientSessionActor(session);
-            LogCore.core.info("ConnService 客户端连接: service={}, sessionId={}, remote={}",
-                    owner.getId(), session.getChannelId(), session.getRemoteAddress());
-        });
+        owner.post(() -> owner.onClientChannelActive(session));
     }
 
     void onClientPacket(NetChannel session, int msgId, byte[] body) {
@@ -83,17 +77,11 @@ final class ConnServiceClientTransport {
     }
 
     void onClientChannelInactive(NetChannel session) {
-        clientChannelManager.removeChannel(session.getChannelId());
-        owner.post(() -> {
-            owner.unregisterClientSessionActor(session.getChannelId());
-            LogCore.core.info("ConnService 客户端断开: service={}, sessionId={}, remote={}",
-                    owner.getId(), session.getChannelId(), session.getRemoteAddress());
-        });
+        owner.post(() -> owner.onClientChannelInactive(session));
     }
 
     void onClientChannelException(NetChannel session, Throwable cause) {
-        long sessionId = session == null ? -1L : session.getChannelId();
-        LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", owner.getId(), sessionId, cause);
+        owner.post(() -> owner.onClientChannelException(session, cause));
     }
 
     String getOwnerServiceId() {
@@ -123,6 +111,20 @@ final class ConnServiceClientTransport {
                     + owner.getId() + ", sessionId=" + sessionId);
         }
         return channel;
+    }
+
+    NetChannel findClientChannel(long sessionId) {
+        return clientChannelManager.getChannel(sessionId);
+    }
+
+    int countAuthorizedSessions() {
+        int count = 0;
+        for (NetChannel channel : clientChannelManager.snapshotChannels()) {
+            if (channel.getSessionState() == NetChannel.SessionState.LOGIN_READY) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static byte[] copyChunkBody(Chunk body) {

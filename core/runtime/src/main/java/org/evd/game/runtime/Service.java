@@ -150,6 +150,14 @@ public class Service extends TickCase {
         return threadLocal.get();
     }
 
+    public static <T extends Service> T getCurrent(Class<T> serviceType) {
+        Service current = threadLocal.get();
+        if (current == null) {
+            return null;
+        }
+        return serviceType.cast(current);
+    }
+
     /**
      * 本service的调用点
      */

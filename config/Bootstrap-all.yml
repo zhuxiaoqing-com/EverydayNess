@@ -26,6 +26,8 @@ nodes:
           name: lobby
         - serviceType: ONLINE
           name: online
+        - serviceType: SDK
+          name: sdk
         - serviceType: STAGE
           name: stage
           num: 2

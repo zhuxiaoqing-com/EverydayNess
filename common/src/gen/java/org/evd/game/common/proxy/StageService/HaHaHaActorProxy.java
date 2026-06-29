@@ -20,10 +20,10 @@ public final class HaHaHaActorProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_HAHAHAACTOR_RPC1_3 = 3;
-        public final static int ENUM_HAHAHAACTOR_RPC2_4 = 4;
-        public final static int ENUM_HAHAHAACTOR_RPC3_5 = 5;
-        public final static int ENUM_HAHAHAACTOR_RPC4_6 = 6;
+        public final static int ENUM_HAHAHAACTOR_RPC1_0 = 0;
+        public final static int ENUM_HAHAHAACTOR_RPC2_1 = 1;
+        public final static int ENUM_HAHAHAACTOR_RPC3_2 = 2;
+        public final static int ENUM_HAHAHAACTOR_RPC4_3 = 3;
     }
 
     /**
@@ -31,7 +31,7 @@ public final class HaHaHaActorProxy {
     */
     public void rpc1(long actorUniqueId, int a, int b){
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC1_3, new Object[]{a, b});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC1_0, new Object[]{a, b});
     }
 
 
@@ -40,7 +40,7 @@ public final class HaHaHaActorProxy {
     */
     public void rpc2(long actorUniqueId, Object a, Object b){
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC2_4, new Object[]{a, b});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC2_1, new Object[]{a, b});
     }
 
 
@@ -49,7 +49,7 @@ public final class HaHaHaActorProxy {
     */
     public void rpc3(CallPoint remote, Object a, Object b){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_HAHAHAACTOR_RPC3_5, new Object[]{a, b});
+        service.call(remote, EnumCall.ENUM_HAHAHAACTOR_RPC3_2, new Object[]{a, b});
     }
 
 
@@ -58,7 +58,7 @@ public final class HaHaHaActorProxy {
     */
     public void rpc4(long actorUniqueId, Object a, Object b){
         ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC4_6, new Object[]{a, b});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC4_3, new Object[]{a, b});
     }
 
 

@@ -5,16 +5,50 @@ option java_package = "org.evd.game.common.proto";
 option java_outer_classname = "LoginProto";
 
 message C2S_Login {
-  string account = 1;
-  string password = 2;
+  string user_id = 1;
+  string sdk_token = 2;
 }
 
 message C2S_Login2 {
-  string account = 1;
-  string password = 2;
+  string token = 1;
 }
 
 message S2C_Login {
-  int64 role_id = 1;
-  string token = 2;
+  bool success = 1;
+  string message = 2;
+  string gate_addr = 3;
+  string token = 4;
+  int64 token_expire_at = 5;
+}
+
+message RoleData {
+  int64 player_id = 1;
+  string name = 2;
+  int32 level = 3;
+}
+
+message S2C_Login2 {
+  bool success = 1;
+  string message = 2;
+  repeated RoleData roles = 3;
+}
+
+message C2S_CreateRole {
+  string name = 1;
+}
+
+message S2C_CreateRole {
+  bool success = 1;
+  string message = 2;
+  RoleData role = 3;
+}
+
+message C2S_SelectRoleEnter {
+  int64 player_id = 1;
+}
+
+message S2C_SelectRoleEnter {
+  bool success = 1;
+  string message = 2;
+  int64 player_id = 3;
 }

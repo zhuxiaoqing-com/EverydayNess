@@ -34,7 +34,7 @@ public class ClientCmdProcessor extends ProcessorBase {
     private static final String CLIENT_CMD_REGISTRY_BASE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRegistryBase";
     private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRouteTable";
     private static final String PROTO_MESSAGE_CLASS_NAME = "com.google.protobuf.MessageLite";
-    private static final String ACTOR_TYPE_CLASS_NAME = "org.evd.game.runtime.actor.ActorType";
+    private static final String ACTOR_TYPE_CLASS_NAME = "org.evd.game.annotation.ActorType";
 
     private final Set<String> generatedClasses = new HashSet<>();
     private ServiceOwnerResolver serviceOwnerResolver;

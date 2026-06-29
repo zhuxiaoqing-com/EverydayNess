@@ -17,8 +17,10 @@ public enum ServiceType {
     PLAYER(5, ServiceName.PLAYER_SERVICE),
     GSTAGE(6, ServiceName.STAGE_SERVICE),
     SCENE_MANAGER(7, ServiceName.SCENE_MANAGER_SERVICE),
-    LOBBY(8, ServiceName.LOBBY_SERVICE),
-    ONLINE(9, ServiceName.ONLINE_SERVICE),
+    GSCENE_MANAGER(8, ServiceName.SCENE_MANAGER_SERVICE),
+    LOBBY(9, ServiceName.LOBBY_SERVICE),
+    ONLINE(10, ServiceName.ONLINE_SERVICE),
+    SDK(11, ServiceName.SDK_SERVICE),
 
     ;
     int type;

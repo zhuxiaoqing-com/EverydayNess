@@ -1,4 +1,4 @@
-ext.hasDbDef = true
+ext.hasDbDef = false
 
 apply from: rootProject.file('gradle/service-module.gradle')
 

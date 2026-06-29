@@ -2,7 +2,9 @@ package org.evd.game.ConnService;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.ByteArrayChannelHandler;
+import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.HisMessage;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.netty.ServerAttributeKey;
@@ -21,9 +23,9 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
 
     @Override
     protected void onChannelActive(ChannelHandlerContext ctx) {
-        NetChannel session = transport.createClientSession(ctx.channel());
-        ctx.channel().attr(ServerAttributeKey.netChannel).set(session);
-        transport.onClientChannelActive(session);
+        NetChannel netChannel = ctx.channel().attr(ServerAttributeKey.netChannel).get();
+        netChannel.getSessionRef().setGate(new CallPoint(transport.owner.getNode().getId(), transport.owner.getId()));
+        transport.onClientChannelActive(netChannel);
     }
 
     @Override
@@ -44,6 +46,9 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
     protected void onChannelInactive(ChannelHandlerContext ctx) {
         NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).getAndSet(null);
         if (session != null) {
+            if (session.getBrokenType() == BrokenType.NONE) {
+                session.setBrokenType(BrokenType.CLIENT_CLOSE);
+            }
             transport.onClientChannelInactive(session);
         }
     }
@@ -51,6 +56,9 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
     @Override
     protected void onChannelException(ChannelHandlerContext ctx, Throwable cause) {
         NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).get();
+        if (session != null) {
+            session.setBrokenType(BrokenType.NETTY_EXCEPTION);
+        }
         transport.onClientChannelException(session, cause);
     }
 
@@ -73,6 +81,7 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
             session.getFrequentlyMessageList().clear();
         }
         if (session.getFrequentlyMessageCount() >= NetChannel.MESSAGE_GW_COUNT) {
+            session.setBrokenType(BrokenType.MSG_FLOW_LIMIT);
             String messages = session.getFrequentlyMessageList().stream()
                     .map(e -> e.getCurrTime() + "---" + e.getCmd())
                     .collect(Collectors.joining(System.lineSeparator()));

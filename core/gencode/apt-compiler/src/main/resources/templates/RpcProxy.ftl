@@ -10,7 +10,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorId;
 </#if>
 <#if needsActorTypeImport>
-import org.evd.game.runtime.actor.ActorType;
+import org.evd.game.annotation.ActorType;
 </#if>
 <#if importPackages??>
 <#list importPackages as package>
