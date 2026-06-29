@@ -46,7 +46,7 @@ public final class ServiceOwnerResolver {
                 + " 当前规则要求声明类本身是 Service，或其包路径中存在同名 XxxService 宿主类。");
     }
 
-    private boolean isServiceType(TypeElement typeElement) {
+    public boolean isServiceType(TypeElement typeElement) {
         return typeUtils.isSubtype(typeElement.asType(), serviceBaseType.asType());
     }
 

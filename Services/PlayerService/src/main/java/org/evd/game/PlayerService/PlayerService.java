@@ -1,6 +1,5 @@
 package org.evd.game.PlayerService;
 
-import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proxy.LocationService.LocationServiceProxy;
@@ -18,7 +17,6 @@ import org.evd.game.runtime.support.LogCore;
 import java.util.HashSet;
 import java.util.Set;
 
-@Actor()
 public class PlayerService extends Service {
     private final Set<Long> onlinePlayerIds = new HashSet<>();
 

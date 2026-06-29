@@ -134,12 +134,6 @@ public class ClientCmdProcessor extends ProcessorBase {
         source.append(" */\n");
         source.append("public final class ").append(className)
                 .append(" extends ClientCmdRegistryBase<").append(ownerClassName).append("> {\n");
-        for (String fieldLine : buildTargetFieldLines(methods)) {
-            source.append(fieldLine);
-        }
-        if (hasNonOwnerTarget(methods)) {
-            source.append("\n");
-        }
         source.append("    public ").append(className).append("(").append(ownerClassName).append(" owner) {\n");
         source.append("        super(owner);\n");
         source.append("    }\n\n");
@@ -282,47 +276,6 @@ public class ClientCmdProcessor extends ProcessorBase {
         return String.valueOf(cmd);
     }
 
-    private List<String> buildTargetFieldLines(List<ClientCmdMethod> methods) {
-        Map<String, String> fieldByTarget = new LinkedHashMap<>();
-        List<String> fieldLines = new ArrayList<>();
-        Set<String> usedFieldNames = new HashSet<>();
-        for (ClientCmdMethod method : methods) {
-            if (method.isServiceOwnerTarget() || fieldByTarget.containsKey(method.targetFullClassName)) {
-                continue;
-            }
-            String fieldName = createFieldName(method.targetClassName, usedFieldNames);
-            fieldByTarget.put(method.targetFullClassName, fieldName);
-            method.fieldName = fieldName;
-            fieldLines.add("    private final " + method.targetClassName + " " + fieldName + " = new "
-                    + method.targetClassName + "();\n");
-        }
-        for (ClientCmdMethod method : methods) {
-            if (!method.isServiceOwnerTarget()) {
-                method.fieldName = fieldByTarget.get(method.targetFullClassName);
-            }
-        }
-        return fieldLines;
-    }
-
-    private String createFieldName(String className, Set<String> usedFieldNames) {
-        String baseName = Character.toLowerCase(className.charAt(0)) + className.substring(1);
-        String fieldName = baseName;
-        int suffix = 2;
-        while (!usedFieldNames.add(fieldName)) {
-            fieldName = baseName + suffix++;
-        }
-        return fieldName;
-    }
-
-    private boolean hasNonOwnerTarget(List<ClientCmdMethod> methods) {
-        for (ClientCmdMethod method : methods) {
-            if (!method.isServiceOwnerTarget()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private TypeElement requireType(String className) {
         TypeElement type = elementUtils.getTypeElement(className);
         if (type == null) {
@@ -365,8 +318,6 @@ public class ClientCmdProcessor extends ProcessorBase {
         private final String requestPackageName;
         private final String requestClassName;
         private final ExecutableElement sourceElement;
-        private String fieldName;
-
         private ClientCmdMethod(String serviceOwnerPackageName,
                                 String serviceOwnerClassName,
                                 String serviceOwnerFullClassName,
@@ -402,7 +353,9 @@ public class ClientCmdProcessor extends ProcessorBase {
         }
 
         private String dispatchTargetExpr() {
-            return isServiceOwnerTarget() ? "owner()" : fieldName;
+            return isServiceOwnerTarget()
+                    ? "owner()"
+                    : "owner().getActor(" + targetClassName + ".class)";
         }
 
         private String targetTypeName() {

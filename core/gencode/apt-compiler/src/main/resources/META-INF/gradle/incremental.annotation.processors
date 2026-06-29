@@ -1,3 +1,4 @@
+org.evd.game.gencode.actor.ActorProcessor,aggregating
 org.evd.game.gencode.client.ClientCmdProcessor,aggregating
 org.evd.game.gencode.db.DbDirtyEntityProcessor,isolating
 org.evd.game.gencode.db.DbDirtyTableRegistryProcessor,aggregating

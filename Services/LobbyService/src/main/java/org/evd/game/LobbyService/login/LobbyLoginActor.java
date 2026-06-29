@@ -7,6 +7,7 @@ import org.evd.game.LobbyService.routing.LobbyLoadBalancerActor;
 import org.evd.game.LobbyService.session.LobbySessionRepository;
 import org.evd.game.LobbyService.session.LobbyTokenState;
 import org.evd.game.LobbyService.session.LobbyUserState;
+import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proto.*;
@@ -22,6 +23,7 @@ import org.evd.game.runtime.netty.BrokenType;
 import java.util.List;
 import java.util.UUID;
 
+@Actor
 public final class LobbyLoginActor {
     private static final long TOKEN_TTL_MILLIS = 5 * 60 * 1000L;
     private static final long SDK_VALIDATE_TIMEOUT_MILLIS = 5_000L;

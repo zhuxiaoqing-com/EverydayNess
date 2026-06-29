@@ -126,6 +126,10 @@ public class Service extends TickCase {
      */
     private final RpcMethodInvoker rpcMethodInvoker = new RpcMethodInvoker(this);
     /**
+     * actor 实例管理器
+     */
+    private ActorManager actorManager;
+    /**
      * actor location 查询、缓存与投递
      */
     private MessageLocationSender messageLocationSender;
@@ -297,6 +301,27 @@ public class Service extends TickCase {
 
     RpcMethodInvoker getRpcMethodInvoker() {
         return rpcMethodInvoker;
+    }
+
+    private ActorManager actorManager() {
+        try {
+            if (actorManager == null) {
+                Class<?> cls = Class.forName(getClass().getName() + "ActorManager");
+                actorManager = (ActorManager) cls.getDeclaredConstructor().newInstance();
+            }
+            return actorManager;
+        } catch (ClassNotFoundException e) {
+            throw new SysException(e, "未找到 ActorManager: service={}", id);
+        } catch (Exception e) {
+            throw new SysException(e, "初始化 ActorManager 失败: service={}", id);
+        }
+    }
+
+    public final <T> T getActor(Class<T> actorType) {
+        if (actorType == null) {
+            throw new SysException("actorType is null: service={}", id);
+        }
+        return actorManager().getActor(actorType);
     }
 
     RpcOutboundGateway getRpcOutboundGateway() {

@@ -1,6 +1,5 @@
 package org.evd.game.ConnService;
 
-import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.ServiceType;
@@ -21,7 +20,6 @@ import org.evd.game.runtime.netty.ChannelManager;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.support.LogCore;
 
-@Actor()
 public class ConnService extends Service {
     private static final long HEARTBEAT_SCAN_INTERVAL_MILLIS = 5_000L;
     private static final long HEARTBEAT_TIMEOUT_MILLIS = 60_000L;

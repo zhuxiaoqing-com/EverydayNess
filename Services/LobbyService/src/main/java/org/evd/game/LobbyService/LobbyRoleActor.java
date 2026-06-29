@@ -4,6 +4,7 @@ import org.evd.game.LobbyService.routing.LobbyLoadBalancerActor;
 import org.evd.game.LobbyService.routing.LobbyPlayerCandidate;
 import org.evd.game.LobbyService.session.LobbySessionRepository;
 import org.evd.game.LobbyService.session.LobbyUserState;
+import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.common.proto.*;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
@@ -17,6 +18,7 @@ import org.evd.game.runtime.netty.BrokenType;
 import java.util.ArrayList;
 import java.util.List;
 
+@Actor
 public final class LobbyRoleActor {
     @ClientCmd(MsgId.C2S_CREATE_ROLE_VALUE)
     public void createRole(ClientSessionRef session, C2S_CreateRole req) {

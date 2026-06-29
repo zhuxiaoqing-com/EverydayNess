@@ -1,6 +1,5 @@
 package org.evd.game.SdkService;
 
-import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.common.sdk.SdkValidateResult;
 import org.evd.game.runtime.Node;
@@ -8,7 +7,6 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 
-@Actor()
 public class SdkService extends Service {
     private static final boolean LOCAL_STUB_ENABLED =
             Boolean.parseBoolean(System.getProperty("sdk.stub.enabled", "true"));

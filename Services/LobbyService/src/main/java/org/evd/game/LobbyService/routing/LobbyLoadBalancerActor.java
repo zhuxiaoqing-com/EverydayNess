@@ -1,6 +1,7 @@
 package org.evd.game.LobbyService.routing;
 
 import org.evd.game.LobbyService.LobbyService;
+import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
@@ -10,6 +11,7 @@ import org.evd.game.runtime.config.RegisteredService;
 
 import java.util.List;
 
+@Actor
 public final class LobbyLoadBalancerActor {
     public LobbyConnCandidate selectLeastLoadedConn() {
         LobbyService owner = owner();

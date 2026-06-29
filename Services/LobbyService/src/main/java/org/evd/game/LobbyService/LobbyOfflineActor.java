@@ -2,6 +2,7 @@ package org.evd.game.LobbyService;
 
 import org.evd.game.LobbyService.session.LobbySessionRepository;
 import org.evd.game.LobbyService.session.LobbyUserState;
+import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
 import org.evd.game.runtime.Service;
@@ -9,6 +10,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.support.LogCore;
 
+@Actor
 public final class LobbyOfflineActor {
     @Rpc
     public void onSessionOffline(String userId, long playerId, CallPoint gate, long sessionId, int brokenTypeCode) {
