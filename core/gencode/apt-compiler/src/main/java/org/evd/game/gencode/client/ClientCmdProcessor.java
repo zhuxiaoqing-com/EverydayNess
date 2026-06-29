@@ -4,7 +4,7 @@ import com.google.auto.service.AutoService;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.ServiceOwnerResolver;
-import org.evd.game.runtime.actor.ActorType;
+import org.evd.game.annotation.ActorType;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;

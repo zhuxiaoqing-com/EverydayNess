@@ -1,6 +1,7 @@
 package org.evd.game.runtime.actor;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.evd.game.annotation.ActorType;
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;

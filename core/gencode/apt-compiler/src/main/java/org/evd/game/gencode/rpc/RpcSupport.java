@@ -9,7 +9,7 @@ import org.evd.game.gencode.ServiceOwnerResolver;
 import org.evd.game.gencode.struct.MethodStruct;
 import org.evd.game.gencode.struct.ParamStruct;
 import org.evd.game.gencode.struct.StructFactory;
-import org.evd.game.runtime.actor.ActorType;
+import org.evd.game.annotation.ActorType;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;

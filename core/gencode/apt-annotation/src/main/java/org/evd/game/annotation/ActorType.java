@@ -1,6 +1,4 @@
-package org.evd.game.runtime.actor;
-
-import org.evd.game.annotation.ServiceName;
+package org.evd.game.annotation;
 
 public enum ActorType {
     NONE(0, null),

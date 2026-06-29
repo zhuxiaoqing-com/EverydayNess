@@ -5,7 +5,7 @@ import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.common.proto.C2S_Login2;
 import org.evd.game.common.proto.MsgId;
-import org.evd.game.runtime.actor.ActorType;
+import org.evd.game.annotation.ActorType;
 import org.evd.game.runtime.client.ClientSessionRef;
 
 public class HaHaHaActor {

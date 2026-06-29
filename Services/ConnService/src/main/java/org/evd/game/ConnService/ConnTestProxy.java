@@ -2,7 +2,7 @@ package org.evd.game.ConnService;
 
 import org.evd.game.annotation.Rpc;
 import org.evd.game.common.serializeBean.ConnInfo;
-import org.evd.game.runtime.actor.ActorType;
+import org.evd.game.annotation.ActorType;
 
 /**
  * @author zhuxiaoqing

@@ -261,6 +261,8 @@ MailBox+ActorId
     		return keys.getKey(BattleMonitorServer.getLobbyId(), dungeonId, groupId);
     	}
     	想这样子的,系统也可以用groupId来区分
+Id主要是用来区分，global服务器想获取玩家的某个数据在在哪里的，可以通过id获取玩家的逻辑服务器，然后用来发协议;
+玩家连接上服务器的时候，必须将玩家当前的serverId和以前的合服id一起发送过去;
 
 
 

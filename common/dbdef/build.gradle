@@ -1,0 +1,48 @@
+plugins {
+    id 'java'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    dbDefGeneratedRuntime
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    implementation project(':core:gencode:apt-annotation')
+    annotationProcessor project(':core:gencode:apt-compiler')
+    implementation project(':core:runtime')
+    implementation project(':common')
+}
+
+tasks.named('compileJava', JavaCompile) {
+    options.incremental = false
+    options.compilerArgs += [
+            '-processor',
+            'org.evd.game.gencode.db.DbDirtyEntityProcessor,org.evd.game.gencode.db.DbDirtyTableRegistryProcessor'
+    ]
+}
+
+tasks.register('dbDefGeneratedJar', Jar) {
+    archiveClassifier = 'db-generated'
+    dependsOn tasks.named('classes')
+    from(sourceSets.main.output) {
+        include 'org/evd/game/common/dbDef/db/**'
+    }
+}
+
+artifacts {
+    dbDefGeneratedRuntime tasks.named('dbDefGeneratedJar')
+}
+
+test {
+    useJUnitPlatform()
+}

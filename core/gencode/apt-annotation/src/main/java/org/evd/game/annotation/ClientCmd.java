@@ -1,7 +1,5 @@
 package org.evd.game.annotation;
 
-import org.evd.game.runtime.actor.ActorType;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

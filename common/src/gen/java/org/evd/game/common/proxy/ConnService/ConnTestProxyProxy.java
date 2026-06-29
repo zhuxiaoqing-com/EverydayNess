@@ -2,7 +2,7 @@ package org.evd.game.common.proxy.ConnService;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.actor.ActorType;
+import org.evd.game.annotation.ActorType;
 import org.evd.game.common.serializeBean.ConnInfo;
 
 /**
