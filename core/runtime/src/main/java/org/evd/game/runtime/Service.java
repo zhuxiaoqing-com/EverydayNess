@@ -564,7 +564,7 @@ public class Service extends TickCase {
     }
 
     protected boolean supportMdb() {
-        return true;
+        return false;
     }
 
     protected boolean supportLocation() {

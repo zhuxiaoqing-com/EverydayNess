@@ -12,8 +12,4 @@ public class OnlineService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
     }
 
-    @Override
-    protected boolean supportMdb() {
-        return false;
-    }
 }

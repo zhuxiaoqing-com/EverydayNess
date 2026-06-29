@@ -12,4 +12,9 @@ public class PlayerService extends Service {
     public PlayerService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
     }
+
+    @Override
+    protected boolean supportMdb() {
+        return true;
+    }
 }

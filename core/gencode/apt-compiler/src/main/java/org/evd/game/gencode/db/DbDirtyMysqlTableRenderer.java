@@ -6,6 +6,7 @@ final class DbDirtyMysqlTableRenderer {
     String render(DbDirtyEntityMeta entity) {
         String keyType = entity.primaryKeyField.type.boxedType();
         List<DbDirtyFieldMeta> tableFields = entity.tableFields();
+        var importedEntityTypes = DbDirtyTypeNameSupport.collectImportedEntityTypes(entity);
         int primaryKeyIndex = 0;
         for (int i = 0; i < tableFields.size(); i++) {
             if (tableFields.get(i).primaryKey) {
@@ -16,6 +17,7 @@ final class DbDirtyMysqlTableRenderer {
         StringBuilder sb = new StringBuilder(16384);
         sb.append("package ").append(entity.internalTablePackage).append(";\n\n");
         sb.append("import ").append(entity.beanPackage).append(".*;\n");
+        DbDirtyTypeNameSupport.appendImports(sb, importedEntityTypes);
         sb.append("import org.evd.game.base.DirtyObject;\n");
         if (entity.usesList()) {
             sb.append("import org.evd.game.runtime.Db.collection.XArrayList;\n");
@@ -280,7 +282,7 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("        return builder.toString();\n");
         sb.append("    }\n");
         sb.append("}\n");
-        return sb.toString();
+        return DbDirtyTypeNameSupport.rewriteImportedTypeNames(sb.toString(), importedEntityTypes);
     }
 
     private void appendMysqlJsonDeserializeBody(StringBuilder sb, DbDirtyTypeMeta type, String textExpr, String ownerExpr, String indent) {

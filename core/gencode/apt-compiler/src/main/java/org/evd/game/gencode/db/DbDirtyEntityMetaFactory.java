@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 final class DbDirtyEntityMetaFactory {
+    private static final String COMMON_DB_DEF_PACKAGE = "org.evd.game.common.dbDef";
     private static final String DATA_DEF_SUFFIX = "Def";
     private static final String DB_ENTITY_PACKAGE_SEGMENT = ".dbEntity";
     private static final String DB_DEF_PACKAGE_SEGMENT = ".dbDef";
@@ -35,6 +36,7 @@ final class DbDirtyEntityMetaFactory {
         DBDirtyEntity dbDirtyEntity = typeElement.getAnnotation(DBDirtyEntity.class);
         DBserialize dbType = dbDirtyEntity.value();
         boolean table = dbDirtyEntity.table();
+        validateTableConstraint(typeElement, sourcePackage, table);
         String beanPackage = buildPackage(layout.dbRootPackage(), "bean", layout.relativePackage());
         String tablePackage = buildPackage(layout.dbRootPackage(), "table", layout.relativePackage());
         String internalTablePackage = buildPackage(layout.dbRootPackage(), "_table_", layout.relativePackage());
@@ -83,6 +85,17 @@ final class DbDirtyEntityMetaFactory {
             throw new IllegalStateException("table=true 的实体必须至少声明一个 primaryKey: " + className);
         }
         return primaryKeyField;
+    }
+
+    private static void validateTableConstraint(TypeElement typeElement, String sourcePackage, boolean table) {
+        if (!table) {
+            return;
+        }
+        if (!COMMON_DB_DEF_PACKAGE.equals(sourcePackage)) {
+            return;
+        }
+        throw new IllegalStateException("common:dbdef 模块禁止声明 table=true，请把表定义放到具体 Service dbDef: "
+                + typeElement.getQualifiedName());
     }
 
     static DbDirtyPackageLayout toPackageLayout(String sourcePackage) {
@@ -297,9 +310,11 @@ final class DbDirtyTypeMeta {
     final DbDirtyTypeMeta elementType;
     final DbDirtyTypeMeta keyType;
     final DbDirtyTypeMeta valueType;
+    final String qualifiedEntityType;
 
     DbDirtyTypeMeta(DbDirtyTypeKind kind, String fieldType, String getterType, boolean primaryKeySupported,
-                    DbDirtyTypeMeta elementType, DbDirtyTypeMeta keyType, DbDirtyTypeMeta valueType) {
+                    DbDirtyTypeMeta elementType, DbDirtyTypeMeta keyType, DbDirtyTypeMeta valueType,
+                    String qualifiedEntityType) {
         this.kind = kind;
         this.fieldType = fieldType;
         this.getterType = getterType;
@@ -307,6 +322,7 @@ final class DbDirtyTypeMeta {
         this.elementType = elementType;
         this.keyType = keyType;
         this.valueType = valueType;
+        this.qualifiedEntityType = qualifiedEntityType;
     }
 
     static DbDirtyTypeMeta of(TypeMirror typeMirror, ProcessingEnvironment processingEnv, String currentBeanPackage,
@@ -315,13 +331,13 @@ final class DbDirtyTypeMeta {
             String typeName = typeMirror.toString();
             return new DbDirtyTypeMeta(DbDirtyTypeKind.PRIMITIVE, typeName, typeName,
                     "int".equals(typeName) || "long".equals(typeName),
-                    null, null, null);
+                    null, null, null, null);
         }
 
         if (typeMirror instanceof ArrayType arrayType) {
             if (arrayType.getComponentType().getKind() == javax.lang.model.type.TypeKind.BYTE) {
                 return new DbDirtyTypeMeta(DbDirtyTypeKind.OTHER, "byte[]", "byte[]",
-                        false, null, null, null);
+                        false, null, null, null, null);
             }
             throw unsupportedCustomType(ownerClassName, fieldName, typeMirror.toString());
         }
@@ -330,7 +346,7 @@ final class DbDirtyTypeMeta {
             TypeElement typeElement = (TypeElement) declaredType.asElement();
             String qualifiedName = typeElement.getQualifiedName().toString();
             if (qualifiedName.equals(String.class.getCanonicalName())) {
-                return new DbDirtyTypeMeta(DbDirtyTypeKind.STRING, "String", "String", true, null, null, null);
+                return new DbDirtyTypeMeta(DbDirtyTypeKind.STRING, "String", "String", true, null, null, null, null);
             }
             if (qualifiedName.equals(List.class.getCanonicalName())) {
                 DbDirtyTypeMeta elementType = of(declaredType.getTypeArguments().get(0), processingEnv, currentBeanPackage,
@@ -340,7 +356,7 @@ final class DbDirtyTypeMeta {
                         "XArrayList<" + genericType + ">",
                         "java.util.List<" + genericType + ">",
                         false,
-                        elementType, null, null);
+                        elementType, null, null, null);
             }
             if (qualifiedName.equals(Set.class.getCanonicalName())) {
                 DbDirtyTypeMeta elementType = of(declaredType.getTypeArguments().get(0), processingEnv, currentBeanPackage,
@@ -350,7 +366,7 @@ final class DbDirtyTypeMeta {
                         "XHashSet<" + genericType + ">",
                         "java.util.Set<" + genericType + ">",
                         false,
-                        elementType, null, null);
+                        elementType, null, null, null);
             }
             if (qualifiedName.equals(Map.class.getCanonicalName())) {
                 DbDirtyTypeMeta keyType = of(declaredType.getTypeArguments().get(0), processingEnv, currentBeanPackage,
@@ -361,7 +377,7 @@ final class DbDirtyTypeMeta {
                         "XHashMap<" + keyType.fieldType + ", " + valueType.fieldType + ">",
                         "java.util.Map<" + keyType.fieldType + ", " + valueType.fieldType + ">",
                         false,
-                        null, keyType, valueType);
+                        null, keyType, valueType, null);
             }
             DBDirtyEntity childEntity = typeElement.getAnnotation(DBDirtyEntity.class);
             if (childEntity != null) {
@@ -369,8 +385,10 @@ final class DbDirtyTypeMeta {
                     throw new IllegalStateException("父子 DBserialize 必须一致: " + ownerClassName + "." + fieldName
                             + " -> " + typeElement.getQualifiedName() + "，父=" + ownerSerialize + "，子=" + childEntity.value());
                 }
+                String qualifiedEntityType = renderQualifiedDbEntityType(typeElement, processingEnv);
                 String typeName = renderDbEntityType(typeElement, processingEnv, currentBeanPackage);
-                return new DbDirtyTypeMeta(DbDirtyTypeKind.ENTITY, typeName, typeName, false, null, null, null);
+                return new DbDirtyTypeMeta(DbDirtyTypeKind.ENTITY, typeName, typeName, false,
+                        null, null, null, qualifiedEntityType);
             }
             if (!isSupportedSimpleDeclaredType(qualifiedName)) {
                 throw unsupportedCustomType(ownerClassName, fieldName, typeElement.getQualifiedName().toString());
@@ -379,7 +397,7 @@ final class DbDirtyTypeMeta {
                     ownerSerialize, ownerClassName, fieldName);
             return new DbDirtyTypeMeta(DbDirtyTypeKind.OTHER, typeName, typeName,
                     "Integer".equals(typeName) || "Long".equals(typeName) || "String".equals(typeName),
-                    null, null, null);
+                    null, null, null, null);
         }
 
         throw unsupportedCustomType(ownerClassName, fieldName, typeMirror.toString());
@@ -425,14 +443,37 @@ final class DbDirtyTypeMeta {
         };
     }
 
+    void collectQualifiedEntityTypes(Set<String> collector) {
+        if (kind == DbDirtyTypeKind.ENTITY && qualifiedEntityType != null) {
+            collector.add(qualifiedEntityType);
+        }
+        if (elementType != null) {
+            elementType.collectQualifiedEntityTypes(collector);
+        }
+        if (keyType != null) {
+            keyType.collectQualifiedEntityTypes(collector);
+        }
+        if (valueType != null) {
+            valueType.collectQualifiedEntityTypes(collector);
+        }
+    }
+
     private static String renderDbEntityType(TypeElement typeElement, ProcessingEnvironment processingEnv, String currentBeanPackage) {
+        String qualifiedTypeName = renderQualifiedDbEntityType(typeElement, processingEnv);
+        int lastDot = qualifiedTypeName.lastIndexOf('.');
+        String targetPackage = lastDot < 0 ? "" : qualifiedTypeName.substring(0, lastDot);
+        String className = lastDot < 0 ? qualifiedTypeName : qualifiedTypeName.substring(lastDot + 1);
+        if (targetPackage.equals(currentBeanPackage)) {
+            return className;
+        }
+        return qualifiedTypeName;
+    }
+
+    private static String renderQualifiedDbEntityType(TypeElement typeElement, ProcessingEnvironment processingEnv) {
         String sourcePackage = processingEnv.getElementUtils().getPackageOf(typeElement).getQualifiedName().toString();
         DbDirtyPackageLayout layout = DbDirtyEntityMetaFactory.toPackageLayout(sourcePackage);
         String targetPackage = DbDirtyEntityMetaFactory.buildPackage(layout.dbRootPackage(), "bean", layout.relativePackage());
         String className = DbDirtyEntityMetaFactory.toGeneratedClassName(typeElement.getSimpleName().toString());
-        if (targetPackage.equals(currentBeanPackage)) {
-            return className;
-        }
         return targetPackage + "." + className;
     }
 

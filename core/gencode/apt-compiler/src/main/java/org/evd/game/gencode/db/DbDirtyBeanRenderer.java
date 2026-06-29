@@ -10,6 +10,7 @@ final class DbDirtyBeanRenderer {
     private final DbDirtyFieldTagRenderer noopTagRenderer = new DbDirtyNoopFieldTagRenderer();
 
     String render(DbDirtyEntityMeta entity) {
+        var importedEntityTypes = DbDirtyTypeNameSupport.collectImportedEntityTypes(entity);
         StringBuilder sb = new StringBuilder(8192);
         DbDirtyFieldTagRenderer tagRenderer = resolveTagRenderer(entity.dbType);
         sb.append("package ").append(entity.beanPackage).append(";\n\n");
@@ -18,6 +19,7 @@ final class DbDirtyBeanRenderer {
         sb.append("import org.evd.game.base.InputStreamBase;\n");
         sb.append("import org.evd.game.base.OutputStreamBase;\n");
         tagRenderer.appendImport(sb, entity);
+        DbDirtyTypeNameSupport.appendImports(sb, importedEntityTypes);
         if (entity.usesList()) {
             sb.append("import org.evd.game.runtime.Db.collection.XArrayList;\n");
         }
@@ -53,7 +55,7 @@ final class DbDirtyBeanRenderer {
         sb.append("\n");
         appendToString(sb, entity);
         sb.append("}\n");
-        return sb.toString();
+        return DbDirtyTypeNameSupport.rewriteImportedTypeNames(sb.toString(), importedEntityTypes);
     }
 
     private DbDirtyFieldTagRenderer resolveTagRenderer(DBserialize dbType) {
@@ -89,7 +91,8 @@ final class DbDirtyBeanRenderer {
     }
 
     private void appendParentCopyConstructor(StringBuilder sb, DbDirtyEntityMeta entity) {
-        sb.append("    ").append(entity.beanClassName).append("(").append(entity.beanClassName).append(" _o_, DirtyObject _xp_) {\n");
+        // 公共 dbDef 生成的 bean 可能会被其他包下的 bean 组合使用，这个拷贝构造需要跨包可见。
+        sb.append("    public ").append(entity.beanClassName).append("(").append(entity.beanClassName).append(" _o_, DirtyObject _xp_) {\n");
         sb.append("        super(_xp_);\n");
         for (DbDirtyFieldMeta field : entity.fields) {
             appendCopyField(sb, field, "        ", "_o_." + field.name, false);

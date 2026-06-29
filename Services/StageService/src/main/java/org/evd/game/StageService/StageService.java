@@ -86,9 +86,4 @@ public class StageService extends Service {
 
         return callPoint;
     }
-
-    @Override
-    protected boolean supportMdb() {
-        return false;
-    }
 }

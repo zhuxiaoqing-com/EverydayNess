@@ -53,12 +53,17 @@ dependencies {
     annotationProcessor project(':core:gencode:apt-compiler')
     implementation project(':core:runtime')
     implementation project(':common')
+    if (hasDbDef) {
+        // main 只拿公共 dbDef 的生成产物，不直接暴露 *Def 源类型。
+        implementation project(path: ':common:dbdef', configuration: 'dbDefGeneratedRuntime')
+    }
 
     if (hasDbDef) {
         dbDefImplementation project(':core:gencode:apt-annotation')
         dbDefAnnotationProcessor project(':core:gencode:apt-compiler')
         dbDefImplementation project(':core:runtime')
         dbDefImplementation project(':common')
+        dbDefImplementation project(':common:dbdef')
     }
 }
 

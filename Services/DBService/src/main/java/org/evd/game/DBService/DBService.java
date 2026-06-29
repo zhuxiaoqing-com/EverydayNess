@@ -94,8 +94,5 @@ public class DBService extends Service {
         return false;
     }
 
-    @Override
-    protected boolean supportMdb() {
-        return false;
-    }
+
 }

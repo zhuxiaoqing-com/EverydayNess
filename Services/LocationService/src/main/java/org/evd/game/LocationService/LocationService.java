@@ -174,8 +174,4 @@ public class LocationService extends Service {
         return false;
     }
 
-    @Override
-    protected boolean supportMdb() {
-        return false;
-    }
 }
