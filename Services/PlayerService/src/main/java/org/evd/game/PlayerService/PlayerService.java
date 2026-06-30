@@ -24,6 +24,11 @@ public class PlayerService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
     }
 
+    @Override
+    public void tick() {
+        super.tick();
+    }
+
     @Rpc
     public boolean bindPlayerSession(String userId, long playerId, ClientSessionRef session) {
         if (userId == null || userId.isBlank() || playerId <= 0L || session == null) {

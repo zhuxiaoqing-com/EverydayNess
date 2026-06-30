@@ -222,6 +222,10 @@ public class ActorProcessor extends ProcessorBase {
         source.append("            throw new SysException(\"actor not found: {}\", actorType.getName());\n");
         source.append("        }\n");
         source.append("        return actorType.cast(actor);\n");
+        source.append("    }\n\n");
+        source.append("    @Override\n");
+        source.append("    public Map<Class<?>, Object> getActors() {\n");
+        source.append("        return actors;\n");
         source.append("    }\n");
         source.append("}\n");
         return source.toString();

@@ -25,6 +25,7 @@ import org.evd.game.runtime.support.SysException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
@@ -130,6 +131,10 @@ public class Service extends TickCase {
      */
     private ActorManager actorManager;
     /**
+     * actor 直接接口索引
+     */
+    private ActorInterfaceIndexer actorInterfaceIndexer;
+    /**
      * actor location 查询、缓存与投递
      */
     private MessageLocationSender messageLocationSender;
@@ -180,6 +185,7 @@ public class Service extends TickCase {
         this.rpcOutboundGateway = new RpcOutboundGateway(this);
         this.rpcInboundDispatcher = new RpcInboundDispatcher(this);
         this.serviceInfo = serviceInfo;
+        initActorManagerIfPresent();
 
 
         if (supportLocation()) this.messageLocationSender = new MessageLocationSender(this);
@@ -249,12 +255,12 @@ public class Service extends TickCase {
      */
     private void tick_st() {
         tick();
-    }
-
-    public void tick() {
         if (mdb != null) {
             mdb.tick(getTime());
         }
+    }
+
+    public void tick() {
     }
 
     /**
@@ -303,18 +309,29 @@ public class Service extends TickCase {
         return rpcMethodInvoker;
     }
 
-    private ActorManager actorManager() {
+    private void initActorManagerIfPresent() {
         try {
-            if (actorManager == null) {
-                Class<?> cls = Class.forName(getClass().getName() + "ActorManager");
-                actorManager = (ActorManager) cls.getDeclaredConstructor().newInstance();
+            if (actorManager != null) {
+                return;
             }
-            return actorManager;
-        } catch (ClassNotFoundException e) {
-            throw new SysException(e, "未找到 ActorManager: service={}", id);
+            Class<?> cls;
+            try {
+                cls = Class.forName(getClass().getName() + "ActorManager");
+            } catch (ClassNotFoundException ignored) {
+                return;
+            }
+            actorManager = (ActorManager) cls.getDeclaredConstructor().newInstance();
+            actorInterfaceIndexer = new ActorInterfaceIndexer(actorManager.getActors());
         } catch (Exception e) {
             throw new SysException(e, "初始化 ActorManager 失败: service={}", id);
         }
+    }
+
+    private ActorManager actorManager() {
+        if (actorManager == null) {
+            throw new SysException("未找到 ActorManager: service={}", id);
+        }
+        return actorManager;
     }
 
     public final <T> T getActor(Class<T> actorType) {
@@ -322,6 +339,26 @@ public class Service extends TickCase {
             throw new SysException("actorType is null: service={}", id);
         }
         return actorManager().getActor(actorType);
+    }
+
+    public final Map<Class<?>, Object> getActorMap() {
+        return actorManager().getActors();
+    }
+
+    public final <T> T getActorByInterface(Class<T> actorInterface) {
+        if (actorInterface == null) {
+            throw new SysException("actorInterface is null: service={}", id);
+        }
+        actorManager();
+        Object actor = actorInterfaceIndexer.getInterfaceActors().get(actorInterface);
+        if (actor == null) {
+            throw new SysException("actor interface not found: service={}, interface={}", id, actorInterface.getName());
+        }
+        return actorInterface.cast(actor);
+    }
+
+    public final Map<Class<?>, List<Object>> getActorInterfaceMap() {
+        return actorInterfaceIndexer.getInterfaceActors();
     }
 
     RpcOutboundGateway getRpcOutboundGateway() {
