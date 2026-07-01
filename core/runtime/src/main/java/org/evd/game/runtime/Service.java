@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
@@ -189,31 +190,32 @@ public class Service extends TickCase {
 
 
         if (supportLocation()) this.messageLocationSender = new MessageLocationSender(this);
-        if (supportMdb()) {
-            this.mdb = new Mdb();
-            try {
-                mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE));
-            } catch (Exception exception) {
-                throw new RuntimeException(exception);
-            }
-        }
+        if (supportMdb()) this.mdb = new Mdb();
     }
 
     @Override
     protected void init_t() {
+        threadLocal.set(this);
+
         // 加入到services
         node.attachToNode(this);
-        if(messageLocationSender != null) {
+        if (messageLocationSender != null) {
             newRepeatedTimer(
                     MessageLocationSender.getCleanupIntervalMillis(),
                     false,
                     messageLocationSender::cleanupIdle);
         }
 
+        if (mdb != null) {
+            postCoroutine(() -> mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE), this));
+        }
+
         // 修改状态
         status = CaseStatus.Running;
         // 先执行初始化
         initVirtual_t();
+
+        threadLocal.remove();
     }
 
     /**
@@ -554,6 +556,41 @@ public class Service extends TickCase {
         continuationRuntime.queue(continuation, Task.Reason.RPC);
     }
 
+    protected final <T> T awaitCompletionStage(CompletionStage<T> stage, long timeoutMillis) {
+        Task.ContinuationWrapper continuation = requireRunningContinuation();
+        long waitId = registerWait(timeoutMillis, (ctx, timeoutWaitId) ->
+                ctx.setFailure(new SysException("async wait timeout: service={}, waitId={}, timeoutMillis={}",
+                        id, timeoutWaitId, timeoutMillis)));
+        stage.whenComplete((result, throwable) -> post(() -> {
+            Task.ContinuationWrapper waitContinuation = takeWaitContinuation(waitId);
+            if (waitContinuation == null) {
+                return;
+            }
+            if (throwable != null) {
+                Throwable cause = unwrapCompletionFailure(throwable);
+                RuntimeException failure = cause instanceof RuntimeException runtimeException
+                        ? runtimeException
+                        : new SysException(cause);
+                failContinuation(waitContinuation, failure);
+                return;
+            }
+            resumeContinuation(waitContinuation, result);
+        }));
+        @SuppressWarnings("unchecked")
+        T result = (T) continuation.waitResult();
+        return result;
+    }
+
+    private Throwable unwrapCompletionFailure(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null
+                && (current instanceof java.util.concurrent.CompletionException
+                || current instanceof java.util.concurrent.ExecutionException)) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
     public final void awaitCoroutineLock(int type, Object key) {
         coroutineLockManager.await(type, key);
     }
@@ -568,7 +605,7 @@ public class Service extends TickCase {
 
     protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key, int timeoutMillis) {
         if (key == null) {
-            return new ContinuationLockScope(coroutineLockManager,null);
+            return new ContinuationLockScope(coroutineLockManager, null);
         }
         awaitCoroutineLock(type, key, timeoutMillis);
         return new ContinuationLockScope(coroutineLockManager, currentContinuation());
@@ -645,14 +682,16 @@ public class Service extends TickCase {
      * 有新的service连接进来;可能包含自己
      */
     protected void onServiceConnect(Collection<RegisteredService> serviceList) {
-
+        if (mdb != null) {
+            mdb.connectService(serviceList);
+        }
     }
 
     /**
      * 有新的service断链;可能包含自己
      */
     protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
-        if(mdb != null) {
+        if (mdb != null) {
             mdb.disconnectService(serviceList);
         }
     }

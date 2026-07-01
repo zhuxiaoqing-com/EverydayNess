@@ -8,76 +8,80 @@ import org.slf4j.LoggerFactory;
 
 /**
  * mongodb實現
- * 
+ *
  * @author Eric.Ma
  *
  */
 public class StorageMongo implements StorageEngine {
 
-	private static final Logger log = LoggerFactory.getLogger(StorageMongo.class);
+    private static final Logger log = LoggerFactory.getLogger(StorageMongo.class);
 
-	private  LoggerMongo logger;
+    private LoggerMongo logger;
 
 
-	private static final String KEY = "key";
+    private static final String KEY = "key";
 
-	private static final String VALUE = "value";
+    private static final String VALUE = "value";
 
-	private MongoDatabase database;
+    private MongoDatabase database;
 
-	public StorageMongo(LoggerMongo logger) {
-		this.logger = logger;
-	}
+    public StorageMongo(LoggerMongo logger) {
+        this.logger = logger;
+    }
 
-	@Override
-	public DBRsp find(DBReq _dbReq) {
-		return null;
-	}
+    @Override
+    public DBRsp find(DBReq _dbReq) {
+        return unsupported();
+    }
 
-	@Override
-	public boolean insert(DBReq _dbReq) {
-		return false;
-	}
+    @Override
+    public boolean insert(DBReq _dbReq) {
+        return unsupported();
+    }
 
-	@Override
-	public void replace(DBReq _dbReq) {
+    @Override
+    public void replace(DBReq _dbReq) {
+        unsupported();
+    }
 
-	}
+    @Override
+    public void replaceBatch(DBReq _dbReq) {
+        unsupported();
+    }
 
-	@Override
-	public void replaceBatch(DBReq _dbReq) {
+    @Override
+    public void remove(DBReq _dbReq) {
+        unsupported();
+    }
 
-	}
+    @Override
+    public void removeBatch(DBReq _dbReq) {
+        unsupported();
+    }
 
-	@Override
-	public void remove(DBReq _dbReq) {
+    @Override
+    public DBRsp findBatch(DBReq _dbReq) {
+        return unsupported();
+    }
 
-	}
+    @Override
+    public boolean detect() {
+        return unsupported();
+    }
 
-	@Override
-	public void removeBatch(DBReq _dbReq) {
+    @Override
+    public void initTable(DBReq _dbReq) {
+        unsupported();
+    }
 
-	}
+    @Override
+    public void close() {
 
-	@Override
-	public DBRsp findBatch(DBReq _dbReq) {
-		return null;
-	}
+    }
 
-	@Override
-	public boolean detect() {
-		return false;
-	}
-
-	@Override
-	public void initTable(DBReq _dbReq) {
-
-	}
-
-	@Override
-	public void close() {
-
-	}
+    private <T> T unsupported() {
+        throw new UnsupportedOperationException("StorageMongo is not implemented");
+    }
 
 	/*	@Override
 	public void initTable(String tableName) {

@@ -1,13 +1,16 @@
 db:
   engine: mysql
   mysql:
-    jdbcUrl: "jdbc:mysql://127.0.0.1:3306/game?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai"
-    driverClass: "com.mysql.cj.jdbc.Driver"
+    r2dbcUrl: "r2dbc:mysql://127.0.0.1:3306/game"
     username: "root"
     password: "123456"
     database: "game"
     autoCreate: true
     connectionTimeoutMs: 4000
+    operationTimeoutMs: 10000
+    poolInitialSize: 4
+    poolMaxSize: 16
+    poolMaxIdleTimeMs: 300000
     testQuery: "SELECT 1"
 
   mongo:

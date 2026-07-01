@@ -25,7 +25,7 @@ public interface StorageEngine {
 
     void remove(DBReq _dbReq);
 
-     void removeBatch(DBReq _dbReq);
+    void removeBatch(DBReq _dbReq);
 
     boolean detect();
 

@@ -12,12 +12,14 @@ import org.evd.game.common.GlobalConfig;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.config.DbConfig;
+import org.evd.game.runtime.config.DbMysqlConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 
 @RpcService(DBExecInterface.class)
 public class DBService extends Service {
     StorageEngine storageEngine;
+
 
     public DBService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
@@ -27,18 +29,23 @@ public class DBService extends Service {
     public void init() {
         DbConfig dbConfig = GlobalConfig.requireDbConfig();
         switch (dbConfig.getDb().getEngine()) {
-            case "mysql" :
-                LoggerMysql loggerMysql = new LoggerMysql(dbConfig.getDb().getMysql());
-                storageEngine = new StorageMysql(loggerMysql, dbConfig.getDb().getStorage());
+            case "mysql":
+                DbMysqlConfig mysqlConfig = dbConfig.getDb().getMysql();
+                LoggerMysql loggerMysql = new LoggerMysql(mysqlConfig);
+                storageEngine = new StorageMysql(this, loggerMysql, dbConfig.getDb().getStorage());
+
                 break;
+            default:
+                throw new IllegalArgumentException("unsupported db engine: " + dbConfig.getDb().getEngine());
         }
     }
 
 
-
-
     @Override
     public void onClose() {
+        if (storageEngine != null) {
+            storageEngine.close();
+        }
         super.onClose();
     }
 
@@ -57,11 +64,13 @@ public class DBService extends Service {
 
     @Rpc
     public DBRsp dbExec(DBReq dbReq) {
-        
         DBRsp dbRsp = new DBRsp();
         dbRsp.setSuccess(true);
         try {
             switch (dbReq.getDbOpType()) {
+                case DbOpType.CREATE_TABLE:
+                    storageEngine.initTable(dbReq);
+                    break;
                 case DbOpType.GET:
                     dbRsp = storageEngine.find(dbReq);
                     break;
@@ -85,6 +94,10 @@ public class DBService extends Service {
             return new DBRsp(e.getMessage());
         }
         return dbRsp;
+    }
+
+    public <T> T awaitDb(reactor.core.publisher.Mono<T> mono, long dbOperationTimeoutMillis) {
+        return awaitCompletionStage(mono.toFuture(), dbOperationTimeoutMillis);
     }
 
     @Override

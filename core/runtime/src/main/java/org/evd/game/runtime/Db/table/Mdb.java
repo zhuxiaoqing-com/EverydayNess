@@ -28,22 +28,26 @@ public class Mdb {
 
 
     DBExecInterface dbExecInterface;
+    Service service;
 
     public boolean running = false;
     private volatile boolean closing = false;
 
 
-    public synchronized void start(Class<?> ownerClass, DBExecInterface dbExecInterface) throws Exception {
+    public void start(Class<?> ownerClass, DBExecInterface dbExecInterface, Service service) {
         logger.warn("@@@@@@@@@@@@@@@@ mdb start begin @@@@@@@@@@@@@@@@ mdb metadata {}", ownerClass.getName());
         closing = false;
         if(dbExecInterface == null){
             throw  new DBException("DBExecInterface is null !!!");
         }
         this.dbExecInterface = dbExecInterface;
+        this.service = service;
 
         try {
             TableRegistry tableRegistry = loadTableRegistry(ownerClass);
             tableRegistry.register(this);
+
+            checkTableCreate();
             logger.warn("{} has {} tables ......", ownerClass.getSimpleName(), tableList.size());
 
             logger.warn("@@@@@@@@@@@@@@@@  mdb start end  @@@@@@@@@@@@@@@@");
@@ -51,7 +55,7 @@ public class Mdb {
         } catch (Throwable e) {
             logger.error("Mdb start error", e);
             closeInternal(true, false);
-            throw e;
+            throw new RuntimeException(e);
         }
 
     }
@@ -260,8 +264,20 @@ public class Mdb {
         }
     }
 
+    public void checkTableCreate() {
+        CallPoint callPoint = service.getNode().getAnyCallPointByType(ServiceType.DB);
+        if (callPoint == null) {
+            logger.warn("checkCreateTable callPoint == null");
+            return;
+        }
+        for (TTable<?, ?> tTable : tableList) {
+            tTable.checkCreateTable(callPoint);
+        }
+        logger.info("checkTableCreate success!!!");
+    }
 
-    public synchronized void close() {
+
+    public void close() {
         closeInternal(false, true);
     }
 
@@ -335,7 +351,20 @@ public class Mdb {
         }
     }
 
-    public CallPoint findDBServiceCallPoint(Object key) {
+    public void connectService(Collection<RegisteredService> collection) {
+        Set<CallPoint> disconnCallPointSet = collection.stream()
+                .filter(a -> a.getServiceType() == ServiceType.DB)
+                .map(RegisteredService::getCallPoint).collect(Collectors.toSet());
+
+        if (disconnCallPointSet.isEmpty()) {
+            return;
+        }
+
+        checkTableCreate();
+    }
+
+
+        public CallPoint findDBServiceCallPoint(Object key) {
         List<CallPoint> callPoints = allCallPoint();
         return RuntimeUtils.mod(key, callPoints);
     }
@@ -344,7 +373,7 @@ public class Mdb {
      * 获取所有callPoint
      */
     public List<CallPoint> allCallPoint() {
-        return Service.getCurrent().getNode().getCallPointByType(ServiceType.DB);
+        return service.getNode().getCallPointByType(ServiceType.DB);
     }
 
 }

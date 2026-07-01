@@ -1,176 +1,185 @@
 package org.evd.game.DBService.storage.mysql;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
+import io.r2dbc.pool.ConnectionPool;
+import io.r2dbc.pool.ConnectionPoolConfiguration;
+import io.r2dbc.spi.Connection;
+import io.r2dbc.spi.ConnectionFactories;
+import io.r2dbc.spi.ConnectionFactory;
+import io.r2dbc.spi.ConnectionFactoryOptions;
 import org.evd.game.runtime.config.DbMysqlConfig;
+import org.evd.game.runtime.support.SysException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.evd.game.runtime.support.SysException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.sql.*;
+import java.time.Duration;
+
+import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
+import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
 
 public class LoggerMysql implements LoggerEngine {
 
-	private static Logger logger = LoggerFactory.getLogger(LoggerMysql.class);
-    private static final int FIXED_POOL_SIZE = 1;
+    private static final Logger logger = LoggerFactory.getLogger(LoggerMysql.class);
 
-	private final String databaseUrl;
+    private final String databaseUrl;
     private final String bootstrapUrl;
-	private String database;
-	private boolean autoCreate;
-	private HikariDataSource readConnection = null;
-	private HikariDataSource writeConnection = null;
-    private final String driverClass;
+    private final String database;
+    private final boolean autoCreate;
     private final String username;
     private final String password;
-    private final int connectionTimeoutMs;
-    private final String testQuery;
+    private final String validationQuery;
+    private final Duration connectionTimeout;
+    private final Duration operationTimeout;
+    private final int poolInitialSize;
+    private final int poolMaxSize;
+    private final Duration poolMaxIdleTime;
+    private final ConnectionFactory bootstrapConnectionFactory;
+    private final ConnectionPool connectionPool;
 
-	public LoggerMysql(DbMysqlConfig config) {
-		try {
-			this.autoCreate = config.isAutoCreate();
-			this.database = config.getDatabase();
-            this.driverClass = config.getDriverClass();
+    public LoggerMysql(DbMysqlConfig config) {
+        try {
+            this.autoCreate = config.isAutoCreate();
+            this.database = config.getDatabase();
             this.username = config.getUsername();
             this.password = config.getPassword();
-			this.connectionTimeoutMs = config.getConnectionTimeoutMs();
-			this.testQuery = config.getTestQuery();
-            this.databaseUrl = config.getJdbcUrl();
-			if(autoCreate) {
-				this.bootstrapUrl = config.getJdbcUrl().replaceAll(database, "");
-			}else {
-				this.bootstrapUrl = config.getJdbcUrl();
-			}
-            initConnections(bootstrapUrl);
-			checkDatabase(database);
-            if (autoCreate) {
-                resetConnections(databaseUrl);
-            }
-			if (readConnection == null || writeConnection == null) {
-				logger.error("MySQL Connection Pool Init Error, System Exit!");
-				Runtime.getRuntime().halt(0);
-			} else {
-				logger.info("MySQL Connection Pool Init OK!");
-			}
-		} catch (Exception e) {
-			logger.error("LoggerMysql error", e);
-			Runtime.getRuntime().halt(0);
-			throw new SysException(e);
-		}
-	}
+            this.validationQuery = config.getTestQuery();
+            this.connectionTimeout = Duration.ofMillis(config.getConnectionTimeoutMs());
+            this.operationTimeout = Duration.ofMillis(config.getOperationTimeoutMs());
+            this.poolInitialSize = config.getPoolInitialSize();
+            this.poolMaxSize = config.getPoolMaxSize();
+            this.poolMaxIdleTime = Duration.ofMillis(config.getPoolMaxIdleTimeMs());
+            this.databaseUrl = requireUrl(config.getResolvedR2dbcUrl());
+            this.bootstrapUrl = autoCreate ? stripDatabase(databaseUrl) : databaseUrl;
+            this.bootstrapConnectionFactory = createConnectionFactory(bootstrapUrl);
+            checkDatabase(database);
+            this.connectionPool = createConnectionPool(databaseUrl);
+            logger.info("MySQL R2DBC pool init OK, autoCreate={}, initialSize={}, maxSize={}",
+                    autoCreate, poolInitialSize, poolMaxSize);
+        } catch (Exception e) {
+            logger.error("LoggerMysql error", e);
+            Runtime.getRuntime().halt(0);
+            throw new SysException(e);
+        }
+    }
 
-	public boolean isAutoCreate() {
-		return autoCreate;
-	}
+    public boolean isAutoCreate() {
+        return autoCreate;
+    }
 
-	private void checkDatabase(String dataBase) {
-		Connection conn = null;
-		PreparedStatement stat = null;
-		ResultSet rs = null;
-		try {
-			conn = writeConnection.getConnection();
-			stat = conn.prepareStatement("show databases like ?");
-			stat.setString(1, dataBase);
-			rs = stat.executeQuery();
-			if (!rs.next()) {
-				if(autoCreate) {
-					try (Statement st = conn.createStatement()) {
-						//st.execute("create database " + dataBase);
-						st.execute(
-								"CREATE DATABASE IF NOT EXISTS `" + dataBase + "` " +
-										"CHARACTER SET utf8mb4 " +
-										"COLLATE utf8mb4_general_ci"
-						);
-						logger.info("database {} not exsits, created successfully", dataBase);
-					}
-				}else {
-					throw new SysException("database is not inited, please execute initDB.sql into mysql.");
-				}
-			}
+    public Duration getOperationTimeout() {
+        return operationTimeout;
+    }
 
-          /*  try (Statement st = conn.createStatement()) {
-                st.execute("USE " + dataBase);
-            }*/
+    public Mono<Connection> openReadConnection() {
+        return Mono.from(connectionPool.create())
+                .cast(Connection.class)
+                .timeout(connectionTimeout);
+    }
 
-		} catch (SQLException e) {
-			throw new SysException(e);
-		} finally {
-			release(rs, stat, conn);
-		}
-	}
+    public Mono<Connection> openWriteConnection() {
+        return Mono.from(connectionPool.create())
+                .cast(Connection.class)
+                .timeout(connectionTimeout);
+    }
 
-	public String getTableName(String tableName) {
-		return tableName;
-	}
+    private void checkDatabase(String databaseName) {
+        Boolean exists = Mono.usingWhen(
+                        openBootstrapConnection(),
+                        connection -> Flux.from(connection.createStatement(
+                                                "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?")
+                                        .bind(0, databaseName)
+                                        .execute())
+                                .flatMap(result -> result.map((row, metadata) -> row.get(0, String.class)))
+                                .hasElements(),
+                        Connection::close
+                )
+                .timeout(operationTimeout)
+                .block(operationTimeout);
 
-	private HikariConfig InitHikariConfig(String poolName, String url) {
-		HikariConfig hikariConfig = new HikariConfig();
-		hikariConfig.setPoolName(poolName);
-		hikariConfig.setDriverClassName(driverClass);
-		hikariConfig.setJdbcUrl(url);
+        if (Boolean.TRUE.equals(exists)) {
+            return;
+        }
+        if (!autoCreate) {
+            throw new SysException("database is not inited, please execute initDB.sql into mysql.");
+        }
+
+        String sql = "CREATE DATABASE IF NOT EXISTS `" + escapeIdentifier(databaseName) + "` "
+                + "CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci";
+        Mono.usingWhen(
+                        openBootstrapConnection(),
+                        connection -> Flux.from(connection.createStatement(sql).execute())
+                                .flatMap(result -> result.getRowsUpdated())
+                                .then(),
+                        Connection::close
+                )
+                .timeout(operationTimeout)
+                .block(operationTimeout);
+        logger.info("database {} not exists, created successfully", databaseName);
+    }
+
+    private Mono<Connection> openBootstrapConnection() {
+        return Mono.from(bootstrapConnectionFactory.create())
+                .cast(Connection.class)
+                .timeout(connectionTimeout);
+    }
+
+    private ConnectionPool createConnectionPool(String url) {
+        ConnectionFactory connectionFactory = createConnectionFactory(url);
+        ConnectionPoolConfiguration.Builder builder = ConnectionPoolConfiguration.builder(connectionFactory)
+                .initialSize(poolInitialSize)
+                .maxSize(poolMaxSize)
+                .maxIdleTime(poolMaxIdleTime)
+                .maxAcquireTime(connectionTimeout)
+                .maxCreateConnectionTime(connectionTimeout);
+        if (validationQuery != null && !validationQuery.isBlank()) {
+            builder.validationQuery(validationQuery);
+        }
+        return new ConnectionPool(builder.build());
+    }
+
+    private ConnectionFactory createConnectionFactory(String url) {
+        ConnectionFactoryOptions.Builder builder = ConnectionFactoryOptions.parse(url).mutate();
         if (username != null && !username.isBlank()) {
-            hikariConfig.setUsername(username);
+            builder.option(USER, username);
         }
         if (password != null && !password.isBlank()) {
-            hikariConfig.setPassword(password);
+            builder.option(PASSWORD, password);
         }
-		hikariConfig.addDataSourceProperty("cachePrepStmts", "true");
-		hikariConfig.addDataSourceProperty("prepStmtCacheSize", 512);
-		hikariConfig.addDataSourceProperty("prepStmtCacheSqlLimit", 2048);
-		hikariConfig.setConnectionTimeout(connectionTimeoutMs);
-		hikariConfig.setConnectionTestQuery(testQuery);
-		hikariConfig.setAutoCommit(true);
-		hikariConfig.setMinimumIdle(FIXED_POOL_SIZE);
-		hikariConfig.setMaximumPoolSize(FIXED_POOL_SIZE);
-		return hikariConfig;
-	}
-
-    private void initConnections(String jdbcUrl) {
-        this.writeConnection = new HikariDataSource(InitHikariConfig("mdb-write-read-pool", jdbcUrl));
-		readConnection = writeConnection;
-
-//		this.writeConnection = new HikariDataSource(InitHikariConfig("mdb-write-pool", jdbcUrl));
-//		this.readConnection = new HikariDataSource(InitHikariConfig("mdb-read-pool", jdbcUrl));
+        return ConnectionFactories.get(builder.build());
     }
 
-    private void resetConnections(String jdbcUrl) {
-        close();
-        initConnections(jdbcUrl);
+    private String requireUrl(String url) {
+        if (url == null || url.isBlank()) {
+            throw new SysException("db mysql r2dbc url is empty");
+        }
+        return url;
     }
 
-	@Override
-	public void close() {
-		try {
-            if (writeConnection != null) {
-			    writeConnection.close();
-            }
-			if (writeConnection != readConnection && readConnection != null) {
-				readConnection.close();
-			}
-		} catch (Exception e) {
-			logger.error("close connection", e);
-		}
-	}
+    private String stripDatabase(String url) {
+        int schemeIdx = url.indexOf("://");
+        if (schemeIdx < 0) {
+            throw new SysException("invalid r2dbc url: " + url);
+        }
+        int pathIdx = url.indexOf('/', schemeIdx + 3);
+        if (pathIdx < 0) {
+            return url.endsWith("/") ? url : url + "/";
+        }
+        int queryIdx = url.indexOf('?', pathIdx);
+        String prefix = url.substring(0, pathIdx + 1);
+        return queryIdx < 0 ? prefix : prefix + url.substring(queryIdx);
+    }
 
-	@Override
-	public void dropTables(String[] tableNames) throws Exception {
-	}
+    private String escapeIdentifier(String identifier) {
+        return identifier.replace("`", "``");
+    }
 
-	public Connection getReadConnection() throws SQLException {
-		return readConnection.getConnection();
-	}
+    @Override
+    public void close() {
+        connectionPool.dispose();
+    }
 
-	public Connection getWriteConnection() throws SQLException {
-		return writeConnection.getConnection();
-	}
-
-	public static void release(AutoCloseable... res) {
-		try {
-			for (AutoCloseable ac : res) {
-				if (ac != null)
-					ac.close();
-			}
-		} catch (Exception e) {
-		}
-	}
+    @Override
+    public void dropTables(String[] tableNames) throws Exception {
+    }
 }

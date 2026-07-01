@@ -15,7 +15,7 @@ nodes:
           num: -1
         - serviceType: DB
           name: db
-          num: 5
+          num: 1
           interval: 100
         - serviceType: PLAYER
           name: player
@@ -24,8 +24,6 @@ nodes:
           name: sceneManager
         - serviceType: LOBBY
           name: lobby
-        - serviceType: ONLINE
-          name: online
         - serviceType: SDK
           name: sdk
         - serviceType: STAGE

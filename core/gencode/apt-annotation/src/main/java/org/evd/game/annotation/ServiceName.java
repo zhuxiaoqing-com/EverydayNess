@@ -11,7 +11,6 @@ public final class ServiceName {
     public static final String PLAYER_SERVICE = "PlayerService";
     public static final String SCENE_MANAGER_SERVICE = "SceneManagerService";
     public static final String LOBBY_SERVICE = "LobbyService";
-    public static final String ONLINE_SERVICE = "OnlineService";
     public static final String SDK_SERVICE = "SdkService";
 
     private static final String[] VALUES = {
@@ -22,7 +21,6 @@ public final class ServiceName {
             PLAYER_SERVICE,
             SCENE_MANAGER_SERVICE,
             LOBBY_SERVICE,
-            ONLINE_SERVICE,
             SDK_SERVICE
     };
 

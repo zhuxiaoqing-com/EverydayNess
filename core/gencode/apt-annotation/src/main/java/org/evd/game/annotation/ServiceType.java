@@ -19,7 +19,6 @@ public enum ServiceType {
     SCENE_MANAGER(7, ServiceName.SCENE_MANAGER_SERVICE),
     GSCENE_MANAGER(8, ServiceName.SCENE_MANAGER_SERVICE),
     LOBBY(9, ServiceName.LOBBY_SERVICE),
-    ONLINE(10, ServiceName.ONLINE_SERVICE),
     SDK(11, ServiceName.SDK_SERVICE),
 
     ;

@@ -458,11 +458,11 @@ public class Node extends TickCase{
         // 给每一个Service触发
         for (Service value : services.values()) {
             if (!addList.isEmpty()) {
-                value.post(() -> value.onServiceConnect(addList));
+                value.postCoroutine(() -> value.onServiceConnect(addList));
             }
 
             if (!removeList.isEmpty()) {
-                value.post(() -> value.onServiceDisconnect(removeList));
+                value.postCoroutine(() -> value.onServiceDisconnect(removeList));
             }
         }
 

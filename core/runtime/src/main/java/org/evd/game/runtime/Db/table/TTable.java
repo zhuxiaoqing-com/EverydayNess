@@ -37,6 +37,12 @@ public abstract class TTable<K, V extends DirtyObject> {
     private final AtomicLong countGetMiss = new AtomicLong();
     private long allCountGetMiss = 0;
 
+
+    public void checkCreateTable(CallPoint callPoint) {
+        dbExec(createCreateTableDBReq(), callPoint);
+    }
+
+
     public V get(K key) {
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
@@ -370,12 +376,18 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     public V getExec(DBReq dbReq, CallPoint callPoint) {
+        if (callPoint == null) {
+            logger.error("callPoint == null  type {} DBReq {}", dbReq.getDbOpType(), dbReq);
+        }
         DBRsp dbRsp = getMdb().getDbExecInterface().dbExec(callPoint, dbReq);
         //todo 这里进行报错之类的
         return parseGetDBRsp(dbRsp);
     }
 
     public boolean dbExec(DBReq dbReq, CallPoint callPoint) {
+        if (callPoint == null) {
+            logger.error("callPoint == null  type {} DBReq {}", dbReq.getDbOpType(), dbReq);
+        }
         DBRsp dbRsp = getMdb().getDbExecInterface().dbExec(callPoint, dbReq);
         //todo 这里进行报错之类的
        return dbRsp.isSuccess();
@@ -420,8 +432,6 @@ public abstract class TTable<K, V extends DirtyObject> {
     public abstract V parseGetDBRsp(DBRsp rsp);
 
     public abstract Map<K, V> parseBatchGetDBRsp(DBRsp rsp);
-
-
 
 
 }
