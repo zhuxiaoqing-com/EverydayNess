@@ -35,6 +35,7 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("import org.evd.game.runtime.Db.serialize.DbValue;\n");
         sb.append("import org.evd.game.runtime.Db.serialize.MysqlReq;\n");
         sb.append("import org.evd.game.runtime.Db.serialize.MysqlRsp;\n");
+        sb.append("import org.evd.game.runtime.Db.serialize.MysqlTableMeta;\n");
         sb.append("import org.evd.game.runtime.Db.table.TTable;\n");
         sb.append("import com.alibaba.fastjson2.JSON;\n");
         sb.append("import com.alibaba.fastjson2.TypeReference;\n");
@@ -47,14 +48,16 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("public final class ").append(entity.internalTableClassName)
                 .append(" extends TTable<").append(keyType).append(", ").append(entity.beanClassName).append("> {\n");
         sb.append("    private static final String TABLE_NAME = \"").append(entity.tableName()).append("\";\n");
-        sb.append("    private static final String SELECT_COLUMNS = \"");
+        sb.append("    private static final String KEY_COLUMN_NAME = \"")
+                .append(entity.primaryKeyField.columnName).append("\";\n");
+        sb.append("    private static final List<String> COLUMN_NAMES = List.of(");
         for (int i = 0; i < tableFields.size(); i++) {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append(tableFields.get(i).columnName);
+            sb.append("\"").append(tableFields.get(i).columnName).append("\"");
         }
-        sb.append("\";\n");
+        sb.append(");\n");
         sb.append("    private static final String CREATE_TABLE_SQL = \"\"\"\n");
         sb.append("            CREATE TABLE IF NOT EXISTS ").append(entity.tableName()).append(" (\n");
         for (int i = 0; i < tableFields.size(); i++) {
@@ -73,18 +76,7 @@ final class DbDirtyMysqlTableRenderer {
         }
         sb.append("            ) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI\n");
         sb.append("            \"\"\";\n");
-        sb.append("    private static final String GET_SQL = \"SELECT \" + SELECT_COLUMNS + \" FROM \" + TABLE_NAME + \" WHERE ")
-                .append(entity.primaryKeyField.columnName).append(" = ?\";\n");
-        sb.append("    private static final String SAVE_SQL = \"REPLACE INTO \" + TABLE_NAME + \" (");
-        for (int i = 0; i < tableFields.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(tableFields.get(i).columnName);
-        }
-        sb.append(") VALUES (").append("?,".repeat(Math.max(0, tableFields.size() - 1))).append("?)\";\n");
-        sb.append("    private static final String REMOVE_SQL = \"DELETE FROM \" + TABLE_NAME + \" WHERE ")
-                .append(entity.primaryKeyField.columnName).append(" = ?\";\n\n");
+        sb.append("\n");
 
         sb.append("    private ").append(entity.internalTableClassName).append("() {\n");
         sb.append("    }\n\n");
@@ -99,23 +91,23 @@ final class DbDirtyMysqlTableRenderer {
 
         sb.append("    @Override\n");
         sb.append("    public DBReq createCreateTableDBReq() {\n");
-        sb.append("        return createReq(DbOpType.CREATE_TABLE, CREATE_TABLE_SQL, new ArrayList<>());\n");
+        sb.append("        return createInitReq(CREATE_TABLE_SQL, new ArrayList<>());\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
         sb.append("    public DBReq createGetDBReq(").append(keyType).append(" key) {\n");
-        sb.append("        return createReq(DbOpType.GET, GET_SQL, List.of(createKeyField(key)));\n");
+        sb.append("        return createReq(DbOpType.GET, List.of(createKeyField(key)));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
         sb.append("    public DBReq createSaveDBReq(").append(entity.beanClassName).append(" value) {\n");
-        sb.append("        return createReq(DbOpType.SAVE, SAVE_SQL, List.of(toTableField(value)));\n");
+        sb.append("        return createReq(DbOpType.SAVE, List.of(toTableField(value)));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
         sb.append("    public DBReq createRemoveDBReq(").append(keyType).append(" key) {\n");
-        sb.append("        return createReq(DbOpType.REMOVE, REMOVE_SQL, List.of(createKeyField(key)));\n");
+        sb.append("        return createReq(DbOpType.REMOVE, List.of(createKeyField(key)));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
         sb.append("    public DBReq createBatchGetDBReq(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
-        sb.append("        return createReq(DbOpType.BATCH_GET, createBatchGetSql(map), toKeyFieldList(map));\n");
+        sb.append("        return createReq(DbOpType.BATCH_GET, toKeyFieldList(map));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
         sb.append("    public DBReq createBatchSaveDBReq(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
@@ -124,11 +116,11 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("        for (").append(entity.beanClassName).append(" value : map.values()) {\n");
         sb.append("            tableFieldList.add(toTableField(value));\n");
         sb.append("        }\n");
-        sb.append("        return createReq(DbOpType.BATCH_SAVE, SAVE_SQL, tableFieldList);\n");
+        sb.append("        return createReq(DbOpType.BATCH_SAVE, tableFieldList);\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
         sb.append("    public DBReq createBatchRemoveDBReq(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
-        sb.append("        return createReq(DbOpType.BATCH_REMOVE, createBatchRemoveSql(map), toKeyFieldList(map));\n");
+        sb.append("        return createReq(DbOpType.BATCH_REMOVE, toKeyFieldList(map));\n");
         sb.append("    }\n\n");
 
         sb.append("    @Override\n");
@@ -162,10 +154,23 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("        return result;\n");
         sb.append("    }\n\n");
 
-        sb.append("    private DBReq createReq(DbOpType opType, String sql, List<DbTableField> tableFieldList) {\n");
+        sb.append("    private DBReq createInitReq(String sql, List<DbTableField> tableFieldList) {\n");
         sb.append("        MysqlReq mysqlReq = new MysqlReq();\n");
         sb.append("        mysqlReq.setTableName(TABLE_NAME);\n");
+        sb.append("        MysqlTableMeta tableMeta = new MysqlTableMeta();\n");
+        sb.append("        tableMeta.setKeyColumnName(KEY_COLUMN_NAME);\n");
+        sb.append("        tableMeta.setColumnNames(COLUMN_NAMES);\n");
+        sb.append("        mysqlReq.setTableMeta(tableMeta);\n");
         sb.append("        mysqlReq.setSql(sql);\n");
+        sb.append("        mysqlReq.setTablFieldList(tableFieldList);\n\n");
+        sb.append("        DBReq dbReq = new DBReq();\n");
+        sb.append("        dbReq.setDbOpType(DbOpType.CREATE_TABLE);\n");
+        sb.append("        dbReq.setMysqlReq(mysqlReq);\n");
+        sb.append("        return dbReq;\n");
+        sb.append("    }\n\n");
+        sb.append("    private DBReq createReq(DbOpType opType, List<DbTableField> tableFieldList) {\n");
+        sb.append("        MysqlReq mysqlReq = new MysqlReq();\n");
+        sb.append("        mysqlReq.setTableName(TABLE_NAME);\n");
         sb.append("        mysqlReq.setTablFieldList(tableFieldList);\n\n");
         sb.append("        DBReq dbReq = new DBReq();\n");
         sb.append("        dbReq.setDbOpType(opType);\n");
@@ -261,26 +266,6 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("            throw new IllegalArgumentException(\"batch map 不能为空\");\n");
         sb.append("        }\n");
         sb.append("    }\n\n");
-        sb.append("    private String createBatchGetSql(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
-        sb.append("        requireBatchMap(map);\n");
-        sb.append("        return \"SELECT \" + SELECT_COLUMNS + \" FROM \" + TABLE_NAME + \" WHERE ")
-                .append(entity.primaryKeyField.columnName).append(" IN (\" + createPlaceholders(map.size()) + \")\";\n");
-        sb.append("    }\n\n");
-        sb.append("    private String createBatchRemoveSql(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
-        sb.append("        requireBatchMap(map);\n");
-        sb.append("        return \"DELETE FROM \" + TABLE_NAME + \" WHERE ")
-                .append(entity.primaryKeyField.columnName).append(" IN (\" + createPlaceholders(map.size()) + \")\";\n");
-        sb.append("    }\n\n");
-        sb.append("    private String createPlaceholders(int size) {\n");
-        sb.append("        StringBuilder builder = new StringBuilder(Math.max(0, size * 3 - 1));\n");
-        sb.append("        for (int i = 0; i < size; i++) {\n");
-        sb.append("            if (i > 0) {\n");
-        sb.append("                builder.append(\", \");\n");
-        sb.append("            }\n");
-        sb.append("            builder.append(\"?\");\n");
-        sb.append("        }\n");
-        sb.append("        return builder.toString();\n");
-        sb.append("    }\n");
         sb.append("}\n");
         return DbDirtyTypeNameSupport.rewriteImportedTypeNames(sb.toString(), importedEntityTypes);
     }

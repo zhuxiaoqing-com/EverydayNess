@@ -6,10 +6,12 @@ import io.r2dbc.spi.Statement;
 import org.evd.game.DBService.DBService;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
+import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.Db.serialize.DbTableField;
 import org.evd.game.runtime.Db.serialize.DbValue;
 import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.Db.serialize.MysqlRsp;
+import org.evd.game.runtime.Db.serialize.MysqlTableMeta;
 import org.evd.game.runtime.config.DbStorageConfig;
 import org.evd.game.runtime.support.SysException;
 import org.slf4j.Logger;
@@ -19,7 +21,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class StorageMysql implements StorageEngine {
     private static final Logger log = LoggerFactory.getLogger(StorageMysql.class);
@@ -31,6 +36,8 @@ public class StorageMysql implements StorageEngine {
     private final long dbOperationTimeoutMillis;
     private final DBService dbService;
     private final LoggerMysql logger;
+    /** 建表后把表结构注册下来，后续 CRUD 在这里统一拼 SQL。 */
+    private final Map<String, TableMeta> tableMetaCache = new HashMap<>();
 
     public StorageMysql(DBService dbService, LoggerMysql logger, DbStorageConfig storageConfig) {
         this.dbService = dbService;
@@ -49,12 +56,13 @@ public class StorageMysql implements StorageEngine {
     public void initTable(DBReq dbReq) {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
+        String createTableSql = mysqlReq.getSql();
         long begin = System.nanoTime();
         Mono<Void> operation;
         if (logger.isAutoCreate()) {
             operation = Mono.usingWhen(
                     logger.openWriteConnection(),
-                    connection -> executeWrite(connection, mysqlReq.getSql(), mysqlReq.getTablFieldList()),
+                    connection -> executeWrite(connection, createTableSql, mysqlReq.getTablFieldList()),
                     Connection::close
             );
         } else {
@@ -70,10 +78,10 @@ public class StorageMysql implements StorageEngine {
                             .flatMap(exists -> {
                                 if (Boolean.TRUE.equals(exists)) {
                                     return Mono.empty();
-                                }
-                                return Mono.error(new SysException(
-                                        "table is not inited, please execute initTable.sql into mysql."));
-                            }),
+                }
+                return Mono.error(new SysException(
+                        "table is not inited, please execute initTable.sql into mysql."));
+            }),
                     Connection::close
             );
         }
@@ -86,6 +94,22 @@ public class StorageMysql implements StorageEngine {
                         log.warn("table {} init target {} cost: {} ms", tableName, tableName, costMs);
                     }
                 }));
+
+
+
+        MysqlTableMeta tableMetaData = mysqlReq.getTableMeta();
+        if (tableMetaData == null) {
+            return;
+        }
+
+        TableMeta tableMeta = tableMetaCache.get(tableName);
+        if (tableMeta == null) {
+            String keyColumnName = tableMetaData.getKeyColumnName();
+            List<String> columnNames = tableMetaData.getColumnNames();
+            tableMeta = new TableMeta(tableName, keyColumnName, List.copyOf(columnNames));
+            tableMetaCache.put(tableName, tableMeta);
+            log.info("TableMeta register  {}", tableMeta);
+        }
     }
 
     @Override
@@ -93,10 +117,11 @@ public class StorageMysql implements StorageEngine {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
         Object key = mysqlReq.getSingleTableKey();
+        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
         Mono<Void> operation = Mono.usingWhen(
                 logger.openWriteConnection(),
-                connection -> executeWrite(connection, mysqlReq.getSql(), List.of(mysqlReq.getSingleTableField())),
+                connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField())),
                 Connection::close
         );
         await(operation.timeout(operationTimeout)
@@ -119,13 +144,13 @@ public class StorageMysql implements StorageEngine {
         }
         String tableName = mysqlReq.getTableName();
         String batchKeys = getBatchKeys(mysqlReq);
+        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
-        Mono<Void> operation = Mono.usingWhen(
-                logger.openWriteConnection(),
-                connection -> executeWriteInChunks(connection, mysqlReq.getSql(), tableFieldList),
-                Connection::close
-        );
-        await(operation.timeout(operationTimeout)
+        await(Mono.usingWhen(
+                        logger.openWriteConnection(),
+                        connection -> executeWriteInChunks(connection, sql, mysqlReq.getTablFieldList()),
+                        Connection::close
+                ).timeout(operationTimeout)
                 .doOnError(e -> log.error("replace batch error, table={}, keys={}, num={}",
                         tableName, batchKeys, tableFieldList.size(), e))
                 .onErrorMap(SysException::new)
@@ -147,13 +172,13 @@ public class StorageMysql implements StorageEngine {
         }
         String tableName = mysqlReq.getTableName();
         String batchKeys = getBatchKeys(mysqlReq);
+        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
-        Mono<Void> operation = Mono.usingWhen(
-                logger.openWriteConnection(),
-                connection -> executeWriteSequential(connection, mysqlReq.getSql(), tableFieldList),
-                Connection::close
-        );
-        await(operation.timeout(operationTimeout)
+        await(Mono.usingWhen(
+                        logger.openWriteConnection(),
+                        connection -> executeWriteSequential(connection, sql, mysqlReq.getTablFieldList()),
+                        Connection::close
+                ).timeout(operationTimeout)
                 .doOnError(e -> log.error("remove batch error, table={}, keys={}, num={}",
                         tableName, batchKeys, tableFieldList.size(), e))
                 .onErrorMap(SysException::new)
@@ -171,10 +196,11 @@ public class StorageMysql implements StorageEngine {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
         Object key = mysqlReq.getSingleTableKey();
+        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
         Mono<Boolean> operation = Mono.usingWhen(
                         logger.openWriteConnection(),
-                        connection -> executeWrite(connection, mysqlReq.getSql(), List.of(mysqlReq.getSingleTableField()))
+                        connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField()))
                                 .thenReturn(Boolean.TRUE),
                         Connection::close
                 )
@@ -198,10 +224,11 @@ public class StorageMysql implements StorageEngine {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
         Object key = mysqlReq.getSingleTableKey();
+        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
         Mono<Void> operation = Mono.usingWhen(
                 logger.openWriteConnection(),
-                connection -> executeWrite(connection, mysqlReq.getSql(), List.of(mysqlReq.getSingleTableField())),
+                connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField())),
                 Connection::close
         );
         await(operation.timeout(operationTimeout)
@@ -220,11 +247,12 @@ public class StorageMysql implements StorageEngine {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
         Object key = mysqlReq.getSingleTableKey();
+        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
         Mono<DBRsp> operation = Mono.usingWhen(
                 logger.openReadConnection(),
                 connection -> {
-                    Statement statement = connection.createStatement(mysqlReq.getSql());
+                    Statement statement = connection.createStatement(sql);
                     List<DbTableField> queryArgs = List.of(mysqlReq.getSingleTableField());
                     int paramIndex = 0;
                     for (DbTableField tableField : queryArgs) {
@@ -268,11 +296,12 @@ public class StorageMysql implements StorageEngine {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
         String batchKeys = getBatchKeys(mysqlReq);
+        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
         Mono<DBRsp> operation = Mono.usingWhen(
                 logger.openReadConnection(),
                 connection -> {
-                    Statement statement = connection.createStatement(mysqlReq.getSql());
+                    Statement statement = connection.createStatement(sql);
                     int paramIndex = 0;
                     for (DbTableField tableField : mysqlReq.getTablFieldList()) {
                         List<DbValue> valueList = tableField.getValueList();
@@ -409,6 +438,62 @@ public class StorageMysql implements StorageEngine {
         return dbService.awaitDb(operation, dbOperationTimeoutMillis);
     }
 
+    private String resolveSql(DBReq dbReq) {
+        MysqlReq mysqlReq = dbReq.getMysqlReq();
+        DbOpType dbOpType = dbReq.getDbOpType();
+        if (dbOpType == DbOpType.CREATE_TABLE) {
+            return mysqlReq.getSql();
+        }
+
+
+        TableMeta tableMeta = tableMetaCache.get(mysqlReq.getTableName());
+        if (tableMeta == null) {
+            throw new IllegalArgumentException("table meta 未注册: " + mysqlReq.getTableName());
+        }
+        return switch (dbOpType) {
+            case GET -> "SELECT " + joinColumnNames(tableMeta.columnNames())
+                    + " FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName() + " = ?";
+            case BATCH_GET -> "SELECT " + joinColumnNames(tableMeta.columnNames())
+                    + " FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName()
+                    + " IN (" + createPlaceholders(mysqlReq.getTablFieldList().size()) + ")";
+            case SAVE, BATCH_SAVE -> "REPLACE INTO " + tableMeta.tableName() + " ("
+                    + joinColumnNames(tableMeta.columnNames()) + ") VALUES ("
+                    + createPlaceholders(tableMeta.columnNames().size()) + ")";
+            case REMOVE -> "DELETE FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName() + " = ?";
+            case BATCH_REMOVE -> "DELETE FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName()
+                    + " IN (" + createPlaceholders(mysqlReq.getTablFieldList().size()) + ")";
+            default -> throw new IllegalArgumentException("unsupported db op type: " + dbOpType);
+        };
+    }
+
+    private String joinColumnNames(List<String> columnNames) {
+        if (columnNames == null || columnNames.isEmpty()) {
+            throw new IllegalArgumentException("columnNames 不能为空");
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < columnNames.size(); i++) {
+            if (i > 0) {
+                builder.append(", ");
+            }
+            builder.append(columnNames.get(i));
+        }
+        return builder.toString();
+    }
+
+    private String createPlaceholders(int count) {
+        if (count <= 0) {
+            throw new IllegalArgumentException("placeholder 数量必须大于 0");
+        }
+        StringBuilder builder = new StringBuilder(Math.max(1, count * 3 - 1));
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                builder.append(", ");
+            }
+            builder.append("?");
+        }
+        return builder.toString();
+    }
+
     private String getBatchKeys(MysqlReq mysqlReq) {
         if (mysqlReq.getTablFieldList() == null || mysqlReq.getTablFieldList().isEmpty()) {
             return "[]";
@@ -422,5 +507,13 @@ public class StorageMysql implements StorageEngine {
         }
         builder.append(']');
         return builder.toString();
+    }
+
+    private record TableMeta(String tableName, String keyColumnName, List<String> columnNames) {
+        private TableMeta {
+            Objects.requireNonNull(tableName, "tableName 不能为空");
+            Objects.requireNonNull(keyColumnName, "keyColumnName 不能为空");
+            Objects.requireNonNull(columnNames, "columnNames 不能为空");
+        }
     }
 }

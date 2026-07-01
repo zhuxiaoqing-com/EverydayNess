@@ -7,6 +7,7 @@ import org.evd.game.runtime.Db.serialize.DbTableField;
 import org.evd.game.runtime.Db.serialize.DbValue;
 import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.Db.serialize.MysqlRsp;
+import org.evd.game.runtime.Db.serialize.MysqlTableMeta;
 import org.evd.game.runtime.Db.table.TTable;
 import io.protostuff.LinkedBuffer;
 import io.protostuff.ProtostuffIOUtil;
@@ -21,15 +22,14 @@ import java.util.Objects;
 
 public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 	private static final String TABLE_NAME = "db_player";
+	private static final String KEY_COLUMN_NAME = "k";
+	private static final List<String> COLUMN_NAMES = List.of("k", "v");
 	private static final String CREATE_TABLE_SQL = """
 			CREATE TABLE IF NOT EXISTS db_player (
 			    k BIGINT NOT NULL PRIMARY KEY,
 			    v MEDIUMBLOB NOT NULL
 			) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI
 			""";
-	private static final String GET_SQL = "SELECT k, v FROM " + TABLE_NAME + " WHERE k = ?";
-	private static final String SAVE_SQL = "REPLACE INTO " + TABLE_NAME + " (k, v) VALUES (?, ?)";
-	private static final String REMOVE_SQL = "DELETE FROM " + TABLE_NAME + " WHERE k = ?";
 	private static final Schema<DBPlayer> SCHEMA = RuntimeSchema.getSchema(DBPlayer.class);
 
 	private _DBPlayerPbTable_() {
@@ -46,23 +46,23 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 	}
 
 	public DBReq createCreateTableDBReq() {
-		return createReq(DbOpType.CREATE_TABLE, CREATE_TABLE_SQL, new ArrayList<>());
+		return createInitReq(CREATE_TABLE_SQL, new ArrayList<>());
 	}
 
 	public DBReq createGetDBReq(Long key) {
-		return createReq(DbOpType.GET, GET_SQL, List.of(createKeyField(key)));
+		return createReq(DbOpType.GET, List.of(createKeyField(key)));
 	}
 
 	public DBReq createSaveDBReq(DBPlayer player) {
-		return createReq(DbOpType.SAVE, SAVE_SQL, List.of(toSaveField(player.getId(), player)));
+		return createReq(DbOpType.SAVE, List.of(toSaveField(player.getId(), player)));
 	}
 
 	public DBReq createRemoveDBReq(Long key) {
-		return createReq(DbOpType.REMOVE, REMOVE_SQL, List.of(createKeyField(key)));
+		return createReq(DbOpType.REMOVE, List.of(createKeyField(key)));
 	}
 
 	public DBReq createBatchGetDBReq(Map<Long, DBPlayer> map) {
-		return createReq(DbOpType.BATCH_GET, createBatchGetSql(map), toKeyFieldList(map));
+		return createReq(DbOpType.BATCH_GET, toKeyFieldList(map));
 	}
 
 	public DBReq createBatchSaveDBReq(Map<Long, DBPlayer> map) {
@@ -71,11 +71,11 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 		for (Map.Entry<Long, DBPlayer> entry : map.entrySet()) {
 			tableFieldList.add(toSaveField(entry.getKey(), entry.getValue()));
 		}
-		return createReq(DbOpType.BATCH_SAVE, SAVE_SQL, tableFieldList);
+		return createReq(DbOpType.BATCH_SAVE, tableFieldList);
 	}
 
 	public DBReq createBatchRemoveDBReq(Map<Long, DBPlayer> map) {
-		return createReq(DbOpType.BATCH_REMOVE, createBatchRemoveSql(map), toKeyFieldList(map));
+		return createReq(DbOpType.BATCH_REMOVE, toKeyFieldList(map));
 	}
 
 	public DBPlayer parseGetDBRsp(DBRsp rsp) {
@@ -104,10 +104,25 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 		return result;
 	}
 
-	private DBReq createReq(DbOpType opType, String sql, List<DbTableField> tableFieldList) {
+	private DBReq createInitReq(String sql, List<DbTableField> tableFieldList) {
 		MysqlReq mysqlReq = new MysqlReq();
 		mysqlReq.setTableName(TABLE_NAME);
+		MysqlTableMeta tableMeta = new MysqlTableMeta();
+		tableMeta.setKeyColumnName(KEY_COLUMN_NAME);
+		tableMeta.setColumnNames(COLUMN_NAMES);
+		mysqlReq.setTableMeta(tableMeta);
 		mysqlReq.setSql(sql);
+		mysqlReq.setTablFieldList(tableFieldList);
+
+		DBReq dbReq = new DBReq();
+		dbReq.setDbOpType(DbOpType.CREATE_TABLE);
+		dbReq.setMysqlReq(mysqlReq);
+		return dbReq;
+	}
+
+	private DBReq createReq(DbOpType opType, List<DbTableField> tableFieldList) {
+		MysqlReq mysqlReq = new MysqlReq();
+		mysqlReq.setTableName(TABLE_NAME);
 		mysqlReq.setTablFieldList(tableFieldList);
 
 		DBReq dbReq = new DBReq();
@@ -195,24 +210,4 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 		}
 	}
 
-	private String createBatchGetSql(Map<Long, DBPlayer> map) {
-		requireBatchMap(map);
-		return "SELECT k, v FROM " + TABLE_NAME + " WHERE k IN (" + createPlaceholders(map.size()) + ")";
-	}
-
-	private String createBatchRemoveSql(Map<Long, DBPlayer> map) {
-		requireBatchMap(map);
-		return "DELETE FROM " + TABLE_NAME + " WHERE k IN (" + createPlaceholders(map.size()) + ")";
-	}
-
-	private String createPlaceholders(int size) {
-		StringBuilder builder = new StringBuilder(size * 3 - 1);
-		for (int i = 0; i < size; i++) {
-			if (i > 0) {
-				builder.append(", ");
-			}
-			builder.append('?');
-		}
-		return builder.toString();
-	}
 }

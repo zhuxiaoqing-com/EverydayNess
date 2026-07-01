@@ -5,6 +5,8 @@ public class DbStorageConfig {
     private int batchPerCount = 500;
     private int costMsWarn = 100;
     private int batchCostMsWarn = 30000;
+    private int writeBackFlushIntervalMs = 1000;
+    private int writeBackCloseRetryIntervalMs = 1000;
 
     public int getBatchThreshold() {
         return batchThreshold;
@@ -36,5 +38,21 @@ public class DbStorageConfig {
 
     public void setBatchCostMsWarn(int batchCostMsWarn) {
         this.batchCostMsWarn = batchCostMsWarn;
+    }
+
+    public int getWriteBackFlushIntervalMs() {
+        return writeBackFlushIntervalMs;
+    }
+
+    public void setWriteBackFlushIntervalMs(int writeBackFlushIntervalMs) {
+        this.writeBackFlushIntervalMs = writeBackFlushIntervalMs;
+    }
+
+    public int getWriteBackCloseRetryIntervalMs() {
+        return writeBackCloseRetryIntervalMs;
+    }
+
+    public void setWriteBackCloseRetryIntervalMs(int writeBackCloseRetryIntervalMs) {
+        this.writeBackCloseRetryIntervalMs = writeBackCloseRetryIntervalMs;
     }
 }

@@ -3,12 +3,12 @@ package org.evd.game.DBService;
 import org.evd.game.DBService.storage.mysql.LoggerMysql;
 import org.evd.game.DBService.storage.mysql.StorageEngine;
 import org.evd.game.DBService.storage.mysql.StorageMysql;
-import org.evd.game.runtime.Db.serialize.DBReq;
-import org.evd.game.runtime.Db.serialize.DBRsp;
-import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.common.GlobalConfig;
+import org.evd.game.runtime.Db.serialize.DBReq;
+import org.evd.game.runtime.Db.serialize.DBRsp;
+import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.config.DbConfig;
@@ -60,6 +60,8 @@ public class DBService extends Service {
      * 或者说外面适配,DBService内部固定死了 只能弄Mysql;
      * 其实不是应该跟着配置表的吗，配置表说初始化mysql 就是Mysql，说初始化mongodb就是,mongodb,
      * 至于mysql表的格式 那就启动的时候报错，因为不支持mysql形式的表 就报错;
+     *
+     * 这里mysql必须传sql,因为mysql配置表形式需要知道配置表名字，
      */
 
     @Rpc

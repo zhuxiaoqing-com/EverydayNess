@@ -18,6 +18,8 @@ public class MysqlReq implements ISerializable {
     @SerializeField
     private String tableName;
     @SerializeField
+    private MysqlTableMeta tableMeta;
+    @SerializeField
     private List<DbTableField> tablFieldList;
 
 
@@ -41,6 +43,14 @@ public class MysqlReq implements ISerializable {
 
     public void setTableName(String tableName) {
         this.tableName = tableName;
+    }
+
+    public MysqlTableMeta getTableMeta() {
+        return tableMeta;
+    }
+
+    public void setTableMeta(MysqlTableMeta tableMeta) {
+        this.tableMeta = tableMeta;
     }
 
     public String getSql() {

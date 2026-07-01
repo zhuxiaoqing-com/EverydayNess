@@ -8,6 +8,8 @@ import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serialize.OutputStream;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * 通用字段值包装，按 type 选择实际使用的值字段。
@@ -151,11 +153,6 @@ public class DbValue implements ISerializable {
         }
     }
 
-    @Override
-    public String toString() {
-        return getV().toString();
-    }
-
     public DbValueType getType() {
         return type;
     }
@@ -210,5 +207,52 @@ public class DbValue implements ISerializable {
 
     public void setDoubleValue(double doubleValue) {
         this.doubleValue = doubleValue;
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        DbValue dbValue = (DbValue) o;
+        if (type != dbValue.type) {
+            return false;
+        }
+
+        return switch (type) {
+            case LONG -> longValue == dbValue.longValue;
+            case INT -> intValue == dbValue.intValue;
+            case STRING -> Objects.equals(stringValue, dbValue.stringValue);
+            case BYTES -> Arrays.equals(bytesValue, dbValue.bytesValue);
+            case BOOLEAN -> booleanValue == dbValue.booleanValue;
+            case DOUBLE -> Double.compare(doubleValue, dbValue.doubleValue) == 0;
+        };
+    }
+
+    @Override
+    public int hashCode() {
+        return switch (type) {
+            case LONG -> Objects.hash(type, longValue);
+            case INT -> Objects.hash(type, intValue);
+            case STRING -> Objects.hash(type, stringValue);
+            case BYTES -> 31 * Objects.hash(type) + Arrays.hashCode(bytesValue);
+            case BOOLEAN -> Objects.hash(type, booleanValue);
+            case DOUBLE -> Objects.hash(type, doubleValue);
+        };
+    }
+
+    @Override
+    public String toString() {
+        if (type == null) {
+            return "DbValue{type=null}";
+        }
+        return switch (type) {
+            case BYTES -> Arrays.toString(bytesValue);
+            default -> String.valueOf(getV());
+        };
     }
 }

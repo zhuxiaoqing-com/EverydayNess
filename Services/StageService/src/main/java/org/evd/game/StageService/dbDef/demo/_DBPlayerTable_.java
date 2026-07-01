@@ -12,6 +12,7 @@ import org.evd.game.runtime.Db.serialize.DbTableField;
 import org.evd.game.runtime.Db.serialize.DbValue;
 import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.Db.serialize.MysqlRsp;
+import org.evd.game.runtime.Db.serialize.MysqlTableMeta;
 import org.evd.game.runtime.Db.table.TTable;
 
 import java.util.ArrayList;
@@ -41,7 +42,9 @@ import java.util.Set;
  */
 public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
     private static final String TABLE_NAME = "db_player";
-    private static final String SELECT_COLUMNS = "id, name, lv, int_int_map, int_list, int_set, int_db_item_map";
+    private static final String KEY_COLUMN_NAME = "id";
+    private static final List<String> COLUMN_NAMES = List.of(
+            "id", "name", "lv", "int_int_map", "int_list", "int_set", "int_db_item_map");
     private static final String CREATE_TABLE_SQL = """
             CREATE TABLE IF NOT EXISTS db_player (
                 id BIGINT NOT NULL PRIMARY KEY,
@@ -53,10 +56,6 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
                 int_db_item_map MEDIUMTEXT NOT NULL
             ) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI
             """;
-    private static final String GET_SQL = "SELECT " + SELECT_COLUMNS + " FROM " + TABLE_NAME + " WHERE id = ?";
-    private static final String SAVE_SQL = "REPLACE INTO " + TABLE_NAME
-            + " (id, name, lv, int_int_map, int_list, int_set, int_db_item_map) VALUES (?, ?, ?, ?, ?, ?, ?)";
-    private static final String REMOVE_SQL = "DELETE FROM " + TABLE_NAME + " WHERE id = ?";
 
     private _DBPlayerTable_() {
     }
@@ -73,27 +72,27 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
 
     @Override
     public DBReq createCreateTableDBReq() {
-        return createReq(DbOpType.CREATE_TABLE, CREATE_TABLE_SQL, new ArrayList<>());
+        return createInitReq(CREATE_TABLE_SQL, new ArrayList<>());
     }
 
     @Override
     public DBReq createGetDBReq(Long key) {
-        return createReq(DbOpType.GET, GET_SQL, List.of(createKeyField(key)));
+        return createReq(DbOpType.GET, List.of(createKeyField(key)));
     }
 
     @Override
     public DBReq createSaveDBReq(DBPlayer player) {
-        return createReq(DbOpType.SAVE, SAVE_SQL, List.of(toTableField(player)));
+        return createReq(DbOpType.SAVE, List.of(toTableField(player)));
     }
 
     @Override
     public DBReq createRemoveDBReq(Long key) {
-        return createReq(DbOpType.REMOVE, REMOVE_SQL, List.of(createKeyField(key)));
+        return createReq(DbOpType.REMOVE, List.of(createKeyField(key)));
     }
 
     @Override
     public DBReq createBatchGetDBReq(Map<Long, DBPlayer> map) {
-        return createReq(DbOpType.BATCH_GET, createBatchGetSql(map), toKeyFieldList(map));
+        return createReq(DbOpType.BATCH_GET, toKeyFieldList(map));
     }
 
     @Override
@@ -103,12 +102,12 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
         for (DBPlayer player : map.values()) {
             tableFieldList.add(toTableField(player));
         }
-        return createReq(DbOpType.BATCH_SAVE, SAVE_SQL, tableFieldList);
+        return createReq(DbOpType.BATCH_SAVE, tableFieldList);
     }
 
     @Override
     public DBReq createBatchRemoveDBReq(Map<Long, DBPlayer> map) {
-        return createReq(DbOpType.BATCH_REMOVE, createBatchRemoveSql(map), toKeyFieldList(map));
+        return createReq(DbOpType.BATCH_REMOVE, toKeyFieldList(map));
     }
 
     @Override
@@ -139,10 +138,25 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
         return result;
     }
 
-    private DBReq createReq(DbOpType opType, String sql, List<DbTableField> tableFieldList) {
+    private DBReq createInitReq(String sql, List<DbTableField> tableFieldList) {
         MysqlReq mysqlReq = new MysqlReq();
         mysqlReq.setTableName(TABLE_NAME);
+        MysqlTableMeta tableMeta = new MysqlTableMeta();
+        tableMeta.setKeyColumnName(KEY_COLUMN_NAME);
+        tableMeta.setColumnNames(COLUMN_NAMES);
+        mysqlReq.setTableMeta(tableMeta);
         mysqlReq.setSql(sql);
+        mysqlReq.setTablFieldList(tableFieldList);
+
+        DBReq dbReq = new DBReq();
+        dbReq.setDbOpType(DbOpType.CREATE_TABLE);
+        dbReq.setMysqlReq(mysqlReq);
+        return dbReq;
+    }
+
+    private DBReq createReq(DbOpType opType, List<DbTableField> tableFieldList) {
+        MysqlReq mysqlReq = new MysqlReq();
+        mysqlReq.setTableName(TABLE_NAME);
         mysqlReq.setTablFieldList(tableFieldList);
 
         DBReq dbReq = new DBReq();
@@ -265,27 +279,6 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
         if (map == null || map.isEmpty()) {
             throw new IllegalArgumentException("batch map 不能为空");
         }
-    }
-
-    private String createBatchGetSql(Map<Long, DBPlayer> map) {
-        requireBatchMap(map);
-        return "SELECT " + SELECT_COLUMNS + " FROM " + TABLE_NAME + " WHERE id IN (" + createPlaceholders(map.size()) + ")";
-    }
-
-    private String createBatchRemoveSql(Map<Long, DBPlayer> map) {
-        requireBatchMap(map);
-        return "DELETE FROM " + TABLE_NAME + " WHERE id IN (" + createPlaceholders(map.size()) + ")";
-    }
-
-    private String createPlaceholders(int size) {
-        StringBuilder builder = new StringBuilder(size * 3 - 1);
-        for (int i = 0; i < size; i++) {
-            if (i > 0) {
-                builder.append(", ");
-            }
-            builder.append('?');
-        }
-        return builder.toString();
     }
 
     private <T> T requireNotNull(T value, String fieldName) {
