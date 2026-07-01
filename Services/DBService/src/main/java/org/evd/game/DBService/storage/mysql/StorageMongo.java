@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
  * @author Eric.Ma
  *
  */
-public class StorageMongo implements StorageEngine {
+public abstract class StorageMongo implements StorageEngine {
 
     private static final Logger log = LoggerFactory.getLogger(StorageMongo.class);
 

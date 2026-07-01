@@ -5,8 +5,8 @@ public class DbStorageConfig {
     private int batchPerCount = 500;
     private int costMsWarn = 100;
     private int batchCostMsWarn = 30000;
-    private int writeBackFlushIntervalMs = 1000;
-    private int writeBackCloseRetryIntervalMs = 1000;
+    private boolean enableMemoryCache = false;
+    private long cacheFlushMs = 60_000L;
 
     public int getBatchThreshold() {
         return batchThreshold;
@@ -40,19 +40,19 @@ public class DbStorageConfig {
         this.batchCostMsWarn = batchCostMsWarn;
     }
 
-    public int getWriteBackFlushIntervalMs() {
-        return writeBackFlushIntervalMs;
+    public boolean isEnableMemoryCache() {
+        return enableMemoryCache;
     }
 
-    public void setWriteBackFlushIntervalMs(int writeBackFlushIntervalMs) {
-        this.writeBackFlushIntervalMs = writeBackFlushIntervalMs;
+    public void setEnableMemoryCache(boolean enableMemoryCache) {
+        this.enableMemoryCache = enableMemoryCache;
     }
 
-    public int getWriteBackCloseRetryIntervalMs() {
-        return writeBackCloseRetryIntervalMs;
+    public long getCacheFlushMs() {
+        return cacheFlushMs;
     }
 
-    public void setWriteBackCloseRetryIntervalMs(int writeBackCloseRetryIntervalMs) {
-        this.writeBackCloseRetryIntervalMs = writeBackCloseRetryIntervalMs;
+    public void setCacheFlushMs(long cacheFlushMs) {
+        this.cacheFlushMs = cacheFlushMs;
     }
 }

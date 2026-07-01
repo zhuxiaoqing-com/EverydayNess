@@ -1,5 +1,6 @@
 package org.evd.game.DBService;
 
+import org.evd.game.DBService.entity.DBCache;
 import org.evd.game.DBService.storage.mysql.LoggerMysql;
 import org.evd.game.DBService.storage.mysql.StorageEngine;
 import org.evd.game.DBService.storage.mysql.StorageMysql;
@@ -18,7 +19,11 @@ import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 
 @RpcService(DBExecInterface.class)
 public class DBService extends Service {
-    StorageEngine storageEngine;
+    public static final String MYSQL = "mysql";
+
+    public DBCache dbCache;
+
+    public StorageEngine storageEngine;
 
 
     public DBService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
@@ -28,8 +33,11 @@ public class DBService extends Service {
     @Override
     public void init() {
         DbConfig dbConfig = GlobalConfig.requireDbConfig();
+        if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
+            dbCache = new DBCache(this);
+        }
         switch (dbConfig.getDb().getEngine()) {
-            case "mysql":
+            case MYSQL:
                 DbMysqlConfig mysqlConfig = dbConfig.getDb().getMysql();
                 LoggerMysql loggerMysql = new LoggerMysql(mysqlConfig);
                 storageEngine = new StorageMysql(this, loggerMysql, dbConfig.getDb().getStorage());
@@ -40,6 +48,13 @@ public class DBService extends Service {
         }
     }
 
+    @Override
+    public void tick() {
+        super.tick();
+        if (dbCache != null) {
+            dbCache.tick();
+        }
+    }
 
     @Override
     public void onClose() {
@@ -66,9 +81,16 @@ public class DBService extends Service {
 
     @Rpc
     public DBRsp dbExec(DBReq dbReq) {
+
+
         DBRsp dbRsp = new DBRsp();
         dbRsp.setSuccess(true);
         try {
+            DBRsp cache = storageEngine.cache(dbReq, dbCache);
+            if (cache != null) {
+                return cache;
+            }
+
             switch (dbReq.getDbOpType()) {
                 case DbOpType.CREATE_TABLE:
                     storageEngine.initTable(dbReq);
@@ -91,6 +113,7 @@ public class DBService extends Service {
                 case DbOpType.BATCH_REMOVE:
                     storageEngine.removeBatch(dbReq);
                     break;
+
             }
         } catch (Exception e) {
             return new DBRsp(e.getMessage());

@@ -20,5 +20,16 @@ public enum DbOpType {
     /** 删除单条数据。 */
     REMOVE,
     /** 批量删除数据。 */
-    BATCH_REMOVE
+    BATCH_REMOVE,
+
+    ;
+
+    public static boolean isRemove(DbOpType dbOpType) {
+        switch (dbOpType) {
+            case REMOVE, BATCH_REMOVE -> {
+                return true;
+            }
+        }
+        return false;
+    }
 }

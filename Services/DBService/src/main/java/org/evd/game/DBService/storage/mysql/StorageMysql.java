@@ -4,6 +4,10 @@ import io.r2dbc.spi.Connection;
 import io.r2dbc.spi.Result;
 import io.r2dbc.spi.Statement;
 import org.evd.game.DBService.DBService;
+import org.evd.game.DBService.entity.DBCache;
+import org.evd.game.DBService.entity.MysqlTRecord;
+import org.evd.game.DBService.entity.TRecord;
+import org.evd.game.DBService.entity.TableCache;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DbOpType;
@@ -25,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class StorageMysql implements StorageEngine {
     private static final Logger log = LoggerFactory.getLogger(StorageMysql.class);
@@ -148,7 +153,18 @@ public class StorageMysql implements StorageEngine {
         long begin = System.nanoTime();
         await(Mono.usingWhen(
                         logger.openWriteConnection(),
-                        connection -> executeWriteInChunks(connection, sql, mysqlReq.getTablFieldList()),
+                        connection -> {
+                            List<DbTableField> tableFieldList1 = mysqlReq.getTablFieldList();
+                            if (tableFieldList1.size() <= batchPerCount) {
+                                return executeWrite(connection, sql, tableFieldList1);
+                            }
+                            List<Mono<Void>> operations = new ArrayList<>();
+                            for (int start = 0; start < tableFieldList1.size(); start += batchPerCount) {
+                                int end = Math.min(start + batchPerCount, tableFieldList1.size());
+                                operations.add(executeWrite(connection, sql, tableFieldList1.subList(start, end)));
+                            }
+                            return Flux.concat(operations).then();
+                        },
                         Connection::close
                 ).timeout(operationTimeout)
                 .doOnError(e -> log.error("replace batch error, table={}, keys={}, num={}",
@@ -176,7 +192,19 @@ public class StorageMysql implements StorageEngine {
         long begin = System.nanoTime();
         await(Mono.usingWhen(
                         logger.openWriteConnection(),
-                        connection -> executeWriteSequential(connection, sql, mysqlReq.getTablFieldList()),
+                        connection -> {
+                            List<DbTableField> tableFieldList1 = mysqlReq.getTablFieldList();
+                            Statement statement = connection.createStatement(sql);
+                            if (tableFieldList1 != null && !tableFieldList1.isEmpty()) {
+                                int paramIndex = 0;
+                                for (DbTableField tableField : tableFieldList1) {
+                                    statement.bind(paramIndex++, tableField.getTableKey());
+                                }
+                            }
+                            return Flux.from(statement.execute())
+                                    .flatMap(Result::getRowsUpdated)
+                                    .then();
+                        },
                         Connection::close
                 ).timeout(operationTimeout)
                 .doOnError(e -> log.error("remove batch error, table={}, keys={}, num={}",
@@ -276,7 +304,14 @@ public class StorageMysql implements StorageEngine {
                                 return rowField;
                             }))
                             .collectList()
-                            .map(this::toRsp);
+                            .map(rows -> {
+                                MysqlRsp mysqlRsp = new MysqlRsp();
+                                mysqlRsp.setTablFieldList(rows == null ? new ArrayList<>() : rows);
+                                DBRsp dbRsp = new DBRsp();
+                                dbRsp.setSuccess(true);
+                                dbRsp.setMysqlRsp(mysqlRsp);
+                                return dbRsp;
+                            });
                 },
                 Connection::close
         );
@@ -304,13 +339,7 @@ public class StorageMysql implements StorageEngine {
                     Statement statement = connection.createStatement(sql);
                     int paramIndex = 0;
                     for (DbTableField tableField : mysqlReq.getTablFieldList()) {
-                        List<DbValue> valueList = tableField.getValueList();
-                        if (valueList == null || valueList.isEmpty()) {
-                            continue;
-                        }
-                        for (DbValue dbValue : valueList) {
-                            statement.bind(paramIndex++, dbValue.getV());
-                        }
+                        statement.bind(paramIndex++, tableField.getTableKey());
                     }
                     return Flux.from(statement.execute())
                             .flatMap(result -> result.map((row, metadata) -> {
@@ -324,7 +353,14 @@ public class StorageMysql implements StorageEngine {
                                 return rowField;
                             }))
                             .collectList()
-                            .map(this::toRsp);
+                            .map(rows -> {
+                                MysqlRsp mysqlRsp = new MysqlRsp();
+                                mysqlRsp.setTablFieldList(rows == null ? new ArrayList<>() : rows);
+                                DBRsp dbRsp = new DBRsp();
+                                dbRsp.setSuccess(true);
+                                dbRsp.setMysqlRsp(mysqlRsp);
+                                return dbRsp;
+                            });
                 },
                 Connection::close
         );
@@ -360,32 +396,131 @@ public class StorageMysql implements StorageEngine {
         logger.close();
     }
 
+    @Override
+    public List<TRecord> createTRecord(DBReq _dbReq) {
+        ArrayList<TRecord> returnList = new ArrayList<>();
+        for (DbTableField dbTableField : _dbReq.getMysqlReq().getTablFieldList()) {
+            DbOpType dbOpType =
+                    // 这里映射成批量的，下面就不用处理了
+                    switch (_dbReq.getDbOpType()) {
+                        case SAVE -> DbOpType.BATCH_SAVE;
+                        case REMOVE -> DbOpType.BATCH_REMOVE;
+                        default -> _dbReq.getDbOpType();
+                    };
+
+            TRecord tRecord = new MysqlTRecord(dbOpType, dbTableField);
+            returnList.add(tRecord);
+        }
+        return returnList;
+    }
+
+    @Override
+    public String parseTableName(DBReq _dbReq) {
+        return _dbReq.getMysqlReq().getTableName();
+    }
+
+    @Override
+    public List<DBReq> buildSaveDBReq(TableCache tableCache) {
+        List<DBReq> dbReqList = new ArrayList<>();
+
+        Map<DbOpType, List<MysqlTRecord>> collect = tableCache.getCache().values().stream()
+                .map(a -> (MysqlTRecord) a)
+                .collect(Collectors.groupingBy(MysqlTRecord::getDbOpType));
+
+        for (Map.Entry<DbOpType, List<MysqlTRecord>> entry : collect.entrySet()) {
+            DbOpType key = entry.getKey();
+            List<MysqlTRecord> value = entry.getValue();
+
+            DBReq dbReq = new DBReq();
+            dbReq.setDbOpType(key);
+            MysqlReq mysqlReq = new MysqlReq();
+            dbReq.setMysqlReq(mysqlReq);
+
+            mysqlReq.setTableName(tableCache.getTableName());
+            for (MysqlTRecord mysqlTRecord : value) {
+                mysqlReq.getTablFieldList().add(mysqlTRecord.getDbTableField());
+            }
+
+            dbReqList.add(dbReq);
+        }
+        return dbReqList;
+    }
+
+
+    @Override
+    public DBRsp cache(DBReq dbReq, DBCache dbCache) {
+        if (dbCache == null) {
+            return null;
+        }
+        TableCache tableCache = dbCache.getTableCache(dbReq.getMysqlReq().getTableName());
+        switch (dbReq.getDbOpType()) {
+            case GET:
+            case BATCH_GET:
+                DBRsp dbRsp = new DBRsp();
+                MysqlRsp mysqlRsp = new MysqlRsp();
+                dbRsp.setMysqlRsp(mysqlRsp);
+                dbRsp.setSuccess(true);
+                ArrayList<DbTableField> notFindList = new ArrayList<>();
+                for (DbTableField dbTableField : dbReq.getMysqlReq().getTablFieldList()) {
+                    Object tableKey = dbTableField.getTableKey();
+                    MysqlTRecord tRecord = (MysqlTRecord) tableCache.getCache().get(tableKey);
+                    if (tRecord != null) {
+                        if(DbOpType.isRemove(tRecord.getDbOpType())) {
+                            mysqlRsp.getTablFieldList().add(new DbTableField());
+                        } else {
+                            mysqlRsp.getTablFieldList().add(tRecord.getDbTableField());
+                        }
+                    } else {
+                        notFindList.add(dbTableField);
+                    }
+                }
+                // 将没在缓存里的其他查询一下;
+                if (!notFindList.isEmpty()) {
+                    DBReq copyDBReq = new DBReq();
+                    copyDBReq.setDbOpType(dbReq.getDbOpType());
+                    copyDBReq.setMysqlReq(new MysqlReq());
+                    copyDBReq.getMysqlReq().setTablFieldList(notFindList);
+                    copyDBReq.getMysqlReq().setTableName(dbReq.getMysqlReq().getTableName());
+                    DBRsp batch = null;
+                    if (dbReq.getDbOpType() == DbOpType.GET) {
+                        batch = find(copyDBReq);
+                    } else if (dbReq.getDbOpType() == DbOpType.BATCH_GET) {
+                        batch = findBatch(copyDBReq);
+                    }
+                    mysqlRsp.getTablFieldList().addAll(batch.getMysqlRsp().getTablFieldList());
+                }
+                return dbRsp;
+            case SAVE:
+            case BATCH_SAVE:
+            case REMOVE:
+            case BATCH_REMOVE:
+                ArrayList<TRecord> returnList = new ArrayList<>();
+                for (DbTableField dbTableField : dbReq.getMysqlReq().getTablFieldList()) {
+                    DbOpType dbOpType =
+                            // 这里映射成批量的，下面就不用处理了
+                            switch (dbReq.getDbOpType()) {
+                                case SAVE -> DbOpType.BATCH_SAVE;
+                                case REMOVE -> DbOpType.BATCH_REMOVE;
+                                default -> dbReq.getDbOpType();
+                            };
+
+                    TRecord tRecord = new MysqlTRecord(dbOpType, dbTableField);
+                    returnList.add(tRecord);
+                }
+                for (TRecord record : returnList) {
+                    tableCache.getCache().put(record.getKey(), record);
+                }
+            default: return null;
+
+        }
+    }
+
     private Mono<Void> executeWrite(Connection connection, String sql, List<DbTableField> tableFieldList) {
         Statement statement = connection.createStatement(sql);
         bindBatchTableFields(statement, tableFieldList);
         return Flux.from(statement.execute())
                 .flatMap(Result::getRowsUpdated)
                 .then();
-    }
-
-    private Mono<Void> executeWriteSequential(Connection connection, String sql, List<DbTableField> tableFieldList) {
-        Statement statement = connection.createStatement(sql);
-        bindSequentialTableFields(statement, tableFieldList);
-        return Flux.from(statement.execute())
-                .flatMap(Result::getRowsUpdated)
-                .then();
-    }
-
-    private Mono<Void> executeWriteInChunks(Connection connection, String sql, List<DbTableField> tableFieldList) {
-        if (tableFieldList.size() <= batchPerCount) {
-            return executeWrite(connection, sql, tableFieldList);
-        }
-        List<Mono<Void>> operations = new ArrayList<>();
-        for (int start = 0; start < tableFieldList.size(); start += batchPerCount) {
-            int end = Math.min(start + batchPerCount, tableFieldList.size());
-            operations.add(executeWrite(connection, sql, tableFieldList.subList(start, end)));
-        }
-        return Flux.concat(operations).then();
     }
 
     private void bindBatchTableFields(Statement statement, List<DbTableField> tableFieldList) {
@@ -400,22 +535,6 @@ public class StorageMysql implements StorageEngine {
         }
     }
 
-    private void bindSequentialTableFields(Statement statement, List<DbTableField> tableFieldList) {
-        if (tableFieldList == null || tableFieldList.isEmpty()) {
-            return;
-        }
-        int paramIndex = 0;
-        for (DbTableField tableField : tableFieldList) {
-            List<DbValue> valueList = tableField.getValueList();
-            if (valueList == null || valueList.isEmpty()) {
-                continue;
-            }
-            for (DbValue dbValue : valueList) {
-                statement.bind(paramIndex++, dbValue.getV());
-            }
-        }
-    }
-
     private void bindValues(Statement statement, List<DbValue> valueList) {
         if (valueList == null || valueList.isEmpty()) {
             return;
@@ -423,15 +542,6 @@ public class StorageMysql implements StorageEngine {
         for (int i = 0; i < valueList.size(); i++) {
             statement.bind(i, valueList.get(i).getV());
         }
-    }
-
-    private DBRsp toRsp(List<DbTableField> rows) {
-        MysqlRsp mysqlRsp = new MysqlRsp();
-        mysqlRsp.setTablFieldList(rows == null ? new ArrayList<>() : rows);
-        DBRsp dbRsp = new DBRsp();
-        dbRsp.setSuccess(true);
-        dbRsp.setMysqlRsp(mysqlRsp);
-        return dbRsp;
     }
 
     private <T> T await(Mono<T> operation) {

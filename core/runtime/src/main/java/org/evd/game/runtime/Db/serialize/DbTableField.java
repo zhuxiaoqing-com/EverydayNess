@@ -30,4 +30,10 @@ public class DbTableField implements ISerializable {
     public void setValueList(List<DbValue> valueList) {
         this.valueList = valueList;
     }
+
+    public Object getTableKey() {
+        return getValueList().get(0).getV();
+    }
+
+
 }

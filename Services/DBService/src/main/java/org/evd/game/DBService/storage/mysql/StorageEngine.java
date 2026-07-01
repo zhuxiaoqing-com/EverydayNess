@@ -1,8 +1,13 @@
 package org.evd.game.DBService.storage.mysql;
 
 
+import org.evd.game.DBService.entity.DBCache;
+import org.evd.game.DBService.entity.TRecord;
+import org.evd.game.DBService.entity.TableCache;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
+
+import java.util.List;
 
 /**
  * insert
@@ -32,4 +37,14 @@ public interface StorageEngine {
     void initTable(DBReq _dbReq);
 
     void close();
+
+
+    List<TRecord> createTRecord(DBReq _dbReq);
+
+    String parseTableName(DBReq _dbReq);
+
+    List<DBReq> buildSaveDBReq(TableCache tableCache);
+
+    public DBRsp cache(DBReq dbReq, DBCache dbCache);
+
 }

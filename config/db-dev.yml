@@ -23,5 +23,5 @@ db:
     batchPerCount: 500
     costMsWarn: 100
     batchCostMsWarn: 30000
-    writeBackFlushIntervalMs: 1000
-    writeBackCloseRetryIntervalMs: 1000
+    enableMemoryCache: true
+    cacheFlushMs: 300000

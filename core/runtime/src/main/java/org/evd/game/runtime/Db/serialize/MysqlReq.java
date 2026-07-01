@@ -4,6 +4,7 @@ import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,7 +21,7 @@ public class MysqlReq implements ISerializable {
     @SerializeField
     private MysqlTableMeta tableMeta;
     @SerializeField
-    private List<DbTableField> tablFieldList;
+    private List<DbTableField> tablFieldList = new ArrayList<>();
 
 
     public DbTableField getSingleTableField() {
@@ -32,7 +33,7 @@ public class MysqlReq implements ISerializable {
     }
 
     public Object getTableKey(DbTableField tableField) {
-        return tableField.getValueList().get(0).getV();
+        return tableField.getTableKey();
     }
 
 
