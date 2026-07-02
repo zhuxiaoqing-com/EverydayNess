@@ -4,6 +4,7 @@ import org.evd.game.runtime.CoroutineLockManager;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.ActorMessage;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 
@@ -19,7 +20,7 @@ public final class OrderedMailBoxHandler {
     public void dispatch(MailBoxBean mailBox, ActorMessage message) {
         service.continuationRuntime().createAndEnterQueue(
                 () -> handle(mailBox, message),
-                message.getActorId(),Task.Reason.ORDER_RPC, new Task.RpcDebugInfo(message.getMethodKey()));
+                message.getActorId(),Task.Reason.ORDER_RPC, new ContinuationDebugInfo.RpcDebugInfo(message.getMethodKey()));
     }
 
     private void handle(MailBoxBean mailBox, ActorMessage message) {

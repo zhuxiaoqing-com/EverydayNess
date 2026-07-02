@@ -1,14 +1,10 @@
 package org.evd.game.runtime;
 
 import org.evd.game.runtime.continuation.Task;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.support.CoroutineLockTimeoutException;
 
-import java.util.ArrayDeque;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 
 public final class CoroutineLockManager {
@@ -94,7 +90,7 @@ public final class CoroutineLockManager {
                     key,
                     timeoutWaitId,
                     timeoutMillis));
-        });
+        }, new ContinuationDebugInfo.LockWaitDebugInfo(type, key, timeoutMillis));
         addWaiter(type, key, continuation, waitId);
         continuation.waitResult();
     }
@@ -200,5 +196,35 @@ public final class CoroutineLockManager {
         queue.owner = null;
         queues.remove(lockKey);
         return null;
+    }
+
+    public String buildDebugDump() {
+        Map<LockKey, LockQueue> queueSnapshot;
+        try {
+            queueSnapshot = new HashMap<>(queues);
+        } catch (RuntimeException e) {
+            return CoroutineLockDebugFormatter.buildDebugDump(
+                    CoroutineLockDebugFormatter.snapshot(List.of(), e));
+        }
+        List<Map.Entry<LockKey, LockQueue>> entries = new ArrayList<>(queueSnapshot.entrySet());
+        entries.sort(Comparator
+                .comparingInt((Map.Entry<LockKey, LockQueue> left) -> left.getKey().type)
+                .thenComparing(left -> String.valueOf(left.getKey().key)));
+        List<CoroutineLockDebugFormatter.LockSnapshot> locks = new ArrayList<>(entries.size());
+        for (Map.Entry<LockKey, LockQueue> entry : entries) {
+            LockKey lockKey = entry.getKey();
+            LockQueue lockQueue = entry.getValue();
+            List<Task.ContinuationWrapper> waitersSnapshot = new ArrayList<>(lockQueue.waiters.size());
+            for (WaitingContinuation waiter : lockQueue.waiters) {
+                waitersSnapshot.add(waiter.continuation);
+            }
+            locks.add(CoroutineLockDebugFormatter.lockSnapshot(
+                    lockKey.type,
+                    lockKey.key,
+                    lockQueue.owner,
+                    waitersSnapshot));
+        }
+        return CoroutineLockDebugFormatter.buildDebugDump(
+                CoroutineLockDebugFormatter.snapshot(locks, null));
     }
 }

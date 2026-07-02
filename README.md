@@ -1,4 +1,6 @@
 # Overview
+启动参数： --add-exports java.base/jdk.internal.vm=ALL-UNNAMED -Dlog4j2.configurationFile=./config/log4j2.xml 
+-Dlog4j2.shutdownHookEnabled=false 这个参数是 log4j2里没配置 <Configuration status="WARN" shutdownHook="disable" > 就用这个参数;
 
 EverydayNess是一个为基于jdk21的分布式、Actor模型、协程游戏服框架。具有以下特点
 * 分布式：可支持复杂多节点游戏类型。封装rpc且自动生成rpc代理，简化开发。

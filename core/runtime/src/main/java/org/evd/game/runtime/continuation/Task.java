@@ -10,29 +10,19 @@ import org.evd.game.runtime.support.function.Function1;
 import java.io.Closeable;
 
 public class Task {
-    public static abstract class DebugInfo {
-        @Override
-        public abstract String toString();
-    }
-
-    public static final class RpcDebugInfo extends DebugInfo {
-        private final int rpcMethodKey;
-
-        public RpcDebugInfo(int rpcMethodKey) {
-            this.rpcMethodKey = rpcMethodKey;
-        }
-
-        @Override
-        public String toString() {
-            return "rpcMethodKey=" + rpcMethodKey;
-        }
-    }
-
     public enum Reason{
         RPC,
         NORMAL,
         UNLOCK,
         TIMER, ORDER_RPC;
+    }
+
+    public enum DebugState {
+        NEW,
+        READY,
+        RUNNING,
+        WAITING,
+        COMPLETED
     }
 
     /**
@@ -56,9 +46,15 @@ public class Task {
         /** 当前协程所属的 actor */
         private ActorId actorId;
         /** 调试信息 */
-        private DebugInfo debugInfo;
+        private ContinuationDebugInfo.DebugInfo debugInfo;
+        /** 当前等待调试信息 */
+        private ContinuationDebugInfo.DebugInfo waitDebugInfo;
         /** 最近一次入队列理由 */
         private Reason queueReason;
+        /** 调试状态 */
+        private DebugState debugState = DebugState.NEW;
+        /** 当前正在运行该协程的线程 */
+        private Thread runningThread;
 
         public ContinuationWrapper(Service service) {
             this.service = service;
@@ -79,15 +75,39 @@ public class Task {
             this.conId = conId;
             this.actorId = actorId == null ? null : new ActorId(actorId);
             this.debugInfo = null;
+            this.waitDebugInfo = null;
             this.queueReason = null;
+            this.debugState = DebugState.NEW;
+            this.runningThread = null;
         }
 
-        public void bindDebugInfo(DebugInfo debugInfo) {
+        public void bindDebugInfo(ContinuationDebugInfo.DebugInfo debugInfo) {
             this.debugInfo = debugInfo;
         }
 
         public void markQueued(Reason queueReason) {
             this.queueReason = queueReason;
+            this.debugState = DebugState.READY;
+            this.waitDebugInfo = null;
+        }
+
+        public void markRunning() {
+            this.debugState = DebugState.RUNNING;
+            this.runningThread = Thread.currentThread();
+        }
+
+        public void markExecutionPaused() {
+            this.runningThread = null;
+        }
+
+        public void markWaiting(ContinuationDebugInfo.DebugInfo waitDebugInfo) {
+            this.debugState = DebugState.WAITING;
+            this.waitDebugInfo = waitDebugInfo;
+        }
+
+        public void markCompleted() {
+            this.debugState = DebugState.COMPLETED;
+            this.runningThread = null;
         }
 
         /**
@@ -126,7 +146,10 @@ public class Task {
             conId = 0;
             actorId = null;
             debugInfo = null;
+            waitDebugInfo = null;
             queueReason = null;
+            debugState = DebugState.NEW;
+            runningThread = null;
         }
 
         /**
@@ -148,8 +171,12 @@ public class Task {
             this.failure = failure;
         }
 
-        public DebugInfo getDebugInfo() {
+        public ContinuationDebugInfo.DebugInfo getDebugInfo() {
             return debugInfo;
+        }
+
+        public ContinuationDebugInfo.DebugInfo getWaitDebugInfo() {
+            return waitDebugInfo;
         }
 
         public Task.Reason getQueueReason() {
@@ -177,6 +204,25 @@ public class Task {
 
         public ActorId getActorId() {
             return actorId;
+        }
+
+        public DebugState getDebugState() {
+            return debugState;
+        }
+
+        /**
+         * 调试时根据当前协程状态，优先返回最有意义的栈：
+         * RUNNING 时抓 carrier thread 的实时线程栈，其余状态读取 continuation 挂起栈。
+         */
+        public StackTraceElement[] getDebugStackTrace() {
+            if (debugState == DebugState.RUNNING) {
+                Thread thread = runningThread;
+                if (thread == null) {
+                    return ContinuationDebugStackFilter.emptyStack();
+                }
+                return ContinuationDebugStackFilter.filter(thread.getStackTrace());
+            }
+            return ContinuationDebugStackFilter.filter(continuation.getStackTrace());
         }
     }
 
@@ -213,4 +259,5 @@ public class Task {
             }
         }
     }
+
 }

@@ -1,5 +1,6 @@
 package org.evd.game.runtime;
 
+import lombok.extern.java.Log;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
@@ -13,6 +14,7 @@ public abstract class TickCase {
         New,
         Running,
         PendingKill,
+        FinishKill,
         Closed
     }
 
@@ -27,8 +29,6 @@ public abstract class TickCase {
     /** 调度器 */
     private ScheduledExecutor scheduledExecutor;
     private final long tickInterval;
-
-
     public TickCase(String name, long tickInterval){
         this.id = name;
         this.tickInterval = Math.max(TICK_INTERVAL, tickInterval);
@@ -52,7 +52,7 @@ public abstract class TickCase {
         // 统计时间
         frame.tick_t(timeFinish, timeFrame);
 
-        if (status == CaseStatus.Running){
+        if (status == CaseStatus.Running || status == CaseStatus.PendingKill) {
             // 计时心跳，心跳间隔时间动态变化
             long pulseLeftTime = tickInterval - timeFrame;
             if (pulseLeftTime <= 0)
@@ -60,23 +60,48 @@ public abstract class TickCase {
             else
                 scheduledExecutor.schedule(tickTask, pulseLeftTime, TimeUnit.MILLISECONDS);
 
-        // service被停止
-        }else if(status == CaseStatus.PendingKill){
+            // service被停止
+        } else if (status == CaseStatus.FinishKill) {
             status = CaseStatus.Closed;
             onClose();
         }
     }
 
-    protected void stop(){
+    public void stop() {
+        LogCore.core.info("stop service start !!!class {} ", getClass().getSimpleName());
         status = CaseStatus.PendingKill;
-        onStop();
+        long currTime = System.currentTimeMillis();
+        try {
+            onStop();
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            LogCore.core.error("stop service error!!! costMill {} class {} ", endTime - currTime, getClass().getSimpleName(), e);
+        } finally {
+            status = CaseStatus.FinishKill;
+        }
+        long endTime = System.currentTimeMillis();
+        LogCore.core.info("stop service end costMill {} class {} ", endTime - currTime, getClass().getSimpleName());
     }
 
-    private void onStop() {
+    /**
+     * 关服逻辑要写这里，等这个方法结束就结束，协程运行
+     */
+    protected void onStop() {
     }
 
     protected void onClose() {
     }
+
+    /**
+     * 是否是结束状态
+     */
+    protected boolean isStopping() {
+        return switch (status) {
+            case PendingKill, FinishKill, Closed -> true;
+            default -> false;
+        };
+    }
+
 
     public final void start(){
         // 不能重复启动

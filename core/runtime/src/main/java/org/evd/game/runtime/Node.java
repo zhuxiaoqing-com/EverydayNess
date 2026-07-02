@@ -489,6 +489,9 @@ public class Node extends TickCase{
         return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
     }
 
+    public ConcurrentHashMap<Object, Service> getServices() {
+        return services;
+    }
 }
 
 

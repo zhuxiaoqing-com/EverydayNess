@@ -3,6 +3,7 @@ package org.evd.game.runtime;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallBase;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.ActorRpcCallTimeoutException;
@@ -32,9 +33,12 @@ public final class MessageSender {
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         ActorId targetActorId = actorId == null ? null : new ActorId(actorId);
         ActorAddress targetActorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
-        long waitId = continuationRuntime.registerWait(timeoutMillis, service.getWaitBaseTimeInternal(),
+        long waitId = continuationRuntime.registerWait(
+                timeoutMillis,
+                service.getWaitBaseTimeInternal(),
                 (ctx, timeoutWaitId) -> ctx.setFailure(
-                        new ActorRpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, methodKey, targetActorId, targetActorAddress)));
+                        new ActorRpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, methodKey, targetActorId, targetActorAddress)),
+                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(targetActorId, targetActorAddress, methodKey, timeoutMillis));
 
         CallBase message = CallFactory.buildActorRpc(service, actorAddress, actorId, methodKey, params, true, waitId);
         if (!service.sendOutboundCall(message)) {

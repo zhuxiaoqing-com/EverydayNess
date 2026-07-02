@@ -1,6 +1,8 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
+import org.apache.logging.log4j.CloseableThreadContext;
+import org.apache.logging.log4j.ThreadContext;
 import org.evd.game.annotation.ServiceName;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -12,6 +14,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
@@ -230,25 +233,28 @@ public class Service extends TickCase {
     protected void pulse() {
         // service放到threadLocal，以便于逻辑中从当前上线文中获取
         threadLocal.set(this);
+        ThreadContext.put("service", getId());
+        try {
+            pulseAffirm_st();
+            drainQueuedContinuations_st("afterAffirm");
 
-        pulseAffirm_st();
-        drainQueuedContinuations_st("afterAffirm");
+            pulsePostedTasks_st();
+            pulseCalls_st();
+            drainQueuedContinuations_st("afterCalls");
 
-        pulsePostedTasks_st();
-        pulseCalls_st();
-        drainQueuedContinuations_st("afterCalls");
+            tick_st();
 
-        tick_st();
+            pulseTask_st();
+            drainQueuedContinuations_st("afterTimers");
+            pulseEntity_st();
 
-        pulseTask_st();
-        drainQueuedContinuations_st("afterTimers");
-        pulseEntity_st();
-
-        //刷新call发送缓冲区
-        flushCallFrameBuffers_st();
-
-        // 逻辑结束后移除，因为下次tick会分配其他线程
-        threadLocal.remove();
+            //刷新call发送缓冲区
+            flushCallFrameBuffers_st();
+        } finally {
+            // 逻辑结束后移除，因为下次tick会分配其他线程
+            threadLocal.remove();
+            ThreadContext.remove("service");
+        }
     }
 
     /**
@@ -512,7 +518,10 @@ public class Service extends TickCase {
             return;
         }
         Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
-        registerWait(delayMillis, (continuation, waitId) -> continuation.setResult(null));
+        registerWait(
+                delayMillis,
+                (continuation, waitId) -> continuation.setResult(null),
+                new ContinuationDebugInfo.SleepDebugInfo(delayMillis));
         thisContinuation.waitResult();
     }
 
@@ -526,6 +535,12 @@ public class Service extends TickCase {
 
     long registerWait(long timeoutMillis, ContinuationRuntime.WaitTimeoutHandler timeoutHandler) {
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
+    }
+
+    long registerWait(long timeoutMillis,
+                      ContinuationRuntime.WaitTimeoutHandler timeoutHandler,
+                      ContinuationDebugInfo.DebugInfo waitDebugInfo) {
+        return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler, waitDebugInfo);
     }
 
     Task.ContinuationWrapper takeWaitContinuation(long waitId) {
@@ -558,9 +573,11 @@ public class Service extends TickCase {
 
     protected final <T> T awaitCompletionStage(CompletionStage<T> stage, long timeoutMillis) {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
-        long waitId = registerWait(timeoutMillis, (ctx, timeoutWaitId) ->
-                ctx.setFailure(new SysException("async wait timeout: service={}, waitId={}, timeoutMillis={}",
-                        id, timeoutWaitId, timeoutMillis)));
+        long waitId = registerWait(
+                timeoutMillis,
+                (ctx, timeoutWaitId) -> ctx.setFailure(new SysException("async wait timeout: service={}, waitId={}, timeoutMillis={}",
+                        id, timeoutWaitId, timeoutMillis)),
+                new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));
         stage.whenComplete((result, throwable) -> post(() -> {
             Task.ContinuationWrapper waitContinuation = takeWaitContinuation(waitId);
             if (waitContinuation == null) {
@@ -591,13 +608,7 @@ public class Service extends TickCase {
         return current;
     }
 
-    public final void awaitCoroutineLock(int type, Object key) {
-        coroutineLockManager.await(type, key);
-    }
 
-    public final void awaitCoroutineLock(int type, Object key, int timeoutMillis) {
-        coroutineLockManager.await(type, key, timeoutMillis);
-    }
 
     protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key) {
         return awaitCoroutineLockScope(type, key, CoroutineLockManager.DEFAULT_TIMEOUT_MILLIS);
@@ -607,7 +618,7 @@ public class Service extends TickCase {
         if (key == null) {
             return new ContinuationLockScope(coroutineLockManager, null);
         }
-        awaitCoroutineLock(type, key, timeoutMillis);
+        coroutineLockManager.await(type, key, timeoutMillis);
         return new ContinuationLockScope(coroutineLockManager, currentContinuation());
     }
 
@@ -621,6 +632,36 @@ public class Service extends TickCase {
 
     protected final boolean removeTimer(long timerId) {
         return timerScheduler.cancel(timerId);
+    }
+
+    /**
+     * 调试用：打印当前 service 内部所有协程状态、等待点和锁状态。
+     */
+    public final String buildCoroutineDebugDump(String reason) {
+        StringBuilder sb = new StringBuilder(8192);
+        sb.append("协程调试快照: service=").append(id)
+                .append(", class=").append(getClass().getSimpleName())
+                .append(", status=").append(status)
+                .append(", schedule=").append(scheduledName);
+        if (reason != null && !reason.isBlank()) {
+            sb.append(", reason=").append(reason);
+        }
+        sb.append('\n');
+        sb.append(continuationRuntime.buildDebugDump());
+        sb.append(coroutineLockManager.buildDebugDump());
+        return sb.toString();
+    }
+
+    public final String buildCoroutineDebugDump() {
+        return buildCoroutineDebugDump("manual");
+    }
+
+    public final void logCoroutineDebugDump(String reason) {
+        LogCore.core.error(buildCoroutineDebugDump(reason));
+    }
+
+    public final void logCoroutineDebugDump() {
+        logCoroutineDebugDump("manual");
     }
 
     protected void registerActor(ActorId actorId, MailBoxType executionMode) {
@@ -649,11 +690,16 @@ public class Service extends TickCase {
     }
 
     @Override
-    public void onClose() {
-        messageLocationSender.close();
+    protected void onStop() {
+    }
 
+    @Override
+    public void onClose() {
         node.remove(this);
 
+        if (messageLocationSender != null) {
+            messageLocationSender.close();
+        }
         callTransport.close();
     }
 
@@ -694,5 +740,14 @@ public class Service extends TickCase {
         if (mdb != null) {
             mdb.disconnectService(serviceList);
         }
+    }
+
+    @Override
+    public String toString() {
+        return "Service{" +
+                "serviceInfo=" + serviceInfo +
+                ", id='" + id + '\'' +
+                ", status=" + status +
+                '}';
     }
 }

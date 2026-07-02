@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import org.evd.game.runtime.call.*;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.LogCore;
@@ -19,7 +20,7 @@ final class RpcInboundDispatcher {
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper context;
         if (callBase instanceof Call call) {
-            service.continuationRuntime().createAndEnterQueue(() -> dispatch(call), null, Task.Reason.RPC, new Task.RpcDebugInfo(call.methodKey));
+            service.continuationRuntime().createAndEnterQueue(() -> dispatch(call), null, Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(call.methodKey));
             return;
         } else if (callBase instanceof ActorMessage actorMessage) {
             service.getProcessInnerSender().dispatch(actorMessage);

@@ -1,11 +1,14 @@
 package org.evd.game.LobbyService;
 
-import org.evd.game.LobbyService.login.LobbyLoginActor;
 import org.evd.game.LobbyService.routing.LobbyLoadBalancerActor;
 import org.evd.game.LobbyService.session.LobbySessionRepository;
+import org.evd.game.annotation.ServiceType;
+import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.TickTimer;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.continuation.ContinuationLockScope;
 
 public class LobbyService extends Service {
     private final LobbySessionRepository sessionRepository;
@@ -23,15 +26,35 @@ public class LobbyService extends Service {
         return getActor(LobbyLoadBalancerActor.class);
     }
 
-    public LobbyLoginActor loginActor() {
-        return getActor(LobbyLoginActor.class);
+
+    @Override
+    protected void init_t() {
+        super.init_t();
+
     }
 
-    public LobbyRoleActor roleActor() {
-        return getActor(LobbyRoleActor.class);
-    }
+    TickTimer tickTimer = new TickTimer(5000);
+    @Override
+    public void tick() {
+        super.tick();
+        if (!tickTimer.isPeriod(getTimeCurrent())) {
+            return;
+        }
 
-    public LobbyOfflineActor offlineActor() {
-        return getActor(LobbyOfflineActor.class);
+        launchCoroutine(() -> {
+            int onlineCount = PlayerServiceProxy.inst().getOnlineCount(node.getAnyCallPointByType(ServiceType.PLAYER));
+        });
+
+        launchCoroutine(() -> {
+            System.out.println("---");
+        });
+        launchCoroutine(() -> {
+            ContinuationLockScope continuationLockScope = awaitCoroutineLockScope(1, new Object());
+            ContinuationLockScope a = awaitCoroutineLockScope(1, new Object());
+        });
+
+        launchCoroutine(() -> {
+                logCoroutineDebugDump("shutdown timeout");
+        });
     }
 }

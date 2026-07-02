@@ -1,7 +1,9 @@
 package org.evd.BootStrap;
 
+import lombok.extern.slf4j.Slf4j;
 import org.evd.game.common.ClassFinder;
 import org.evd.game.common.GlobalConfig;
+import org.evd.game.runtime.TimeUtils;
 import org.evd.game.runtime.config.NodeConfig;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.ScheduleInfo;
@@ -21,6 +23,7 @@ import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.List;
 
+@Slf4j
 public class Main {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void main(String[] args) throws Exception {
@@ -115,6 +118,8 @@ public class Main {
 
         // 系统关闭时进行清理
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            long currTime = System.currentTimeMillis();
+            LogCore.core.info("ShutdownHook start!!!  {} ", TimeUtils.DateTimeUtils.getDateTimeOfTimestamp(currTime));
             try {
                 for (TwoTuple<Integer, Method> ender : enders){
                     try {
@@ -123,13 +128,48 @@ public class Main {
                         throw new RuntimeException(e);
                     }
                 }
+
+                for (Service service : node.getServices().values()) {
+                    service.logCoroutineDebugDump("shutdown timeout");
+                }
+
+
+                for (Service value : node.getServices().values()) {
+                    value.postCoroutine(value::stop);
+                }
+
+                while (!node.getServices().isEmpty()) {
+                    Thread.sleep(500);
+                    long mill = System.currentTimeMillis();
+                    int limitMill = 1000 * 20;
+                    if (mill - currTime > limitMill) {
+                        // 等待超过了秒进行警告
+                        LogCore.core.error("关服等待超过了 {} ，直接关闭！！！ service {} ", limitMill, node.getServices());
+                        for (Service service : node.getServices().values()) {
+                            service.logCoroutineDebugDump("shutdown timeout");
+                        }
+                        break;
+                    }
+                }
+                long endTime = System.currentTimeMillis();
+                LogCore.core.info("等待node结束消耗毫秒 {} {} ", endTime - currTime, TimeUtils.DateTimeUtils.getDateTimeOfTimestamp(endTime));
+                org.apache.logging.log4j.LogManager.shutdown();
                 // TODO 处理service.close函数
                 // TODO 处理各jar包的end函数
-                Thread.sleep(2000);
             } catch (InterruptedException e) {
                 LogCore.core.error("关闭钩子等待结束时被中断", e);
             }
         }));
 
+        LogCore.core.info("press ENTER to call System.exit() and run the shutdown routine.");
+        String osName = System.getProperty("os.name");
+        if (!osName.equalsIgnoreCase("linux")) {
+            try {
+                System.in.read();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            System.exit(0);
+        }
     }
 }

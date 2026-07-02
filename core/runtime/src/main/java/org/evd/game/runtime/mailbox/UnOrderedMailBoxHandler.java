@@ -2,6 +2,7 @@ package org.evd.game.runtime.mailbox;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.ActorMessage;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.Task;
 
 public final class UnOrderedMailBoxHandler {
@@ -16,7 +17,7 @@ public final class UnOrderedMailBoxHandler {
     public void dispatch(MailBoxBean mailBox, ActorMessage message) {
         service.continuationRuntime().createAndEnterQueue(
                 () -> handle(mailBox, message),
-                message.getActorId(),Task.Reason.RPC, new Task.RpcDebugInfo(message.getMethodKey()));
+                message.getActorId(),Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(message.getMethodKey()));
     }
 
     private void handle(MailBoxBean mailBox, ActorMessage message) {

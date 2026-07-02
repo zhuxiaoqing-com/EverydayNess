@@ -58,7 +58,6 @@ public class LoggerMysql implements LoggerEngine {
                     autoCreate, poolInitialSize, poolMaxSize);
         } catch (Exception e) {
             logger.error("LoggerMysql error", e);
-            Runtime.getRuntime().halt(0);
             throw new SysException(e);
         }
     }

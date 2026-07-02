@@ -2,6 +2,7 @@ package org.evd.game.runtime;
 
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -27,9 +28,12 @@ final class RpcOutboundGateway {
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         CallPoint targetCallPoint = new CallPoint(toCallPoint);
-        long waitId = continuationRuntime.registerWait(timeoutMillis, service.getWaitBaseTimeInternal(),
+        long waitId = continuationRuntime.registerWait(
+                timeoutMillis,
+                service.getWaitBaseTimeInternal(),
                 (ctx, timeoutWaitId) -> ctx.setFailure(
-                        new RpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, targetCallPoint, methodKey)));
+                        new RpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, targetCallPoint, methodKey)),
+                new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(targetCallPoint, methodKey, timeoutMillis));
 
         CallBase call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, waitId);
 

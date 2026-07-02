@@ -657,7 +657,7 @@ public class TimeUtils {
 	/**
 	 * 日期时间相关工具
 	 */
-	private static class DateTimeUtils {
+	public static class DateTimeUtils {
 
 		//******************************************* 基本方法部分 ********************************************//
 		/**
@@ -665,7 +665,7 @@ public class TimeUtils {
 		 * @param timestamp 时间戳
 		 * @return LocalDateTime
 		 */
-		private static LocalDateTime getDateTimeOfTimestamp(long timestamp) {
+		public static LocalDateTime getDateTimeOfTimestamp(long timestamp) {
 			return LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), TimeUtils.ZONE_ID);
 		}
 
@@ -674,7 +674,7 @@ public class TimeUtils {
 		 * @param timestamp 时间戳
 		 * @return LocalDate
 		 */
-		private static LocalDate getDateOfTimestamp(long timestamp) {
+		public static LocalDate getDateOfTimestamp(long timestamp) {
 			return getDateTimeOfTimestamp(timestamp).toLocalDate();
 		}
 
@@ -683,7 +683,7 @@ public class TimeUtils {
 		 * @param timestamp 时间戳
 		 * @return LocalTime
 		 */
-		private static LocalTime getTimeOfTimestamp(long timestamp) {
+		public static LocalTime getTimeOfTimestamp(long timestamp) {
 			return getDateTimeOfTimestamp(timestamp).toLocalTime();
 		}
 
@@ -692,7 +692,7 @@ public class TimeUtils {
 		 * @param dateTime 日期时间
 		 * @return 时间戳
 		 */
-		private static long getTimestampOfDateTime(LocalDateTime dateTime) {
+		public static long getTimestampOfDateTime(LocalDateTime dateTime) {
 			return dateTime.atZone(TimeUtils.ZONE_ID).toInstant().toEpochMilli();
 		}
 
