@@ -1,9 +1,9 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
-import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.ThreadContext;
 import org.evd.game.annotation.ServiceName;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.MailBoxType;
@@ -66,7 +66,12 @@ public class Service extends TickCase {
         return node;
     }
 
-    protected ServiceInfo serviceInfo;
+    public ServiceInfo serviceInfo;
+
+    public ServiceType getServiceType() {
+        return serviceInfo.getServiceType();
+    }
+
     /**
      * 线程池名字
      */
@@ -193,12 +198,25 @@ public class Service extends TickCase {
 
 
         if (supportLocation()) this.messageLocationSender = new MessageLocationSender(this);
-        if (supportMdb()) this.mdb = new Mdb();
     }
 
     @Override
-    protected void init_t() {
+    protected void  init_t() {
         threadLocal.set(this);
+        // 修改状态
+        status = CaseStatus.Running;
+        // 先执行初始化
+        initVirtual_t();
+
+        threadLocal.remove();
+    }
+
+    /**
+     * init由协程执行，交给子类继承
+     */
+    @Override
+    public final void _init() {
+        super._init();
 
         // 加入到services
         node.attachToNode(this);
@@ -209,24 +227,25 @@ public class Service extends TickCase {
                     messageLocationSender::cleanupIdle);
         }
 
-        if (mdb != null) {
+        if (supportMdb()) {
+            this.mdb = new Mdb();
             postCoroutine(() -> mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE), this));
         }
 
-        // 修改状态
-        status = CaseStatus.Running;
-        // 先执行初始化
-        initVirtual_t();
-
-        threadLocal.remove();
+        init();
     }
+
+    public void init(){
+
+    }
+
 
     /**
      * init方法交给协程执行
      * 因为init中可能存在异步操作，异步可能触发协程yield，导致线程yield
      */
     private void initVirtual_t() {
-        continuationRuntime.createAndRun(new Task.TaskParam0(this::init), null);
+        continuationRuntime.createAndRun(new Task.TaskParam0(this::_init), null);
     }
 
     @Override

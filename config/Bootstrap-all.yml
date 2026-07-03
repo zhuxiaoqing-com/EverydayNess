@@ -7,6 +7,8 @@ nodes:
       - name: logic  #线程池名
         num: 10
         services:
+        - serviceType: ADMIN
+          name: admin
         - serviceType: CONN
           name: conn
           publicAddr: 0.0.0.0:18080

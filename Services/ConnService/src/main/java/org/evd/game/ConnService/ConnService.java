@@ -40,6 +40,7 @@ public class ConnService extends Service {
 
     @Override
     public void init() {
+        super.init();
         LogCore.core.info("ConnService Init");
         clientTransport.start();
         newRepeatedTimer(HEARTBEAT_SCAN_INTERVAL_MILLIS, false, this::scanHeartbeatTimeouts);

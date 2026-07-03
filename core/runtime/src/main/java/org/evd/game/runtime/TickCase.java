@@ -1,6 +1,5 @@
 package org.evd.game.runtime;
 
-import lombok.extern.java.Log;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
@@ -19,7 +18,12 @@ public abstract class TickCase {
     }
 
     /** 服务状态 */
-    public volatile CaseStatus status = CaseStatus.New;
+    protected volatile CaseStatus status = CaseStatus.New;
+
+    public CaseStatus getStatus() {
+        return status;
+    }
+
     protected final String id;
     protected long timeCurrent;
     /** tick任务，因为tick要在协程中执行，所有封装为task */
@@ -131,7 +135,7 @@ public abstract class TickCase {
     /**
      * init由协程执行，交给子类继承
      */
-    public void init(){
+    public void _init(){
 
     }
 

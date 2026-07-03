@@ -1,4 +1,4 @@
-package org.evd.game.StageService;
+package org.evd.game.SdkService;
 
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.annotation.Module;
@@ -8,10 +8,11 @@ import org.evd.game.runtime.serialize.SerializerRegisterBootstrap;
 public class StartUp {
 
     @Module.OnStart(priority = 0)
-    public static void Start(Node node){
+    public static void start(Node node) {
         SerializerRegisterBootstrap.registerIfPresent(StartUp.class);
     }
+
     @Module.OnEnd(priority = 1000)
-    public static void End(Node node){
+    public static void end(Node node) {
     }
 }

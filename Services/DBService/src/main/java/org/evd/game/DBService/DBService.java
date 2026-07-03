@@ -33,6 +33,7 @@ public class DBService extends Service {
 
     @Override
     public void init() {
+        super.init();
         DbConfig dbConfig = GlobalConfig.requireDbConfig();
         if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
             dbCache = new DBCache(this);

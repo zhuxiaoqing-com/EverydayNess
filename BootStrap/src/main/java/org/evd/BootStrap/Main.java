@@ -1,6 +1,7 @@
 package org.evd.BootStrap;
 
 import lombok.extern.slf4j.Slf4j;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.ClassFinder;
 import org.evd.game.common.GlobalConfig;
 import org.evd.game.runtime.TimeUtils;
@@ -51,6 +52,34 @@ public class Main {
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
             node.createExecutor(scheduleInfo.getName(), scheduleInfo.getNum());
         }
+
+        List<TwoTuple<Integer, Method>> starters = new ArrayList<>();
+        List<TwoTuple<Integer, Method>> enders = new ArrayList<>();
+        List<Class<?>> sources = ClassFinder.getAllClass("org.evd.game");
+        for (Class<?> clazz : sources){
+            if (clazz.isAnnotationPresent(Module.class)){
+                for (Method method : clazz.getDeclaredMethods()){
+                    if (Modifier.isStatic(method.getModifiers())){
+                        Module.OnStart starter = method.getAnnotation(Module.OnStart.class);
+                        Module.OnEnd ender = method.getAnnotation(Module.OnEnd.class);
+                        if (starter != null){
+                            starters.add(TupleUtils.tuple(starter.priority(), method));
+                        }
+                        if (ender != null){
+                            enders.add(TupleUtils.tuple(ender.priority(), method));
+                        }
+                    }
+
+                }
+            }
+        }
+        // 按starter的优先级排序
+        starters.sort(Comparator.comparingInt(o -> o.first));
+        enders.sort(Comparator.comparingInt(o -> o.first));
+        for (TwoTuple<Integer, Method> starter : starters){
+            starter.second.invoke(null, node);
+        }
+
         // 节点启动
         node.start();
         // addRemoteNode
@@ -89,33 +118,6 @@ public class Main {
             }
         }
 
-        List<TwoTuple<Integer, Method>> starters = new ArrayList<>();
-        List<TwoTuple<Integer, Method>> enders = new ArrayList<>();
-        List<Class<?>> sources = ClassFinder.getAllClass("org.evd.game");
-        for (Class<?> clazz : sources){
-            if (clazz.isAnnotationPresent(Module.class)){
-                for (Method method : clazz.getDeclaredMethods()){
-                    if (Modifier.isStatic(method.getModifiers())){
-                        Module.OnStart starter = method.getAnnotation(Module.OnStart.class);
-                        Module.OnEnd ender = method.getAnnotation(Module.OnEnd.class);
-                        if (starter != null){
-                            starters.add(TupleUtils.tuple(starter.priority(), method));
-                        }
-                        if (ender != null){
-                            enders.add(TupleUtils.tuple(ender.priority(), method));
-                        }
-                    }
-
-                }
-            }
-        }
-        // 按starter的优先级排序
-        starters.sort(Comparator.comparingInt(o -> o.first));
-        enders.sort(Comparator.comparingInt(o -> o.first));
-        for (TwoTuple<Integer, Method> starter : starters){
-            starter.second.invoke(null, node);
-        }
-
         // 系统关闭时进行清理
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             long currTime = System.currentTimeMillis();
@@ -129,16 +131,27 @@ public class Main {
                     }
                 }
 
-                for (Service service : node.getServices().values()) {
-                    service.logCoroutineDebugDump("shutdown timeout");
+                List<Service> list = node.getServices().values().stream()
+                        .sorted(Comparator.comparingInt(a -> ServiceType.shutdownOrderId(a.getServiceType())))
+                        .toList();
+
+                int limitMill = 1000 * 20;
+                for (Service service : list) {
+                    service.postCoroutine(service::stop);
+                    long serviceStopStartMill = System.currentTimeMillis();
+                    while (node.getServices().containsKey(service.getId())) {
+                        Thread.sleep(50);
+                        if (System.currentTimeMillis() - serviceStopStartMill > limitMill) {
+                            // 等待超过了秒进行警告
+                            LogCore.core.error("关服等待超过了 {} ，直接跳过！！！ service {} ", limitMill, service.getId());
+                            service.logCoroutineDebugDump("shutdown timeout");
+                            break;
+                        }
+                    }
+                    LogCore.core.warn("关服 service {} costMill {} ", service.getId(), System.currentTimeMillis() - serviceStopStartMill);
                 }
 
-
-                for (Service value : node.getServices().values()) {
-                    value.postCoroutine(value::stop);
-                }
-
-                while (!node.getServices().isEmpty()) {
+                /*while (!node.getServices().isEmpty()) {
                     Thread.sleep(500);
                     long mill = System.currentTimeMillis();
                     int limitMill = 1000 * 20;
@@ -150,7 +163,7 @@ public class Main {
                         }
                         break;
                     }
-                }
+                }*/
                 long endTime = System.currentTimeMillis();
                 LogCore.core.info("等待node结束消耗毫秒 {} {} ", endTime - currTime, TimeUtils.DateTimeUtils.getDateTimeOfTimestamp(endTime));
                 org.apache.logging.log4j.LogManager.shutdown();

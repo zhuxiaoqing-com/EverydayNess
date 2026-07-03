@@ -41,7 +41,7 @@ public class LobbyService extends Service {
             return;
         }
 
-        launchCoroutine(() -> {
+     /*   launchCoroutine(() -> {
             int onlineCount = PlayerServiceProxy.inst().getOnlineCount(node.getAnyCallPointByType(ServiceType.PLAYER));
         });
 
@@ -55,6 +55,6 @@ public class LobbyService extends Service {
 
         launchCoroutine(() -> {
                 logCoroutineDebugDump("shutdown timeout");
-        });
+        });*/
     }
 }

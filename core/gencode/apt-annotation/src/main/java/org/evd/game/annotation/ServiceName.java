@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 
 public final class ServiceName {
+    public static final String ADMIN_SERVICE = "AdminService";
     public static final String CONN_SERVICE = "ConnService";
     public static final String DB_SERVICE = "DBService";
     public static final String LOCATION_SERVICE = "LocationService";
@@ -14,6 +15,7 @@ public final class ServiceName {
     public static final String SDK_SERVICE = "SdkService";
 
     private static final String[] VALUES = {
+            ADMIN_SERVICE,
             CONN_SERVICE,
             DB_SERVICE,
             LOCATION_SERVICE,

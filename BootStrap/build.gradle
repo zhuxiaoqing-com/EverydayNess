@@ -19,6 +19,7 @@ dependencies {
 
     implementation 'org.yaml:snakeyaml:2.0'
 
+    implementation project(":core:gencode:apt-annotation")
     implementation project(':core:runtime')
     implementation project(':common')
     serviceProjectPaths.each { serviceProjectPath ->

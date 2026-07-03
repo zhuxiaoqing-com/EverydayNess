@@ -11,19 +11,44 @@ import java.util.stream.Collectors;
 @Slf4j
 public enum ServiceType {
     CONN(1, ServiceName.CONN_SERVICE),
-    DB(2, ServiceName.DB_SERVICE),
-    LOC(3, ServiceName.LOCATION_SERVICE),
-    STAGE(4, ServiceName.STAGE_SERVICE),
-    PLAYER(5, ServiceName.PLAYER_SERVICE),
-    GSTAGE(6, ServiceName.STAGE_SERVICE),
-    SCENE_MANAGER(7, ServiceName.SCENE_MANAGER_SERVICE),
-    GSCENE_MANAGER(8, ServiceName.SCENE_MANAGER_SERVICE),
-    LOBBY(9, ServiceName.LOBBY_SERVICE),
-    SDK(11, ServiceName.SDK_SERVICE),
+    SDK(2, ServiceName.SDK_SERVICE),
+    STAGE(3, ServiceName.STAGE_SERVICE),
+    SCENE_MANAGER(4, ServiceName.SCENE_MANAGER_SERVICE),
+    LOBBY(5, ServiceName.LOBBY_SERVICE),
+    PLAYER(6, ServiceName.PLAYER_SERVICE),
+    DB(7, ServiceName.DB_SERVICE),
+    LOC(8, ServiceName.LOCATION_SERVICE),
+    ADMIN(9, ServiceName.ADMIN_SERVICE),
+    GLOC(10, ServiceName.LOCATION_SERVICE),
+    GSTAGE(11, ServiceName.STAGE_SERVICE),
+    GSCENE_MANAGER(12, ServiceName.SCENE_MANAGER_SERVICE),
 
     ;
     int type;
     String className;
+
+    static ServiceType[] shutdownOrder = new ServiceType[] {
+            CONN,
+            SDK,
+            SCENE_MANAGER,
+            STAGE,
+            LOBBY,
+            PLAYER,
+            DB,
+            LOC,
+    };
+
+    public static ServiceType[] shutdownOrder() {
+        return shutdownOrder;
+    }
+    public static int shutdownOrderId(ServiceType serviceType) {
+        for (int i = 0; i < shutdownOrder.length; i++) {
+            if(shutdownOrder[i] == serviceType) {
+                return i;
+            }
+        }
+        return 9999;
+    }
 
 
     ServiceType(int type, String name) {
