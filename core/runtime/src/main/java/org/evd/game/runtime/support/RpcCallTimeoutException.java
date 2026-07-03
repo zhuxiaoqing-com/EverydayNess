@@ -10,7 +10,8 @@ public class RpcCallTimeoutException extends SysException {
     private final int methodKey;
 
     public RpcCallTimeoutException(String serviceId, long waitId, long timeoutMillis, CallPoint toCallPoint, int methodKey) {
-        super("rpc call timeout: service={}, waitId={}, timeoutMillis={}, toNode={}, toService={}, methodKey={}",
+        super(RpcErrorCodes.RPC_CALL_TIMEOUT,
+                "rpc call timeout: service={}, waitId={}, timeoutMillis={}, toNode={}, toService={}, methodKey={}",
                 serviceId,
                 waitId,
                 timeoutMillis,

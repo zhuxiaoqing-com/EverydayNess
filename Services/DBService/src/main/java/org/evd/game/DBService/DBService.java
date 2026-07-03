@@ -16,6 +16,7 @@ import org.evd.game.runtime.config.DbConfig;
 import org.evd.game.runtime.config.DbMysqlConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
+import org.evd.game.runtime.support.ServiceStoppingException;
 
 @RpcService(DBExecInterface.class)
 public class DBService extends Service {
@@ -57,11 +58,16 @@ public class DBService extends Service {
     }
 
     @Override
-    public void onClose() {
+    protected void onStop() {
+        super.onStop();
+
+        if (dbCache != null) {
+            dbCache.stop();
+        }
+
         if (storageEngine != null) {
             storageEngine.close();
         }
-        super.onClose();
     }
 
 
@@ -81,7 +87,9 @@ public class DBService extends Service {
 
     @Rpc
     public DBRsp dbExec(DBReq dbReq) {
-
+        if(isStopping()) {
+            throw new ServiceStoppingException("dbExec service is stopping");
+        }
 
         DBRsp dbRsp = new DBRsp();
         dbRsp.setSuccess(true);

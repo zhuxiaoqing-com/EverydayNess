@@ -3,20 +3,12 @@ package org.evd.game.runtime.support;
 import org.evd.game.runtime.actor.ActorId;
 
 public class RpcCallException extends SysException {
-    private final int errorCode;
-
     public RpcCallException(int errorCode, String message) {
-        super(message);
-        this.errorCode = errorCode;
+        super(errorCode, message);
     }
 
     public RpcCallException(int errorCode, Throwable cause, String message) {
-        super(cause, message);
-        this.errorCode = errorCode;
-    }
-
-    public int getErrorCode() {
-        return errorCode;
+        super(errorCode, cause, message);
     }
 
     public static RpcCallException actorNotFound(long actorId) {

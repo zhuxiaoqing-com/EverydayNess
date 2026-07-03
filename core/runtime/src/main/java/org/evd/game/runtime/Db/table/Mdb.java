@@ -253,7 +253,7 @@ public class Mdb {
         }
 
         for (TTable table : tableList) {
-            table.checkpoint();
+            table.checkpoint(false);
         }
 
         for (TTable table : tableList) {
@@ -288,7 +288,8 @@ public class Mdb {
             return;
         }
         closing = true;
-        logger.info("@@@@@@@@@@@@@@@@  mdb stop begin   @@@@@@@@@@@@@@@@");
+        long currTime = System.currentTimeMillis();
+        logger.info("@@@@@@@@@@@@@@@@  mdb stop begin   @@@@@@@@@@@@@@@@  {}", service.getId());
 
         for (TTable tables : tableList) {
             tables.close();
@@ -297,7 +298,8 @@ public class Mdb {
         class2TableMap.clear();
 
         running = false;
-        logger.info("@@@@@@@@@@@@@@@@  mdb stop end   @@@@@@@@@@@@@@@@");
+        long endTime = System.currentTimeMillis();
+        logger.info("@@@@@@@@@@@@@@@@  mdb stop end   @@@@@@@@@@@@@@@@  {}  costMill {}",service.getId(), endTime - currTime);
     }
 
 

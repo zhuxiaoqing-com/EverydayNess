@@ -47,11 +47,14 @@ public class DBCache {
         dbService.postCoroutine(this::tickCoroutine);
     }
 
+    public void stop() {
+        tickCoroutine();
+    }
 
     /**
      * 每个应该需要一个类似版本号的东西，保存之间将版本号获取过来，统一保存完毕后，检查下 符合的全部删除
      */
-    public void tickCoroutine() {
+    private void tickCoroutine() {
         // 时间到了 开始保存;
         syncSaveFlag = new TimeoutFlag(TimeUtils.MIN * 4);
         for (TableCache value : cache.values()) {

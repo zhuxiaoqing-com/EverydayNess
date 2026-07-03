@@ -114,13 +114,8 @@ final class RpcInboundDispatcher {
 
     private void fillRpcFailure(CallResult callReturn, Throwable e) {
         callReturn.success = false;
-        if (e instanceof RpcCallException rpcCallException) {
-            callReturn.errorCode = rpcCallException.getErrorCode();
-            callReturn.errorMessage = rpcCallException.getMessage();
-            return;
-        }
         if (e instanceof SysException sysException) {
-            callReturn.errorCode = RpcErrorCodes.UNKNOWN;
+            callReturn.errorCode = sysException.getErrorCode();
             callReturn.errorMessage = sysException.getMessage();
             return;
         }

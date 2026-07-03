@@ -68,6 +68,10 @@ public abstract class TickCase {
     }
 
     public void stop() {
+        if (isStopping()) {
+            LogCore.core.warn("already stop service  !!! class {} ", getClass().getSimpleName());
+            return;
+        }
         LogCore.core.info("stop service start !!!class {} ", getClass().getSimpleName());
         status = CaseStatus.PendingKill;
         long currTime = System.currentTimeMillis();

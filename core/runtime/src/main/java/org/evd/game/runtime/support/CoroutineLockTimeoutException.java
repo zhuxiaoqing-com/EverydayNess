@@ -8,7 +8,8 @@ public class CoroutineLockTimeoutException extends SysException {
     private final int timeoutMillis;
 
     public CoroutineLockTimeoutException(String serviceId, int lockType, Object lockKey, long waitId, int timeoutMillis) {
-        super("coroutine lock timeout: service={}, type={}, key={}, waitId={}, timeoutMillis={}",
+        super(RpcErrorCodes.COROUTINE_LOCK_TIMEOUT,
+                "coroutine lock timeout: service={}, type={}, key={}, waitId={}, timeoutMillis={}",
                 serviceId, lockType, lockKey, waitId, timeoutMillis);
         this.serviceId = serviceId;
         this.lockType = lockType;

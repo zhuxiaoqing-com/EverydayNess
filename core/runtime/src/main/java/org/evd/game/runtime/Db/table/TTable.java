@@ -115,9 +115,9 @@ public abstract class TTable<K, V extends DirtyObject> {
 
 
 
-    public void checkpoint() {
+    public void checkpoint(boolean close) {
         logger.info("checkpoint table Start table {} ", getName());
-        if (getMdb().isClosing()) {
+        if (!close && getMdb().isClosing()) {
             logger.info("checkpoint ignore because mdb is closing table {}", getName());
             return;
         }
@@ -345,7 +345,12 @@ public abstract class TTable<K, V extends DirtyObject> {
 
 
     public void close() {
-
+        long currTime = System.currentTimeMillis();
+        logger.info("{}  table stop begin {}  ", getName(), mdb.service.getId());
+        checkpoint(true);
+        cache.clear();
+        long endTime = System.currentTimeMillis();
+        logger.info("{}  mdb stop end {}  costMill {}", getName(), mdb.service.getId(), endTime - currTime);
     }
 
 

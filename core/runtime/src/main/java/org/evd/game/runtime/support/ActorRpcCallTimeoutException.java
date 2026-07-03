@@ -12,7 +12,8 @@ public class ActorRpcCallTimeoutException extends SysException {
     private final ActorAddress actorAddress;
 
     public ActorRpcCallTimeoutException(String serviceId, long waitId, long timeoutMillis, int methodKey, ActorId actorId, ActorAddress actorAddress) {
-        super("actor rpc call timeout: service={}, waitId={}, timeoutMillis={}, methodKey={}, actorId={}, toNode={}, toService={}, mailBoxEpoch={}",
+        super(RpcErrorCodes.ACTOR_RPC_CALL_TIMEOUT,
+                "actor rpc call timeout: service={}, waitId={}, timeoutMillis={}, methodKey={}, actorId={}, toNode={}, toService={}, mailBoxEpoch={}",
                 serviceId,
                 waitId,
                 timeoutMillis,

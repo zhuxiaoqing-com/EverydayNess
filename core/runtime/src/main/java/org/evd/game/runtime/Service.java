@@ -689,12 +689,23 @@ public class Service extends TickCase {
         return messageLocationSender;
     }
 
+    /**
+     * 关服逻辑要写这里，等这个方法结束就结束，协程运行
+     */
     @Override
     protected void onStop() {
+        super.onStop();
+
+        if (mdb != null && !mdb.isClosing()) {
+            mdb.close();
+            mdb = null;
+        }
+
     }
 
     @Override
     public void onClose() {
+        super.onClose();
         node.remove(this);
 
         if (messageLocationSender != null) {
