@@ -1,6 +1,8 @@
 package org.evd.game.runtime.config;
 
+import io.netty.util.internal.StringUtil;
 import org.evd.game.annotation.ServiceType;
+import org.evd.game.runtime.netty.AddressInfo;
 
 public class ServiceInfo {
     private ServiceType serviceType;
@@ -8,6 +10,7 @@ public class ServiceInfo {
     private int num = 1;
     private int interval = 5;
     private String publicAddr;
+    private AddressInfo addressInfo;
 
 
     public ServiceType getServiceType() {
@@ -53,6 +56,14 @@ public class ServiceInfo {
     public void setPublicAddr(String publicAddr) {
         this.publicAddr = publicAddr;
     }
+
+    public AddressInfo getAddressInfo() {
+        if(addressInfo == null && StringUtil.isNullOrEmpty(publicAddr)) {
+            addressInfo = new AddressInfo(publicAddr);
+        }
+        return addressInfo;
+    }
+
 
     @Override
     public String toString() {

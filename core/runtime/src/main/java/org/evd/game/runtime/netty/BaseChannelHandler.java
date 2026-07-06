@@ -9,6 +9,10 @@ import java.util.Objects;
 public abstract class BaseChannelHandler<T> extends SimpleChannelInboundHandler<T> {
     private ChannelManager channelManager;
 
+    public BaseChannelHandler(ChannelManager channelManager) {
+        this.channelManager = channelManager;
+    }
+
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         NetChannel session = new NetChannel(ctx.channel());

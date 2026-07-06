@@ -33,9 +33,8 @@ public class ConnService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
         this.clientCmdRouter = new ConnServiceClientCmdRouter(this);
         this.clientChannelManager = new ChannelManager();
-        this.clientTransport = new ConnServiceClientTransport(this, clientChannelManager, serviceInfo.getPublicAddr());
+        this.clientTransport = new ConnServiceClientTransport(this, clientChannelManager);
         this.heartbeatScanner = new ConnServiceHeartbeatScanner(this, clientChannelManager);
-        setPublicAddr(serviceInfo.getPublicAddr());
     }
 
     @Override
@@ -46,7 +45,7 @@ public class ConnService extends Service {
         newRepeatedTimer(HEARTBEAT_SCAN_INTERVAL_MILLIS, false, this::scanHeartbeatTimeouts);
     }
 
-    public void dispatchClientCmd(NetChannel session, int cmd, byte[] body) {
+    public void dispatchClientCmd(NetChannel session, int cmd, Chunk body) {
         if (!session.canProcessClientCmd(cmd)) {
             LogCore.core.warn("ConnService 拒绝非法阶段协议: service={}, sessionId={}, state={}, cmdId={}, userId={}, playerId={}",
                     id, session.getChannelId(), session.getSessionState(), cmd, session.getUserId(), session.getPlayerId());
@@ -127,22 +126,6 @@ public class ConnService extends Service {
 
     ClientSessionRef buildClientSessionRef(NetChannel session) {
         return clientTransport.buildClientSessionRef(session);
-    }
-
-    public void setPublicAddr(String publicAddr) {
-        clientTransport.setPublicAddr(publicAddr);
-    }
-
-    public void setClientBossThreads(int clientBossThreads) {
-        clientTransport.setClientBossThreads(clientBossThreads);
-    }
-
-    public void setClientWorkerThreads(int clientWorkerThreads) {
-        clientTransport.setClientWorkerThreads(clientWorkerThreads);
-    }
-
-    public void setClientMaxFrameLength(int clientMaxFrameLength) {
-        clientTransport.setClientMaxFrameLength(clientMaxFrameLength);
     }
 
     @Override

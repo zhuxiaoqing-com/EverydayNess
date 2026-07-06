@@ -29,7 +29,7 @@ public final class ClientCmdRouteTable {
         }
     }
 
-    public void forward(Service sender, ClientSessionRef session, int msgId, byte[] body) {
+    public void forward(Service sender, ClientSessionRef session, int msgId, Chunk body) {
         RouteEntry routeEntry = routes.get(msgId);
         if (routeEntry == null) {
             throw new IllegalStateException("未注册的客户端协议: msgId=" + msgId);
@@ -38,7 +38,7 @@ public final class ClientCmdRouteTable {
     }
 
     private record RouteEntry(String serviceClassName, ActorType actorType) {
-        private void forward(Service sender, ClientSessionRef session, int msgId, byte[] body) {
+        private void forward(Service sender, ClientSessionRef session, int msgId, Chunk body) {
 
             switch (actorType) {
                 case NONE -> {
@@ -47,11 +47,11 @@ public final class ClientCmdRouteTable {
                         throw new IllegalStateException("找不到客户端协议目标服务: msgId=" + msgId
                                 + ", service=" + serviceClassName);
                     }
-                    sender.sendClientCmd(callPoint, session, msgId, new Chunk(body));
+                    sender.sendClientCmd(callPoint, session, msgId, body);
                 }
                 case PLAYER,MAP_PLAYER ->
                         sender.getMessageLocationSender()
-                                .sendClientCmd(new ActorId(actorType, session.getPlayerId()), session, msgId, new Chunk(body));
+                                .sendClientCmd(new ActorId(actorType, session.getPlayerId()), session, msgId, body);
                 case MAP, GATE -> throw new IllegalStateException("不能有 "+actorType +  " 类型: msgId=" + msgId
                         + ", service=" + serviceClassName);
 

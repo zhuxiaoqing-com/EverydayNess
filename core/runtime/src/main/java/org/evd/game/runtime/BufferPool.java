@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class BufferPool {
 	/** 缓冲包2M */
-	private static final int BUFFER_SIZE = 2 * 1024 * 1024;
+	public static final int BUFFER_SIZE = 2 * 1024 * 1024;
 	/** 缓冲池保留最大数量 */
 	private static final int BUFFER_MAX_NUM = 20;
 	

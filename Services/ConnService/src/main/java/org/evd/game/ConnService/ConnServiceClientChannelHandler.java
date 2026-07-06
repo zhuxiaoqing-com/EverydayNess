@@ -2,24 +2,22 @@ package org.evd.game.ConnService;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
+import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.netty.ByteArrayChannelHandler;
-import org.evd.game.runtime.netty.BrokenType;
-import org.evd.game.runtime.netty.HisMessage;
-import org.evd.game.runtime.netty.NetChannel;
-import org.evd.game.runtime.netty.ServerAttributeKey;
+import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.support.LogCore;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.stream.Collectors;
 
 final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
     private final ConnServiceClientTransport transport;
 
-    ConnServiceClientChannelHandler(ConnServiceClientTransport transport) {
+    public ConnServiceClientChannelHandler(ChannelManager channelManager, ConnServiceClientTransport transport) {
+        super(channelManager);
         this.transport = transport;
     }
+
 
     @Override
     protected void onChannelActive(ChannelHandlerContext ctx) {
@@ -38,8 +36,8 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
         if (!checkMsgFlowRate(ctx, session, msgId)) {
             return;
         }
-        byte[] body = Arrays.copyOfRange(payload, Integer.BYTES, payload.length);
-        transport.onClientPacket(session, msgId, body);
+        //byte[] body = Arrays.copyOfRange(payload, Integer.BYTES, payload.length);
+        transport.onClientPacket(session, msgId, new Chunk(payload, Integer.BYTES, payload.length));
     }
 
     @Override

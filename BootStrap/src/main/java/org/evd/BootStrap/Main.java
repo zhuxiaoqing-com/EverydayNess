@@ -26,6 +26,45 @@ import java.util.List;
 
 @Slf4j
 public class Main {
+    private static void validateSingleServices(NodeConfig config) {
+        Map<ServiceType, Integer> serviceCountMap = new EnumMap<>(ServiceType.class);
+        Map<ServiceType, List<String>> serviceSourceMap = new EnumMap<>(ServiceType.class);
+        for (NodeInfo nodeInfo : config.getNodes()) {
+            if (nodeInfo.getSchedule() == null) {
+                continue;
+            }
+            for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
+                if (scheduleInfo.getServices() == null) {
+                    continue;
+                }
+                for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
+                    if (serviceInfo == null || serviceInfo.getServiceType() == null) {
+                        continue;
+                    }
+                    ServiceType serviceType = serviceInfo.getServiceType();
+                    if (!serviceType.isSingle()) {
+                        continue;
+                    }
+                    int instanceCount = Math.max(1, serviceInfo.getNum());
+                    serviceCountMap.merge(serviceType, instanceCount, Integer::sum);
+                    serviceSourceMap.computeIfAbsent(serviceType, key -> new ArrayList<>())
+                            .add(String.format("node=%s,schedule=%s,service=%s,num=%d",
+                                    nodeInfo.getName(),
+                                    scheduleInfo.getName(),
+                                    serviceInfo.getName(),
+                                    instanceCount));
+                }
+            }
+        }
+
+        for (Map.Entry<ServiceType, Integer> entry : serviceCountMap.entrySet()) {
+            if (entry.getValue() > 1) {
+                throw new SysException("single service type duplicated: {} total={} detail={}",
+                        entry.getKey(), entry.getValue(), serviceSourceMap.get(entry.getKey()));
+            }
+        }
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void main(String[] args) throws Exception {
 //        if (args.length < 2){
@@ -46,6 +85,7 @@ public class Main {
 
         GlobalConfig.init(bootStrapName);
         NodeConfig config = GlobalConfig.requireNodeConfig();
+        validateSingleServices(config);
 
         NodeInfo nodeInfo = GlobalConfig.requireNodeInfo(nodeId);
         Node node = new Node(nodeId, nodeInfo.getAddr());

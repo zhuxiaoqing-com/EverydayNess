@@ -68,6 +68,10 @@ public class Service extends TickCase {
 
     public ServiceInfo serviceInfo;
 
+    public ServiceInfo getServiceInfo() {
+        return serviceInfo;
+    }
+
     public ServiceType getServiceType() {
         return serviceInfo.getServiceType();
     }

@@ -1,13 +1,10 @@
 package org.evd.game.ConnService;
 
-import io.netty.channel.Channel;
+import io.netty.buffer.ByteBuf;
 import org.evd.game.runtime.Chunk;
-import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.netty.ChannelManager;
-import org.evd.game.runtime.netty.NetAcceptor;
-import org.evd.game.runtime.netty.NetAcceptorConfig;
-import org.evd.game.runtime.netty.NetChannel;
+import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.support.LogCore;
 
 import java.util.Arrays;
@@ -17,29 +14,17 @@ final class ConnServiceClientTransport {
     private final ChannelManager clientChannelManager;
 
     private volatile NetAcceptor clientAcceptor;
-    private String publicAddr;
-    private int clientBossThreads = 1;
-    private int clientWorkerThreads = 0;
-    private int clientMaxFrameLength = 8 * 1024 * 1024;
 
-    ConnServiceClientTransport(ConnService owner, ChannelManager clientChannelManager, String publicAddr) {
+    ConnServiceClientTransport(ConnService owner, ChannelManager clientChannelManager) {
         this.owner = owner;
         this.clientChannelManager = clientChannelManager;
-        this.publicAddr = publicAddr;
     }
 
     void start() {
-        if (publicAddr == null || publicAddr.isBlank()) {
-            LogCore.core.warn("ConnService 未配置 publicAddr，跳过 Netty 启动: service={}", owner.getId());
-            return;
-        }
-        int split = publicAddr.lastIndexOf(':');
-        String host = publicAddr.substring(0, split).trim();
-        int port = Integer.parseInt(publicAddr.substring(split + 1).trim());
-        clientAcceptor = new NetAcceptor(
-                new NetAcceptorConfig(host, port, clientBossThreads, clientWorkerThreads),
-                new ConnServiceClientChannelInitializer(this, clientChannelManager, clientMaxFrameLength));
-        LogCore.core.info("ConnService Netty 启动完成: service={}, publicAddr={}", owner.getId(), publicAddr);
+        AddressInfo addressInfo = owner.getServiceInfo().getAddressInfo();
+        clientAcceptor = new NetAcceptor(owner.getServiceInfo().getAddressInfo().getPort(),
+                new BaseChannelInitializer(new ConnServiceClientChannelHandler(clientChannelManager,this), true));
+        LogCore.core.info("ConnService Netty 启动完成: service={}, port={}", owner.getId(), addressInfo.getPort());
     }
 
     void shutdown() {
@@ -72,7 +57,7 @@ final class ConnServiceClientTransport {
         owner.post(() -> owner.onClientChannelActive(session));
     }
 
-    void onClientPacket(NetChannel session, int msgId, byte[] body) {
+    void onClientPacket(NetChannel session, int msgId, Chunk body) {
         owner.post(() -> owner.dispatchClientCmd(session, msgId, body));
     }
 
@@ -88,21 +73,6 @@ final class ConnServiceClientTransport {
         return owner.getId();
     }
 
-    void setPublicAddr(String publicAddr) {
-        this.publicAddr = publicAddr;
-    }
-
-    void setClientBossThreads(int clientBossThreads) {
-        this.clientBossThreads = clientBossThreads;
-    }
-
-    void setClientWorkerThreads(int clientWorkerThreads) {
-        this.clientWorkerThreads = clientWorkerThreads;
-    }
-
-    void setClientMaxFrameLength(int clientMaxFrameLength) {
-        this.clientMaxFrameLength = clientMaxFrameLength;
-    }
 
     private NetChannel requireClientChannel(long sessionId) {
         NetChannel channel = clientChannelManager.getChannel(sessionId);

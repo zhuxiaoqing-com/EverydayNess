@@ -1,6 +1,7 @@
 package org.evd.game.ConnService;
 
 import org.evd.game.annotation.ServiceName;
+import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.client.ClientCmdRouteTable;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.netty.NetChannel;
@@ -20,7 +21,7 @@ final class ConnServiceClientCmdRouter {
         registerAllRoutes();
     }
 
-    void forward(NetChannel session, int cmd, byte[] body) {
+    void forward(NetChannel session, int cmd, Chunk body) {
         ClientSessionRef sessionRef = owner.buildClientSessionRef(session);
         routeTable.forward(owner, sessionRef, cmd, body);
     }
