@@ -1,9 +1,15 @@
 package org.evd.game.runtime;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.commons.lang3.RegExUtils;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
+import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.netty.BaseChannelInitializer;
+import org.evd.game.runtime.netty.ChannelManager;
+import org.evd.game.runtime.netty.NetAcceptor;
+import org.evd.game.runtime.netty.NodeChannelHandler;
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
@@ -25,6 +31,7 @@ public class Node extends TickCase{
     protected final ConcurrentMap<String, RemoteNode> remoteNodes = new ConcurrentHashMap<>();
     /** 发送给远程note的call请求 */
     private final ConcurrentLinkedQueue<RemoteCall> remoteCalls = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<CallBase> callBases = new ConcurrentLinkedQueue<>();
 
     /** 多个线程池，把有阻塞service和非阻塞service放到不同的线程 */
     private final List<ScheduledExecutor> scheduledExecutors = new ArrayList<>();
@@ -38,12 +45,14 @@ public class Node extends TickCase{
     private volatile Map<ServiceType, List<CallPoint>> type2CallMap = new HashMap<>();
     /** 地址 */
     private final String addr;
+    private final NodeInfo nodeInfo;
     /** 本次心跳要发送给远程note的call请求 */
     private final List<RemoteCall> affirmRemoteCalls = new ArrayList<>();
-    /** ZMQ上下文 */
-    protected final ZContext zmqContext;
-    /** ZMQ连接 */
-    protected final ZMQ.Socket zmqPull;
+
+//    /** ZMQ上下文 */
+//    protected final ZContext zmqContext;
+//    /** ZMQ连接 */
+//    protected final ZMQ.Socket zmqPull;
 
     private final byte[] remoteReceiveBuffer = BufferPool.allocate();
     /** 远程Node调用定时器 */
@@ -53,18 +62,27 @@ public class Node extends TickCase{
     /** 本地服务注册是否有变化 */
     private long syncLocalServicesDirty;
 
-    public Node(String name, String addr){
-        super(name, 1);
-        this.addr = addr;
+    private volatile NetAcceptor acceptor;
+    ChannelManager channelManager = new ChannelManager();
 
-        this.zmqContext = new ZContext();
+    public Node(String name, NodeInfo nodeInfo){
+        super(name, 1);
+        this.nodeInfo = nodeInfo;
+        this.addr = nodeInfo.getAddr();
+
+        int port = nodeInfo.getAddressInfo().getPort();
+        acceptor = new NetAcceptor(port,
+                new BaseChannelInitializer(new NodeChannelHandler(channelManager, this), true));
+        LogCore.core.info("Netty 启动完成: node={}, port={}", getId(), port);
+
+      /*  this.zmqContext = new ZContext();
         this.zmqPull = zmqContext.createSocket(SocketType.PULL);
         this.zmqPull.setLinger(3000);
 
         LogCore.core.info("节点【{}】绑定地址【{}】", name, addr);
         // 绑定到通用地址，这样通过内网和外网地址都可以连接上
         String addrWC = RegExUtils.replacePattern(addr, "\\d+.\\d+.\\d+.\\d+", "*");
-        this.zmqPull.bind(addrWC);
+        this.zmqPull.bind(addrWC);*/
 
         bindScheduledExecutor(new ScheduledExecutor(name, 1));
 
@@ -84,9 +102,9 @@ public class Node extends TickCase{
         pulseAffirmRemoteCall_nt();
         // 发送remoteCall
         pulseSendRemoteCall_nt();
-
-        //接受其他Node发送过来的Call调用
-        pulseCallPuller_nt();
+        //pulseCallPuller_nt();
+        //处理其他Node发送过来的Call调用
+        pulseCallBaseProcess();
         //调用远程Node的心跳操作
         pulseRemoteNodes_nt();
         // 本地服务注册变化后，广播给已连接节点
@@ -111,7 +129,7 @@ public class Node extends TickCase{
     /**
      * 接受其他Node发送过来的Call请求
      */
-    private void pulseCallPuller_nt() {
+  /*  private void pulseCallPuller_nt() {
         while (true) {
             try {
                 // 接受到的字节流长度
@@ -129,22 +147,28 @@ public class Node extends TickCase{
                 LogCore.core.error("", e);
             }
         }
-    }
+    }*/
     /**
      * 处理Call请求
-     * @param buf
-     * @param len
      */
-    private void remoteCallHandle_nt(byte[] buf, int len) {
+    public void remoteCallHandle_nt(ByteBuf msg) {
+        int len = msg.readableBytes();
         // 转化为输出流
-        InputStream input = new InputStream(buf, 0, len);
+        InputStream input = new InputStream(remoteReceiveBuffer, 0, len);
         // 是否已读取到末尾
         while (!input.isAtEnd()) {
             // 先读取一个Call请求
             CallBase call = input.read();
-            callHandle_snt(call);
+            callBases.add(call);
         }
     }
+
+    private void pulseCallBaseProcess() {
+        for (CallBase callBase : callBases) {
+            callHandle_snt(callBase);
+        }
+    }
+
 
     /**
      * 发送RemoteCall
@@ -353,7 +377,7 @@ public class Node extends TickCase{
         sendLocalServicesToRemote_nt(remoteNode);
     }
 
-    void onRemoteNodeDisconnected_nt(RemoteNode remoteNode) {
+    public void onRemoteNodeDisconnected_nt(RemoteNode remoteNode) {
         remoteNodeServices.remove(remoteNode.getRemoteId());
         rebuildServiceIndexes();
     }

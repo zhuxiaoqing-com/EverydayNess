@@ -2,7 +2,7 @@ dbConfigPath: db-dev.yml
 
 nodes:
   - name: node1 # 节点
-    addr: tcp://127.0.0.1:15001
+    addr: 127.0.0.1:15001
     schedule:
       - name: logic  #线程池名
         num: 10
@@ -33,7 +33,7 @@ nodes:
           num: 2
 
   - name: node2 # 节点
-    addr: tcp://127.0.0.1:15002
+    addr: 127.0.0.1:15002
     schedule:
       - name: logic  #线程池
         num: 10

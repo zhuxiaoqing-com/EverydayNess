@@ -76,6 +76,7 @@
     location也保存scene，的话就是cache可以缓存;
 
 14.将ZMQ换了，换成netty,因为ZMQ连接和断开连接状态模糊，可能会丢数据;
+    node发送给client的时候需要将msgId 拼接到数组前面，需要copy一下，这里需要改一下 看下怎么改;
 
 15.location架构迎来了大动荡;加了跨服玩法以后Location就失效了;具体方案在1.txt
 

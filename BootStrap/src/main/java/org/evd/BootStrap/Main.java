@@ -88,7 +88,7 @@ public class Main {
         validateSingleServices(config);
 
         NodeInfo nodeInfo = GlobalConfig.requireNodeInfo(nodeId);
-        Node node = new Node(nodeId, nodeInfo.getAddr());
+        Node node = new Node(nodeId, nodeInfo);
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
             node.createExecutor(scheduleInfo.getName(), scheduleInfo.getNum());
         }

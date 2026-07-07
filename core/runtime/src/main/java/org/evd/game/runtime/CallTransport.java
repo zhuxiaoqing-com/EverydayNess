@@ -21,9 +21,9 @@ final class CallTransport {
         String toNodeId = call.to.nodeId;
         // 这里投放是得话 是不序列化，直接发送，里面还有一个判断，是进行序列化的，目前这里先注释掉
        /* if (node.getId().equals(toNodeId)) {
-            node.callHandle_snt(call);
-            return true;
-        }*/
+             node.callHandle_snt(call);
+             return true;
+         }*/
 
         CallPulseBuffer buffer = callFrameBuffers.get(toNodeId);
         if (buffer == null) {

@@ -3,6 +3,7 @@ package org.evd.game.runtime;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPing;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.serialize.OutputStream;
 import org.evd.game.runtime.support.LogCore;
 import org.zeromq.SocketType;
@@ -23,33 +24,33 @@ public class RemoteNode {
 	/** 远程Node名称 */
 	private final String remoteId;
 	/** 远程Node地址 */
-	private final String remoteAddr;
+	private final AddressInfo remoteAddr;
 	/** 本地Node名称 */
 	private final Node localNode;
 	
-	/** ZMQ上下文 */
-	private final ZContext zmqContext;
-	/** ZMQ连接 */
-	private final ZMQ.Socket zmqPush;
+//	/** ZMQ上下文 */
+//	private final ZContext zmqContext;
+//	/** ZMQ连接 */
+//	private final ZMQ.Socket zmqPush;
 	
 	/** 最后一次收到连接检查时间 */
 	private long lastRecvPingTime = 0;
-	
-	/** 是否连接上 */
-	private boolean connected;
+
+	NetConnector connector;
+	ChannelManager channelManager = new ChannelManager();
 	
 	/**
 	 * 构造函数
 	 * @param localNode
 	 * @param remoteName
-	 * @param remoteAddr
+	 * @param _remoteAddr
 	 */
-	public RemoteNode(Node localNode, String remoteName, String remoteAddr) {
+	public RemoteNode(Node localNode, String remoteName, String _remoteAddr) {
 		this.localNode = localNode;
 		this.remoteId = remoteName;
-		this.remoteAddr = remoteAddr;
+		this.remoteAddr = new AddressInfo(_remoteAddr);
 		
-		this.zmqContext = new ZContext();
+		/*this.zmqContext = new ZContext();
 		this.zmqPush = zmqContext.createSocket(SocketType.PUSH);
 		this.zmqPush.setLinger(0);
 		// 默认不限制消息缓存数量(可能会导致占用过多内存)
@@ -57,7 +58,12 @@ public class RemoteNode {
 		this.zmqPush.setImmediate(false);
 		this.zmqPush.setReconnectIVL(2000);
 		this.zmqPush.setReconnectIVLMax(5000);
-		this.zmqPush.connect(remoteAddr);
+		this.zmqPush.connect(_remoteAddr);*/
+
+		int port = remoteAddr.getPort();
+		connector = new NetConnector(getRemoteId(),
+				new BaseChannelInitializer(new RemoteNodeChannelHandler(channelManager, this), true));
+		LogCore.core.info("Netty 启动完成: remoteNode={}, port={}", getRemoteId(), port);
 	}
 	
 	/**
@@ -72,9 +78,7 @@ public class RemoteNode {
 		
 		// 活跃状态下 长时间没收到心跳检测 那么就认为连接已丢失
 		if (isActive() && (timeCurr - lastRecvPingTime) > RemoteNode.INTERVAL_LOST) {
-			connected = false;
 			LogCore.remote.error("失去与远程Node的连接：name={}, addr={}", remoteId, remoteAddr);
-			localNode.onRemoteNodeDisconnected_nt(this);
 		}
 	}
 	
@@ -104,10 +108,6 @@ public class RemoteNode {
 		// 设置最后收到连接测试的时间
 		lastRecvPingTime = localNode.getTimeCurrent();
 
-		// 设置为已连接状态
-		if (!connected) {
-			connected = true;
-		}
 		if (!wasActive && isActive()) {
 			localNode.onRemoteNodeConnected_nt(this);
 		}
@@ -118,18 +118,18 @@ public class RemoteNode {
 	 * @return
 	 */
 	public boolean isActive() {
-		return connected && lastRecvPingTime > 0;
+		return connector.isActive();
 	}
 	
 	/**
 	 * 关闭
 	 */
 	public void close() {
-		synchronized (zmqPush) {
+		/*synchronized (zmqPush) {
 			zmqPush.close();
 		}
 		
-		zmqContext.destroy();
+		zmqContext.destroy();*/
 	}
 	
 	/**
@@ -157,10 +157,17 @@ public class RemoteNode {
 	 * @param buf buf必须是提前copy过的
 	 */
 	public void send(byte[] buf) {
-		zmqPush.send(buf, 0);
+		if(connector.isActive()) {
+			connector.getChannel().writeAndFlush(buf);
+		}
+		//zmqPush.send(buf, 0);
 	}
 
 	public String getRemoteId() {
 		return remoteId;
+	}
+
+	public Node getLocalNode() {
+		return localNode;
 	}
 }

@@ -10,22 +10,23 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public enum ServiceType {
-    CONN(1, ServiceName.CONN_SERVICE),
-    SDK(2, ServiceName.SDK_SERVICE),
-    STAGE(3, ServiceName.STAGE_SERVICE),
+    CONN(1, ServiceName.CONN_SERVICE, false),
+    SDK(2, ServiceName.SDK_SERVICE, false),
+    STAGE(3, ServiceName.STAGE_SERVICE, false),
     SCENE_MANAGER(4, ServiceName.SCENE_MANAGER_SERVICE),
     LOBBY(5, ServiceName.LOBBY_SERVICE),
-    PLAYER(6, ServiceName.PLAYER_SERVICE),
+    PLAYER(6, ServiceName.PLAYER_SERVICE, false),
     DB(7, ServiceName.DB_SERVICE),
     LOC(8, ServiceName.LOCATION_SERVICE),
     ADMIN(9, ServiceName.ADMIN_SERVICE),
     GLOC(10, ServiceName.LOCATION_SERVICE),
-    GSTAGE(11, ServiceName.STAGE_SERVICE),
+    GSTAGE(11, ServiceName.STAGE_SERVICE, false),
     GSCENE_MANAGER(12, ServiceName.SCENE_MANAGER_SERVICE),
 
     ;
-    int type;
-    String className;
+    final int type;
+    final String className;
+    final boolean single;
 
     static ServiceType[] shutdownOrder = new ServiceType[] {
             CONN,
@@ -52,8 +53,13 @@ public enum ServiceType {
 
 
     ServiceType(int type, String name) {
+        this(type, name, true);
+    }
+
+    ServiceType(int type, String name, boolean single) {
         this.type = type;
         this.className = name;
+        this.single = single;
     }
 
     public int getType() {
@@ -68,11 +74,16 @@ public enum ServiceType {
         return className;
     }
 
+    public boolean isSingle() {
+        return single;
+    }
+
     @Override
     public String toString() {
         return "ServiceType{" +
                 "type=" + type +
                 ", name='" + className + '\'' +
+                ", single=" + single +
                 '}';
     }
 

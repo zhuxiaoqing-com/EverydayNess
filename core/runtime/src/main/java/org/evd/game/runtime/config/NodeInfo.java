@@ -1,10 +1,14 @@
 package org.evd.game.runtime.config;
 
+import io.netty.util.internal.StringUtil;
+import org.evd.game.runtime.netty.AddressInfo;
+
 import java.util.List;
 
 public class NodeInfo {
     private String name;
     private String addr;
+    private AddressInfo addressInfo;
     private List<ScheduleInfo> schedule;
 
     public String getName() {
@@ -29,5 +33,13 @@ public class NodeInfo {
 
     public void setSchedule(List<ScheduleInfo> schedule) {
         this.schedule = schedule;
+    }
+
+
+    public AddressInfo getAddressInfo() {
+        if(addressInfo == null && StringUtil.isNullOrEmpty(addr)) {
+            addressInfo = new AddressInfo(addr);
+        }
+        return addressInfo;
     }
 }

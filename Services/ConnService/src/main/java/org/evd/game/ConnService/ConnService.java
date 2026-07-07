@@ -15,10 +15,14 @@ import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.netty.BaseChannelInitializer;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.ChannelManager;
+import org.evd.game.runtime.netty.NetAcceptor;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.support.LogCore;
+
+import java.util.Arrays;
 
 public class ConnService extends Service {
     private static final long HEARTBEAT_SCAN_INTERVAL_MILLIS = 5_000L;
@@ -26,14 +30,14 @@ public class ConnService extends Service {
 
     private final ConnServiceClientCmdRouter clientCmdRouter;
     private final ChannelManager clientChannelManager;
-    private final ConnServiceClientTransport clientTransport;
     private final ConnServiceHeartbeatScanner heartbeatScanner;
+
+    private volatile NetAcceptor clientAcceptor;
 
     public ConnService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
         this.clientCmdRouter = new ConnServiceClientCmdRouter(this);
         this.clientChannelManager = new ChannelManager();
-        this.clientTransport = new ConnServiceClientTransport(this, clientChannelManager);
         this.heartbeatScanner = new ConnServiceHeartbeatScanner(this, clientChannelManager);
     }
 
@@ -41,7 +45,10 @@ public class ConnService extends Service {
     public void init() {
         super.init();
         LogCore.core.info("ConnService Init");
-        clientTransport.start();
+        int port = getServiceInfo().getAddressInfo().getPort();
+        clientAcceptor = new NetAcceptor(port,
+                new BaseChannelInitializer(new ConnServiceClientChannelHandler(clientChannelManager, this), true));
+        LogCore.core.info("ConnService Netty 启动完成: service={}, port={}", id, port);
         newRepeatedTimer(HEARTBEAT_SCAN_INTERVAL_MILLIS, false, this::scanHeartbeatTimeouts);
     }
 
@@ -56,7 +63,11 @@ public class ConnService extends Service {
 
     @Rpc
     public void pushToClient(long sessionId, int msgId, Chunk body) {
-        clientTransport.pushToClient(sessionId, msgId, body);
+        NetChannel channel = requireClientChannel(sessionId);
+        byte[] payload = copyChunkBody(body);
+        channel.write(encodeClientPacket(msgId, payload));
+        LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, msgId={}, bytes={}",
+                id, sessionId, msgId, payload.length);
     }
 
     @Rpc
@@ -66,12 +77,12 @@ public class ConnService extends Service {
 
     @Rpc
     public int getLoginSessionCount() {
-        return clientTransport.countAuthorizedSessions();
+        return countAuthorizedSessions();
     }
 
     @Rpc
     public boolean confirmLogin(long sessionId, String userId, long playerId) {
-        NetChannel session = clientTransport.findClientChannel(sessionId);
+        NetChannel session = findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.warn("ConnService 登录确认失败，session 不存在: service={}, sessionId={}", id, sessionId);
             return false;
@@ -91,7 +102,7 @@ public class ConnService extends Service {
 
     @Rpc
     public boolean updatePlayerBinding(long sessionId, long playerId) {
-        NetChannel session = clientTransport.findClientChannel(sessionId);
+        NetChannel session = findClientChannel(sessionId);
         if (session == null) {
             return false;
         }
@@ -110,12 +121,10 @@ public class ConnService extends Service {
 
     @ClientCmd(MsgId.C2S_CONN_PING_VALUE)
     public void onConnPing(ClientSessionRef session, C2S_ConnPing req) {
-        NetChannel channel = clientTransport.findClientChannel(session.getSessionId());
+        NetChannel channel = findClientChannel(session.getSessionId());
         if (channel != null) {
             channel.setLastPingTime(getTimeCurrent());
         }
-        /*LogCore.core.info("ConnService 收到客户端 Ping: service={}, sessionId={}, text={}",
-                id, session.getSessionId(), req.getText());*/
 
         S2C_ConnPing resp = S2C_ConnPing.newBuilder()
                 .setClientTime(req.getClientTime())
@@ -125,12 +134,22 @@ public class ConnService extends Service {
     }
 
     ClientSessionRef buildClientSessionRef(NetChannel session) {
-        return clientTransport.buildClientSessionRef(session);
+        registerClientSessionActor(session);
+        ClientSessionRef sessionRef = session.getSessionRef();
+        if (sessionRef.getGate() == null) {
+            sessionRef.setGate(new CallPoint(node.getId(), id));
+        }
+        return sessionRef;
     }
 
     @Override
     public void onClose() {
-        clientTransport.shutdown();
+        NetAcceptor acceptor = clientAcceptor;
+        clientAcceptor = null;
+        if (acceptor != null) {
+            acceptor.shutdown();
+        }
+        clientChannelManager.clear();
         super.onClose();
     }
 
@@ -143,7 +162,7 @@ public class ConnService extends Service {
         session.setLastPingTime(getTimeCurrent());
         registerClientSessionActor(session);
         LogCore.core.info("ConnService 客户端连接: service={}, sessionId={}, remote={},  loginCount={}",
-                id, sessionId, session.getRemoteAddress(),  clientTransport.countAuthorizedSessions());
+                id, sessionId, session.getRemoteAddress(), countAuthorizedSessions());
     }
 
     void onClientChannelInactive(NetChannel session) {
@@ -152,7 +171,7 @@ public class ConnService extends Service {
         unregisterClientSessionActor(sessionId);
         LogCore.core.info("ConnService 客户端断开: service={}, sessionId={}, remote={}, brokenType={},  loginCount={}",
                 id, sessionId, session.getRemoteAddress(), session.getBrokenType(),
-              clientTransport.countAuthorizedSessions());
+                countAuthorizedSessions());
         if (!sessionRef.isAuthorized() || sessionRef.getUserId().isBlank()) {
             return;
         }
@@ -171,10 +190,6 @@ public class ConnService extends Service {
         );
     }
 
-    void onClientChannelException(NetChannel session, Throwable cause) {
-        long sessionId = session == null ? -1L : session.getChannelId();
-        LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", id, sessionId, cause);
-    }
 
     void registerClientSessionActor(NetChannel session) {
         ActorId actorId = ActorId.gate(session.getChannelId());
@@ -196,7 +211,7 @@ public class ConnService extends Service {
     }
 
     boolean closeSession(long sessionId, BrokenType brokenType, String reason) {
-        NetChannel session = clientTransport.findClientChannel(sessionId);
+        NetChannel session = findClientChannel(sessionId);
         if (session == null) {
             return false;
         }
@@ -205,5 +220,54 @@ public class ConnService extends Service {
                 id, sessionId, brokenType, reason);
         session.close();
         return true;
+    }
+
+    void postClientChannelActive(NetChannel session) {
+        postCoroutine(() -> onClientChannelActive(session));
+    }
+
+    void postClientPacket(NetChannel session, int msgId, Chunk body) {
+        postCoroutine(() -> dispatchClientCmd(session, msgId, body));
+    }
+
+    void postClientChannelInactive(NetChannel session) {
+        postCoroutine(() -> onClientChannelInactive(session));
+    }
+
+    private NetChannel requireClientChannel(long sessionId) {
+        NetChannel channel = findClientChannel(sessionId);
+        if (channel == null) {
+            throw new IllegalStateException("ConnService client channel not found: service="
+                    + id + ", sessionId=" + sessionId);
+        }
+        return channel;
+    }
+
+    private NetChannel findClientChannel(long sessionId) {
+        return clientChannelManager.getChannel(sessionId);
+    }
+
+    private int countAuthorizedSessions() {
+        int count = 0;
+        for (NetChannel channel : clientChannelManager.snapshotChannels()) {
+            if (channel.getSessionState() == NetChannel.SessionState.LOGIN_READY) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static byte[] copyChunkBody(Chunk body) {
+        return Arrays.copyOfRange(body.buffer, body.offset, body.offset + body.length);
+    }
+
+    private static byte[] encodeClientPacket(int msgId, byte[] body) {
+        byte[] packet = new byte[Integer.BYTES + body.length];
+        packet[0] = (byte) (msgId >>> 24);
+        packet[1] = (byte) (msgId >>> 16);
+        packet[2] = (byte) (msgId >>> 8);
+        packet[3] = (byte) msgId;
+        System.arraycopy(body, 0, packet, Integer.BYTES, body.length);
+        return packet;
     }
 }

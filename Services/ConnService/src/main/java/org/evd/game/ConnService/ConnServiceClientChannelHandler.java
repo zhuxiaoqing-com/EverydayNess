@@ -1,6 +1,5 @@
 package org.evd.game.ConnService;
 
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.call.CallPoint;
@@ -11,24 +10,24 @@ import java.nio.ByteBuffer;
 import java.util.stream.Collectors;
 
 final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
-    private final ConnServiceClientTransport transport;
+    private final ConnService connService;
 
-    public ConnServiceClientChannelHandler(ChannelManager channelManager, ConnServiceClientTransport transport) {
+    public ConnServiceClientChannelHandler(ChannelManager channelManager, ConnService connService) {
         super(channelManager);
-        this.transport = transport;
+        this.connService = connService;
     }
 
 
     @Override
     protected void onChannelActive(ChannelHandlerContext ctx) {
         NetChannel netChannel = ctx.channel().attr(ServerAttributeKey.netChannel).get();
-        netChannel.getSessionRef().setGate(new CallPoint(transport.owner.getNode().getId(), transport.owner.getId()));
-        transport.onClientChannelActive(netChannel);
+        netChannel.getSessionRef().setGate(new CallPoint(connService.getNode().getId(), connService.getId()));
+        connService.postClientChannelActive(netChannel);
     }
 
     @Override
     protected void handlePacket(ChannelHandlerContext ctx, byte[] payload) {
-        NetChannel session = requireSession(ctx.channel());
+        NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).get();
         if (payload.length < Integer.BYTES) {
             throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节");
         }
@@ -37,7 +36,7 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
             return;
         }
         //byte[] body = Arrays.copyOfRange(payload, Integer.BYTES, payload.length);
-        transport.onClientPacket(session, msgId, new Chunk(payload, Integer.BYTES, payload.length));
+        connService.postClientPacket(session, msgId, new Chunk(payload, Integer.BYTES, payload.length));
     }
 
     @Override
@@ -47,7 +46,7 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
             if (session.getBrokenType() == BrokenType.NONE) {
                 session.setBrokenType(BrokenType.CLIENT_CLOSE);
             }
-            transport.onClientChannelInactive(session);
+            connService.postClientChannelInactive(session);
         }
     }
 
@@ -57,15 +56,8 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
         if (session != null) {
             session.setBrokenType(BrokenType.NETTY_EXCEPTION);
         }
-        transport.onClientChannelException(session, cause);
-    }
-
-    private NetChannel requireSession(Channel channel) {
-        NetChannel session = channel.attr(ServerAttributeKey.netChannel).get();
-        if (session == null) {
-            throw new IllegalStateException("ConnService channel session not initialized");
-        }
-        return session;
+        long sessionId = session == null ? -1L : session.getChannelId();
+        LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", sessionId, sessionId, cause);
     }
 
     private boolean checkMsgFlowRate(ChannelHandlerContext ctx, NetChannel session, int msgId) {
@@ -84,9 +76,9 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
                     .map(e -> e.getCurrTime() + "---" + e.getCmd())
                     .collect(Collectors.joining(System.lineSeparator()));
             LogCore.core.error("ConnService 主动断开连接，消息过于频繁: service={}, sessionId={}, userId={}, remote={}",
-                    transport.getOwnerServiceId(), session.getChannelId(), session.getUserId(), session.getRemoteAddress());
+                    connService.getId(), session.getChannelId(), session.getUserId(), session.getRemoteAddress());
             LogCore.core.error("ConnService 高频消息明细: service={}, sessionId={}, messages={}",
-                    transport.getOwnerServiceId(), session.getChannelId(), System.lineSeparator() + messages);
+                    connService.getId(), session.getChannelId(), System.lineSeparator() + messages);
             session.setFrequentlyMessageCount(0);
             session.getFrequentlyMessageList().clear();
             ctx.close();
