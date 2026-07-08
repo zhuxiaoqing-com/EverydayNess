@@ -1,21 +1,16 @@
 package org.evd.game.runtime;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.commons.lang3.RegExUtils;
+import io.netty.channel.Channel;
+import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.RegisteredService;
-import org.evd.game.runtime.netty.BaseChannelInitializer;
-import org.evd.game.runtime.netty.ChannelManager;
-import org.evd.game.runtime.netty.NetAcceptor;
-import org.evd.game.runtime.netty.NodeChannelHandler;
+import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
-import org.zeromq.SocketType;
-import org.zeromq.ZContext;
-import org.zeromq.ZMQ;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * 节点，代表一个进程
  */
+@Slf4j
 public class Node extends TickCase{
     /** 远程节点 */
     protected final ConcurrentMap<String, RemoteNode> remoteNodes = new ConcurrentHashMap<>();
@@ -151,20 +147,23 @@ public class Node extends TickCase{
     /**
      * 处理Call请求
      */
-    public void remoteCallHandle_nt(ByteBuf msg) {
+    public void remoteCallHandle_nt(ByteBuf msg, Channel sourceChannel) {
         int len = msg.readableBytes();
+        msg.getBytes(msg.readerIndex(), remoteReceiveBuffer, 0, len);
         // 转化为输出流
         InputStream input = new InputStream(remoteReceiveBuffer, 0, len);
         // 是否已读取到末尾
         while (!input.isAtEnd()) {
             // 先读取一个Call请求
             CallBase call = input.read();
+            call.setSourceChannel(sourceChannel);
             callBases.add(call);
         }
     }
 
     private void pulseCallBaseProcess() {
-        for (CallBase callBase : callBases) {
+        CallBase callBase;
+        while ((callBase = callBases.poll()) != null) {
             callHandle_snt(callBase);
         }
     }
@@ -297,7 +296,11 @@ public class Node extends TickCase{
         // 是否已读取到末尾
         while (!input.isAtEnd()) {
             CallBase call = input.read();
-            callHandle_snt(call);
+            try {
+                callHandle_snt(call);
+            } catch (Exception e) {
+                LogCore.core.error("localCallHandle_st error call {}", call, e);
+            }
         }
     }
 
@@ -305,6 +308,15 @@ public class Node extends TickCase{
      * 处理接收到的Call请求
      */
     public void callHandle_snt(CallBase call) {
+        Channel sourceChannel = call.getSourceChannel();
+        if (sourceChannel != null
+                && sourceChannel.attr(ServerAttributeKey.remoteNodeId).get() == null
+                && !(call instanceof CallNodeServicesSync)) {
+            LogCore.remote.error("收到未完成远程节点握手的非法消息: node={}, callType={}, remoteNode={}",
+                    getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
+            sourceChannel.close();
+            return;
+        }
         // 根据请求类型来分别处理
         switch (call) {
             case ActorMessage ignored: {
@@ -326,21 +338,31 @@ public class Node extends TickCase{
             }
             break;
 
-            // 连接检测
-            case CallPing callPing: {
-                // 根据请求者的名称来获取远程Node
+            case CallNodeServicesSync callNodeServicesSync: {
                 RemoteNode node = remoteNodes.get(call.from.nodeId);
-                // 第一次收到连接检测 反向增加一个对方的远程Node
                 if (node == null) {
-                    // 只有node之间会发ping消息
-                    node = addRemoteNode(call.from.nodeId, callPing.addr);
+                    node = addRemoteNode(call.from.nodeId, callNodeServicesSync.getAddr());
                 }
-                // 处理连接检测请求
-                node.pingHandle_nt();
+                node.onNodeServicesSync_nt(sourceChannel, callNodeServicesSync.isInit());
+                syncRemoteServices_nt(call.from.nodeId, callNodeServicesSync.getServices());
             }
             break;
-            case CallNodeServicesSync callNodeServicesSync: {
-                syncRemoteServices_nt(call.from.nodeId, callNodeServicesSync.getServices());
+            case CallPing callPing: {
+                RemoteNode node = remoteNodes.get(call.from.nodeId);
+                if (node == null) {
+                    LogCore.remote.warn("收到未知远程node的ping: nodeId={}", call.from.nodeId);
+                    break;
+                }
+                node.onPing_nt(sourceChannel);
+            }
+            break;
+            case CallPong ignored: {
+                RemoteNode node = remoteNodes.get(call.from.nodeId);
+                if (node == null) {
+                    LogCore.remote.warn("收到未知远程node的pong: nodeId={}", call.from.nodeId);
+                    break;
+                }
+                node.onPong_nt(sourceChannel);
             }
             break;
             default:
@@ -354,12 +376,23 @@ public class Node extends TickCase{
      * @param addr
      */
     public RemoteNode addRemoteNode(String name, String addr) {
-        // 创建远程Node并与本Node相连
-        RemoteNode remote = new RemoteNode(this, name, addr);
-        remoteNodes.put(name, remote);
+        return addRemoteNode(name, addr, false);
+    }
 
-        LogCore.remote.info("添加远程node：name={},addr={}", name, addr);
-        return remote;
+    public RemoteNode addRemoteNode(String name, String addr, boolean needConnect) {
+        RemoteNode remote = remoteNodes.get(name);
+        if (remote != null) {
+            return remote;
+        }
+
+        RemoteNode newRemote = new RemoteNode(this, name, addr, needConnect);
+        RemoteNode oldRemote = remoteNodes.putIfAbsent(name, newRemote);
+        if (oldRemote != null) {
+            return oldRemote;
+        }
+
+        LogCore.remote.info("添加远程node：name={},addr={},needConnect={}", name, addr, needConnect);
+        return newRemote;
     }
 
 
@@ -372,14 +405,23 @@ public class Node extends TickCase{
         return addr;
     }
 
-
-    void onRemoteNodeConnected_nt(RemoteNode remoteNode) {
-        sendLocalServicesToRemote_nt(remoteNode);
-    }
-
     public void onRemoteNodeDisconnected_nt(RemoteNode remoteNode) {
         remoteNodeServices.remove(remoteNode.getRemoteId());
         rebuildServiceIndexes();
+    }
+
+    public void onInboundChannelInactive_nt(Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        String remoteNodeId = channel.attr(ServerAttributeKey.remoteNodeId).get();
+        if (remoteNodeId == null) {
+            return;
+        }
+        RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
+        if (remoteNode != null && remoteNode.onChannelDown(channel)) {
+            onRemoteNodeDisconnected_nt(remoteNode);
+        }
     }
 
     private void refreshLocalServices() {
@@ -397,12 +439,13 @@ public class Node extends TickCase{
         CallNodeServicesSync call = new CallNodeServicesSync();
         call.from = new CallPoint(id, null);
         call.to = new CallPoint(remoteNode.getRemoteId(), null);
-        call.setVersion(syncLocalServicesDirty);
+        call.setInit(false);
+        call.setAddr(addr);
         call.setServices(buildLocalServicesSnapshot());
         remoteNode.sendCall(call);
     }
 
-    private List<RegisteredService> buildLocalServicesSnapshot() {
+    List<RegisteredService> buildLocalServicesSnapshot() {
         List<RegisteredService> snapshot = new ArrayList<>();
         for (Service service : services.values()) {
             if (service == null || service.serviceInfo == null) {
@@ -492,14 +535,6 @@ public class Node extends TickCase{
 
 
     }
-
-
-
-
-    public List<RegisteredService> getRemoteNodeServices(String nodeId) {
-        return remoteNodeServices.get(nodeId);
-    }
-
     public List<RegisteredService> getServicesByType(ServiceType serviceType) {
         return type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
     }
@@ -516,6 +551,7 @@ public class Node extends TickCase{
     public ConcurrentHashMap<Object, Service> getServices() {
         return services;
     }
+
 }
 
 

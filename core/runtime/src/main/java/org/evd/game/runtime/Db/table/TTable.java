@@ -3,14 +3,14 @@ package org.evd.game.runtime.Db.table;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import org.evd.game.annotation.ServiceType;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
-import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.LockType;
+import org.evd.game.runtime.support.TwoTuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +30,7 @@ public abstract class TTable<K, V extends DirtyObject> {
     private final Map<K, TRecord<K, V>> cache = new HashMap<>(500);
     Cache<Object, Object> findFailCache = Caffeine.newBuilder()
             .maximumSize(1000)
-            .expireAfterAccess(30,TimeUnit.MINUTES)
+            .expireAfterAccess(30, TimeUnit.MINUTES)
             .executor(Runnable::run)
             .build();
 
@@ -58,7 +58,19 @@ public abstract class TTable<K, V extends DirtyObject> {
             return null;
         }
         CallPoint callPoint = findDBServiceCallPoint(key);
-        V v = getExec(createGetDBReq(key), callPoint);
+        // 加协程锁
+        V v;
+        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+            tRecord = cache.get(key);
+            if (tRecord != null) {
+                if (tRecord.isRemoveState()) {
+                    return null;
+                }
+                return tRecord.get();
+            }
+            v = getExec(createGetDBReq(key), callPoint);
+        }
+
         if (v != null) {
             tRecord = new TRecord<>(this, key, v, TRecord.GET, callPoint);
             cache.put(key, tRecord);
@@ -73,7 +85,7 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     public boolean add(K key, V value) {
-      return  add(key, value, false);
+        return add(key, value, false);
     }
 
     public boolean add(K key, V value, boolean immediately) {
@@ -112,9 +124,6 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
 
-
-
-
     public void checkpoint(boolean close) {
         logger.info("checkpoint table Start table {} ", getName());
         if (!close && getMdb().isClosing()) {
@@ -133,16 +142,16 @@ public abstract class TTable<K, V extends DirtyObject> {
     /**
      * 这里默认所有的数据库类都能遍历到，因为在遍历这个之前需要，将所有没有归属某一个callPoint的数据库类修正掉;
      */
-    public void checkpointLogicThread(CallPoint callPoint){
+    public void checkpointLogicThread(CallPoint callPoint) {
         logger.info("checkpoint table Start table {} ", getName());
 
-        List<TRecord<K,V>> addTRecordCache = new ArrayList<>();
-        List<TRecord<K,V>> modifyTRecordCache = new ArrayList<>();
-        List<TRecord<K,V>> removeTRecordCache = new ArrayList<>();
+        List<TRecord<K, V>> addTRecordCache = new ArrayList<>();
+        List<TRecord<K, V>> modifyTRecordCache = new ArrayList<>();
+        List<TRecord<K, V>> removeTRecordCache = new ArrayList<>();
 
 
-        for (TRecord<K,V> kvtRecord : getCacheList()) {
-            if(!kvtRecord.checkCallPoint(callPoint)) {
+        for (TRecord<K, V> kvtRecord : getCacheList()) {
+            if (!kvtRecord.checkCallPoint(callPoint)) {
                 continue;
             }
             K key = kvtRecord.getKey();
@@ -211,26 +220,24 @@ public abstract class TTable<K, V extends DirtyObject> {
 
         // 这里就算logic线程的cache里已经没有数据了也没事,反正只是改了这个类,其他都没改
         if (!addSuccess) {
-            for (TRecord<K,V> tRecord : addTRecordCache) {
+            for (TRecord<K, V> tRecord : addTRecordCache) {
                 tRecord.checkPointFail();
             }
         }
 
         if (!modifySuccess) {
-            for (TRecord<K,V> tRecord : modifyTRecordCache) {
+            for (TRecord<K, V> tRecord : modifyTRecordCache) {
                 tRecord.checkPointFail();
             }
         }
 
         if (!removeSuccess) {
-            for (TRecord<K,V> tRecord : removeTRecordCache) {
+            for (TRecord<K, V> tRecord : removeTRecordCache) {
                 tRecord.checkPointFail();
             }
         }
 
     }
-
-
 
 
     public static final int TICK_INTERVAL = 1000 * 60;
@@ -288,7 +295,7 @@ public abstract class TTable<K, V extends DirtyObject> {
                 continue;
             }
 
-            if(!kvtRecord.checkCallPoint(callPoint)) {
+            if (!kvtRecord.checkCallPoint(callPoint)) {
                 return;
             }
 
@@ -303,7 +310,7 @@ public abstract class TTable<K, V extends DirtyObject> {
             expireList.add(kvtRecord);
         }
 
-        if(expireList.isEmpty()) {
+        if (expireList.isEmpty()) {
             return;
         }
 
@@ -312,7 +319,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         List<TRecord<K, V>> successRecord = new ArrayList<>();
         for (TRecord<K, V> one : expireList) {
             boolean flush = one.flush("tickClearCache");
-            if(flush){
+            if (flush) {
                 successRecord.add(one);
             }
         }
@@ -320,7 +327,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         logger.info("tickClearCache tickClearCacheMdbSaveDB summary tableName {}   expireListSize {}  successRecordSize {}",
                 this.getName(), expireList.size(), successRecord.size());
 
-        if(successRecord.isEmpty()) {
+        if (successRecord.isEmpty()) {
             return;
         }
 
@@ -340,8 +347,6 @@ public abstract class TTable<K, V extends DirtyObject> {
             cache.remove(savedRecord.getKey());
         }
     }
-
-
 
 
     public void close() {
@@ -370,7 +375,6 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
 
-
     public Collection<TRecord<K, V>> getCacheList() {
         return cache.values();
     }
@@ -395,11 +399,11 @@ public abstract class TTable<K, V extends DirtyObject> {
         }
         DBRsp dbRsp = getMdb().getDbExecInterface().dbExec(callPoint, dbReq);
         //todo 这里进行报错之类的
-       return dbRsp.isSuccess();
+        return dbRsp.isSuccess();
     }
 
     public CallPoint findDBServiceCallPoint(K key) {
-       return mdb.findDBServiceCallPoint(key);
+        return mdb.findDBServiceCallPoint(key);
     }
 
 

@@ -3,6 +3,7 @@ package org.evd.game.gencode.struct;
 import org.evd.game.annotation.SerializeClass;
 
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.*;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
@@ -36,8 +37,9 @@ public class ClassStruct {
 
     public <A extends Annotation> List<FieldStruct> getFields(Class<A> clazz){
         List<FieldStruct> fieldElements = new ArrayList<>();
+        String annotationName = clazz.getCanonicalName();
         for(Element e : element.getEnclosedElements()){
-            if (e instanceof VariableElement && e.getAnnotation(clazz) != null){
+            if (e instanceof VariableElement && hasAnnotation(e, annotationName)){
                 fieldElements.add(new FieldStruct(e, env));
             }
         }
@@ -87,6 +89,17 @@ public class ClassStruct {
         }
         for (TypeMirror superType : typeUtils.directSupertypes(type)) {
             if (isAssignableFrom(superType, clazz)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAnnotation(Element element, String annotationName) {
+        for (AnnotationMirror annotationMirror : element.getAnnotationMirrors()) {
+            Element annotationElement = annotationMirror.getAnnotationType().asElement();
+            if (annotationElement instanceof TypeElement typeElement
+                    && typeElement.getQualifiedName().contentEquals(annotationName)) {
                 return true;
             }
         }

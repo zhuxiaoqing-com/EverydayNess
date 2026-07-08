@@ -55,4 +55,18 @@ public class CallResult extends CallBase {
     public void setResult(Object result) {
         this.result = result;
     }
+
+    @Override
+    public String toString() {
+        return "CallResult{" +
+                "id=" + id +
+                ", to=" + to +
+                ", from=" + from +
+                ", result=" + result +
+                ", errorMessage='" + errorMessage + '\'' +
+                ", errorCode=" + errorCode +
+                ", methodKey=" + methodKey +
+                ", success=" + success +
+                '}';
+    }
 }

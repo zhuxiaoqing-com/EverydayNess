@@ -106,11 +106,11 @@ public final class ContinuationDebugInfo {
     }
 
     public static final class LockWaitDebugInfo extends DebugInfo {
-        private final int lockType;
+        private final LockType lockType;
         private final Object lockKey;
         private final long timeoutMillis;
 
-        public LockWaitDebugInfo(int lockType, Object lockKey, long timeoutMillis) {
+        public LockWaitDebugInfo(LockType lockType, Object lockKey, long timeoutMillis) {
             this.lockType = lockType;
             this.lockKey = lockKey;
             this.timeoutMillis = timeoutMillis;

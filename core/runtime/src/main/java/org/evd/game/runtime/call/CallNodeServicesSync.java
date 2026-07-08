@@ -10,16 +10,26 @@ import java.util.List;
 @SerializeClass
 public class CallNodeServicesSync extends CallBase {
     @SerializeField
-    private long version;
+    private boolean init;
+    @SerializeField
+    private String addr;
     @SerializeField
     private List<RegisteredService> services = new ArrayList<>();
 
-    public long getVersion() {
-        return version;
+    public boolean isInit() {
+        return init;
     }
 
-    public void setVersion(long version) {
-        this.version = version;
+    public void setInit(boolean init) {
+        this.init = init;
+    }
+
+    public String getAddr() {
+        return addr;
+    }
+
+    public void setAddr(String addr) {
+        this.addr = addr;
     }
 
     public List<RegisteredService> getServices() {
@@ -28,5 +38,18 @@ public class CallNodeServicesSync extends CallBase {
 
     public void setServices(List<RegisteredService> services) {
         this.services = services;
+    }
+
+
+    @Override
+    public String toString() {
+        return "CallNodeServicesSync{" +
+                "id=" + id +
+                ", to=" + to +
+                ", from=" + from +
+                ", services=" + services +
+                ", addr='" + addr + '\'' +
+                ", init=" + init +
+                '}';
     }
 }

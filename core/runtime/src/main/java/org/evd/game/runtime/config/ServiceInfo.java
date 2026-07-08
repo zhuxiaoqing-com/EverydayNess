@@ -58,7 +58,7 @@ public class ServiceInfo {
     }
 
     public AddressInfo getAddressInfo() {
-        if(addressInfo == null && StringUtil.isNullOrEmpty(publicAddr)) {
+        if(addressInfo == null && !StringUtil.isNullOrEmpty(publicAddr)) {
             addressInfo = new AddressInfo(publicAddr);
         }
         return addressInfo;

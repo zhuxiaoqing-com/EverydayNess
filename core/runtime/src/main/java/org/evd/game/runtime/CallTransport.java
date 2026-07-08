@@ -32,11 +32,11 @@ final class CallTransport {
         }
 
         if (!buffer.writeCall(call)) {
-            LogCore.core.warn("第一次尝试写入缓冲失败：bufferLen={}, nodeId={}, portId={}, remoteNodeId={}",
-                    buffer.getLength(), serviceId, node.getId(), toNodeId);
+            LogCore.core.warn("第一次尝试写入缓冲失败：bufferLen={}, nodeId={}, portId={}, remoteNodeId={} call {}",
+                    buffer.getLength(), serviceId, node.getId(), toNodeId, call);
             buffer.flush_st(node);
             if (!buffer.writeCall(call)) {
-                LogCore.core.error("第二次尝试写入缓冲失败, call请求最大支持2M：bufferLen={}", buffer.getLength());
+                LogCore.core.error("第二次尝试写入缓冲失败, call请求最大支持2M：bufferLen={} call {} ", buffer.getLength(), call);
                 return false;
             }
         }

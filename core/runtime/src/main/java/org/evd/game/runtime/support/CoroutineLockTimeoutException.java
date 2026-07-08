@@ -1,13 +1,15 @@
 package org.evd.game.runtime.support;
 
+import org.evd.game.runtime.continuation.LockType;
+
 public class CoroutineLockTimeoutException extends SysException {
     private final String serviceId;
-    private final int lockType;
+    private final LockType lockType;
     private final Object lockKey;
     private final long waitId;
     private final int timeoutMillis;
 
-    public CoroutineLockTimeoutException(String serviceId, int lockType, Object lockKey, long waitId, int timeoutMillis) {
+    public CoroutineLockTimeoutException(String serviceId, LockType lockType, Object lockKey, long waitId, int timeoutMillis) {
         super(RpcErrorCodes.COROUTINE_LOCK_TIMEOUT,
                 "coroutine lock timeout: service={}, type={}, key={}, waitId={}, timeoutMillis={}",
                 serviceId, lockType, lockKey, waitId, timeoutMillis);
@@ -22,7 +24,7 @@ public class CoroutineLockTimeoutException extends SysException {
         return serviceId;
     }
 
-    public int getLockType() {
+    public LockType getLockType() {
         return lockType;
     }
 

@@ -10,6 +10,8 @@ public class ServerAttributeKey {
 
 	public static final AttributeKey<Integer> brokenType = AttributeKey.valueOf("brokenType");
 
+	public static final AttributeKey<String> remoteNodeId = AttributeKey.valueOf("remoteNodeId");
+
 	public static final AttributeKey<String> serverType = AttributeKey.valueOf("serverType");
 	public static final AttributeKey<Integer> serverId = AttributeKey.valueOf("serverId");
 	

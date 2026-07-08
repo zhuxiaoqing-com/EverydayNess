@@ -2,12 +2,8 @@ package org.evd.game.runtime.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import org.evd.game.runtime.Chunk;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.support.LogCore;
-
-import java.nio.ByteBuffer;
-import java.util.stream.Collectors;
 
 public final class NodeChannelHandler extends  BaseChannelHandler<ByteBuf>  {
    private Node node;
@@ -25,15 +21,12 @@ public final class NodeChannelHandler extends  BaseChannelHandler<ByteBuf>  {
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
-        byte[] payload = new byte[msg.readableBytes()];
-        msg.readBytes(payload);
-        NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).get();
-        if (payload.length < Integer.BYTES) {
+    protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) {
+        if (msg.readableBytes() < Integer.BYTES) {
             throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节");
         }
 
-        node.remoteCallHandle_nt(msg);
+        node.remoteCallHandle_nt(msg, ctx.channel());
     }
 
     @Override
@@ -45,9 +38,11 @@ public final class NodeChannelHandler extends  BaseChannelHandler<ByteBuf>  {
             }
         }
         long sessionId = session == null ? -1L : session.getChannelId();
-        LogCore.core.error("Netty onChannelInactive: node={}, sessionId={}", node.getId(), sessionId);
+        String remoteNodeId = ctx.channel().attr(ServerAttributeKey.remoteNodeId).get();
+        LogCore.core.error("Netty onChannelInactive: node={}, remoteNode={}, sessionId={}",
+                node.getId(), remoteNodeId, sessionId);
 
-        // 这个连接断开后 要把remoteNode的连接也断开;
+        node.onInboundChannelInactive_nt(ctx.channel());
     }
 
     @Override

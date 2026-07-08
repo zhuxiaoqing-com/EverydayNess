@@ -5,6 +5,7 @@ import org.evd.game.annotation.RpcService;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
@@ -17,7 +18,6 @@ import java.util.Map;
 
 @RpcService(LocationInterface.class)
 public class LocationService extends Service {
-    private static final int COROUTINE_LOCK_TYPE_LOCATION = 3;
 
     private static final class LockInfo {
         private final ActorAddress lockActorAddress;
@@ -163,7 +163,7 @@ public class LocationService extends Service {
     }
 
     private ContinuationLockScope awaitLocationLockScope(ActorId actorId) {
-        return awaitCoroutineLockScope(COROUTINE_LOCK_TYPE_LOCATION, actorId);
+        return awaitCoroutineLockScope(LockType.LOCATION, actorId);
     }
 
 

@@ -2,6 +2,7 @@ package org.evd.game.runtime;
 
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
+import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.support.CoroutineLockTimeoutException;
 
 import java.util.*;
@@ -11,10 +12,10 @@ public final class CoroutineLockManager {
     public static final int DEFAULT_TIMEOUT_MILLIS = 60_000;
 
     private static final class LockKey {
-        private final int type;
+        private final LockType type;
         private final Object key;
 
-        private LockKey(int type, Object key) {
+        private LockKey(LockType type, Object key) {
             this.type = type;
             this.key = key;
         }
@@ -70,11 +71,11 @@ public final class CoroutineLockManager {
         this.service = service;
     }
 
-    public void await(int type, Object key) {
+    public void await(LockType type, Object key) {
         await(type, key, DEFAULT_TIMEOUT_MILLIS);
     }
 
-    public void await(int type, Object key, int timeoutMillis) {
+    public void await(LockType type, Object key, int timeoutMillis) {
         Task.ContinuationWrapper continuation = service.requireRunningContinuation();
         if (tryAcquire(type, key, continuation)) {
             return;
@@ -117,7 +118,7 @@ public final class CoroutineLockManager {
         service.queueUnlockContinuation(waitContinuation);
     }
 
-    private boolean tryAcquire(int type, Object key, Task.ContinuationWrapper continuation) {
+    private boolean tryAcquire(LockType type, Object key, Task.ContinuationWrapper continuation) {
         LockKey lockKey = new LockKey(type, key);
         LockQueue queue = queues.computeIfAbsent(lockKey, ignore -> new LockQueue());
         if (queue.owner == null) {
@@ -128,7 +129,7 @@ public final class CoroutineLockManager {
         return queue.owner == continuation;
     }
 
-    private void addWaiter(int type, Object key, Task.ContinuationWrapper continuation, long waitId) {
+    private void addWaiter(LockType type, Object key, Task.ContinuationWrapper continuation, long waitId) {
         LockKey lockKey = new LockKey(type, key);
         LockQueue queue = queues.computeIfAbsent(lockKey, ignore -> new LockQueue());
         if (queue.owner == null) {
@@ -208,7 +209,7 @@ public final class CoroutineLockManager {
         }
         List<Map.Entry<LockKey, LockQueue>> entries = new ArrayList<>(queueSnapshot.entrySet());
         entries.sort(Comparator
-                .comparingInt((Map.Entry<LockKey, LockQueue> left) -> left.getKey().type)
+                .comparingInt((Map.Entry<LockKey, LockQueue> left) -> left.getKey().type.code())
                 .thenComparing(left -> String.valueOf(left.getKey().key)));
         List<CoroutineLockDebugFormatter.LockSnapshot> locks = new ArrayList<>(entries.size());
         for (Map.Entry<LockKey, LockQueue> entry : entries) {

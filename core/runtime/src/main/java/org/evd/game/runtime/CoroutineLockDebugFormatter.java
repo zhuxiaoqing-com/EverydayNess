@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
+import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.continuation.Task;
 
 import java.util.ArrayList;
@@ -17,7 +18,7 @@ final class CoroutineLockDebugFormatter {
         return new Snapshot(locks, snapshotFailure);
     }
 
-    static LockSnapshot lockSnapshot(int type,
+    static LockSnapshot lockSnapshot(LockType type,
                                      Object key,
                                      Task.ContinuationWrapper owner,
                                      List<Task.ContinuationWrapper> waiters) {
@@ -240,12 +241,12 @@ final class CoroutineLockDebugFormatter {
     }
 
     static final class LockSnapshot {
-        private final int type;
+        private final LockType type;
         private final Object key;
         private final Task.ContinuationWrapper owner;
         private final List<Task.ContinuationWrapper> waiters;
 
-        private LockSnapshot(int type,
+        private LockSnapshot(LockType type,
                              Object key,
                              Task.ContinuationWrapper owner,
                              List<Task.ContinuationWrapper> waiters) {

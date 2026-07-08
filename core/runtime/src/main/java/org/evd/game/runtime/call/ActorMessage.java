@@ -4,6 +4,8 @@ import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.runtime.actor.ActorId;
 
+import java.util.Arrays;
+
 @SerializeClass
 public class ActorMessage extends CallBase {
     @SerializeField
@@ -74,5 +76,20 @@ public class ActorMessage extends CallBase {
 
     public void setNeedResult(boolean needResult) {
         this.needResult = needResult;
+    }
+
+    @Override
+    public String toString() {
+        return "ActorMessage{" +
+                "id=" + id +
+                ", to=" + to +
+                ", from=" + from +
+                ", needResult=" + needResult +
+                ", methodParam=" + Arrays.toString(methodParam) +
+                ", methodKey=" + methodKey +
+                ", dispatchType=" + dispatchType +
+                ", mailBoxEpoch=" + mailBoxEpoch +
+                ", actorId=" + actorId +
+                '}';
     }
 }

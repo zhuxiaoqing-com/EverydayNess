@@ -34,6 +34,7 @@ public class LobbyService extends Service {
     }
 
     TickTimer tickTimer = new TickTimer(5000);
+
     @Override
     public void tick() {
         super.tick();
@@ -49,8 +50,8 @@ public class LobbyService extends Service {
             System.out.println("---");
         });
         launchCoroutine(() -> {
-            ContinuationLockScope continuationLockScope = awaitCoroutineLockScope(1, new Object());
-            ContinuationLockScope a = awaitCoroutineLockScope(1, new Object());
+            ContinuationLockScope continuationLockScope = awaitCoroutineLockScope(LockType.ACTOR, new Object());
+            ContinuationLockScope a = awaitCoroutineLockScope(LockType.ACTOR, new Object());
         });
 
         launchCoroutine(() -> {

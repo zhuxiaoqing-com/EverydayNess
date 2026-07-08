@@ -3,6 +3,8 @@ package org.evd.game.runtime.call;
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 
+import java.util.Arrays;
+
 @SerializeClass
 public class Call extends CallBase {
     /** 负载分发类型，见 DispatchType */
@@ -62,5 +64,18 @@ public class Call extends CallBase {
 
     public void setNeedResult(boolean needResult) {
         this.needResult = needResult;
+    }
+
+    @Override
+    public String toString() {
+        return "Call{" +
+                "id=" + id +
+                ", to=" + to +
+                ", from=" + from +
+                ", needResult=" + needResult +
+                ", methodParam=" + Arrays.toString(methodParam) +
+                ", methodKey=" + methodKey +
+                ", dispatchType=" + dispatchType +
+                '}';
     }
 }

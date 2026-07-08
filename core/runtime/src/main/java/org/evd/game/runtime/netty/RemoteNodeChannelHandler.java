@@ -21,18 +21,16 @@ public final class RemoteNodeChannelHandler extends  BaseChannelHandler<ByteBuf>
     protected void onChannelActive(ChannelHandlerContext ctx) {
         NetChannel netChannel = ctx.channel().attr(ServerAttributeKey.netChannel).get();
         LogCore.core.error("Netty onChannelActive: node={}, remoteNode={} sessionId={}", node.getId(), remoteNode.getRemoteId(), netChannel.getChannelId());
+        remoteNode.onOutboundChannelActive(ctx.channel());
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) throws Exception {
-        byte[] payload = new byte[msg.readableBytes()];
-        msg.readBytes(payload);
-        NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).get();
-        if (payload.length < Integer.BYTES) {
+    protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) {
+        if (msg.readableBytes() < Integer.BYTES) {
             throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节");
         }
 
-        node.remoteCallHandle_nt(msg);
+        node.remoteCallHandle_nt(msg, ctx.channel());
     }
 
     @Override
@@ -44,9 +42,11 @@ public final class RemoteNodeChannelHandler extends  BaseChannelHandler<ByteBuf>
             }
         }
         long sessionId = session == null ? -1L : session.getChannelId();
-        LogCore.core.error("Netty onChannelInactive: node={}, remoteNode={} sessionId={}", node.getId(), remoteNode.getRemoteId(), sessionId);
+        String remoteNodeId = ctx.channel().attr(ServerAttributeKey.remoteNodeId).get();
+        LogCore.core.error("Netty onChannelInactive: node={}, remoteNode={} sessionId={}",
+                node.getId(), remoteNodeId, sessionId);
 
-        node.onRemoteNodeDisconnected_nt(remoteNode);
+        node.onInboundChannelInactive_nt(ctx.channel());
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.mailbox.MailBoxBean;
@@ -36,16 +37,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  * 服务
  */
 public class Service extends TickCase {
-    /**
-     * 通用协程锁类型: actor
-     */
-    protected static final int COROUTINE_LOCK_TYPE_ACTOR = 1;
-    /**
-     * mailbox 线性化锁类型
-     */
-    public static final int COROUTINE_LOCK_TYPE_MAILBOX = 2;
-
-
     public void addCall_snt(CallBase call) {
         calls.add(call);
     }
@@ -205,7 +196,7 @@ public class Service extends TickCase {
     }
 
     @Override
-    protected void  init_t() {
+    protected void init_t() {
         threadLocal.set(this);
         // 修改状态
         status = CaseStatus.Running;
@@ -239,7 +230,7 @@ public class Service extends TickCase {
         init();
     }
 
-    public void init(){
+    public void init() {
 
     }
 
@@ -632,12 +623,11 @@ public class Service extends TickCase {
     }
 
 
-
-    protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key) {
+    public final ContinuationLockScope awaitCoroutineLockScope(LockType type, Object key) {
         return awaitCoroutineLockScope(type, key, CoroutineLockManager.DEFAULT_TIMEOUT_MILLIS);
     }
 
-    protected final ContinuationLockScope awaitCoroutineLockScope(int type, Object key, int timeoutMillis) {
+    public final ContinuationLockScope awaitCoroutineLockScope(LockType type, Object key, int timeoutMillis) {
         if (key == null) {
             return new ContinuationLockScope(coroutineLockManager, null);
         }

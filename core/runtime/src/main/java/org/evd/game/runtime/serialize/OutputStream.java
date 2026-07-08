@@ -118,6 +118,7 @@ public class OutputStream implements AutoCloseable, OutputStreamBase {
 		}  catch (Exception e) {
 			//失败时还原数据流offset到写入前
 			stream = CodedOutputStream.newInstance(buffer, offset, length - offset);
+			LogCore.core.error("", e);
 			return false;
 		}
 	}

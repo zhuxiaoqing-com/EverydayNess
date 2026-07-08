@@ -26,6 +26,7 @@ import java.util.List;
 
 @Slf4j
 public class Main {
+
     private static void validateSingleServices(NodeConfig config) {
         Map<ServiceType, Integer> serviceCountMap = new EnumMap<>(ServiceType.class);
         Map<ServiceType, List<String>> serviceSourceMap = new EnumMap<>(ServiceType.class);
@@ -83,6 +84,7 @@ public class Main {
             nodeId = args[1];
         }
 
+        log.info("start  node {} ", nodeId);
         GlobalConfig.init(bootStrapName);
         NodeConfig config = GlobalConfig.requireNodeConfig();
         validateSingleServices(config);
@@ -125,7 +127,7 @@ public class Main {
         // addRemoteNode
         for (NodeInfo remoteInfo : config.getNodes()){
             if (!node.getId().equals(remoteInfo.getName())){
-                node.addRemoteNode(remoteInfo.getName(), remoteInfo.getAddr());
+                node.addRemoteNode(remoteInfo.getName(), remoteInfo.getAddr(), NodeInfo.needConnect(nodeInfo, remoteInfo));
             }
         }
         // addService
