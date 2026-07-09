@@ -1,7 +1,5 @@
 package org.evd.game.runtime.continuation;
 
-import org.evd.game.runtime.CoroutineLockManager;
-
 /**
  * @author zhuxiaoqing
  * @Description: ContinuationLockScope

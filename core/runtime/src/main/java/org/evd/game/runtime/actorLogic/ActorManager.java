@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.actorLogic;
 
 import java.util.Map;
 

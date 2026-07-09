@@ -1,6 +1,8 @@
 package org.evd.game.runtime;
 
 import org.evd.game.runtime.continuation.Task;
+import org.evd.game.runtime.misc.FrameStatistics;
+import org.evd.game.runtime.misc.ScheduledExecutor;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
 

@@ -1,6 +1,6 @@
 package org.evd.game.runtime.mailbox;
 
-import org.evd.game.runtime.CoroutineLockManager;
+import org.evd.game.runtime.continuation.CoroutineLockManager;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.ActorMessage;

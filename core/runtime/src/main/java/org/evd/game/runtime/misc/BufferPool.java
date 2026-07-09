@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.misc;
 
 import org.evd.game.runtime.support.LogCore;
 

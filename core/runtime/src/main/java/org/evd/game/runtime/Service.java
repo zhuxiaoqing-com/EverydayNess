@@ -10,17 +10,14 @@ import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorMailBoxRegistry;
 import org.evd.game.runtime.actorLogic.ActorInterfaceIndexer;
+import org.evd.game.runtime.actorLogic.ActorManager;
 import org.evd.game.runtime.actorLogic.EventListenerInterfaceProcessor;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
-import org.evd.game.runtime.continuation.ContinuationDebugInfo;
-import org.evd.game.runtime.continuation.ContinuationLockScope;
-import org.evd.game.runtime.continuation.LockType;
-import org.evd.game.runtime.continuation.ContinuationRuntime;
-import org.evd.game.runtime.continuation.Task;
+import org.evd.game.runtime.continuation.*;
 import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
@@ -33,7 +30,6 @@ import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
 import org.evd.game.runtime.util.TimerScheduler;
 
-import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -555,7 +551,7 @@ public class Service extends TickCase {
         rpcOutboundGateway.sendClientCmd(toCallPoint, session, msgId, body);
     }
 
-    Task.ContinuationWrapper requireRunningContinuation() {
+    public Task.ContinuationWrapper requireRunningContinuation() {
         return continuationRuntime.requireRunning();
     }
 
@@ -563,17 +559,17 @@ public class Service extends TickCase {
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
     }
 
-    long registerWait(long timeoutMillis,
+    public long registerWait(long timeoutMillis,
                       ContinuationRuntime.WaitTimeoutHandler timeoutHandler,
                       ContinuationDebugInfo.DebugInfo waitDebugInfo) {
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler, waitDebugInfo);
     }
 
-    Task.ContinuationWrapper takeWaitContinuation(long waitId) {
+    public Task.ContinuationWrapper _takeWaitContinuation(long waitId) {
         return continuationRuntime.takeWaitContinuation(waitId);
     }
 
-    void queueUnlockContinuation(Task.ContinuationWrapper continuation) {
+    public void _queueUnlockContinuation(Task.ContinuationWrapper continuation) {
         continuationRuntime.queue(continuation, Task.Reason.UNLOCK);
     }
 
@@ -605,7 +601,7 @@ public class Service extends TickCase {
                         id, timeoutWaitId, timeoutMillis)),
                 new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));
         stage.whenComplete((result, throwable) -> post(() -> {
-            Task.ContinuationWrapper waitContinuation = takeWaitContinuation(waitId);
+            Task.ContinuationWrapper waitContinuation = _takeWaitContinuation(waitId);
             if (waitContinuation == null) {
                 return;
             }

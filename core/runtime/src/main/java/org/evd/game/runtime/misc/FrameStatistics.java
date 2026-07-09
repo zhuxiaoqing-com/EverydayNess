@@ -1,5 +1,6 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.misc;
 
+import org.evd.game.runtime.TickCase;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.util.TimeUtils;
 

@@ -1,8 +1,6 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.continuation;
 
-import org.evd.game.runtime.continuation.Task;
-import org.evd.game.runtime.continuation.ContinuationDebugInfo;
-import org.evd.game.runtime.continuation.LockType;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.CoroutineLockTimeoutException;
 
 import java.util.*;
@@ -108,14 +106,14 @@ public final class CoroutineLockManager {
 
         Task.ContinuationWrapper waitContinuation = next.waitId == 0
                 ? next.continuation
-                : service.takeWaitContinuation(next.waitId);
+                : service._takeWaitContinuation(next.waitId);
         if (waitContinuation == null) {
             release(next.continuation);
             return;
         }
 
         waitContinuation.setResult(null);
-        service.queueUnlockContinuation(waitContinuation);
+        service._queueUnlockContinuation(waitContinuation);
     }
 
     private boolean tryAcquire(LockType type, Object key, Task.ContinuationWrapper continuation) {

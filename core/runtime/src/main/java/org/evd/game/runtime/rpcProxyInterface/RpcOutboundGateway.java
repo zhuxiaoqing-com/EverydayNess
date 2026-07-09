@@ -1,7 +1,7 @@
 package org.evd.game.runtime.rpcProxyInterface;
 
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.CallFactory;
+import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;

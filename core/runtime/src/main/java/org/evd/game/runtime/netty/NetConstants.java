@@ -1,8 +1,6 @@
 package org.evd.game.runtime.netty;
 
-import org.evd.game.runtime.BufferPool;
-
-import java.net.InetSocketAddress;
+import org.evd.game.runtime.misc.BufferPool;
 
 /**
  * 网络常量;
