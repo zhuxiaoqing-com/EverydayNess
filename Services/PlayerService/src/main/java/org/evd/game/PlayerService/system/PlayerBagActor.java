@@ -11,16 +11,9 @@ import org.evd.game.runtime.event.GameEvent;
  * @Date 2026/6/30 9:50
  **/
 
-@GameEvent(
-        event = RoleMinuteEvent.class,
-        dependsOn = {PlayerBagActor.class}
-)
-/*@GameEvent(
-        event = RoleMinuteEvent.class,
-        dependsOn = {PlayerLoginActor.class}
-)*/
+
 @Actor
-public class PlayerLoginActor implements RoleMidnightEvent.Listener, RoleMinuteEvent.Listener {
+public class PlayerBagActor implements RoleMidnightEvent.Listener, RoleMinuteEvent.Listener {
     @Override
     public void onEvent(RoleMidnightEvent event) {
 
