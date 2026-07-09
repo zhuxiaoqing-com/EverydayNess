@@ -26,22 +26,16 @@ public class InputStream implements InputStreamBase {
 	/** 字节流处理类 */
 	private final CodedInputStream stream;
 
-	private static final Map<Integer, ReturnFunctionWithException1<ISerializable, InputStream, IOException>> _serializeReadFuncMap = new HashMap<>();
+	private static final Map<Integer, SerializeReadRegistration> _serializeReadFuncMap = new HashMap<>();
 //	private static ReturnFunctionWithException2<ISerializable, Integer, InputStream, IOException> _serializeReadFunc = null;
 
-	/** 反序列化Msg的函数 */
-	private static ReturnFunction2<GeneratedMessage, Integer, CodedInputStream> _msgFunc = null;
+	/** 反序列化Msg函数 */
+	private static final Map<Integer, MsgReadRegistration> _msgFuncMap = new HashMap<>();
 	/** 反序列化Enum函数 */
 //	private static ReturnFunction2<Enum, Integer, String> _enumFunc = null;
-	private static final Map<Integer, ReturnFunctionWithException2<Enum<?>, InputStream, Integer, IOException>> _enumFuncMap = new HashMap<>();
+	private static final Map<Integer, EnumReadRegistration> _enumFuncMap = new HashMap<>();
 	
-	/**
-	 * 设置反序列化Msg的函数
-	 * @param msgFunc 反序列化Msg的函数
-	 */
-	public static void setCreateMsgFunc(ReturnFunction2<GeneratedMessage, Integer, CodedInputStream> msgFunc) {
-		_msgFunc = msgFunc;
-	}
+
 	
 //	/**
 //	 * 设置反序列化枚举函数
@@ -531,11 +525,11 @@ public class InputStream implements InputStreamBase {
 //		return Enum.valueOf(cls, val);
 		int id = stream.readInt32();
 		int ordinal = stream.readInt32();
-		ReturnFunctionWithException2<Enum<?>, InputStream, Integer, IOException> func = _enumFuncMap.get(id);
-		if (func == null) {
-			throw new SysException("未能找到序列化对象, hashCode: {}", id);
+		EnumReadRegistration registration = _enumFuncMap.get(id);
+		if (registration == null) {
+			throw new SysException("未能找到枚举反序列化函数, hashCode: {}", id);
 		}
-		return func.apply(this, ordinal);
+		return registration.func().apply(this, ordinal);
 	}
 
 	/**
@@ -703,11 +697,11 @@ public class InputStream implements InputStreamBase {
 
 	private ISerializable doReadDistributed() throws IOException {
 		int id = stream.readInt32();
-		ReturnFunctionWithException1<ISerializable, InputStream, IOException> func = _serializeReadFuncMap.get(id);
-		if (func == null) {
-			throw new SysException("未能找到序列化对象, hashCode: {}", id);
+		SerializeReadRegistration registration = _serializeReadFuncMap.get(id);
+		if (registration == null) {
+			throw new SysException("未能找到序列化对象反序列化函数, hashCode: {}", id);
 		}
-		return func.apply(this);
+		return registration.func().apply(this);
 	}
 
 	/**
@@ -727,8 +721,11 @@ public class InputStream implements InputStreamBase {
 		int len = stream.readInt32();
 		int id = stream.readInt32();
 		byte[] bytes = stream.readRawBytes(len);
-		// 取出消息体
-		return _msgFunc.apply(id, CodedInputStream.newInstance(bytes));
+		MsgReadRegistration registration = _msgFuncMap.get(id);
+		if (registration == null) {
+			throw new SysException("未注册 protobuf 消息反序列化函数: id={}", id);
+		}
+		return registration.func().apply(id, CodedInputStream.newInstance(bytes));
 	}
 
 	/**
@@ -808,17 +805,57 @@ public class InputStream implements InputStreamBase {
 		throw new SysException("未实现readShort");
 	}
 
-	public static void registerSerializeReadFunc(int key, ReturnFunctionWithException1<ISerializable, InputStream, IOException> func){
-		ReturnFunctionWithException1<ISerializable, InputStream, IOException> oldFunc = _serializeReadFuncMap.put(key, func);
-		if (oldFunc != null){
-			throw new SysException("register repeated serialize func");
+	public static void registerSerializeReadFunc(int key,
+												 Class<?> targetClass,
+												 ReturnFunctionWithException1<ISerializable, InputStream, IOException> func){
+		SerializeReadRegistration newRegistration = new SerializeReadRegistration(targetClass.getName(), func);
+		SerializeReadRegistration oldRegistration = _serializeReadFuncMap.put(key, newRegistration);
+		if (oldRegistration != null){
+			throw new SysException("register repeated serialize func: key={}, oldClass={}, newClass={}",
+					key, oldRegistration.targetClassName(), newRegistration.targetClassName());
 		}
 	}
 
-	public static void registerSerializeReadEnumFunc(int key, ReturnFunctionWithException2<Enum<?>, InputStream, Integer, IOException> func){
-		ReturnFunctionWithException2<Enum<?>, InputStream, Integer, IOException> oldFunc = _enumFuncMap.put(key, func);
-		if (oldFunc != null){
-			throw new SysException("register repeated enum serialize func");
+	public static void registerSerializeReadEnumFunc(int key,
+													 Class<?> targetClass,
+													 ReturnFunctionWithException2<Enum<?>, InputStream, Integer, IOException> func){
+		EnumReadRegistration newRegistration = new EnumReadRegistration(targetClass.getName(), func);
+		EnumReadRegistration oldRegistration = _enumFuncMap.put(key, newRegistration);
+		if (oldRegistration != null){
+			throw new SysException("register repeated enum serialize func: key={}, oldClass={}, newClass={}",
+					key, oldRegistration.targetClassName(), newRegistration.targetClassName());
 		}
+	}
+
+	/**
+	 * 注册反序列化Msg函数
+	 * @param key 消息类型
+	 * @param msgFunc 反序列化Msg的函数
+	 */
+	public static void registerSerializeReadMsgFunc(int key,
+													Class<?> targetClass,
+													ReturnFunction2<GeneratedMessage, Integer, CodedInputStream> msgFunc) {
+		MsgReadRegistration newRegistration = new MsgReadRegistration(targetClass.getName(), msgFunc);
+		MsgReadRegistration oldRegistration = _msgFuncMap.put(key, newRegistration);
+		if (oldRegistration != null){
+			throw new SysException("register repeated msg serialize func: key={}, oldClass={}, newClass={}",
+					key, oldRegistration.targetClassName(), newRegistration.targetClassName());
+		}
+	}
+
+
+	private record SerializeReadRegistration(
+			String targetClassName,
+			ReturnFunctionWithException1<ISerializable, InputStream, IOException> func) {
+	}
+
+	private record EnumReadRegistration(
+			String targetClassName,
+			ReturnFunctionWithException2<Enum<?>, InputStream, Integer, IOException> func) {
+	}
+
+	private record MsgReadRegistration(
+			String targetClassName,
+			ReturnFunction2<GeneratedMessage, Integer, CodedInputStream> func) {
 	}
 }

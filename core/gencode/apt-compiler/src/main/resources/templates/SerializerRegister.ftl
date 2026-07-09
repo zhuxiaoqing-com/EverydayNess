@@ -40,7 +40,7 @@ final class ${className}{
 	*/
 	private static void registerRead(){
 	<#list fields as field>
-		InputStream.registerSerializeReadFunc(${field.key}, ${className}::${field.registerName}Read);
+		InputStream.registerSerializeReadFunc(${field.key}, ${field.classFullName}.class, ${className}::${field.registerName}Read);
 	</#list>
 	}
 	/**
@@ -48,7 +48,7 @@ final class ${className}{
 	*/
 	private static void registerReadEnum(){
 	<#list enums as field>
-		InputStream.registerSerializeReadEnumFunc(${field.key}, ${className}::${field.registerName}ReadEnum);
+		InputStream.registerSerializeReadEnumFunc(${field.key}, ${field.classFullName}.class, ${className}::${field.registerName}ReadEnum);
 	</#list>
 	}
 
