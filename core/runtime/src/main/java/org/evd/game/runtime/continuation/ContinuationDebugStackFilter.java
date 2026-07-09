@@ -47,7 +47,7 @@ final class ContinuationDebugStackFilter {
                 || className.equals(Task.ContinuationWrapper.class.getName())
                 || className.equals("org.evd.game.runtime.continuation.ContinuationRuntime")
                 || className.equals("org.evd.game.runtime.CoroutineLockManager")
-                || className.equals("org.evd.game.runtime.RpcOutboundGateway")
+                || className.equals("org.evd.game.runtime.rpcProxyInterface.RpcOutboundGateway")
                 || className.equals("org.evd.game.runtime.MessageSender")
                 || className.equals("org.evd.game.runtime.Service");
     }

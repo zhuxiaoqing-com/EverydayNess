@@ -1,7 +1,8 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.rpcProxyInterface;
 
 import org.evd.game.runtime.client.ClientCmdRegistryBase;
 import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.SysException;
 import org.evd.game.runtime.support.function.Function0;
@@ -30,12 +31,12 @@ import org.evd.game.runtime.support.function.ReturnFunction9;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 
-final class RpcMethodInvoker {
+public final class RpcMethodInvoker {
     private final Service service;
     private RPCImplBase methodFunctionProxy;
     private ClientCmdRegistryBase<?> clientCmdRegistry;
 
-    RpcMethodInvoker(Service service) {
+    public RpcMethodInvoker(Service service) {
         this.service = service;
     }
 

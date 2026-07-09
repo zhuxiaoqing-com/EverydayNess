@@ -5,9 +5,9 @@ import org.evd.game.DBService.DBService;
 import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DbOpType;
-import org.evd.game.runtime.TickTimer;
-import org.evd.game.runtime.TimeUtils;
-import org.evd.game.runtime.TimeoutFlag;
+import org.evd.game.runtime.serializeBean.TickTimer;
+import org.evd.game.runtime.util.TimeUtils;
+import org.evd.game.runtime.serializeBean.TimeoutFlag;
 import org.evd.game.runtime.config.DbConfig;
 
 import java.util.HashMap;

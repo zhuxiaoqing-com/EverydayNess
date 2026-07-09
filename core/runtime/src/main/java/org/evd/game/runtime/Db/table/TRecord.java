@@ -1,15 +1,13 @@
 package org.evd.game.runtime.Db.table;
 
-import lombok.extern.slf4j.Slf4j;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.TimeUtils;
+import org.evd.game.runtime.util.TimeUtils;
 import org.evd.game.runtime.call.CallPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 public class TRecord<K, V extends DirtyObject> {
     public static final int ADD = 1;

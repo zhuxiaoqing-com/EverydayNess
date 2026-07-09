@@ -1,8 +1,9 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.serializeBean;
 
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.LogCore;
 
 /**

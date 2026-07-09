@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.util.TimeUtils;
 
 public class FrameStatistics {
 

@@ -9,6 +9,8 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorMailBoxRegistry;
+import org.evd.game.runtime.actorLogic.ActorInterfaceIndexer;
+import org.evd.game.runtime.actorLogic.EventListenerInterfaceProcessor;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -23,10 +25,15 @@ import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
+import org.evd.game.runtime.rpcProxyInterface.RpcInboundDispatcher;
+import org.evd.game.runtime.rpcProxyInterface.RpcMethodInvoker;
+import org.evd.game.runtime.rpcProxyInterface.RpcOutboundGateway;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.util.TimerScheduler;
 
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -294,6 +301,10 @@ public class Service extends TickCase {
         return -1L;
     }
 
+    public long getCallWaitTimeoutInternal() {
+        return getCallWaitTimeout();
+    }
+
     private long getWaitBaseTime() {
         long now = getTimeCurrent();
         return now > 0 ? now : System.currentTimeMillis();
@@ -320,15 +331,15 @@ public class Service extends TickCase {
         return new CallPoint(callPoint);
     }
 
-    long getWaitBaseTimeInternal() {
+    public long getWaitBaseTimeInternal() {
         return getWaitBaseTime();
     }
 
-    ProcessInnerSender getProcessInnerSender() {
+    public ProcessInnerSender getProcessInnerSender() {
         return processInnerSender;
     }
 
-    RpcMethodInvoker getRpcMethodInvoker() {
+    public RpcMethodInvoker getRpcMethodInvoker() {
         return rpcMethodInvoker;
     }
 
@@ -345,6 +356,8 @@ public class Service extends TickCase {
             }
             actorManager = (ActorManager) cls.getDeclaredConstructor().newInstance();
             actorInterfaceIndexer = new ActorInterfaceIndexer(actorManager.getActors());
+            // 事件进行依赖处理
+            new EventListenerInterfaceProcessor().process(actorInterfaceIndexer);
         } catch (Exception e) {
             throw new SysException(e, "初始化 ActorManager 失败: service={}", id);
         }
@@ -368,23 +381,21 @@ public class Service extends TickCase {
         return actorManager().getActors();
     }
 
-    public final <T> T getActorByInterface(Class<T> actorInterface) {
+    /**
+     * 通过接口获取实现了该结构的所有Actor
+     */
+    public final <T> Collection<T> getActorByInterface(Class<T> actorInterface) {
         if (actorInterface == null) {
             throw new SysException("actorInterface is null: service={}", id);
         }
-        actorManager();
-        Object actor = actorInterfaceIndexer.getInterfaceActors().get(actorInterface);
-        if (actor == null) {
-            throw new SysException("actor interface not found: service={}, interface={}", id, actorInterface.getName());
-        }
-        return actorInterface.cast(actor);
+        return actorInterfaceIndexer.getObjByClass(actorInterface);
     }
 
     public final Map<Class<?>, List<Object>> getActorInterfaceMap() {
         return actorInterfaceIndexer.getInterfaceActors();
     }
 
-    RpcOutboundGateway getRpcOutboundGateway() {
+    public RpcOutboundGateway getRpcOutboundGateway() {
         return rpcOutboundGateway;
     }
 

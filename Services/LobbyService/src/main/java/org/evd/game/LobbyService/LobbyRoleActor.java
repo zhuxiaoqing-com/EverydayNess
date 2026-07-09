@@ -11,7 +11,7 @@ import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.SnowflakeIdGenerator;
+import org.evd.game.runtime.util.SnowflakeIdGenerator;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.netty.BrokenType;
 

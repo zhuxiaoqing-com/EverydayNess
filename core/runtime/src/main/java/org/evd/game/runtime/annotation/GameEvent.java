@@ -1,4 +1,4 @@
-package org.evd.game.runtime.event;
+package org.evd.game.runtime.annotation;
 
 import java.lang.annotation.*;
 

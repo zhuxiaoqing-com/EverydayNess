@@ -1,7 +1,7 @@
 package org.evd.game.runtime.continuation;
 
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.TimerScheduler;
+import org.evd.game.runtime.util.TimerScheduler;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;

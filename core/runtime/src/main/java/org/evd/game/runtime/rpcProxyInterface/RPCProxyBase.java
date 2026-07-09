@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.rpcProxyInterface;
 
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.support.TwoTuple;

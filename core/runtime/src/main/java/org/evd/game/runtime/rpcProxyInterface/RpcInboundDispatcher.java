@@ -1,6 +1,7 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.rpcProxyInterface;
 
 import org.evd.game.runtime.call.*;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
@@ -9,14 +10,14 @@ import org.evd.game.runtime.support.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.SysException;
 
-final class RpcInboundDispatcher {
+public final class RpcInboundDispatcher {
     private final Service service;
 
-    RpcInboundDispatcher(Service service) {
+    public RpcInboundDispatcher(Service service) {
         this.service = service;
     }
 
-    void handle(CallBase callBase) {
+    public void handle(CallBase callBase) {
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper context;
         if (callBase instanceof Call call) {
@@ -38,7 +39,7 @@ final class RpcInboundDispatcher {
             } else {
                 context.setFailure(new RpcCallException(
                         callResult.errorCode,
-                        "rpc call failed: service=" + service.id + ", waitId=" + callResult.id
+                        "rpc call failed: service=" + service.getId() + ", waitId=" + callResult.id
                                 + ", methodKey=" + callResult.methodKey
                                 + ", errorCode=" + callResult.errorCode + ", message=" + callResult.errorMessage));
             }
@@ -51,7 +52,7 @@ final class RpcInboundDispatcher {
         dispatchBusinessCall(call);
     }
 
-    void dispatchMailBoxMessage(ActorMessage message) {
+    public void dispatchMailBoxMessage(ActorMessage message) {
         Call call = new Call();
         call.from = new CallPoint(message.getFrom());
         call.to = new CallPoint(message.getTo());
@@ -76,7 +77,7 @@ final class RpcInboundDispatcher {
                 callReturn.result = service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
             } catch (Throwable e) {
                 LogCore.core.error("rpc return dispatch failed: service={}, methodKey={}",
-                        service.id, call.methodKey, e);
+                        service.getId(), call.methodKey, e);
                 fillRpcFailure(callReturn, e);
             }
             service.getRpcOutboundGateway().send(callReturn);
@@ -86,7 +87,7 @@ final class RpcInboundDispatcher {
         try {
             service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
         } catch (Exception e) {
-            LogCore.core.error("rpc dispatch failed: service={}, methodKey={}", service.id, call.methodKey, e);
+            LogCore.core.error("rpc dispatch failed: service={}, methodKey={}", service.getId(), call.methodKey, e);
         }
     }
 
@@ -97,7 +98,7 @@ final class RpcInboundDispatcher {
                 service.getRpcMethodInvoker().dispatchClientCmd(call.methodKey, call.methodParam);
             } catch (Throwable e) {
                 LogCore.core.error("client cmd return dispatch failed: service={}, msgId={}",
-                        service.id, call.methodKey, e);
+                        service.getId(), call.methodKey, e);
                 fillRpcFailure(callReturn, e);
             }
             service.getRpcOutboundGateway().send(callReturn);
@@ -108,7 +109,7 @@ final class RpcInboundDispatcher {
             service.getRpcMethodInvoker().dispatchClientCmd(call.methodKey, call.methodParam);
         } catch (Exception e) {
             LogCore.core.error("client cmd dispatch failed: service={}, msgId={}",
-                    service.id, call.methodKey, e);
+                    service.getId(), call.methodKey, e);
         }
     }
 

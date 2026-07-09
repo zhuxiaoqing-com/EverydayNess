@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.util;
 
 import java.util.HashMap;
 import java.util.Map;

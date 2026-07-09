@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.util;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;

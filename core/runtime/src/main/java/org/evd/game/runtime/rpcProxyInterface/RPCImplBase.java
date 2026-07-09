@@ -1,4 +1,6 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.rpcProxyInterface;
+
+import org.evd.game.runtime.Service;
 
 /**
  * @author
