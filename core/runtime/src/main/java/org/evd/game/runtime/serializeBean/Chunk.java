@@ -1,4 +1,4 @@
-package org.evd.game.runtime;
+package org.evd.game.runtime.serializeBean;
 
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;

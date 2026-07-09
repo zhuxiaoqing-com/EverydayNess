@@ -63,6 +63,7 @@
 9.考虑远程的Service使用注册的方式来实现，就是node之间连接以后，在第一次心跳成功以后 和心跳超时以后要有node连接和Node断链的接口,
     然后再node层面要有，每个node的service数据，这个数据不读ymal，而是通过node之间连接以后，注册过来，如果有变化的话，就重新同步注册;
     这个注册，主要是为了跨服实现，这个正常也是要注册的，不然就是要有service状态了;那其实还是注册一下好;
+    org.evd.game.runtime.serialize.InputStream._msgFunc没有实现;
 
 
 10.ConcurrentLinkedQueue 像这种类似的，其实都可以用双指针无锁队列来弄得吧;默认获取读锁，切换的时候才进行写锁

@@ -8,6 +8,7 @@ import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.DispatchType;
 import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.SysException;
 
 public final class CallFactory {

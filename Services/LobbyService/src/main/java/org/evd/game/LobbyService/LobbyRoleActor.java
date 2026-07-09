@@ -9,7 +9,7 @@ import org.evd.game.annotation.ClientCmd;
 import org.evd.game.common.proto.*;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
-import org.evd.game.runtime.Chunk;
+import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.SnowflakeIdGenerator;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -118,7 +118,8 @@ public final class LobbyRoleActor {
         if (role != null) {
             builder.setRole(role);
         }
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(), MsgId.S2C_CREATE_ROLE_VALUE, new Chunk(builder.build()));
+        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+                ClientFrameChunk.wrap(MsgId.S2C_CREATE_ROLE_VALUE, builder.build()));
     }
 
     public void pushSelectRoleResp(ClientSessionRef session, boolean success, String message, long playerId) {
@@ -127,6 +128,7 @@ public final class LobbyRoleActor {
                 .setMessage(message)
                 .setPlayerId(playerId)
                 .build();
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(), MsgId.S2C_SELECT_ROLE_ENTER_VALUE, new Chunk(resp));
+        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+                ClientFrameChunk.wrap(MsgId.S2C_SELECT_ROLE_ENTER_VALUE, resp));
     }
 }

@@ -84,7 +84,7 @@ public final class NetConnector {
             connectingFuture = future;
             future.addListener((ChannelFutureListener) connectFuture -> {
                 if (!connectFuture.isSuccess()) {
-                    logger.error("[ name: {} ] connect to address:{} fail", name, address, connectFuture.cause());
+                    logger.error("[ name: {} ] connect to address:{} fail", name, address);
                     closeQuietly(connectFuture.channel());
                     finishConnectAttempt();
                     return;

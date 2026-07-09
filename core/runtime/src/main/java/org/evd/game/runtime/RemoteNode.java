@@ -1,11 +1,13 @@
 package org.evd.game.runtime;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallNodeServicesSync;
 import org.evd.game.runtime.call.CallPing;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.GlobalConfig;
+import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.netty.AddressInfo;
 import org.evd.game.runtime.netty.BaseChannelInitializer;
 import org.evd.game.runtime.netty.ChannelManager;
@@ -14,6 +16,7 @@ import org.evd.game.runtime.netty.NetConnector;
 import org.evd.game.runtime.netty.RemoteNodeChannelHandler;
 import org.evd.game.runtime.netty.ServerAttributeKey;
 import org.evd.game.runtime.serialize.OutputStream;
+import org.evd.game.runtime.serializeBean.NodeFrameChunk;
 import org.evd.game.runtime.support.LogCore;
 
 import java.net.InetSocketAddress;
@@ -105,9 +108,16 @@ public class RemoteNode {
      * 发送业务或服务同步请求
      */
     public void sendCall(CallBase call) {
-        sendRpcLog(call, channel);
-
-        send(encodeCall_nt(call));
+        NetChannel activeChannel = channel;
+        DebugPrint.printSendRpc(activeChannel, call);
+        if (!isActive() || activeChannel == null || !activeChannel.isValid()) {
+            LogCore.remote.warn("远程Node不可用，丢弃消息: localNode={}, remoteNode={}, needConnect={}",
+                    localNode.getId(), remoteId, needConnect);
+            return;
+        }
+        ByteBuf byteBuf = encodeCall_nt(call).getByteBuf();
+        logOutboundFrame("sendCall", activeChannel, byteBuf, call);
+        activeChannel.write(byteBuf);
     }
 
     /** 握手/心跳直接走指定物理连接，不经过逻辑上线判定。 */
@@ -116,8 +126,10 @@ public class RemoteNode {
             return;
         }
 
-        sendRpcLog(call, channel);
-        channel.write(encodeCall_nt(call));
+        DebugPrint.printSendRpc(channel, call);
+        ByteBuf byteBuf = encodeCall_nt(call).getByteBuf();
+        logOutboundFrame("sendOnChannel", channel, byteBuf, call);
+        channel.write(byteBuf);
     }
 
 
@@ -125,24 +137,46 @@ public class RemoteNode {
      * 发送业务或服务同步请求
      * 只有逻辑UP时才允许发业务RPC
      */
-    public void send(byte[] buf) {
+    public void send(NodeFrameChunk packet) {
         NetChannel channel = this.channel;
         if (!isActive() || channel == null || !channel.isValid()) {
             LogCore.remote.warn("远程Node不可用，丢弃消息: localNode={}, remoteNode={}, needConnect={}",
                     localNode.getId(), remoteId, needConnect);
             return;
         }
-        channel.write(buf);
+        ByteBuf byteBuf = packet.getByteBuf();
+        logOutboundFrame("sendPacket", channel, byteBuf, null);
+        channel.write(byteBuf);
     }
 
 
-    byte[] encodeCall_nt(CallBase call) {
+    NodeFrameChunk encodeCall_nt(CallBase call) {
         try (OutputStream out = new OutputStream()) {
             out.write(call);
-            byte[] copy = new byte[out.getLength()];
-            System.arraycopy(out.getBuffer(), 0, copy, 0, out.getLength());
-            return copy;
+            return NodeFrameChunk.wrap(out.getBuffer(), out.getLength());
         }
+    }
+
+    private void logOutboundFrame(String stage, NetChannel channel, ByteBuf byteBuf, CallBase call) {
+        int readerIndex = byteBuf.readerIndex();
+        int frameLength = byteBuf.readableBytes();
+        int payloadLength = frameLength >= Integer.BYTES ? byteBuf.getInt(readerIndex) : -1;
+        String frameHex = ByteBufUtil.hexDump(byteBuf, readerIndex, frameLength);
+        String payloadHex = frameLength > Integer.BYTES
+                ? ByteBufUtil.hexDump(byteBuf, readerIndex + Integer.BYTES, frameLength - Integer.BYTES)
+                : "";
+        LogCore.remote.warn(
+                "NodeFrame OUT stage={}, localNode={}, remoteNode={}, channelId={}, callType={}, frameLength={}, payloadLength={}, frameHex={}, payloadHex={}",
+                stage,
+                localNode.getId(),
+                remoteId,
+                channel == null ? -1L : channel.getChannelId(),
+                call == null ? "<packet>" : call.getClass().getSimpleName(),
+                frameLength,
+                payloadLength,
+                frameHex,
+                payloadHex
+        );
     }
 
 
@@ -274,11 +308,4 @@ public class RemoteNode {
     }
 
 
-
-    public static void sendRpcLog(CallBase call,NetChannel netChannel) {
-        if (GlobalConfig.requireNodeConfig().isDebug()) {
-            long channelId = netChannel == null ?-1L : netChannel.getChannelId();
-            log.warn("发送rpc channelId {}   call {} ", channelId, call);
-        }
-    }
 }

@@ -1,5 +1,6 @@
 package org.evd.game.runtime.netty;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -101,12 +102,12 @@ public class NetChannel {
         return sessionState.canProcess(msgId);
     }
 
-    public void write(Object obj) {
-        channel.writeAndFlush(obj);
+    public void write(ByteBuf byteBuf) {
+        channel.writeAndFlush(byteBuf);
     }
 
-    public void writeAndClose(Object obj) {
-        channel.writeAndFlush(obj).addListener(new ChannelFutureListener() {
+    public void writeAndClose(ByteBuf byteBuf) {
+        channel.writeAndFlush(byteBuf).addListener(new ChannelFutureListener() {
 
             public void operationComplete(ChannelFuture future) throws Exception {
                 future.channel().close();

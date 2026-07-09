@@ -1,7 +1,7 @@
 package org.evd.game.runtime.client;
 
 import org.evd.game.annotation.ServiceType;
-import org.evd.game.runtime.Chunk;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.annotation.ActorType;

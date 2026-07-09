@@ -2,7 +2,7 @@ package org.evd.game.common.proxy.ConnService;
 
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.Chunk;
+import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 
 /**
 * 根据ConnServiceService生成的代理类
@@ -82,9 +82,9 @@ public final class ConnServiceProxy {
     /**
     * 对应源方法: org.evd.game.ConnService.ConnService#pushToClient()
     */
-    public void pushToClient(CallPoint remote, long sessionId, int msgId, Chunk body){
+    public void pushToClient(CallPoint remote, long sessionId, ClientFrameChunk packet){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNSERVICE_PUSHTOCLIENT_4, new Object[]{sessionId, msgId, body});
+        service.call(remote, EnumCall.ENUM_CONNSERVICE_PUSHTOCLIENT_4, new Object[]{sessionId, packet});
     }
 
 

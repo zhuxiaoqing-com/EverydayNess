@@ -23,6 +23,7 @@ import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.mailbox.MessageLocationSender;
 import org.evd.game.runtime.mailbox.ProcessInnerSender;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
 

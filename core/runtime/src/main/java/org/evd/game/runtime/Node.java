@@ -1,16 +1,16 @@
 package org.evd.game.runtime;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
+import io.netty.buffer.ByteBufUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
-import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.serialize.InputStream;
-import org.evd.game.runtime.serialize.OutputStream;
+import org.evd.game.runtime.serializeBean.NodeFrameChunk;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
 
@@ -201,7 +201,7 @@ public class Node extends TickCase{
     private void sendCall(RemoteCall call) {
         RemoteNode node = remoteNodes.get(call.getRemoteNodeId());
         if (node != null) {
-            node.send(call.getBuffer());
+            node.send(call.getPacket());
         } else {
             LogCore.remote.error("发送Call请求时，发现未知远程节点: call={}", call);
         }
@@ -270,10 +270,7 @@ public class Node extends TickCase{
             localCallHandle_st(input);
             // 其余的需要通过远程Node来发送请求值目标Node
         } else {
-            byte[] copy = new byte[bufferLength];
-            System.arraycopy(buffer, 0, copy, 0, bufferLength);
-
-            remoteCalls.add(new RemoteCall(nodeId, copy));
+            remoteCalls.add(new RemoteCall(nodeId, NodeFrameChunk.wrap(buffer, bufferLength)));
 //			RemoteNode node = remoteNodes.get(nodeId);
 //			if (node != null) {
 //				node.addCall(buffer, bufferLength);
@@ -340,6 +337,16 @@ public class Node extends TickCase{
      */
     public void remoteCallHandle_nt(ByteBuf msg, NetChannel sourceChannel) {
         int len = msg.readableBytes();
+        String payloadHex = ByteBufUtil.hexDump(msg, msg.readerIndex(), len);
+        String remoteNodeId = sourceChannel == null ? null : sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+        LogCore.remote.warn(
+                "NodeFrame IN node={}, remoteNode={}, channelId={}, payloadLength={}, payloadHex={}",
+                getId(),
+                remoteNodeId,
+                sourceChannel == null ? -1L : sourceChannel.getChannelId(),
+                len,
+                payloadHex
+        );
         msg.getBytes(msg.readerIndex(), remoteReceiveBuffer, 0, len);
         // 转化为输出流
         InputStream input = new InputStream(remoteReceiveBuffer, 0, len);
@@ -390,9 +397,7 @@ public class Node extends TickCase{
             }
         }
 
-        if (GlobalConfig.requireNodeConfig().isDebug()) {
-            log.warn("收到rpc call {} ", call);
-        }
+        DebugPrint.printReceiveRpc(call);
 
         String remoteId = call.from.nodeId;
         // 根据请求类型来分别处理

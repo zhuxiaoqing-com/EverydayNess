@@ -2,6 +2,7 @@ package org.evd.game.runtime;
 
 import org.evd.game.runtime.client.ClientCmdRegistryBase;
 import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.SysException;
 import org.evd.game.runtime.support.function.Function0;
 import org.evd.game.runtime.support.function.Function1;

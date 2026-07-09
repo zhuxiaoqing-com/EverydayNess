@@ -7,6 +7,7 @@ import org.evd.game.base.ISerializable;
 import org.evd.game.base.OutputStreamBase;
 import org.evd.game.runtime.*;
 import org.evd.game.runtime.call.CallBase;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
 import org.evd.game.runtime.support.function.Function2WithException;
@@ -91,7 +92,11 @@ public class OutputStream implements AutoCloseable, OutputStreamBase {
 	public Chunk getChunk() {
 		return new Chunk(buffer, 0, getLength());
 	}
-	
+
+	public CodedOutputStream getStream() {
+		return stream;
+	}
+
 	/**
 	 * 写入数据到流中
 	 * 仅支持
@@ -668,11 +673,10 @@ public class OutputStream implements AutoCloseable, OutputStreamBase {
 			return;
 		}
 		stream.writeInt32NoTag(MSG);
-		byte[] bytes = msg.toByteArray();
-		/** 消息长度 不包括消息类型 */
-		stream.writeInt32NoTag(bytes.length);
+		// 消息长度不包括消息类型和消息 id，仅包含 protobuf body。
+		stream.writeInt32NoTag(msg.getSerializedSize());
 		stream.writeInt32NoTag(msg.getClass().getName().hashCode());
-		stream.writeRawBytes(bytes);
+		msg.writeTo(stream);
 	}
 
 	/**

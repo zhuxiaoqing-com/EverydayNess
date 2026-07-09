@@ -6,6 +6,7 @@ import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.RpcCallTimeoutException;
 import org.evd.game.runtime.support.SysException;
 

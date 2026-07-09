@@ -1,5 +1,8 @@
 package org.evd.game.ConnService;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.ServiceType;
@@ -7,7 +10,8 @@ import org.evd.game.common.proto.C2S_ConnPing;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_ConnPing;
 import org.evd.game.common.proxy.LobbyService.LobbyOfflineActorProxy;
-import org.evd.game.runtime.Chunk;
+import org.evd.game.runtime.serializeBean.ClientFrameChunk;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
@@ -15,14 +19,13 @@ import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.netty.BaseChannelInitializer;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.ChannelManager;
 import org.evd.game.runtime.netty.NetAcceptor;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.support.LogCore;
-
-import java.util.Arrays;
 
 public class ConnService extends Service {
     private static final long HEARTBEAT_SCAN_INTERVAL_MILLIS = 5_000L;
@@ -62,12 +65,25 @@ public class ConnService extends Service {
     }
 
     @Rpc
-    public void pushToClient(long sessionId, int msgId, Chunk body) {
+    public void pushToClient(long sessionId, ClientFrameChunk packet) {
         NetChannel channel = requireClientChannel(sessionId);
-        byte[] payload = copyChunkBody(body);
-        channel.write(encodeClientPacket(msgId, payload));
-        LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, msgId={}, bytes={}",
-                id, sessionId, msgId, payload.length);
+        byte[] bodyBytes;
+        try {
+            bodyBytes = packet.requireBodyBuffer();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("ConnService 构建客户端消息体失败: msgId=" + packet.getMsgId(), e);
+        }
+        ByteBuf body = Unpooled.wrappedBuffer(bodyBytes);
+        int bodyLength = bodyBytes.length;
+        ByteBuf head = channel.getChannel().alloc().buffer(Integer.BYTES * 2);
+        head.writeInt(Integer.BYTES + bodyLength);
+        head.writeInt(packet.getMsgId());
+        CompositeByteBuf frame = channel.getChannel().alloc().compositeBuffer(2);
+        frame.addComponents(true, head, body);
+        DebugPrint.printSendClientCmd(channel, packet.getMsgId(), bodyBytes);
+        channel.write(frame);
+        LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, bytes={}",
+                id, sessionId, bodyLength);
     }
 
     @Rpc
@@ -130,7 +146,7 @@ public class ConnService extends Service {
                 .setClientTime(req.getClientTime())
                 .setServerTime(getTime())
                 .build();
-        pushToClient(session.getSessionId(), MsgId.S2C_CONN_PING_VALUE, new Chunk(resp));
+        pushToClient(session.getSessionId(), ClientFrameChunk.wrap(MsgId.S2C_CONN_PING_VALUE, resp));
     }
 
     ClientSessionRef buildClientSessionRef(NetChannel session) {
@@ -257,17 +273,4 @@ public class ConnService extends Service {
         return count;
     }
 
-    private static byte[] copyChunkBody(Chunk body) {
-        return Arrays.copyOfRange(body.buffer, body.offset, body.offset + body.length);
-    }
-
-    private static byte[] encodeClientPacket(int msgId, byte[] body) {
-        byte[] packet = new byte[Integer.BYTES + body.length];
-        packet[0] = (byte) (msgId >>> 24);
-        packet[1] = (byte) (msgId >>> 16);
-        packet[2] = (byte) (msgId >>> 8);
-        packet[3] = (byte) msgId;
-        System.arraycopy(body, 0, packet, Integer.BYTES, body.length);
-        return packet;
-    }
 }

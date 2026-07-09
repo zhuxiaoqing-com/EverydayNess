@@ -14,7 +14,7 @@ import org.evd.game.common.proto.*;
 import org.evd.game.common.proxy.SdkService.SdkServiceProxy;
 import org.evd.game.common.sdk.SdkValidateResult;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
-import org.evd.game.runtime.Chunk;
+import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -141,7 +141,8 @@ public final class LobbyLoginActor {
                 .setToken(token == null ? "" : token)
                 .setTokenExpireAt(expireAt)
                 .build();
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(), MsgId.S2C_LOGIN_VALUE, new Chunk(resp));
+        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+                ClientFrameChunk.wrap(MsgId.S2C_LOGIN_VALUE, resp));
     }
 
     public void pushLogin2Resp(ClientSessionRef session, boolean success, String message, List<RoleData> roles) {
@@ -149,7 +150,8 @@ public final class LobbyLoginActor {
                 .setSuccess(success)
                 .setMessage(message);
         builder.addAllRoles(roles);
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(), MsgId.S2C_LOGIN2_VALUE, new Chunk(builder.build()));
+        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+                ClientFrameChunk.wrap(MsgId.S2C_LOGIN2_VALUE, builder.build()));
     }
 
 

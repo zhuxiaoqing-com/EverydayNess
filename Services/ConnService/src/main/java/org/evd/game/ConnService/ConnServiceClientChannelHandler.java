@@ -1,8 +1,9 @@
 package org.evd.game.ConnService;
 
 import io.netty.channel.ChannelHandlerContext;
-import org.evd.game.runtime.Chunk;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.support.LogCore;
 
@@ -32,11 +33,11 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
             throw new IllegalStateException("ConnService 收到非法客户端包，长度不足 4 字节");
         }
         int msgId = ByteBuffer.wrap(payload, 0, Integer.BYTES).getInt();
+        DebugPrint.printReceiveClientCmd(session, msgId, payload);
         if (!checkMsgFlowRate(ctx, session, msgId)) {
             return;
         }
-        //byte[] body = Arrays.copyOfRange(payload, Integer.BYTES, payload.length);
-        connService.postClientPacket(session, msgId, new Chunk(payload, Integer.BYTES, payload.length));
+        connService.postClientPacket(session, msgId, new Chunk(payload, Integer.BYTES, payload.length - Integer.BYTES));
     }
 
     @Override

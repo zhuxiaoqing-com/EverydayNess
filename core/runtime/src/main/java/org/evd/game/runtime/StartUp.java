@@ -1,6 +1,10 @@
 package org.evd.game.runtime;
 
+import org.evd.game.annotation.ActorType;
+import org.evd.game.annotation.DBserialize;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.annotation.Module;
+import org.evd.game.runtime.serialize.InputStream;
 
 @Module
 public class StartUp {
@@ -8,8 +12,20 @@ public class StartUp {
     @Module.OnStart(priority = 0)
     public static void Start(Node node){
         SerializerRegister.register();
+        registerSharedEnums();
     }
     @Module.OnEnd(priority = 1000)
     public static void End(Node node){
+    }
+
+    private static void registerSharedEnums() {
+        // 这些枚举定义在 annotation 模块，不会生成本包 SerializerRegister，
+        // 但会出现在跨节点传输对象里，所以需要在 runtime 启动时显式补注册。
+        InputStream.registerSerializeReadEnumFunc(ServiceType.class.getName().hashCode(),
+                (in, ordinal) -> ServiceType.values()[ordinal]);
+        InputStream.registerSerializeReadEnumFunc(ActorType.class.getName().hashCode(),
+                (in, ordinal) -> ActorType.values()[ordinal]);
+        InputStream.registerSerializeReadEnumFunc(DBserialize.class.getName().hashCode(),
+                (in, ordinal) -> DBserialize.values()[ordinal]);
     }
 }
