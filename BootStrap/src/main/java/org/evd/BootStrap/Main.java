@@ -3,7 +3,7 @@ package org.evd.BootStrap;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.ClassFinder;
-import org.evd.game.common.GlobalConfig;
+import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.TimeUtils;
 import org.evd.game.runtime.config.NodeConfig;
 import org.evd.game.runtime.config.NodeInfo;

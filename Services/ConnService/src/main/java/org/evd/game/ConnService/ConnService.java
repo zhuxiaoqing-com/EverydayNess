@@ -47,7 +47,7 @@ public class ConnService extends Service {
         LogCore.core.info("ConnService Init");
         int port = getServiceInfo().getAddressInfo().getPort();
         clientAcceptor = new NetAcceptor(port,
-                new BaseChannelInitializer(new ConnServiceClientChannelHandler(clientChannelManager, this), true));
+                new BaseChannelInitializer(() -> new ConnServiceClientChannelHandler(clientChannelManager, this), true));
         LogCore.core.info("ConnService Netty 启动完成: service={}, port={}", id, port);
         newRepeatedTimer(HEARTBEAT_SCAN_INTERVAL_MILLIS, false, this::scanHeartbeatTimeouts);
     }

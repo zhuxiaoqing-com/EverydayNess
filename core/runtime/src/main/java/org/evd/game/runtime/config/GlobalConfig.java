@@ -1,15 +1,12 @@
-package org.evd.game.common;
+package org.evd.game.runtime.config;
 
-import org.evd.game.annotation.ServiceType;
-import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.*;
+
 import org.evd.game.runtime.support.SysException;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 
 public final class GlobalConfig {
     private static NodeConfig nodeConfig;

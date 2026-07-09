@@ -1,4 +1,4 @@
-package org.evd.game.common;
+package org.evd.game.runtime.config;
 
 import java.io.File;
 import java.nio.file.Paths;

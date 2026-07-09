@@ -6,7 +6,7 @@ import org.evd.game.DBService.storage.mysql.StorageEngine;
 import org.evd.game.DBService.storage.mysql.StorageMysql;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
-import org.evd.game.common.GlobalConfig;
+import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DbOpType;

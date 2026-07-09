@@ -2,8 +2,6 @@ package org.evd.game.gencode.db;
 
 import org.evd.game.annotation.DBserialize;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 final class DbDirtyBeanRenderer {
     private final DbDirtyFieldTagRenderer jsonTagRenderer = new DbDirtyJsonFieldTagRenderer();
     private final DbDirtyFieldTagRenderer pbTagRenderer = new DbDirtyPbFieldTagRenderer();
@@ -15,9 +13,6 @@ final class DbDirtyBeanRenderer {
         DbDirtyFieldTagRenderer tagRenderer = resolveTagRenderer(entity.dbType);
         sb.append("package ").append(entity.beanPackage).append(";\n\n");
         sb.append("import org.evd.game.base.DirtyObject;\n");
-        sb.append("import org.evd.game.base.ISerializable;\n");
-        sb.append("import org.evd.game.base.InputStreamBase;\n");
-        sb.append("import org.evd.game.base.OutputStreamBase;\n");
         tagRenderer.appendImport(sb, entity);
         DbDirtyTypeNameSupport.appendImports(sb, importedEntityTypes);
         if (entity.usesList()) {
@@ -29,10 +24,10 @@ final class DbDirtyBeanRenderer {
         if (entity.usesSet()) {
             sb.append("import org.evd.game.runtime.Db.collection.XHashSet;\n");
         }
-        sb.append("import java.io.IOException;\n\n");
+        sb.append("\n");
 
         sb.append("public final class ").append(entity.beanClassName)
-                .append(" extends DirtyObject implements ISerializable {\n");
+                .append(" extends DirtyObject {\n");
         for (DbDirtyFieldMeta field : entity.fields) {
             tagRenderer.appendAnnotation(sb, field, "    ");
             sb.append("    private ").append(field.type.fieldType).append(" ").append(field.name).append(";\n");
@@ -49,10 +44,6 @@ final class DbDirtyBeanRenderer {
         appendCopyFrom(sb, entity);
         sb.append("\n");
         appendGettersAndSetters(sb, entity);
-        appendWriteTo(sb, entity);
-        sb.append("\n");
-        appendReadFrom(sb, entity);
-        sb.append("\n");
         appendToString(sb, entity);
         sb.append("}\n");
         return DbDirtyTypeNameSupport.rewriteImportedTypeNames(sb.toString(), importedEntityTypes);
@@ -182,135 +173,6 @@ final class DbDirtyBeanRenderer {
             sb.append("        makeModify();\n");
             sb.append("    }\n\n");
         }
-    }
-
-    private void appendWriteTo(StringBuilder sb, DbDirtyEntityMeta entity) {
-        sb.append("    @Override\n");
-        sb.append("    public void writeTo(OutputStreamBase out) throws IOException {\n");
-        AtomicInteger seq = new AtomicInteger();
-        for (DbDirtyFieldMeta field : entity.fields) {
-            appendWriteValue(sb, field.type, "this." + field.name, "out", "        ", seq);
-        }
-        sb.append("    }\n");
-    }
-
-    private void appendReadFrom(StringBuilder sb, DbDirtyEntityMeta entity) {
-        sb.append("    @Override\n");
-        sb.append("    public void readFrom(InputStreamBase in) throws IOException {\n");
-        AtomicInteger seq = new AtomicInteger();
-        for (DbDirtyFieldMeta field : entity.fields) {
-            String valueVar = appendReadValue(sb, field.type, "in", "        ", "this", seq);
-            sb.append("        this.").append(field.name).append(" = ").append(valueVar).append(";\n");
-        }
-        sb.append("        this.dirty = false;\n");
-        sb.append("    }\n");
-    }
-
-    private void appendWriteValue(StringBuilder sb, DbDirtyTypeMeta type, String valueExpr, String outExpr, String indent, AtomicInteger seq) {
-        switch (type.kind) {
-            case PRIMITIVE -> sb.append(indent).append(DbDirtyRenderSupport.renderPrimitiveWrite(type.fieldType, outExpr, valueExpr)).append("\n");
-            case STRING -> sb.append(indent).append(outExpr).append(".writeString(").append(valueExpr).append(");\n");
-            case OTHER -> sb.append(indent).append(outExpr).append(".write(").append(valueExpr).append(");\n");
-            case ENTITY -> {
-                sb.append(indent).append(outExpr).append(".writeBoolean(").append(valueExpr).append(" != null);\n");
-                sb.append(indent).append("if (").append(valueExpr).append(" != null) {\n");
-                sb.append(indent).append("    ").append(valueExpr).append(".beforeWrite(").append(outExpr).append(");\n");
-                sb.append(indent).append("    ").append(valueExpr).append(".writeTo(").append(outExpr).append(");\n");
-                sb.append(indent).append("    ").append(valueExpr).append(".afterWrite(").append(outExpr).append(");\n");
-                sb.append(indent).append("}\n");
-            }
-            case LIST, SET -> {
-                String itemVar = "_v_" + seq.getAndIncrement();
-                sb.append(indent).append("if (").append(valueExpr).append(" == null) {\n");
-                sb.append(indent).append("    ").append(outExpr).append(".writeInt(-1);\n");
-                sb.append(indent).append("} else {\n");
-                sb.append(indent).append("    ").append(outExpr).append(".writeInt(").append(valueExpr).append(".size());\n");
-                sb.append(indent).append("    for (").append(type.elementType.boxedType()).append(" ").append(itemVar)
-                        .append(" : ").append(valueExpr).append(") {\n");
-                appendWriteValue(sb, type.elementType, itemVar, outExpr, indent + "        ", seq);
-                sb.append(indent).append("    }\n");
-                sb.append(indent).append("}\n");
-            }
-            case MAP -> {
-                String entryVar = "_entry_" + seq.getAndIncrement();
-                sb.append(indent).append("if (").append(valueExpr).append(" == null) {\n");
-                sb.append(indent).append("    ").append(outExpr).append(".writeInt(-1);\n");
-                sb.append(indent).append("} else {\n");
-                sb.append(indent).append("    ").append(outExpr).append(".writeInt(").append(valueExpr).append(".size());\n");
-                sb.append(indent).append("    for (java.util.Map.Entry<").append(type.keyType.boxedType()).append(", ")
-                        .append(type.valueType.boxedType()).append("> ").append(entryVar).append(" : ")
-                        .append(valueExpr).append(".entrySet()) {\n");
-                appendWriteValue(sb, type.keyType, entryVar + ".getKey()", outExpr, indent + "        ", seq);
-                appendWriteValue(sb, type.valueType, entryVar + ".getValue()", outExpr, indent + "        ", seq);
-                sb.append(indent).append("    }\n");
-                sb.append(indent).append("}\n");
-            }
-        }
-    }
-
-    private String appendReadValue(StringBuilder sb, DbDirtyTypeMeta type, String inExpr, String indent, String parentExpr, AtomicInteger seq) {
-        String varName = "_v_" + seq.getAndIncrement();
-        switch (type.kind) {
-            case PRIMITIVE -> sb.append(indent).append(type.fieldType).append(" ").append(varName).append(" = ")
-                    .append(DbDirtyRenderSupport.renderPrimitiveRead(type.fieldType, inExpr)).append(";\n");
-            case STRING -> sb.append(indent).append("String ").append(varName).append(" = ").append(inExpr).append(".readString();\n");
-            case OTHER -> sb.append(indent).append(type.fieldType).append(" ").append(varName)
-                    .append(" = ").append(DbDirtyRenderSupport.renderObjectRead(type.fieldType, inExpr)).append(";\n");
-            case ENTITY -> {
-                sb.append(indent).append(type.fieldType).append(" ").append(varName).append(" = null;\n");
-                sb.append(indent).append("if (").append(inExpr).append(".readBoolean()) {\n");
-                sb.append(indent).append("    ").append(varName).append(" = new ").append(type.fieldType).append("();\n");
-                sb.append(indent).append("    ").append(varName).append(".beforeRead(").append(inExpr).append(");\n");
-                sb.append(indent).append("    ").append(varName).append(".readFrom(").append(inExpr).append(");\n");
-                sb.append(indent).append("    ").append(varName).append(".afterRead(").append(inExpr).append(");\n");
-                if (parentExpr != null) {
-                    sb.append(indent).append("    ").append(varName).append(".setParent(").append(parentExpr).append(");\n");
-                }
-                sb.append(indent).append("}\n");
-            }
-            case LIST -> {
-                String sizeVar = "_size_" + seq.getAndIncrement();
-                sb.append(indent).append("XArrayList<").append(type.elementType.boxedType()).append("> ")
-                        .append(varName).append(" = null;\n");
-                sb.append(indent).append("int ").append(sizeVar).append(" = ").append(inExpr).append(".readInt();\n");
-                sb.append(indent).append("if (").append(sizeVar).append(" >= 0) {\n");
-                sb.append(indent).append("    ").append(varName).append(" = new XArrayList<>(").append(parentExpr).append(");\n");
-                sb.append(indent).append("    for (int _i_ = 0; _i_ < ").append(sizeVar).append("; _i_++) {\n");
-                String childVar = appendReadValue(sb, type.elementType, inExpr, indent + "        ", varName, seq);
-                sb.append(indent).append("        ").append(varName).append(".add(").append(childVar).append(");\n");
-                sb.append(indent).append("    }\n");
-                sb.append(indent).append("}\n");
-            }
-            case SET -> {
-                String sizeVar = "_size_" + seq.getAndIncrement();
-                sb.append(indent).append("XHashSet<").append(type.elementType.boxedType()).append("> ")
-                        .append(varName).append(" = null;\n");
-                sb.append(indent).append("int ").append(sizeVar).append(" = ").append(inExpr).append(".readInt();\n");
-                sb.append(indent).append("if (").append(sizeVar).append(" >= 0) {\n");
-                sb.append(indent).append("    ").append(varName).append(" = new XHashSet<>(").append(parentExpr).append(");\n");
-                sb.append(indent).append("    for (int _i_ = 0; _i_ < ").append(sizeVar).append("; _i_++) {\n");
-                String childVar = appendReadValue(sb, type.elementType, inExpr, indent + "        ", varName, seq);
-                sb.append(indent).append("        ").append(varName).append(".add(").append(childVar).append(");\n");
-                sb.append(indent).append("    }\n");
-                sb.append(indent).append("}\n");
-            }
-            case MAP -> {
-                String sizeVar = "_size_" + seq.getAndIncrement();
-                sb.append(indent).append("XHashMap<").append(type.keyType.boxedType()).append(", ")
-                        .append(type.valueType.boxedType()).append("> ").append(varName).append(" = null;\n");
-                sb.append(indent).append("int ").append(sizeVar).append(" = ").append(inExpr).append(".readInt();\n");
-                sb.append(indent).append("if (").append(sizeVar).append(" >= 0) {\n");
-                sb.append(indent).append("    ").append(varName).append(" = new XHashMap<>(").append(parentExpr).append(");\n");
-                sb.append(indent).append("    for (int _i_ = 0; _i_ < ").append(sizeVar).append("; _i_++) {\n");
-                String keyVar = appendReadValue(sb, type.keyType, inExpr, indent + "        ", varName, seq);
-                String valueVar = appendReadValue(sb, type.valueType, inExpr, indent + "        ", varName, seq);
-                sb.append(indent).append("        ").append(varName).append(".put(").append(keyVar).append(", ")
-                        .append(valueVar).append(");\n");
-                sb.append(indent).append("    }\n");
-                sb.append(indent).append("}\n");
-            }
-        }
-        return varName;
     }
 
     private void appendToString(StringBuilder sb, DbDirtyEntityMeta entity) {

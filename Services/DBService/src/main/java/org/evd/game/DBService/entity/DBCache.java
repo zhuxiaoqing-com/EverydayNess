@@ -2,7 +2,7 @@ package org.evd.game.DBService.entity;
 
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.DBService.DBService;
-import org.evd.game.common.GlobalConfig;
+import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.TickTimer;

@@ -5,10 +5,12 @@ import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
+import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.serialize.InputStream;
+import org.evd.game.runtime.serialize.OutputStream;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.SysException;
 
@@ -68,7 +70,7 @@ public class Node extends TickCase{
 
         int port = nodeInfo.getAddressInfo().getPort();
         acceptor = new NetAcceptor(port,
-                new BaseChannelInitializer(new NodeChannelHandler(channelManager, this), true));
+                new BaseChannelInitializer(() -> new NodeChannelHandler(channelManager, this), false));
         LogCore.core.info("Netty 启动完成: node={}, port={}", getId(), port);
 
       /*  this.zmqContext = new ZContext();
@@ -90,6 +92,12 @@ public class Node extends TickCase{
         }
 
         scheduledExecutors.add(new ScheduledExecutor(name, threadNum));
+    }
+
+
+    private long currentTickTime_nt() {
+        long tickTime = getTimeCurrent();
+        return tickTime > 0L ? tickTime : System.currentTimeMillis();
     }
 
     @Override
@@ -144,41 +152,12 @@ public class Node extends TickCase{
             }
         }
     }*/
-    /**
-     * 处理Call请求
-     */
-    public void remoteCallHandle_nt(ByteBuf msg, Channel sourceChannel) {
-        int len = msg.readableBytes();
-        msg.getBytes(msg.readerIndex(), remoteReceiveBuffer, 0, len);
-        // 转化为输出流
-        InputStream input = new InputStream(remoteReceiveBuffer, 0, len);
-        // 是否已读取到末尾
-        while (!input.isAtEnd()) {
-            // 先读取一个Call请求
-            CallBase call = input.read();
-            call.setSourceChannel(sourceChannel);
-            callBases.add(call);
-        }
-    }
+
 
     private void pulseCallBaseProcess() {
         CallBase callBase;
         while ((callBase = callBases.poll()) != null) {
             callHandle_snt(callBase);
-        }
-    }
-
-
-    /**
-     * 发送RemoteCall
-     * @param call
-     */
-    private void sendCall(RemoteCall call) {
-        RemoteNode node = remoteNodes.get(call.getRemoteNodeId());
-        if (node != null) {
-            node.send(call.getBuffer());
-        } else {
-            LogCore.remote.error("发送Call请求时，发现未知远程节点: call={}", call);
         }
     }
 
@@ -195,6 +174,7 @@ public class Node extends TickCase{
         for (RemoteNode r : remoteNodes.values()) {
             r.pulse();
         }
+        pulseInboundRemoteChannelsTimeout_nt();
     }
 
     private void pulseServiceRegistry_nt() {
@@ -212,6 +192,21 @@ public class Node extends TickCase{
             sendLocalServicesToRemote_nt(remoteNode);
         }
     }
+
+
+    /**
+     * 发送RemoteCall
+     * @param call
+     */
+    private void sendCall(RemoteCall call) {
+        RemoteNode node = remoteNodes.get(call.getRemoteNodeId());
+        if (node != null) {
+            node.send(call.getBuffer());
+        } else {
+            LogCore.remote.error("发送Call请求时，发现未知远程节点: call={}", call);
+        }
+    }
+
 
     /**
      * 启动
@@ -304,71 +299,6 @@ public class Node extends TickCase{
         }
     }
 
-    /**
-     * 处理接收到的Call请求
-     */
-    public void callHandle_snt(CallBase call) {
-        Channel sourceChannel = call.getSourceChannel();
-        if (sourceChannel != null
-                && sourceChannel.attr(ServerAttributeKey.remoteNodeId).get() == null
-                && !(call instanceof CallNodeServicesSync)) {
-            LogCore.remote.error("收到未完成远程节点握手的非法消息: node={}, callType={}, remoteNode={}",
-                    getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
-            sourceChannel.close();
-            return;
-        }
-        // 根据请求类型来分别处理
-        switch (call) {
-            case ActorMessage ignored: {
-                Service service = services.get(call.to.servId);
-                service.addCall_snt(call);
-            }
-            break;
-            // PRC远程调用请求
-            case Call ignored: {
-                Service service = services.get(call.to.servId);
-                // 请求分发
-                service.addCall_snt(call);
-            }
-            break;
-            // PRC远程调用请求的返回值
-            case CallResult ignored: {
-                Service service = services.get(call.to.servId);
-                service.addCall_snt(call);
-            }
-            break;
-
-            case CallNodeServicesSync callNodeServicesSync: {
-                RemoteNode node = remoteNodes.get(call.from.nodeId);
-                if (node == null) {
-                    node = addRemoteNode(call.from.nodeId, callNodeServicesSync.getAddr());
-                }
-                node.onNodeServicesSync_nt(sourceChannel, callNodeServicesSync.isInit());
-                syncRemoteServices_nt(call.from.nodeId, callNodeServicesSync.getServices());
-            }
-            break;
-            case CallPing callPing: {
-                RemoteNode node = remoteNodes.get(call.from.nodeId);
-                if (node == null) {
-                    LogCore.remote.warn("收到未知远程node的ping: nodeId={}", call.from.nodeId);
-                    break;
-                }
-                node.onPing_nt(sourceChannel);
-            }
-            break;
-            case CallPong ignored: {
-                RemoteNode node = remoteNodes.get(call.from.nodeId);
-                if (node == null) {
-                    LogCore.remote.warn("收到未知远程node的pong: nodeId={}", call.from.nodeId);
-                    break;
-                }
-                node.onPong_nt(sourceChannel);
-            }
-            break;
-            default:
-                throw new SysException("Unexpected call type: {}" + call.getClass());
-        }
-    }
 
     /**
      * 添加远程Node
@@ -405,22 +335,151 @@ public class Node extends TickCase{
         return addr;
     }
 
-    public void onRemoteNodeDisconnected_nt(RemoteNode remoteNode) {
-        remoteNodeServices.remove(remoteNode.getRemoteId());
-        rebuildServiceIndexes();
+    /**
+     * 处理Call请求
+     */
+    public void remoteCallHandle_nt(ByteBuf msg, NetChannel sourceChannel) {
+        int len = msg.readableBytes();
+        msg.getBytes(msg.readerIndex(), remoteReceiveBuffer, 0, len);
+        // 转化为输出流
+        InputStream input = new InputStream(remoteReceiveBuffer, 0, len);
+        // 是否已读取到末尾
+        while (!input.isAtEnd()) {
+            // 先读取一个Call请求
+            CallBase call = input.read();
+            call.setSourceChannel(sourceChannel);
+            callBases.add(call);
+        }
     }
 
-    public void onInboundChannelInactive_nt(Channel channel) {
+
+    public void onChannelInactive_nt(NetChannel channel) {
         if (channel == null) {
             return;
         }
-        String remoteNodeId = channel.attr(ServerAttributeKey.remoteNodeId).get();
+        String remoteNodeId = channel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
         if (remoteNodeId == null) {
             return;
         }
         RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
-        if (remoteNode != null && remoteNode.onChannelDown(channel)) {
-            onRemoteNodeDisconnected_nt(remoteNode);
+        if (remoteNode != null && remoteNode.onChannelInactive_nt(channel)) {
+            remoteNodeServices.remove(remoteNode.getRemoteId());
+            rebuildServiceIndexes();
+        }
+    }
+
+    /**
+     * 处理接收到的Call请求
+     */
+    public void callHandle_snt(CallBase call) {
+        NetChannel sourceChannel = call.getSourceChannel();
+
+        //  sourceChannel==null,说明是同node的消息
+        if (sourceChannel != null) {
+            String attrRemoteNodeId = sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+            if (attrRemoteNodeId == null && !(call instanceof CallNodeServicesSync)) {
+                LogCore.remote.error("收到未完成远程节点握手的非法消息: node={}, callType={}, remoteNode={}",
+                        getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
+                sourceChannel.close();
+
+            }
+            if(attrRemoteNodeId != null && !attrRemoteNodeId.equals(call.from.nodeId)) {
+                LogCore.remote.error("收到from.nodeId != attr.remoteId的非法消息: node={}, callType={}, from.remoteNode={}  attr.remoteId={}",
+                        getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId, attrRemoteNodeId);
+                return;
+            }
+        }
+
+        if (GlobalConfig.requireNodeConfig().isDebug()) {
+            log.warn("收到rpc call {} ", call);
+        }
+
+        String remoteId = call.from.nodeId;
+        // 根据请求类型来分别处理
+        switch (call) {
+            case ActorMessage ignored: {
+                Service service = services.get(call.to.servId);
+                service.addCall_snt(call);
+            }
+            break;
+            // PRC远程调用请求
+            case Call ignored: {
+                Service service = services.get(call.to.servId);
+                // 请求分发
+                service.addCall_snt(call);
+            }
+            break;
+            // PRC远程调用请求的返回值
+            case CallResult ignored: {
+                Service service = services.get(call.to.servId);
+                service.addCall_snt(call);
+            }
+            break;
+
+            case CallNodeServicesSync callNodeServicesSync: {
+                RemoteNode node = remoteNodes.get(remoteId);
+                if (node == null) {
+                    node = addRemoteNode(remoteId, callNodeServicesSync.getAddr());
+                }
+                if (callNodeServicesSync.isInit()) {
+                    node.onNodeServicesSync_nt(sourceChannel);
+                }
+                syncRemoteServices_nt(remoteId, callNodeServicesSync.getServices());
+            }
+            break;
+            case CallPing ignored: {
+                onRemotePing_nt(remoteId, sourceChannel);
+            }
+            break;
+            case CallPong ignored: {
+                onRemotePong_nt(remoteId, sourceChannel);
+            }
+            break;
+            default:
+                throw new SysException("Unexpected call type: {}" + call.getClass());
+        }
+    }
+
+    private void onRemotePing_nt(String remoteNodeId, NetChannel sourceChannel) {
+        RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
+        if (remoteNode == null) {
+            LogCore.remote.warn("收到未知远程node的ping: nodeId={}", remoteNodeId);
+            return;
+        }
+        if (sourceChannel == null) {
+            LogCore.remote.warn("收到远程node ping时连接不存在: nodeId={}", remoteNodeId);
+            return;
+        }
+        sourceChannel.setLastPingTime(currentTickTime_nt());
+
+        CallPong call = new CallPong();
+        call.from = new CallPoint(id, null);
+        call.to = new CallPoint(remoteNodeId, null);
+        remoteNode.sendCall(call);
+    }
+
+    private void onRemotePong_nt(String remoteNodeId, NetChannel sourceChannel) {
+        RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
+        if (remoteNode == null) {
+            LogCore.remote.warn("收到未知远程node的pong: nodeId={}", remoteNodeId);
+            return;
+        }
+        sourceChannel.setLastPingTime(currentTickTime_nt());
+    }
+
+
+    private void pulseInboundRemoteChannelsTimeout_nt() {
+        long timeCurr = currentTickTime_nt();
+        for (NetChannel netChannel : channelManager.snapshotChannels()) {
+            String remoteNodeId = netChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+
+            long lastActivityTime = netChannel.getLastPingTime();
+            if (lastActivityTime <= 0L || (timeCurr - lastActivityTime) <= RemoteNode.INTERVAL_LOST) {
+                continue;
+            }
+            LogCore.remote.warn("node checkTimeout localNode={}, remoteNode={}, sessionId={} timeCurr {} lastActivityTime {}",
+                    getId(), remoteNodeId, netChannel.getChannelId(), timeCurr, lastActivityTime);
+            netChannel.close();
         }
     }
 

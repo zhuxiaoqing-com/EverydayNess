@@ -52,7 +52,11 @@ public final class ${proxyName}{
 		out.writeSet(instance.get${field.name?cap_first}());
 			<#-- 6. 可序列化结构类型 -->
 			<#elseif field.kind == 6>
-		${field.serializeType}.write(out, instance.get${field.name?cap_first}());
+		${field.type} ${field.name} = instance.get${field.name?cap_first}();
+		out.writeNull(${field.name});
+		if (${field.name} != null) {
+			${field.serializeType}.write(out, ${field.name});
+		}
 			<#-- 8. Enum类型 -->
 			<#elseif field.kind == 8>
 		out.writeEnum(instance.get${field.name?cap_first}());
@@ -100,9 +104,13 @@ public final class ${proxyName}{
 		instance.set${field.name?cap_first}(in.readSet());
 			<#-- 6. 可序列化结构类型 -->
 			<#elseif field.kind == 6>
-		${field.type} ${field.name} = new ${field.type}();
-		${field.serializeType}.read(in, ${field.name});
-		instance.set${field.name?cap_first}(${field.name});
+		if (in.readNull()) {
+			instance.set${field.name?cap_first}(null);
+		} else {
+			${field.type} ${field.name} = new ${field.type}();
+			${field.serializeType}.read(in, ${field.name});
+			instance.set${field.name?cap_first}(${field.name});
+		}
 			<#-- 8. Enum类型 -->
 			<#elseif field.kind == 8>
 		instance.set${field.name?cap_first}((${field.type})in.readEnum());

@@ -1,9 +1,9 @@
 package org.evd.game.runtime.call;
 
-import io.netty.channel.Channel;
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
+import org.evd.game.runtime.netty.NetChannel;
 
 @SerializeClass
 public abstract class CallBase implements ISerializable {
@@ -17,7 +17,7 @@ public abstract class CallBase implements ISerializable {
     @SerializeField
     public long id;
     /** 运行时入站连接，仅用于本进程内分发，不参与序列化。 */
-    private transient Channel sourceChannel;
+    private transient NetChannel sourceChannel;
 
     public long getId() {
         return id;
@@ -43,11 +43,11 @@ public abstract class CallBase implements ISerializable {
         this.to = to;
     }
 
-    public Channel getSourceChannel() {
+    public NetChannel getSourceChannel() {
         return sourceChannel;
     }
 
-    public void setSourceChannel(Channel sourceChannel) {
+    public void setSourceChannel(NetChannel sourceChannel) {
         this.sourceChannel = sourceChannel;
     }
 }

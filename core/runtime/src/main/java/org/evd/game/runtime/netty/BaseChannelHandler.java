@@ -1,5 +1,6 @@
 package org.evd.game.runtime.netty;
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.evd.game.runtime.support.LogCore;
@@ -55,6 +56,14 @@ public abstract class BaseChannelHandler<T> extends SimpleChannelInboundHandler<
             throw new IllegalStateException("BaseChannelHandler 未设置 ChannelManager");
         }
         return channelManager;
+    }
+
+    protected final NetChannel getNetChannel(ChannelHandlerContext ctx) {
+        return getNetChannel(ctx.channel());
+    }
+
+    protected final NetChannel getNetChannel(Channel channel) {
+        return channel == null ? null : channel.attr(ServerAttributeKey.netChannel).get();
     }
 
     protected void onChannelActive(ChannelHandlerContext ctx) throws Exception {

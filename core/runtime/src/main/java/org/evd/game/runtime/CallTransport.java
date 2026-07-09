@@ -1,12 +1,15 @@
 package org.evd.game.runtime;
 
+import lombok.extern.slf4j.Slf4j;
 import org.evd.game.runtime.call.CallBase;
+import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.serialize.CallPulseBuffer;
 import org.evd.game.runtime.support.LogCore;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 final class CallTransport {
     private final Node node;
     private final String serviceId;
@@ -18,6 +21,7 @@ final class CallTransport {
     }
 
     boolean send(CallBase call) {
+        RemoteNode.sendRpcLog(call, null);
         String toNodeId = call.to.nodeId;
         // 这里投放是得话 是不序列化，直接发送，里面还有一个判断，是进行序列化的，目前这里先注释掉
        /* if (node.getId().equals(toNodeId)) {

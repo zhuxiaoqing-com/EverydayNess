@@ -1,4 +1,5 @@
 dbConfigPath: db-dev.yml
+debug: true
 
 nodes:
   - name: node1 # 节点
