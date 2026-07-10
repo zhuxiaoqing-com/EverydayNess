@@ -5,6 +5,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.util.Attribute;
+import io.netty.util.ReferenceCountUtil;
 import org.evd.game.runtime.client.ClientSessionRef;
 
 import java.net.InetSocketAddress;
@@ -102,17 +103,45 @@ public class NetChannel {
         return sessionState.canProcess(msgId);
     }
 
-    public void write(ByteBuf byteBuf) {
-        channel.writeAndFlush(byteBuf);
+    public boolean canWrite(int bytes) {
+        Channel activeChannel = channel;
+        return activeChannel != null
+                && activeChannel.isActive()
+                && activeChannel.isWritable()
+                && activeChannel.bytesBeforeUnwritable() >= bytes;
     }
 
-    public void writeAndClose(ByteBuf byteBuf) {
-        channel.writeAndFlush(byteBuf).addListener(new ChannelFutureListener() {
+    /**
+     * 只有 Netty 写缓冲仍有明确容量时才接收消息。返回 null 表示调用方没有把消息交给 Netty。
+     */
+    public ChannelFuture tryWrite(ByteBuf byteBuf) {
+        if (byteBuf == null) {
+            return null;
+        }
+        if (!canWrite(byteBuf.readableBytes())) {
+            ReferenceCountUtil.release(byteBuf);
+            return null;
+        }
+        return channel.writeAndFlush(byteBuf);
+    }
+
+    public boolean write(ByteBuf byteBuf) {
+        return tryWrite(byteBuf) != null;
+    }
+
+    public boolean writeAndClose(ByteBuf byteBuf) {
+        ChannelFuture writeFuture = tryWrite(byteBuf);
+        if (writeFuture == null) {
+            close();
+            return false;
+        }
+        writeFuture.addListener(new ChannelFutureListener() {
 
             public void operationComplete(ChannelFuture future) throws Exception {
                 future.channel().close();
             }
         });
+        return true;
     }
 
     public void close() {

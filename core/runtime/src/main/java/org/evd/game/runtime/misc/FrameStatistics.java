@@ -27,7 +27,7 @@ public class FrameStatistics {
     private long resetTime = System.currentTimeMillis() + RESET_INTERVAL;
     private long printTime = System.currentTimeMillis() + PRINT_INTERVAL;
 
-    FrameStatistics(TickCase tickCase){
+    public FrameStatistics(TickCase tickCase){
         this.tickCase = tickCase;
     }
 

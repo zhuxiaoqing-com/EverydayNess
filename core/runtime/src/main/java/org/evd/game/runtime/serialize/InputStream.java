@@ -5,7 +5,7 @@ import com.google.protobuf.GeneratedMessage;
 import org.evd.game.base.ISerializable;
 import org.evd.game.base.InputStreamBase;
 import org.evd.game.runtime.serializeBean.Chunk;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.function.ReturnFunction2;
 import org.evd.game.runtime.support.function.ReturnFunctionWithException1;
 import org.evd.game.runtime.support.function.ReturnFunctionWithException2;

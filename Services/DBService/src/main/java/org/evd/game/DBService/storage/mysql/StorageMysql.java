@@ -17,7 +17,7 @@ import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.Db.serialize.MysqlRsp;
 import org.evd.game.runtime.Db.serialize.MysqlTableMeta;
 import org.evd.game.runtime.config.DbStorageConfig;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;

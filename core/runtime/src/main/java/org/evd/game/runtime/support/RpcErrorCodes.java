@@ -12,6 +12,10 @@ public final class RpcErrorCodes {
     public static final int ACTOR_RPC_CALL_TIMEOUT = 6; // Actor 定向 RPC 调用超时
     public static final int COROUTINE_LOCK_TIMEOUT = 7; // 协程锁等待超时
     public static final int SERVICE_STOPPING = 8; // service关闭
+    public static final int RPC_TRANSPORT_UNAVAILABLE = 9; // 节点链路不可用或写失败
+    public static final int RPC_BACKPRESSURED = 10; // 出站队列或 Netty 写缓冲达到上限
+    public static final int SERVICE_NOT_FOUND = 11;
+    public static final int SERVICE_NOT_READY = 12;
 
     private RpcErrorCodes() {
     }

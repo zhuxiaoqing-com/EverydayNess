@@ -11,7 +11,7 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
-import org.evd.game.runtime.support.RpcCallException;
+import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 
 import java.util.HashMap;

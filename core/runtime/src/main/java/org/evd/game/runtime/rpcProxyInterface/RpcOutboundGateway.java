@@ -9,8 +9,8 @@ import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.Chunk;
-import org.evd.game.runtime.support.RpcCallTimeoutException;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.RpcCallTimeoutException;
+import org.evd.game.runtime.support.exception.SysException;
 
 public final class RpcOutboundGateway {
     private final Service service;
@@ -20,7 +20,10 @@ public final class RpcOutboundGateway {
     }
 
     public void call(CallPoint toCallPoint, int methodKey, Object[] params) {
-        send(CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, false, 0L));
+        if (!send(CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, false, 0L))) {
+            throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
+                    service.getId(), toCallPoint.nodeId, toCallPoint.servId, methodKey);
+        }
     }
 
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
@@ -39,7 +42,6 @@ public final class RpcOutboundGateway {
                 new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(targetCallPoint, methodKey, timeoutMillis));
 
         CallBase call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, waitId);
-
         if (!send(call)) {
             continuationRuntime.takeWaitContinuation(waitId);
             throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
@@ -50,7 +52,10 @@ public final class RpcOutboundGateway {
     }
 
     public void sendClientCmd(CallPoint toCallPoint, ClientSessionRef session, int msgId, Chunk body) {
-        send(CallFactory.buildServiceClientCmd(service, toCallPoint, session, msgId, body));
+        if (!send(CallFactory.buildServiceClientCmd(service, toCallPoint, session, msgId, body))) {
+            throw new SysException("send client cmd failed: service={}, toNode={}, toService={}, msgId={}",
+                    service.getId(), toCallPoint.nodeId, toCallPoint.servId, msgId);
+        }
     }
 
     boolean send(CallBase call) {

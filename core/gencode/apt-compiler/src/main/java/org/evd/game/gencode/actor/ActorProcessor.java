@@ -187,8 +187,8 @@ public class ActorProcessor extends ProcessorBase {
     private String buildActorManagerSource(String packageName, String className, List<ActorTarget> actorTargets) {
         StringBuilder source = new StringBuilder();
         source.append("package ").append(packageName).append(";\n\n");
-        source.append("import org.evd.game.runtime.ActorManager;\n");
-        source.append("import org.evd.game.runtime.support.SysException;\n");
+        source.append("import org.evd.game.runtime.actorLogic.ActorManager;\n");
+        source.append("import org.evd.game.runtime.support.exception.SysException;\n");
         source.append("import java.util.LinkedHashMap;\n");
         source.append("import java.util.Map;\n");
         for (String importType : collectImports(packageName, actorTargets)) {

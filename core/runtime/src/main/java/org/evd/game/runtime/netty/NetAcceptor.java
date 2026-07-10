@@ -12,6 +12,7 @@ import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.WriteBufferWaterMark;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -37,10 +38,13 @@ public final class NetAcceptor  {
         b.option(ChannelOption.SO_BACKLOG, backlog);
         b.option(ChannelOption.SO_REUSEADDR, true);
         b.childOption(ChannelOption.TCP_NODELAY, true);
-        b.childOption(ChannelOption.SO_SNDBUF, NetConstants.SO_SEND_BUFFER_SIZE);
-        b.childOption(ChannelOption.SO_RCVBUF, NetConstants.SO_RECEIVE_BUFFER_SIZE);
+        b.childOption(ChannelOption.SO_SNDBUF, handler.isClient()
+                ? NetConstants.SO_SEND_BUFFER_SIZE : NetConstants.SERVICE_SO_SEND_BUFFER_SIZE);
+        b.childOption(ChannelOption.SO_RCVBUF, handler.isClient()
+                ? NetConstants.SO_RECEIVE_BUFFER_SIZE : NetConstants.SERVICE_SO_RECEIVE_BUFFER_SIZE);
         b.childOption(ChannelOption.SO_KEEPALIVE, true);
         b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+        configureWriteWaterMark(handler);
 
         // b.option(option, value)
 
@@ -98,10 +102,13 @@ public final class NetAcceptor  {
         }
         b.option(ChannelOption.SO_BACKLOG, backlog);
         b.childOption(ChannelOption.TCP_NODELAY, true);
-        b.childOption(ChannelOption.SO_SNDBUF, NetConstants.SO_SEND_BUFFER_SIZE);
-        b.childOption(ChannelOption.SO_RCVBUF, NetConstants.SO_RECEIVE_BUFFER_SIZE);
+        b.childOption(ChannelOption.SO_SNDBUF, handler.isClient()
+                ? NetConstants.SO_SEND_BUFFER_SIZE : NetConstants.SERVICE_SO_SEND_BUFFER_SIZE);
+        b.childOption(ChannelOption.SO_RCVBUF, handler.isClient()
+                ? NetConstants.SO_RECEIVE_BUFFER_SIZE : NetConstants.SERVICE_SO_RECEIVE_BUFFER_SIZE);
         b.childOption(ChannelOption.SO_KEEPALIVE, true);
         b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+        configureWriteWaterMark(handler);
 
        /* if (isAvailable()) {
             b.option(EpollChannelOption.SO_REUSEPORT, true);
@@ -139,6 +146,16 @@ public final class NetAcceptor  {
 
     private boolean isAvailable() {
         return Epoll.isAvailable();
+    }
+
+    private void configureWriteWaterMark(BaseChannelInitializer handler) {
+        int low = handler.isClient()
+                ? NetConstants.CLIENT_WRITE_LOW_WATER_MARK
+                : NetConstants.SERVICE_WRITE_LOW_WATER_MARK;
+        int high = handler.isClient()
+                ? NetConstants.CLIENT_WRITE_HIGH_WATER_MARK
+                : NetConstants.SERVICE_WRITE_HIGH_WATER_MARK;
+        b.childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(low, high));
     }
 
     /**

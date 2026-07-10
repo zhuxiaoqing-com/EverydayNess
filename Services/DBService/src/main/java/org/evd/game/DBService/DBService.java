@@ -16,7 +16,7 @@ import org.evd.game.runtime.config.DbConfig;
 import org.evd.game.runtime.config.DbMysqlConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
-import org.evd.game.runtime.support.ServiceStoppingException;
+import org.evd.game.runtime.support.exception.ServiceStoppingException;
 
 @RpcService(DBExecInterface.class)
 public class DBService extends Service {

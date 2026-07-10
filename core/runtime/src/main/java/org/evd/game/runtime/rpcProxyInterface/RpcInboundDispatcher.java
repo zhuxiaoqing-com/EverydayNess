@@ -6,9 +6,9 @@ import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.RpcCallException;
+import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 
 public final class RpcInboundDispatcher {
     private final Service service;
@@ -76,6 +76,7 @@ public final class RpcInboundDispatcher {
             try {
                 callReturn.result = service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
             } catch (Throwable e) {
+                rethrowFatal(e);
                 LogCore.core.error("rpc return dispatch failed: service={}, methodKey={}",
                         service.getId(), call.methodKey, e);
                 fillRpcFailure(callReturn, e);
@@ -97,6 +98,7 @@ public final class RpcInboundDispatcher {
             try {
                 service.getRpcMethodInvoker().dispatchClientCmd(call.methodKey, call.methodParam);
             } catch (Throwable e) {
+                rethrowFatal(e);
                 LogCore.core.error("client cmd return dispatch failed: service={}, msgId={}",
                         service.getId(), call.methodKey, e);
                 fillRpcFailure(callReturn, e);
@@ -122,5 +124,11 @@ public final class RpcInboundDispatcher {
         }
         callReturn.errorCode = RpcErrorCodes.UNKNOWN;
         callReturn.errorMessage = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    private static void rethrowFatal(Throwable throwable) {
+        if (throwable instanceof VirtualMachineError virtualMachineError) {
+            throw virtualMachineError;
+        }
     }
 }

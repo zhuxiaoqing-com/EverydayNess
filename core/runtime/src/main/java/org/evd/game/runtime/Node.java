@@ -1,7 +1,6 @@
 package org.evd.game.runtime;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
@@ -15,13 +14,15 @@ import org.evd.game.runtime.serialize.InputStream;
 import org.evd.game.runtime.serializeBean.NodeFrameChunk;
 import org.evd.game.runtime.serializeBean.TickTimer;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.RpcErrorCodes;
+import org.evd.game.runtime.support.exception.InboundBusinessException;
+import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.RuntimeUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -50,13 +51,11 @@ public class Node extends TickCase{
     private final NodeInfo nodeInfo;
     /** 本次心跳要发送给远程note的call请求 */
     private final List<RemoteCall> affirmRemoteCalls = new ArrayList<>();
-
 //    /** ZMQ上下文 */
 //    protected final ZContext zmqContext;
 //    /** ZMQ连接 */
 //    protected final ZMQ.Socket zmqPull;
 
-    private final byte[] remoteReceiveBuffer = BufferPool.allocate();
     /** 远程Node调用定时器 */
     private final TickTimer remoteNodePulseTimer = new TickTimer(RemoteNode.INTERVAL_PING, true);
     /** 本地服务注册版本 */
@@ -128,7 +127,7 @@ public class Node extends TickCase{
     }
 
     private void pulseSendRemoteCall_nt() {
-        for (RemoteCall call : affirmRemoteCalls){
+        for (RemoteCall call : affirmRemoteCalls) {
             sendCall(call);
         }
         affirmRemoteCalls.clear();
@@ -161,7 +160,7 @@ public class Node extends TickCase{
     private void pulseCallBaseProcess() {
         CallBase callBase;
         while ((callBase = callBases.poll()) != null) {
-            callHandle_snt(callBase);
+            handleInboundCall(callBase);
         }
     }
 
@@ -257,6 +256,12 @@ public class Node extends TickCase{
 
     void attachToNode(Service service){
         services.put(service.getId(), service);
+    }
+
+    void publishService(Service service) {
+        if (services.get(service.getId()) != service || !service.isInitialized()) {
+            throw new SysException("cannot publish service before initialization: {}", service.getId());
+        }
         localServiceVersion.incrementAndGet();
     }
 
@@ -275,12 +280,6 @@ public class Node extends TickCase{
             // 其余的需要通过远程Node来发送请求值目标Node
         } else {
             remoteCalls.add(new RemoteCall(nodeId, NodeFrameChunk.wrap(buffer, bufferLength)));
-//			RemoteNode node = remoteNodes.get(nodeId);
-//			if (node != null) {
-//				node.addCall(buffer, bufferLength);
-//			} else {
-//				logRemote.error("发送Call请求时，发现未知远程节点: nodeId={}", nodeId);
-//			}
         }
     }
 
@@ -292,11 +291,7 @@ public class Node extends TickCase{
         // 是否已读取到末尾
         while (!input.isAtEnd()) {
             CallBase call = input.read();
-            try {
-                callHandle_snt(call);
-            } catch (Exception e) {
-                LogCore.core.error("localCallHandle_st error call {}", call, e);
-            }
+            handleInboundCall(call);
         }
     }
 
@@ -341,25 +336,28 @@ public class Node extends TickCase{
      */
     public void remoteCallHandle_nt(ByteBuf msg, NetChannel sourceChannel) {
         int len = msg.readableBytes();
-        String payloadHex = ByteBufUtil.hexDump(msg, msg.readerIndex(), len);
         String remoteNodeId = sourceChannel == null ? null : sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
-        LogCore.remote.warn(
-                "NodeFrame IN node={}, remoteNode={}, channelId={}, payloadLength={}, payloadHex={}",
-                getId(),
-                remoteNodeId,
-                sourceChannel == null ? -1L : sourceChannel.getChannelId(),
-                len,
-                payloadHex
-        );
-        msg.getBytes(msg.readerIndex(), remoteReceiveBuffer, 0, len);
-        // 转化为输出流
-        InputStream input = new InputStream(remoteReceiveBuffer, 0, len);
-        // 是否已读取到末尾
-        while (!input.isAtEnd()) {
-            // 先读取一个Call请求
-            CallBase call = input.read();
-            call.setSourceChannel(sourceChannel);
-            callBases.add(call);
+        DebugPrint.printReceiveNodeFrame(getId(), remoteNodeId, sourceChannel, len);
+
+        byte[] receiveBuffer = BufferPool.allocate();
+        try {
+            if (len > receiveBuffer.length) {
+                LogCore.remote.error("node inbound frame exceeds receive buffer: node={}, remoteNode={}, len={}, capacity={}",
+                        id, remoteNodeId, len, receiveBuffer.length);
+                if (sourceChannel != null) {
+                    sourceChannel.close();
+                }
+                return;
+            }
+            msg.getBytes(msg.readerIndex(), receiveBuffer, 0, len);
+            InputStream input = new InputStream(receiveBuffer, 0, len);
+            while (!input.isAtEnd()) {
+                CallBase call = input.read();
+                call.setSourceChannel(sourceChannel);
+                callBases.add(call);
+            }
+        } finally {
+            BufferPool.deallocate(receiveBuffer);
         }
     }
 
@@ -384,6 +382,19 @@ public class Node extends TickCase{
      */
     public void callHandle_snt(CallBase call) {
         NetChannel sourceChannel = call.getSourceChannel();
+        if (call.getFrom() == null || call.getTo() == null) {
+            /*if (sourceChannel != null) {
+                sourceChannel.close();
+            }*/
+            throw new SysException("rpc call point is missing: callType={}", call.getClass().getSimpleName());
+        }
+        if (!id.equals(call.getTo().nodeId)) {
+            /*if (sourceChannel != null) {
+                sourceChannel.close();
+            }*/
+            throw new SysException("rpc target node mismatch: localNode={}, targetNode={}, callType={}",
+                    id, call.getTo().nodeId, call.getClass().getSimpleName());
+        }
 
         //  sourceChannel==null,说明是同node的消息
         if (sourceChannel != null) {
@@ -408,20 +419,37 @@ public class Node extends TickCase{
         switch (call) {
             case ActorMessage ignored: {
                 Service service = services.get(call.to.servId);
-                service.addCall_snt(call);
+                if (service == null) {
+                    throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_FOUND, "target service missing");
+                } else if (!service.isInitialized()) {
+                    throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_READY, "target service not ready");
+                } else {
+                    service.addCall_snt(call);
+                }
             }
             break;
             // PRC远程调用请求
             case Call ignored: {
                 Service service = services.get(call.to.servId);
                 // 请求分发
-                service.addCall_snt(call);
+                if (service == null) {
+                    throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_FOUND, "target service missing");
+                } else if (!service.isInitialized()) {
+                    throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_READY, "target service not ready");
+                } else {
+                    service.addCall_snt(call);
+                }
             }
             break;
             // PRC远程调用请求的返回值
             case CallResult ignored: {
                 Service service = services.get(call.to.servId);
-                service.addCall_snt(call);
+                if (service == null) {
+                    LogCore.remote.error("rpc result cannot be delivered: node={}, targetService={}, waitId={}, reason={}",
+                            id, call.to.servId, call.id, "service missing");
+                } else {
+                    service.addCall_snt(call);
+                }
             }
             break;
 
@@ -447,6 +475,57 @@ public class Node extends TickCase{
             default:
                 throw new SysException("Unexpected call type: {}" + call.getClass());
         }
+    }
+
+    /**
+     * 统一处理入站Call，负责把节点路由阶段的业务拒绝转换为RPC失败响应。
+     */
+    private void handleInboundCall(CallBase call) {
+        try {
+            callHandle_snt(call);
+        } catch (InboundBusinessException e) {
+            LogCore.remote.error("rpc inbound rejected: node={}, from={}, to={}, callType={}, reason={}",
+                    id, call.getFrom(), call.getTo(), call.getClass().getSimpleName(), e.getMessage());
+            sendInboundBusinessFailure(call, e);
+        } catch (Exception e) {
+            LogCore.remote.error("node inbound call failed: node={}, callType={}, from={}, to={}",
+                    id,
+                    call.getClass().getSimpleName(),
+                    call.getFrom(),
+                    call.getTo(),
+                    e);
+        }
+    }
+
+    private void sendInboundBusinessFailure(CallBase call, InboundBusinessException exception) {
+        CallResult result;
+        if (call instanceof Call request && request.isNeedResult()) {
+            result = request.createReturn();
+        } else if (call instanceof ActorMessage message && message.isNeedResult()) {
+            result = message.createReturn();
+        } else {
+            return;
+        }
+        result.setSuccess(false);
+        result.setErrorCode(exception.getErrorCode());
+        result.setErrorMessage(exception.getMessage());
+        if (id.equals(result.to.nodeId)) {
+            Service sourceService = services.get(result.to.servId);
+            if (sourceService == null) {
+                LogCore.remote.error("local rpc rejection result cannot be delivered: node={}, targetService={}, waitId={}",
+                        id, result.to.servId, result.id);
+            } else {
+                sourceService.addCall_snt(result);
+            }
+            return;
+        }
+        RemoteNode remoteNode = remoteNodes.get(result.to.nodeId);
+        if (remoteNode == null) {
+            LogCore.remote.error("remote rpc rejection result cannot be delivered: node={}, remoteNode={}, waitId={}",
+                    id, result.to.nodeId, result.id);
+            return;
+        }
+        remoteNode.sendCall(result);
     }
 
     private void onRemotePing_nt(String remoteNodeId, NetChannel sourceChannel) {
@@ -516,7 +595,7 @@ public class Node extends TickCase{
     List<RegisteredService> buildLocalServicesSnapshot() {
         List<RegisteredService> snapshot = new ArrayList<>();
         for (Service service : services.values()) {
-            if (service == null || service.serviceInfo == null) {
+            if (service == null || service.serviceInfo == null || !service.isInitialized()) {
                 continue;
             }
 
@@ -593,11 +672,21 @@ public class Node extends TickCase{
         // 给每一个Service触发
         for (Service value : services.values()) {
             if (!addList.isEmpty()) {
-                value.postCoroutine(() -> value.onServiceConnect(addList));
+                try {
+                    value.postCoroutine(() -> value.onServiceConnect(addList));
+                } catch (RuntimeException e) {
+                    LogCore.core.error("service connect event rejected: service={}, addList={}",
+                            value.getId(), addList, e);
+                }
             }
 
             if (!removeList.isEmpty()) {
-                value.postCoroutine(() -> value.onServiceDisconnect(removeList));
+                try {
+                    value.postCoroutine(() -> value.onServiceDisconnect(removeList));
+                } catch (RuntimeException e) {
+                    LogCore.core.error("service disconnect event rejected: service={}, removeList={}",
+                            value.getId(), removeList, e);
+                }
             }
         }
 

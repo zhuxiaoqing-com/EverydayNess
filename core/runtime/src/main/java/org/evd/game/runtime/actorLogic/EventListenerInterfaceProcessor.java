@@ -3,7 +3,7 @@ package org.evd.game.runtime.actorLogic;
 import org.evd.game.runtime.annotation.Event;
 import org.evd.game.runtime.annotation.EventListener;
 import org.evd.game.runtime.annotation.GameEvent;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 
 import java.util.*;
 

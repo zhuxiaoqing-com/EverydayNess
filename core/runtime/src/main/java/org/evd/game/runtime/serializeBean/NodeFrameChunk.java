@@ -25,6 +25,10 @@ public final class NodeFrameChunk {
         return Unpooled.wrappedBuffer(buffer);
     }
 
+    public int getFrameLength() {
+        return buffer.length;
+    }
+
     public InputStream newPayloadInputStream() {
         return new InputStream(buffer, Integer.BYTES, buffer.length - Integer.BYTES);
     }

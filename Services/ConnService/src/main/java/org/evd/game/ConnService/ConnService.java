@@ -81,7 +81,10 @@ public class ConnService extends Service {
         CompositeByteBuf frame = channel.getChannel().alloc().compositeBuffer(2);
         frame.addComponents(true, head, body);
         DebugPrint.printSendClientCmd(channel, packet.getMsgId(), bodyBytes);
-        channel.write(frame);
+        if (!channel.write(frame)) {
+            throw new IllegalStateException("ConnService client channel backpressured: service="
+                    + id + ", sessionId=" + sessionId + ", bytes=" + bodyLength);
+        }
         LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, bytes={}",
                 id, sessionId, bodyLength);
     }

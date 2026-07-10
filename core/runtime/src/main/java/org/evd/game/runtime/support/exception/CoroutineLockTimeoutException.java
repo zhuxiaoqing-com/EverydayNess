@@ -1,6 +1,7 @@
-package org.evd.game.runtime.support;
+package org.evd.game.runtime.support.exception;
 
 import org.evd.game.runtime.continuation.LockType;
+import org.evd.game.runtime.support.RpcErrorCodes;
 
 public class CoroutineLockTimeoutException extends SysException {
     private final String serviceId;

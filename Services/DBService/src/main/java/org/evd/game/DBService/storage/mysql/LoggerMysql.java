@@ -7,7 +7,7 @@ import io.r2dbc.spi.ConnectionFactories;
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import org.evd.game.runtime.config.DbMysqlConfig;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;

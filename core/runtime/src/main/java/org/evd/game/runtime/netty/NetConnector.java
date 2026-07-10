@@ -11,6 +11,7 @@ import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.channel.WriteBufferWaterMark;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +48,9 @@ public final class NetConnector {
         bootstrap.option(ChannelOption.SO_RCVBUF, NetConstants.SERVICE_SO_RECEIVE_BUFFER_SIZE);
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
         bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, NetConstants.CONNECT_TIMEOUT_MILLIS);
+        bootstrap.option(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(
+                NetConstants.SERVICE_WRITE_LOW_WATER_MARK,
+                NetConstants.SERVICE_WRITE_HIGH_WATER_MARK));
     }
 
     public ChannelFuture connect(boolean isSync, InetSocketAddress address) throws InterruptedException {

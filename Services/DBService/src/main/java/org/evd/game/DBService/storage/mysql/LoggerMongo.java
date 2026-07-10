@@ -6,7 +6,7 @@ import com.mongodb.MongoClientURI;
 import org.evd.game.runtime.config.DbMongoConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 
 /**
  * mongodb

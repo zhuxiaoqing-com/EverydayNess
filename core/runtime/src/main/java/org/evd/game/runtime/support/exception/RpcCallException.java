@@ -1,6 +1,7 @@
-package org.evd.game.runtime.support;
+package org.evd.game.runtime.support.exception;
 
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.support.RpcErrorCodes;
 
 public class RpcCallException extends SysException {
     public RpcCallException(int errorCode, String message) {

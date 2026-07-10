@@ -1,7 +1,8 @@
-package org.evd.game.runtime.support;
+package org.evd.game.runtime.support.exception;
 
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.support.RpcErrorCodes;
 
 public class ActorRpcCallTimeoutException extends SysException {
     private final String serviceId;

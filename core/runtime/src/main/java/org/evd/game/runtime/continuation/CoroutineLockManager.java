@@ -1,7 +1,7 @@
 package org.evd.game.runtime.continuation;
 
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.support.CoroutineLockTimeoutException;
+import org.evd.game.runtime.support.exception.CoroutineLockTimeoutException;
 
 import java.util.*;
 
@@ -118,13 +118,30 @@ public final class CoroutineLockManager {
 
     private boolean tryAcquire(LockType type, Object key, Task.ContinuationWrapper continuation) {
         LockKey lockKey = new LockKey(type, key);
+        LockKey ownedLock = owners.get(continuation);
+        if (ownedLock != null) {
+            // 表示当前协程 continuation 已经持有一把锁，现在又尝试获取另一把锁。
+            // reentrant = 重复申请同一把锁;  nested    = 持有一把锁时，再申请另一把锁
+            String violation = ownedLock.equals(lockKey) ? "reentrant" : "nested";
+            throw new IllegalStateException(violation + " coroutine lock is forbidden: service=" + service.getId()
+                    + ", conId=" + continuation.getConId()
+                    + ", ownedType=" + ownedLock.type
+                    + ", ownedKey=" + ownedLock.key
+                    + ", requestedType=" + type
+                    + ", requestedKey=" + key);
+        }
         LockQueue queue = queues.computeIfAbsent(lockKey, ignore -> new LockQueue());
         if (queue.owner == null) {
             queue.owner = continuation;
             owners.put(continuation, lockKey);
             return true;
         }
-        return queue.owner == continuation;
+        // 锁管理器自身状态损坏，属于实现 bug 或并发问题。
+        if (queue.owner == continuation) {
+            throw new IllegalStateException("coroutine lock owner index is inconsistent: service=" + service.getId()
+                    + ", conId=" + continuation.getConId() + ", type=" + type + ", key=" + key);
+        }
+        return false;
     }
 
     private void addWaiter(LockType type, Object key, Task.ContinuationWrapper continuation, long waitId) {

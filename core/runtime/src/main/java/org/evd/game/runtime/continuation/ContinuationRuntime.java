@@ -4,7 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.util.TimerScheduler;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -117,7 +117,20 @@ public final class ContinuationRuntime {
                 logDrainState("continuation drain threshold exceeded", phase, resumed);
             }
             resumed++;
-            runImmediate(continuation);
+            long conId = continuation.getConId();
+            ActorId actorId = continuation.getActorId();
+            ContinuationDebugInfo.DebugInfo debugInfo = continuation.getDebugInfo();
+            Task.Reason queueReason = continuation.getQueueReason();
+            try {
+                runImmediate(continuation);
+            } catch (Throwable e) {
+                if (e instanceof VirtualMachineError virtualMachineError) {
+                    throw virtualMachineError;
+                }
+                LogCore.core.error(
+                        "service coroutine execution failed: service={}, phase={}, conId={}, actorId={}, queueReason={}, debugInfo={}",
+                        service.getId(), phase, conId, actorId, queueReason, debugInfo, e);
+            }
         }
     }
 

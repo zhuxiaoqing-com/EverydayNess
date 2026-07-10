@@ -27,7 +27,7 @@ import org.evd.game.runtime.rpcProxyInterface.RpcMethodInvoker;
 import org.evd.game.runtime.rpcProxyInterface.RpcOutboundGateway;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.TimerScheduler;
 
 import java.util.ArrayList;
@@ -158,6 +158,9 @@ public class Service extends TickCase {
      * rpc 入站分发
      */
     private final RpcInboundDispatcher rpcInboundDispatcher;
+    /** init continuation 完整结束后才允许发布服务和执行正常业务 tick。 */
+    private volatile boolean initialized;
+    private volatile Throwable initializationFailure;
     /**
      * ThreadLocal
      */
@@ -202,12 +205,14 @@ public class Service extends TickCase {
     @Override
     protected void init_t() {
         threadLocal.set(this);
-        // 修改状态
-        status = CaseStatus.Running;
-        // 先执行初始化
-        initVirtual_t();
-
-        threadLocal.remove();
+        try {
+            // 修改状态
+            status = CaseStatus.Running;
+            // 先执行初始化
+            initVirtual_t();
+        } finally {
+            threadLocal.remove();
+        }
     }
 
     /**
@@ -216,8 +221,7 @@ public class Service extends TickCase {
     @Override
     public final void _init() {
         super._init();
-
-        // 加入到services
+        // 初始化期间先允许本节点投递响应，但未 READY 前不会出现在服务注册快照中。
         node.attachToNode(this);
         if (messageLocationSender != null) {
             newRepeatedTimer(
@@ -228,10 +232,15 @@ public class Service extends TickCase {
 
         if (supportMdb()) {
             this.mdb = new Mdb();
+            // DBService 的 READY 顺序独立，MDB 仍在服务 tick 中异步启动，避免初始化依赖环。
             postCoroutine(() -> mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE), this));
         }
 
         init();
+
+        // init 可能挂起；只有完整成功返回后，服务才对本地和远端路由可见。
+        initialized = true;
+        node.publishService(this);
     }
 
     public void init() {
@@ -244,7 +253,19 @@ public class Service extends TickCase {
      * 因为init中可能存在异步操作，异步可能触发协程yield，导致线程yield
      */
     private void initVirtual_t() {
-        continuationRuntime.createAndRun(new Task.TaskParam0(this::_init), null);
+        continuationRuntime.createAndRun(() -> {
+            try {
+                _init();
+            } catch (Throwable e) {
+                if (e instanceof VirtualMachineError virtualMachineError) {
+                    throw virtualMachineError;
+                }
+                initializationFailure = e;
+                status = CaseStatus.FinishKill;
+                LogCore.core.error("service initialization failed: service={}, class={}",
+                        id, getClass().getName(), e);
+            }
+        }, null);
     }
 
     @Override
@@ -253,18 +274,26 @@ public class Service extends TickCase {
         threadLocal.set(this);
         ThreadContext.put("service", getId());
         try {
+            if (initializationFailure != null) {
+                return;
+            }
             pulseAffirm_st();
             drainQueuedContinuations_st("afterAffirm");
 
             pulsePostedTasks_st();
+            // 初始化期 Node 只允许 CallResult 入队，用于恢复 init continuation。
             pulseCalls_st();
             drainQueuedContinuations_st("afterCalls");
 
-            tick_st();
+            if (initialized) {
+                tick_st();
+            }
 
             pulseTask_st();
             drainQueuedContinuations_st("afterTimers");
-            pulseEntity_st();
+            if (initialized) {
+                pulseEntity_st();
+            }
 
             //刷新call发送缓冲区
             flushCallFrameBuffers_st();
@@ -294,7 +323,7 @@ public class Service extends TickCase {
      * 小于等于0代表不启用超时
      */
     protected long getCallWaitTimeout() {
-        return -1L;
+        return 10_000;
     }
 
     public long getCallWaitTimeoutInternal() {
@@ -432,6 +461,7 @@ public class Service extends TickCase {
             try {
                 postedTask.run();
             } catch (Throwable e) {
+                rethrowFatal(e);
                 LogCore.core.error("posted service task failed: service={}", id, e);
             }
         }
@@ -474,10 +504,14 @@ public class Service extends TickCase {
         if (task == null) {
             throw new SysException("launch coroutine task is null: service={}", id);
         }
+        if (getCurrent() != this) {
+            throw new SysException("launchCoroutine must run on its service thread; use postCoroutine instead: service={}", id);
+        }
         continuationRuntime.createAndEnterQueue(() -> {
             try {
                 task.run();
             } catch (Throwable e) {
+                rethrowFatal(e);
                 LogCore.core.error("service coroutine failed: service={}", id, e);
             }
         }, null, Task.Reason.NORMAL, null);
@@ -493,6 +527,12 @@ public class Service extends TickCase {
         post(() -> launchCoroutine(task));
     }
 
+    private static void rethrowFatal(Throwable throwable) {
+        if (throwable instanceof VirtualMachineError virtualMachineError) {
+            throw virtualMachineError;
+        }
+    }
+
     public void unHoldContinuation(Task.ContinuationWrapper conTask) {
         continuationRuntime.unhold(conTask, () -> {
             if (!coroutineLockManager.owns(conTask)) {
@@ -502,6 +542,10 @@ public class Service extends TickCase {
                     id, conTask.getConId(), conTask.getActorId());
             coroutineLockManager.release(conTask);
         });
+    }
+
+    public boolean isInitialized() {
+        return initialized;
     }
 
     /**

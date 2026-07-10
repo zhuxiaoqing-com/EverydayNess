@@ -9,7 +9,7 @@ import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.misc.BufferPool;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.function.Function2WithException;
 
 import java.io.IOException;

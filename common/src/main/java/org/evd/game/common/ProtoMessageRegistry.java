@@ -3,7 +3,7 @@ package org.evd.game.common;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.GeneratedMessage;
 import org.evd.game.runtime.serialize.InputStream;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

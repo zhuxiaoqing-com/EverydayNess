@@ -3,7 +3,7 @@ package org.evd.game.runtime.mailbox;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.ActorMessage;
 import org.evd.game.runtime.call.CallResult;
-import org.evd.game.runtime.support.RpcCallException;
+import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 
 public final class ProcessInnerSender {

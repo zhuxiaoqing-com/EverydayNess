@@ -5,7 +5,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
-import org.evd.game.runtime.support.RpcCallException;
+import org.evd.game.runtime.support.exception.RpcCallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

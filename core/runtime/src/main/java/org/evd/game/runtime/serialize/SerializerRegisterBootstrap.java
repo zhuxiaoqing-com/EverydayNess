@@ -1,7 +1,7 @@
 package org.evd.game.runtime.serialize;
 
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

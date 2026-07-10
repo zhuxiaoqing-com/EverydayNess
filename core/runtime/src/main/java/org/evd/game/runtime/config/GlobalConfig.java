@@ -1,7 +1,7 @@
 package org.evd.game.runtime.config;
 
 
-import org.evd.game.runtime.support.SysException;
+import org.evd.game.runtime.support.exception.SysException;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.FileInputStream;

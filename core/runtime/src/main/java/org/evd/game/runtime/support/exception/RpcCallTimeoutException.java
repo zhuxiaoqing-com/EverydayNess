@@ -1,6 +1,7 @@
-package org.evd.game.runtime.support;
+package org.evd.game.runtime.support.exception;
 
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.support.RpcErrorCodes;
 
 public class RpcCallTimeoutException extends SysException {
     private final String serviceId;
