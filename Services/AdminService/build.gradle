@@ -1,1 +1,5 @@
 apply from: rootProject.file('gradle/service-module.gradle')
+
+dependencies {
+    implementation 'io.netty:netty-all:4.1.112.Final'
+}
