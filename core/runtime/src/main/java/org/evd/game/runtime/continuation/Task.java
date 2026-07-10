@@ -1,7 +1,6 @@
 package org.evd.game.runtime.continuation;
 
 import jdk.internal.vm.Continuation;
-import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.function.Function0;
@@ -30,7 +29,7 @@ public class Task {
      */
     public static class ContinuationWrapper implements Runnable, Closeable {
         /** service */
-        private final Service service;
+        private final ContinuationHost host;
         /** 栈 */
         private final Continuation continuation;
 
@@ -56,9 +55,9 @@ public class Task {
         /** 当前正在运行该协程的线程 */
         private Thread runningThread;
 
-        public ContinuationWrapper(Service service) {
-            this.service = service;
-            this.continuation = new Continuation(service.getScope(), this);
+        public ContinuationWrapper(ContinuationHost host) {
+            this.host = host;
+            this.continuation = new Continuation(host.getScope(), this);
         }
 
         /**
@@ -128,12 +127,12 @@ public class Task {
             }
             // 先放入service中，因为task.run()可能发生协程yield
             // 如果不保存，则无法拿到栈恢复执行
-            service.holdContinuation(this);
+            host.hold(this);
             try {
                 task.run();
             } finally {
                 // 执行结束，移除
-                service.unHoldContinuation(this);
+                host.unhold(this);
             }
         }
 

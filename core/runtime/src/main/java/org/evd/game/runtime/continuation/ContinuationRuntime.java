@@ -14,54 +14,38 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
-public final class ContinuationRuntime {
+public final class ContinuationRuntime implements ContinuationHost {
     private static final int DRAIN_LOG_THRESHOLD = 100;
     private static final int DRAIN_DEFER_THRESHOLD = 1000;
 
     @FunctionalInterface
-    public interface WaitTimeoutHandler {
-        void onTimeout(Task.ContinuationWrapper continuation, long waitId);
-    }
-
-    private static final class WaitContext {
-        private final Task.ContinuationWrapper continuation;
-        private final long timerId;
-        private final WaitTimeoutHandler timeoutHandler;
-        private final WaitType type;
-        private final ContinuationDebugInfo.DebugInfo debugInfo;
-
-        private WaitContext(Task.ContinuationWrapper continuation,
-                            long timerId,
-                            WaitTimeoutHandler timeoutHandler,
-                            WaitType type,
-                            ContinuationDebugInfo.DebugInfo debugInfo) {
-            this.continuation = continuation;
-            this.timerId = timerId;
-            this.timeoutHandler = timeoutHandler;
-            this.type = type;
-            this.debugInfo = debugInfo;
-        }
+    public interface WaitTimeoutHandler extends WaitRegistry.WaitTimeoutHandler {
     }
 
     private final Service service;
-    private final TimerScheduler timerScheduler;
     private final ContinuationPool continuationPool;
+    private final WaitRegistry waitRegistry;
+    private final Consumer<Task.ContinuationWrapper> completionHandler;
     private long conIdAlloc = 1;
-    private long waitIdAlloc = 1;
     private Task.ContinuationWrapper runningContinuation;
     private final Map<Long, Task.ContinuationWrapper> continuations = new HashMap<>();
-    private final Map<Long, WaitContext> waitContexts = new HashMap<>();
     private final ArrayDeque<Task.ContinuationWrapper> readyContinuations = new ArrayDeque<>();
+    private boolean closed;
 
-    public ContinuationRuntime(Service service, TimerScheduler timerScheduler) {
+    public ContinuationRuntime(Service service,
+                               TimerScheduler timerScheduler,
+                               Consumer<Task.ContinuationWrapper> completionHandler) {
         this.service = service;
-        this.timerScheduler = timerScheduler;
-        this.continuationPool = new ContinuationPool(service);
+        this.completionHandler = completionHandler;
+        this.continuationPool = new ContinuationPool(this);
+        this.waitRegistry = new WaitRegistry(timerScheduler, this::queue);
     }
 
 
     public void createAndEnterQueue(Runnable task, ActorId actorId, Task.Reason queueReason, ContinuationDebugInfo.DebugInfo debugInfo) {
+        ensureOpen();
         Task.ContinuationWrapper context = continuationPool.apply();
         context.bindTask(task, nextConId(), actorId);
         context.bindDebugInfo(debugInfo);
@@ -70,12 +54,14 @@ public final class ContinuationRuntime {
 
 
     public void createAndRun(Runnable task, ActorId actorId) {
+        ensureOpen();
         Task.ContinuationWrapper context = continuationPool.apply();
         context.bindTask(task, nextConId(), actorId);
         runImmediate(context);
     }
 
     public Task.ContinuationWrapper create(Runnable task, ActorId actorId) {
+        ensureOpen();
         Task.ContinuationWrapper context = continuationPool.apply();
         context.bindTask(task, nextConId(), actorId);
         return context;
@@ -96,14 +82,24 @@ public final class ContinuationRuntime {
         continuations.put(continuation.getConId(), continuation);
     }
 
-    public void unhold(Task.ContinuationWrapper continuation, Runnable afterUnhold) {
+    @Override
+    public void unhold(Task.ContinuationWrapper continuation) {
         continuations.remove(continuation.getConId());
-        afterUnhold.run();
-        continuation.markCompleted();
-        continuationPool.recycle(continuation);
+        try {
+            completionHandler.accept(continuation);
+        } finally {
+            continuation.markCompleted();
+            continuationPool.recycle(continuation);
+        }
+    }
+
+    @Override
+    public jdk.internal.vm.ContinuationScope getScope() {
+        return service.getScope();
     }
 
     public void queue(Task.ContinuationWrapper continuation, Task.Reason queueReason) {
+        ensureOpen();
         continuation.markQueued(queueReason);
         readyContinuations.addLast(continuation);
     }
@@ -158,28 +154,24 @@ public final class ContinuationRuntime {
                              WaitType type,
                              WaitTimeoutHandler timeoutHandler,
                              ContinuationDebugInfo.DebugInfo waitDebugInfo) {
-        long waitId = nextWaitId();
         Task.ContinuationWrapper continuation = requireRunning();
-        continuation.prepareWait();
-        continuation.markWaiting(waitDebugInfo);
-        long timerId = timeoutMillis > 0
-                ? timerScheduler.scheduleDelay(now, timeoutMillis, () -> onWaitTimeout(waitId))
-                : 0L;
-        waitContexts.put(waitId, new WaitContext(
-                continuation,
-                timerId,
-                timeoutHandler,
-                type,
-                waitDebugInfo));
-        return waitId;
+        return waitRegistry.register(continuation, timeoutMillis, now, type, timeoutHandler, waitDebugInfo);
     }
 
-    /**
-     * 按 waitId 把“正在等结果的协程”从等待表里取出来，并顺手取消它的超时定时器。
-     */
-    public Task.ContinuationWrapper takeWaitContinuation(long waitId) {
-        WaitContext waitContext = removeWaitContext(waitId);
-        return waitContext == null ? null : waitContext.continuation;
+    public boolean cancelWait(long waitId) {
+        return waitRegistry.cancel(waitId);
+    }
+
+    public boolean completeWait(long waitId, Object result, Task.Reason reason) {
+        return waitRegistry.complete(waitId, result, reason);
+    }
+
+    public boolean failWait(long waitId, RuntimeException failure, Task.Reason reason) {
+        return waitRegistry.fail(waitId, failure, reason);
+    }
+
+    public WaitRegistry waitRegistry() {
+        return waitRegistry;
     }
 
     /**
@@ -192,46 +184,7 @@ public final class ContinuationRuntime {
             return 0;
         }
 
-        int failed = 0;
-        for (Map.Entry<Long, WaitContext> entry : new ArrayList<>(waitContexts.entrySet())) {
-            WaitContext waitContext = entry.getValue();
-            if (waitContext.type != WaitType.RPC) {
-                continue;
-            }
-            ContinuationDebugInfo.RpcWaitDebugInfo rpcDebugInfo =
-                    (ContinuationDebugInfo.RpcWaitDebugInfo) waitContext.debugInfo;
-            if (!remoteNodeId.equals(rpcDebugInfo.getTargetNodeId())) {
-                continue;
-            }
-            long waitId = entry.getKey();
-            if (removeWaitContext(waitId) == null) {
-                continue;
-            }
-            waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
-            queue(waitContext.continuation, Task.Reason.TIMER);
-            failed++;
-        }
-        return failed;
-    }
-
-    private void onWaitTimeout(long waitId) {
-        WaitContext waitContext = removeWaitContext(waitId);
-        if (waitContext == null) {
-            return;
-        }
-        waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
-        queue(waitContext.continuation, Task.Reason.TIMER);
-    }
-
-    private WaitContext removeWaitContext(long waitId) {
-        WaitContext waitContext = waitContexts.remove(waitId);
-        if (waitContext == null) {
-            return null;
-        }
-        if (waitContext.timerId != 0) {
-            timerScheduler.cancel(waitContext.timerId);
-        }
-        return waitContext;
+        return waitRegistry.failForConnection(remoteNodeId);
     }
 
     private void logDrainState(String title, String phase, int resumed) {
@@ -293,35 +246,19 @@ public final class ContinuationRuntime {
     }
 
     private ContinuationRuntimeDebugFormatter.SnapshotSection snapshotWaitingContinuations() {
-        Map<Long, WaitContext> waitSnapshot;
-        try {
-            waitSnapshot = new HashMap<>(waitContexts);
-        } catch (RuntimeException e) {
-            return ContinuationRuntimeDebugFormatter.section(
-                    "  等待中协程:\n",
-                    List.of(),
-                    e);
-        }
-        List<Map.Entry<Long, WaitContext>> entries = new ArrayList<>(waitSnapshot.entrySet());
-        entries.sort(Map.Entry.comparingByKey());
-        List<Task.ContinuationWrapper> continuations = new ArrayList<>(entries.size());
-        for (Map.Entry<Long, WaitContext> entry : entries) {
-            WaitContext waitContext = entry.getValue();
-            continuations.add(waitContext.continuation);
-        }
         return ContinuationRuntimeDebugFormatter.section(
                 "  等待中协程:\n",
-                continuations,
+                waitRegistry.snapshotContinuations(),
                 null);
     }
 
     private ContinuationRuntimeDebugFormatter.SnapshotSection snapshotHeldContinuations() {
         Map<Long, Task.ContinuationWrapper> heldSnapshot;
-        Map<Long, WaitContext> waitSnapshot;
+        List<Task.ContinuationWrapper> waitSnapshot;
         List<Task.ContinuationWrapper> readySnapshot;
         try {
             heldSnapshot = new HashMap<>(continuations);
-            waitSnapshot = new HashMap<>(waitContexts);
+            waitSnapshot = waitRegistry.snapshotContinuations();
             readySnapshot = new ArrayList<>(readyContinuations);
         } catch (RuntimeException e) {
             return ContinuationRuntimeDebugFormatter.section(
@@ -338,8 +275,8 @@ public final class ContinuationRuntime {
         for (Task.ContinuationWrapper ready : readySnapshot) {
             excludedConIds.add(ready.getConId());
         }
-        for (WaitContext waitContext : waitSnapshot.values()) {
-            excludedConIds.add(waitContext.continuation.getConId());
+        for (Task.ContinuationWrapper waiting : waitSnapshot) {
+            excludedConIds.add(waiting.getConId());
         }
 
         List<Task.ContinuationWrapper> active = new ArrayList<>();
@@ -360,7 +297,20 @@ public final class ContinuationRuntime {
         return conIdAlloc++;
     }
 
-    private long nextWaitId() {
-        return waitIdAlloc++;
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        waitRegistry.close();
+        readyContinuations.clear();
+        continuations.clear();
+        continuationPool.clear();
+    }
+
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("continuation runtime is closed: service=" + service.getId());
+        }
     }
 }

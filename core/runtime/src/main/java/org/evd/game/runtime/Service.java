@@ -106,22 +106,30 @@ public class Service extends TickCase {
     }
 
     /**
-     * 通用协程锁
-     */
-    private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager(this);
-
-    /**
      * 当前 service 内的 actor mailbox 注册表
      */
     private final ActorMailBoxRegistry actorMailBoxRegistry = new ActorMailBoxRegistry(this);
     /**
      * 通用定时调度器
      */
-    private final TimerScheduler timerScheduler = new TimerScheduler();
+    private final TimerScheduler timerScheduler = new TimerScheduler(
+            (timerId, failure) -> LogCore.core.error(
+                    "service timer callback failed: service={}, timerId={}", id, timerId, failure));
     /**
      * continuation 调度与 wait/timeout
      */
-    private final ContinuationRuntime continuationRuntime = new ContinuationRuntime(this, timerScheduler);
+    private final ContinuationRuntime continuationRuntime = new ContinuationRuntime(
+            this,
+            timerScheduler,
+            this::onContinuationComplete);
+    /**
+     * 通用协程锁
+     */
+    private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager(
+            continuationRuntime.waitRegistry(),
+            continuationRuntime::requireRunning,
+            this::getWaitBaseTimeInternal,
+            id);
     /**
      * actor mailbox 分发
      */
@@ -538,14 +546,16 @@ public class Service extends TickCase {
     }
 
     public void unHoldContinuation(Task.ContinuationWrapper conTask) {
-        continuationRuntime.unhold(conTask, () -> {
-            if (!coroutineLockManager.owns(conTask)) {
-                return;
-            }
-            LogCore.core.error("协程锁未显式释放，走unHoldContinuation保底释放: service={}, conId={}, actorId={}",
-                    id, conTask.getConId(), conTask.getActorId());
-            coroutineLockManager.release(conTask);
-        });
+        continuationRuntime.unhold(conTask);
+    }
+
+    private void onContinuationComplete(Task.ContinuationWrapper continuation) {
+        if (!coroutineLockManager.owns(continuation)) {
+            return;
+        }
+        LogCore.core.error("协程锁未显式释放，走运行时保底释放: service={}, conId={}, actorId={}",
+                id, continuation.getConId(), continuation.getActorId());
+        coroutineLockManager.release(continuation);
     }
 
     public boolean isInitialized() {
@@ -611,14 +621,6 @@ public class Service extends TickCase {
         return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), type, timeoutHandler, waitDebugInfo);
     }
 
-    public Task.ContinuationWrapper _takeWaitContinuation(long waitId) {
-        return continuationRuntime.takeWaitContinuation(waitId);
-    }
-
-    public void _queueUnlockContinuation(Task.ContinuationWrapper continuation) {
-        continuationRuntime.queue(continuation, Task.Reason.UNLOCK);
-    }
-
     protected final Task.ContinuationWrapper currentContinuation() {
         return requireRunningContinuation();
     }
@@ -648,19 +650,15 @@ public class Service extends TickCase {
                         id, timeoutWaitId, timeoutMillis)),
                 new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));
         stage.whenComplete((result, throwable) -> post(() -> {
-            Task.ContinuationWrapper waitContinuation = _takeWaitContinuation(waitId);
-            if (waitContinuation == null) {
-                return;
-            }
             if (throwable != null) {
                 Throwable cause = unwrapCompletionFailure(throwable);
                 RuntimeException failure = cause instanceof RuntimeException runtimeException
                         ? runtimeException
                         : new SysException(cause);
-                failContinuation(waitContinuation, failure);
+                continuationRuntime.failWait(waitId, failure, Task.Reason.RPC);
                 return;
             }
-            resumeContinuation(waitContinuation, result);
+            continuationRuntime.completeWait(waitId, result, Task.Reason.RPC);
         }));
         @SuppressWarnings("unchecked")
         T result = (T) continuation.waitResult();
@@ -774,6 +772,9 @@ public class Service extends TickCase {
     @Override
     public void onClose() {
         super.onClose();
+        coroutineLockManager.close();
+        continuationRuntime.close();
+        timerScheduler.close();
         node.remove(this);
 
         if (messageLocationSender != null) {

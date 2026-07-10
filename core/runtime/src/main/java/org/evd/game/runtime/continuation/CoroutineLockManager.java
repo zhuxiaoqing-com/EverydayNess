@@ -1,9 +1,10 @@
 package org.evd.game.runtime.continuation;
 
-import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.exception.CoroutineLockTimeoutException;
 
 import java.util.*;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 
 public final class CoroutineLockManager {
@@ -60,13 +61,23 @@ public final class CoroutineLockManager {
         private final ArrayDeque<WaitingContinuation> waiters = new ArrayDeque<>();
     }
 
-    private final Service service;
+    private final WaitRegistry waitRegistry;
+    private final Supplier<Task.ContinuationWrapper> currentContinuation;
+    private final LongSupplier now;
+    private final String serviceId;
     private final Map<LockKey, LockQueue> queues = new HashMap<>();
     private final IdentityHashMap<Task.ContinuationWrapper, LockKey> owners = new IdentityHashMap<>();
     private final IdentityHashMap<Task.ContinuationWrapper, LockKey> waiters = new IdentityHashMap<>();
+    private boolean closed;
 
-    public CoroutineLockManager(Service service) {
-        this.service = service;
+    public CoroutineLockManager(WaitRegistry waitRegistry,
+                                Supplier<Task.ContinuationWrapper> currentContinuation,
+                                LongSupplier now,
+                                String serviceId) {
+        this.waitRegistry = waitRegistry;
+        this.currentContinuation = currentContinuation;
+        this.now = now;
+        this.serviceId = serviceId;
     }
 
     public void await(LockType type, Object key) {
@@ -74,23 +85,31 @@ public final class CoroutineLockManager {
     }
 
     public void await(LockType type, Object key, int timeoutMillis) {
-        Task.ContinuationWrapper continuation = service.requireRunningContinuation();
+        if (closed) {
+            throw new IllegalStateException("coroutine lock manager is closed: service=" + serviceId);
+        }
+        Task.ContinuationWrapper continuation = currentContinuation.get();
         if (tryAcquire(type, key, continuation)) {
             return;
         }
 
-        long waitId = service.registerWait(timeoutMillis, WaitType.LOCK, (ctx, timeoutWaitId) -> {
+        long waitId = waitRegistry.register(continuation, timeoutMillis, now.getAsLong(), WaitType.LOCK, (ctx, timeoutWaitId) -> {
             if (!cancelWait(ctx)) {
                 return;
             }
             ctx.setFailure(new CoroutineLockTimeoutException(
-                    service.getId(),
+                    serviceId,
                     type,
                     key,
                     timeoutWaitId,
                     timeoutMillis));
         }, new ContinuationDebugInfo.LockWaitDebugInfo(type, key, timeoutMillis));
-        addWaiter(type, key, continuation, waitId);
+        try {
+            addWaiter(type, key, continuation, waitId);
+        } catch (RuntimeException failure) {
+            waitRegistry.cancel(waitId);
+            throw failure;
+        }
         continuation.waitResult();
     }
 
@@ -104,16 +123,14 @@ public final class CoroutineLockManager {
             return;
         }
 
-        Task.ContinuationWrapper waitContinuation = next.waitId == 0
-                ? next.continuation
-                : service._takeWaitContinuation(next.waitId);
-        if (waitContinuation == null) {
+        if (next.waitId == 0) {
             release(next.continuation);
             return;
         }
-
-        waitContinuation.setResult(null);
-        service._queueUnlockContinuation(waitContinuation);
+        if (!waitRegistry.complete(next.waitId, null, Task.Reason.UNLOCK)) {
+            release(next.continuation);
+            return;
+        }
     }
 
     private boolean tryAcquire(LockType type, Object key, Task.ContinuationWrapper continuation) {
@@ -123,7 +140,7 @@ public final class CoroutineLockManager {
             // 表示当前协程 continuation 已经持有一把锁，现在又尝试获取另一把锁。
             // reentrant = 重复申请同一把锁;  nested    = 持有一把锁时，再申请另一把锁
             String violation = ownedLock.equals(lockKey) ? "reentrant" : "nested";
-            throw new IllegalStateException(violation + " coroutine lock is forbidden: service=" + service.getId()
+            throw new IllegalStateException(violation + " coroutine lock is forbidden: service=" + serviceId
                     + ", conId=" + continuation.getConId()
                     + ", ownedType=" + ownedLock.type
                     + ", ownedKey=" + ownedLock.key
@@ -138,7 +155,7 @@ public final class CoroutineLockManager {
         }
         // 锁管理器自身状态损坏，属于实现 bug 或并发问题。
         if (queue.owner == continuation) {
-            throw new IllegalStateException("coroutine lock owner index is inconsistent: service=" + service.getId()
+            throw new IllegalStateException("coroutine lock owner index is inconsistent: service=" + serviceId
                     + ", conId=" + continuation.getConId() + ", type=" + type + ", key=" + key);
         }
         return false;
@@ -242,5 +259,12 @@ public final class CoroutineLockManager {
         }
         return CoroutineLockDebugFormatter.buildDebugDump(
                 CoroutineLockDebugFormatter.snapshot(locks, null));
+    }
+
+    public void close() {
+        closed = true;
+        queues.clear();
+        owners.clear();
+        waiters.clear();
     }
 }

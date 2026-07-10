@@ -1,20 +1,18 @@
 package org.evd.game.runtime.continuation;
 
-import org.evd.game.runtime.Service;
-
 import java.util.ArrayList;
 import java.util.List;
 
 public class ContinuationPool {
-    private final Service service;
+    private final ContinuationHost host;
     private final List<Task.ContinuationWrapper> pool = new ArrayList<>();
-    public ContinuationPool(Service service){
-        this.service = service;
+    public ContinuationPool(ContinuationHost host){
+        this.host = host;
     }
 
     public Task.ContinuationWrapper apply(){
         if (pool.isEmpty())
-            return new Task.ContinuationWrapper(service);
+            return new Task.ContinuationWrapper(host);
         else
             return pool.removeLast();
     }
@@ -24,5 +22,9 @@ public class ContinuationPool {
         callBack.close();
         // 回收
         pool.add(callBack);
+    }
+
+    public void clear() {
+        pool.clear();
     }
 }

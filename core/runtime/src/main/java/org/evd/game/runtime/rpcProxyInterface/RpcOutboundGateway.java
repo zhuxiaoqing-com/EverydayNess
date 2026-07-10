@@ -45,7 +45,7 @@ public final class RpcOutboundGateway {
 
         CallBase call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, waitId);
         if (!send(call)) {
-            continuationRuntime.takeWaitContinuation(waitId);
+            continuationRuntime.cancelWait(waitId);
             throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
                     service.getId(), toCallPoint.nodeId, toCallPoint.servId, methodKey);
         }

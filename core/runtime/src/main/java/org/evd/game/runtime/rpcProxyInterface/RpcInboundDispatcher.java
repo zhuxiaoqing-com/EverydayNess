@@ -19,7 +19,6 @@ public final class RpcInboundDispatcher {
 
     public void handle(CallBase callBase) {
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
-        Task.ContinuationWrapper context;
         if (callBase instanceof Call call) {
             service.continuationRuntime().createAndEnterQueue(() -> dispatch(call), null, Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(call.methodKey));
             return;
@@ -28,22 +27,23 @@ public final class RpcInboundDispatcher {
             return;
         } else {
             CallResult callResult = (CallResult) callBase;
-            context = continuationRuntime.takeWaitContinuation(callResult.id);
-            if (context == null) {
+            boolean completed;
+            if (callResult.success) {
+                completed = continuationRuntime.completeWait(callResult.id, callResult.result, Task.Reason.RPC);
+            } else {
+                completed = continuationRuntime.failWait(
+                        callResult.id,
+                        new RpcCallException(
+                                callResult.errorCode,
+                                "rpc call failed: service=" + service.getId() + ", waitId=" + callResult.id
+                                        + ", methodKey=" + callResult.methodKey
+                                        + ", errorCode=" + callResult.errorCode + ", message=" + callResult.errorMessage),
+                        Task.Reason.RPC);
+            }
+            if (!completed) {
                 LogCore.core.warn("callback is null or timeout, waitId={}, methodKey={}, success={}, errorCode={}, message={}",
                         callResult.id, callResult.methodKey, callResult.success, callResult.errorCode, callResult.errorMessage);
-                return;
             }
-            if (callResult.success) {
-                context.setResult(callResult.result);
-            } else {
-                context.setFailure(new RpcCallException(
-                        callResult.errorCode,
-                        "rpc call failed: service=" + service.getId() + ", waitId=" + callResult.id
-                                + ", methodKey=" + callResult.methodKey
-                                + ", errorCode=" + callResult.errorCode + ", message=" + callResult.errorMessage));
-            }
-            continuationRuntime.queue(context, Task.Reason.RPC);
             return;
         }
     }

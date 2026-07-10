@@ -45,7 +45,7 @@ public final class MessageSender {
 
         CallBase message = CallFactory.buildActorRpc(service, actorAddress, actorId, methodKey, params, true, waitId);
         if (!service.sendOutboundCall(message)) {
-            continuationRuntime.takeWaitContinuation(waitId);
+            continuationRuntime.cancelWait(waitId);
             throw new SysException("send actor rpc call failed: service={}, actorId={}, methodKey={}",
                     service.id, actorId, methodKey);
         }
