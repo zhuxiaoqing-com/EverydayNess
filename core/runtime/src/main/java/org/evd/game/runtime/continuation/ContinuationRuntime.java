@@ -28,13 +28,19 @@ public final class ContinuationRuntime {
         private final Task.ContinuationWrapper continuation;
         private final long timerId;
         private final WaitTimeoutHandler timeoutHandler;
+        private final WaitType type;
+        private final ContinuationDebugInfo.DebugInfo debugInfo;
 
         private WaitContext(Task.ContinuationWrapper continuation,
                             long timerId,
-                            WaitTimeoutHandler timeoutHandler) {
+                            WaitTimeoutHandler timeoutHandler,
+                            WaitType type,
+                            ContinuationDebugInfo.DebugInfo debugInfo) {
             this.continuation = continuation;
             this.timerId = timerId;
             this.timeoutHandler = timeoutHandler;
+            this.type = type;
+            this.debugInfo = debugInfo;
         }
     }
 
@@ -143,11 +149,13 @@ public final class ContinuationRuntime {
     }
 
     public long registerWait(long timeoutMillis, long now, WaitTimeoutHandler timeoutHandler) {
-        return registerWait(timeoutMillis, now, timeoutHandler, new ContinuationDebugInfo.WaitTimeoutDebugInfo(timeoutMillis));
+        return registerWait(timeoutMillis, now, WaitType.GENERIC, timeoutHandler,
+                new ContinuationDebugInfo.WaitTimeoutDebugInfo(timeoutMillis));
     }
 
     public long registerWait(long timeoutMillis,
                              long now,
+                             WaitType type,
                              WaitTimeoutHandler timeoutHandler,
                              ContinuationDebugInfo.DebugInfo waitDebugInfo) {
         long waitId = nextWaitId();
@@ -160,7 +168,9 @@ public final class ContinuationRuntime {
         waitContexts.put(waitId, new WaitContext(
                 continuation,
                 timerId,
-                timeoutHandler));
+                timeoutHandler,
+                type,
+                waitDebugInfo));
         return waitId;
     }
 
@@ -168,20 +178,60 @@ public final class ContinuationRuntime {
      * 按 waitId 把“正在等结果的协程”从等待表里取出来，并顺手取消它的超时定时器。
      */
     public Task.ContinuationWrapper takeWaitContinuation(long waitId) {
-        WaitContext waitContext = waitContexts.remove(waitId);
-        if (waitContext != null && waitContext.timerId != 0) {
-            timerScheduler.cancel(waitContext.timerId);
-        }
+        WaitContext waitContext = removeWaitContext(waitId);
         return waitContext == null ? null : waitContext.continuation;
     }
 
+    /**
+     * 连接断开时立即结束挂在该连接上的 RPC 等待。
+     *
+     * <p>调用方需要在 Service 所在线程执行，保证等待表和就绪队列不发生并发访问。</p>
+     */
+    public int failWaitsForConnection(String remoteNodeId) {
+        if (remoteNodeId == null) {
+            return 0;
+        }
+
+        int failed = 0;
+        for (Map.Entry<Long, WaitContext> entry : new ArrayList<>(waitContexts.entrySet())) {
+            WaitContext waitContext = entry.getValue();
+            if (waitContext.type != WaitType.RPC) {
+                continue;
+            }
+            ContinuationDebugInfo.RpcWaitDebugInfo rpcDebugInfo =
+                    (ContinuationDebugInfo.RpcWaitDebugInfo) waitContext.debugInfo;
+            if (!remoteNodeId.equals(rpcDebugInfo.getTargetNodeId())) {
+                continue;
+            }
+            long waitId = entry.getKey();
+            if (removeWaitContext(waitId) == null) {
+                continue;
+            }
+            waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
+            queue(waitContext.continuation, Task.Reason.TIMER);
+            failed++;
+        }
+        return failed;
+    }
+
     private void onWaitTimeout(long waitId) {
-        WaitContext waitContext = waitContexts.remove(waitId);
+        WaitContext waitContext = removeWaitContext(waitId);
         if (waitContext == null) {
             return;
         }
         waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
         queue(waitContext.continuation, Task.Reason.TIMER);
+    }
+
+    private WaitContext removeWaitContext(long waitId) {
+        WaitContext waitContext = waitContexts.remove(waitId);
+        if (waitContext == null) {
+            return null;
+        }
+        if (waitContext.timerId != 0) {
+            timerScheduler.cancel(waitContext.timerId);
+        }
+        return waitContext;
     }
 
     private void logDrainState(String title, String phase, int resumed) {

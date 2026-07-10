@@ -13,6 +13,10 @@ public final class ContinuationDebugInfo {
         public abstract String toString();
     }
 
+    public static abstract class RpcWaitDebugInfo extends DebugInfo {
+        public abstract String getTargetNodeId();
+    }
+
     public static final class RpcDebugInfo extends DebugInfo {
         private final int rpcMethodKey;
 
@@ -52,7 +56,7 @@ public final class ContinuationDebugInfo {
         }
     }
 
-    public static final class ServiceRpcWaitDebugInfo extends DebugInfo {
+    public static final class ServiceRpcWaitDebugInfo extends RpcWaitDebugInfo {
         private final CallPoint targetCallPoint;
         private final int methodKey;
         private final long timeoutMillis;
@@ -64,12 +68,17 @@ public final class ContinuationDebugInfo {
         }
 
         @Override
+        public String getTargetNodeId() {
+            return targetCallPoint.nodeId;
+        }
+
+        @Override
         public String toString() {
             return "serviceRpc target=" + targetCallPoint + ", methodKey=" + methodKey + ", timeoutMillis=" + timeoutMillis;
         }
     }
 
-    public static final class ActorRpcWaitDebugInfo extends DebugInfo {
+    public static final class ActorRpcWaitDebugInfo extends RpcWaitDebugInfo {
         private final ActorId actorId;
         private final ActorAddress actorAddress;
         private final int methodKey;
@@ -80,6 +89,12 @@ public final class ContinuationDebugInfo {
             this.actorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
             this.methodKey = methodKey;
             this.timeoutMillis = timeoutMillis;
+        }
+
+        @Override
+        public String getTargetNodeId() {
+            CallPoint callPoint = actorAddress == null ? null : actorAddress.getCallPoint();
+            return callPoint == null ? null : callPoint.nodeId;
         }
 
         @Override

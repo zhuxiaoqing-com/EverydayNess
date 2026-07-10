@@ -374,6 +374,27 @@ public class Node extends TickCase{
         if (remoteNode != null && remoteNode.onChannelInactive_nt(channel)) {
             remoteNodeServices.remove(remoteNode.getRemoteId());
             rebuildServiceIndexes();
+            failRpcWaitsForRemote_nt(remoteNodeId);
+        }
+    }
+
+    private void failRpcWaitsForRemote_nt(String remoteNodeId) {
+        for (Service service : services.values()) {
+            if (service == null) {
+                continue;
+            }
+            try {
+                service.post(() -> {
+                    int failed = service.failRpcWaitsForRemote(remoteNodeId);
+                    if (failed > 0) {
+                        LogCore.remote.warn("远程Node断开，立即结束RPC等待: localNode={}, remoteNode={}, service={}, count={}",
+                                id, remoteNodeId, service.getId(), failed);
+                    }
+                });
+            } catch (RuntimeException e) {
+                LogCore.remote.error("远程Node断开时投递RPC等待清理失败: localNode={}, remoteNode={}, service={}",
+                        id, remoteNodeId, service.getId(), e);
+            }
         }
     }
 

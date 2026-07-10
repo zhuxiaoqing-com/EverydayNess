@@ -7,6 +7,7 @@ import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
+import org.evd.game.runtime.continuation.WaitType;
 import org.evd.game.runtime.support.exception.ActorRpcCallTimeoutException;
 import org.evd.game.runtime.support.exception.SysException;
 
@@ -37,6 +38,7 @@ public final class MessageSender {
         long waitId = continuationRuntime.registerWait(
                 timeoutMillis,
                 service.getWaitBaseTimeInternal(),
+                WaitType.RPC,
                 (ctx, timeoutWaitId) -> ctx.setFailure(
                         new ActorRpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, methodKey, targetActorId, targetActorAddress)),
                 new ContinuationDebugInfo.ActorRpcWaitDebugInfo(targetActorId, targetActorAddress, methodKey, timeoutMillis));

@@ -352,6 +352,10 @@ public class Service extends TickCase {
         return callTransport.send(call);
     }
 
+    int failRpcWaitsForRemote(String remoteNodeId) {
+        return continuationRuntime.failWaitsForConnection(remoteNodeId);
+    }
+
     public CallPoint copyCallPoint() {
         return new CallPoint(callPoint);
     }
@@ -586,6 +590,7 @@ public class Service extends TickCase {
         Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
         registerWait(
                 delayMillis,
+                WaitType.SLEEP,
                 (continuation, waitId) -> continuation.setResult(null),
                 new ContinuationDebugInfo.SleepDebugInfo(delayMillis));
         thisContinuation.waitResult();
@@ -599,14 +604,11 @@ public class Service extends TickCase {
         return continuationRuntime.requireRunning();
     }
 
-    long registerWait(long timeoutMillis, ContinuationRuntime.WaitTimeoutHandler timeoutHandler) {
-        return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler);
-    }
-
     public long registerWait(long timeoutMillis,
+                      WaitType type,
                       ContinuationRuntime.WaitTimeoutHandler timeoutHandler,
                       ContinuationDebugInfo.DebugInfo waitDebugInfo) {
-        return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), timeoutHandler, waitDebugInfo);
+        return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), type, timeoutHandler, waitDebugInfo);
     }
 
     public Task.ContinuationWrapper _takeWaitContinuation(long waitId) {
@@ -641,6 +643,7 @@ public class Service extends TickCase {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
         long waitId = registerWait(
                 timeoutMillis,
+                WaitType.COMPLETION_STAGE,
                 (ctx, timeoutWaitId) -> ctx.setFailure(new SysException("async wait timeout: service={}, waitId={}, timeoutMillis={}",
                         id, timeoutWaitId, timeoutMillis)),
                 new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));

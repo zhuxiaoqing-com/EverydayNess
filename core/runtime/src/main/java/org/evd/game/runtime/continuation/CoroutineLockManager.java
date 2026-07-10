@@ -79,7 +79,7 @@ public final class CoroutineLockManager {
             return;
         }
 
-        long waitId = service.registerWait(timeoutMillis, (ctx, timeoutWaitId) -> {
+        long waitId = service.registerWait(timeoutMillis, WaitType.LOCK, (ctx, timeoutWaitId) -> {
             if (!cancelWait(ctx)) {
                 return;
             }

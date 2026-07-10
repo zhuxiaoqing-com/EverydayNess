@@ -7,6 +7,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
+import org.evd.game.runtime.continuation.WaitType;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.exception.RpcCallTimeoutException;
@@ -37,6 +38,7 @@ public final class RpcOutboundGateway {
         long waitId = continuationRuntime.registerWait(
                 timeoutMillis,
                 service.getWaitBaseTimeInternal(),
+                WaitType.RPC,
                 (ctx, timeoutWaitId) -> ctx.setFailure(
                         new RpcCallTimeoutException(service.getId(), timeoutWaitId, timeoutMillis, targetCallPoint, methodKey)),
                 new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(targetCallPoint, methodKey, timeoutMillis));
