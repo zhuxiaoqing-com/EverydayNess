@@ -10,15 +10,14 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public final class ContinuationRuntime implements ContinuationHost {
-    private static final int DRAIN_LOG_THRESHOLD = 100;
-    private static final int DRAIN_DEFER_THRESHOLD = 1000;
+    private static final long DRAIN_DEFER_LOG_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(1);
 
     @FunctionalInterface
     public interface WaitTimeoutHandler extends WaitRegistry.WaitTimeoutHandler {
@@ -32,6 +31,7 @@ public final class ContinuationRuntime implements ContinuationHost {
     private Task.ContinuationWrapper runningContinuation;
     private final Map<Long, Task.ContinuationWrapper> continuations = new HashMap<>();
     private final ArrayDeque<Task.ContinuationWrapper> readyContinuations = new ArrayDeque<>();
+    private long lastDrainDeferredLogNanos;
     private boolean closed;
 
     public ContinuationRuntime(Service service,
@@ -104,20 +104,20 @@ public final class ContinuationRuntime implements ContinuationHost {
         readyContinuations.addLast(continuation);
     }
 
-    public void drain(String phase) {
+    /** 当前等待恢复、尚未运行的 continuation 数量；等待中的 continuation 不包含在内。 */
+    public int readySize() {
+        return readyContinuations.size();
+    }
+
+    public int drain(String phase, int maxCount) {
+        if (maxCount <= 0) {
+            return 0;
+        }
+
+        int scheduled = Math.min(maxCount, readyContinuations.size());
         int resumed = 0;
-        boolean logged = false;
         Task.ContinuationWrapper continuation;
-        while ((continuation = readyContinuations.pollFirst()) != null) {
-            if (resumed >= DRAIN_DEFER_THRESHOLD) {
-                readyContinuations.addFirst(continuation);
-                logDrainState("continuation drain deferred to next tick", phase, resumed);
-                return;
-            }
-            if (!logged && resumed >= DRAIN_LOG_THRESHOLD) {
-                logged = true;
-                logDrainState("continuation drain threshold exceeded", phase, resumed);
-            }
+        while (resumed < scheduled && (continuation = readyContinuations.pollFirst()) != null) {
             resumed++;
             long conId = continuation.getConId();
             ActorId actorId = continuation.getActorId();
@@ -134,6 +134,16 @@ public final class ContinuationRuntime implements ContinuationHost {
                         service.getId(), phase, conId, actorId, queueReason, debugInfo, e);
             }
         }
+
+        if (!readyContinuations.isEmpty()) {
+            long now = System.nanoTime();
+            if (lastDrainDeferredLogNanos == 0L
+                    || now - lastDrainDeferredLogNanos >= DRAIN_DEFER_LOG_INTERVAL_NANOS) {
+                lastDrainDeferredLogNanos = now;
+                logDrainBudgetExceeded(phase);
+            }
+        }
+        return resumed;
     }
 
     public Task.ContinuationWrapper requireRunning() {
@@ -187,40 +197,10 @@ public final class ContinuationRuntime implements ContinuationHost {
         return waitRegistry.failForConnection(remoteNodeId);
     }
 
-    private void logDrainState(String title, String phase, int resumed) {
-        StringBuilder sb = new StringBuilder(1024);
-        sb.append(title)
-                .append(": service=")
-                .append(service.getId())
-                .append(", phase=").append(phase)
-                .append(", resumed=").append(resumed)
-                .append(", pending=").append(readyContinuations.size())
-                .append('\n');
-
-        Map<String, Integer> pendingDebugCounts = new LinkedHashMap<>();
-        for (Task.ContinuationWrapper pending : readyContinuations) {
-            ContinuationDebugInfo.DebugInfo debugInfo = pending.getDebugInfo();
-            if (debugInfo == null) {
-                continue;
-            }
-            Task.Reason queueReason = pending.getQueueReason();
-            String key = debugInfo + " | " + (queueReason == null ? "unknown" : queueReason.name());
-            pendingDebugCounts.merge(key, 1, Integer::sum);
-        }
-        sb.append("pending rpc continuations:\n");
-        if (pendingDebugCounts.isEmpty()) {
-            sb.append("  none\n");
-        } else {
-            for (Map.Entry<String, Integer> entry : pendingDebugCounts.entrySet()) {
-                sb
-                        .append(entry.getKey())
-                        .append(", ")
-                        .append("  count=").append(entry.getValue())
-                        .append('\n');
-            }
-        }
-
-        LogCore.core.error(sb.toString());
+    private void logDrainBudgetExceeded(String phase) {
+        LogCore.core.error(
+                "continuation drain execution budget exceeded: service={}, phase={}",
+                service.getId(), phase);
     }
 
     public String buildDebugDump() {

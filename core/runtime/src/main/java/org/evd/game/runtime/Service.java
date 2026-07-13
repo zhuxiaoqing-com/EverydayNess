@@ -41,7 +41,12 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  * 服务
  */
 public class Service extends TickCase {
+    private static final int MAX_READY_CONTINUATIONS_PER_FRAME = 1_000;
+
     public void addCall_snt(CallBase call) {
+        if (call == null) {
+            throw new SysException("service call is null: service={}", id);
+        }
         calls.add(call);
     }
 
@@ -96,6 +101,8 @@ public class Service extends TickCase {
      * 此帧要执行的投递任务
      */
     private final List<Runnable> affirmPostedTasks = new ArrayList<>();
+    /** 由 Service 线程按帧发布，供 Node 跨线程读取。 */
+    private volatile PressureSnapshot pressureSnapshot = PressureSnapshot.EMPTY;
     /**
      * 协程的组，与service同名
      */
@@ -286,26 +293,26 @@ public class Service extends TickCase {
                 return;
             }
             pulseAffirm_st();
-            drainQueuedContinuations_st("afterAffirm");
 
             pulsePostedTasks_st();
             // 初始化期 Node 只允许 CallResult 入队，用于恢复 init continuation。
             pulseCalls_st();
-            drainQueuedContinuations_st("afterCalls");
 
             if (initialized) {
                 tick_st();
             }
 
             pulseTask_st();
-            drainQueuedContinuations_st("afterTimers");
             if (initialized) {
                 pulseEntity_st();
             }
 
+            drainQueuedContinuations_st();
+
             //刷新call发送缓冲区
             flushCallFrameBuffers_st();
         } finally {
+            publishPressureSnapshot_st();
             // 逻辑结束后移除，因为下次tick会分配其他线程
             threadLocal.remove();
             ThreadContext.remove("service");
@@ -350,6 +357,15 @@ public class Service extends TickCase {
 
     public ContinuationRuntime continuationRuntime() {
         return continuationRuntime;
+    }
+
+    /** 返回上一帧发布的可运行积压；wait 中的 continuation 不包含在内。 */
+    public int readyContinuationsSize() {
+        return pressureSnapshot.readyContinuations();
+    }
+
+    public PressureSnapshot pressureSnapshot() {
+        return pressureSnapshot;
     }
 
     public CoroutineLockManager coroutineLockManagerInternal() {
@@ -457,14 +473,24 @@ public class Service extends TickCase {
 
     /**
      * 从并发队列中转移到本线程内的队列
-     * 如果取一个执行一个，可能因为执行时间长 同时并发队列一直被add，导致源源不断从并发队列中取出call，从而导致此帧时间过长
+     * 先固定本帧开始时的数量，避免转移过程中不断吸入新任务，导致此帧执行时间不可控。
      */
     private void pulseAffirm_st() {
-        while (!calls.isEmpty()) {
-            affirmCalls.add(calls.poll());
+        int callsToAffirm = calls.size();
+        int postedTasksToAffirm = postedTasks.size();
+        for (int i = 0; i < callsToAffirm; i++) {
+            CallBase call = calls.poll();
+            if (call == null) {
+                break;
+            }
+            affirmCalls.add(call);
         }
-        while (!postedTasks.isEmpty()) {
-            affirmPostedTasks.add(postedTasks.poll());
+        for (int i = 0; i < postedTasksToAffirm; i++) {
+            Runnable task = postedTasks.poll();
+            if (task == null) {
+                break;
+            }
+            affirmPostedTasks.add(task);
         }
     }
 
@@ -480,8 +506,8 @@ public class Service extends TickCase {
         affirmPostedTasks.clear();
     }
 
-    private void drainQueuedContinuations_st(String phase) {
-        continuationRuntime.drain(phase);
+    private void drainQueuedContinuations_st() {
+        continuationRuntime.drain("frame", MAX_READY_CONTINUATIONS_PER_FRAME);
     }
 
     /**
@@ -492,6 +518,10 @@ public class Service extends TickCase {
             rpcInboundDispatcher.handle(call);
         }
         affirmCalls.clear();
+    }
+
+    private void publishPressureSnapshot_st() {
+        pressureSnapshot = new PressureSnapshot(continuationRuntime.readySize());
     }
 
     public void holdContinuation(Task.ContinuationWrapper conTask) {
@@ -506,6 +536,11 @@ public class Service extends TickCase {
             throw new SysException("posted task is null: service={}", id);
         }
         postedTasks.add(task);
+    }
+
+    public record PressureSnapshot(
+            int readyContinuations) {
+        private static final PressureSnapshot EMPTY = new PressureSnapshot(0);
     }
 
     /**

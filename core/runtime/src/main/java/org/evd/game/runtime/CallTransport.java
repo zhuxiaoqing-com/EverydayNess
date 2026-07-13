@@ -23,6 +23,11 @@ final class CallTransport {
     boolean send(CallBase call) {
         DebugPrint.printSendRpc(null, call);
         String toNodeId = call.to.nodeId;
+        if (!node.canSendOutboundCall_nt(call)) {
+            LogCore.remote.warn("远程Node Service当前不可接收业务RPC，拒绝进入出站缓冲: localNode={}, remoteNode={}, service={}, callType={}",
+                    node.getId(), toNodeId, call.to.servId, call.getClass().getSimpleName());
+            return false;
+        }
         // 这里投放是得话 是不序列化，直接发送，里面还有一个判断，是进行序列化的，目前这里先注释掉
        /* if (node.getId().equals(toNodeId)) {
              node.callHandle_snt(call);

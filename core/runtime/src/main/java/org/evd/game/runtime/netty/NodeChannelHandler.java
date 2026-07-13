@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.runtime.Node;
-import org.evd.game.runtime.support.LogCore;
+
 
 @Slf4j
 public final class NodeChannelHandler extends  BaseChannelHandler<ByteBuf>  {

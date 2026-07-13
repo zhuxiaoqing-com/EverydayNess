@@ -158,8 +158,12 @@ public class Node extends TickCase{
 
 
     private void pulseCallBaseProcess() {
-        CallBase callBase;
-        while ((callBase = callBases.poll()) != null) {
+        int callsToProcess = callBases.size();
+        for (int i = 0; i < callsToProcess; i++) {
+            CallBase callBase = callBases.poll();
+            if (callBase == null) {
+                return;
+            }
             handleInboundCall(callBase);
         }
     }
@@ -281,6 +285,19 @@ public class Node extends TickCase{
         } else {
             remoteCalls.add(new RemoteCall(nodeId, NodeFrameChunk.wrap(buffer, bufferLength)));
         }
+    }
+
+    boolean canSendOutboundCall_nt(CallBase call) {
+        if (call == null || call.to == null || call.to.nodeId == null) {
+            return false;
+        }
+        if (id.equals(call.to.nodeId)) {
+            return true;
+        }
+        RemoteNode remoteNode = remoteNodes.get(call.to.nodeId);
+        return remoteNode != null
+                && remoteNode.isActive()
+                && remoteNode.canSendBusinessCall_nt(call);
     }
 
     /**
@@ -485,12 +502,12 @@ public class Node extends TickCase{
                 syncRemoteServices_nt(remoteId, callNodeServicesSync.getServices());
             }
             break;
-            case CallPing ignored: {
-                onRemotePing_nt(remoteId, sourceChannel);
+            case CallPing callPing: {
+                onRemotePing_nt(remoteId, sourceChannel, callPing);
             }
             break;
-            case CallPong ignored: {
-                onRemotePong_nt(remoteId, sourceChannel);
+            case CallPong callPong: {
+                onRemotePong_nt(remoteId, sourceChannel, callPong);
             }
             break;
             default:
@@ -549,7 +566,7 @@ public class Node extends TickCase{
         remoteNode.sendCall(result);
     }
 
-    private void onRemotePing_nt(String remoteNodeId, NetChannel sourceChannel) {
+    private void onRemotePing_nt(String remoteNodeId, NetChannel sourceChannel, CallPing ping) {
         RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
         if (remoteNode == null) {
             LogCore.remote.warn("收到未知远程node的ping: nodeId={}", remoteNodeId);
@@ -559,20 +576,23 @@ public class Node extends TickCase{
             LogCore.remote.warn("收到远程node ping时连接不存在: nodeId={}", remoteNodeId);
             return;
         }
+        remoteNode.updateServiceStatuses_nt(ping.getServiceStatuses());
         sourceChannel.setLastPingTime(currentTickTime_nt());
 
         CallPong call = new CallPong();
         call.from = new CallPoint(id, null);
         call.to = new CallPoint(remoteNodeId, null);
+        call.setServiceStatuses(buildLocalServiceStatuses_nt());
         remoteNode.sendCall(call);
     }
 
-    private void onRemotePong_nt(String remoteNodeId, NetChannel sourceChannel) {
+    private void onRemotePong_nt(String remoteNodeId, NetChannel sourceChannel, CallPong pong) {
         RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
         if (remoteNode == null) {
             LogCore.remote.warn("收到未知远程node的pong: nodeId={}", remoteNodeId);
             return;
         }
+        remoteNode.updateServiceStatuses_nt(pong.getServiceStatuses());
         sourceChannel.setLastPingTime(currentTickTime_nt());
     }
 
@@ -611,6 +631,23 @@ public class Node extends TickCase{
         call.setAddr(addr);
         call.setServices(buildLocalServicesSnapshot());
         remoteNode.sendCall(call);
+    }
+
+    /** 在 Node 线程内生成本地 Service 状态快照，随 Ping/Pong 发送。 */
+    List<NodeServiceStatus> buildLocalServiceStatuses_nt() {
+        List<NodeServiceStatus> snapshot = new ArrayList<>();
+        for (Service service : services.values()) {
+            if (service == null) {
+                continue;
+            }
+            Service.PressureSnapshot pressure = service.pressureSnapshot();
+            snapshot.add(new NodeServiceStatus(
+                    service.getId(),
+                    pressure.readyContinuations()));
+        }
+        snapshot.sort(Comparator.comparing(NodeServiceStatus::getServiceId,
+                Comparator.nullsFirst(String::compareTo)));
+        return snapshot;
     }
 
     List<RegisteredService> buildLocalServicesSnapshot() {

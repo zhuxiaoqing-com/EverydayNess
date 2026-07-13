@@ -6,6 +6,9 @@ import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallNodeServicesSync;
 import org.evd.game.runtime.call.CallPing;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.call.CallPong;
+import org.evd.game.runtime.call.CallResult;
+import org.evd.game.runtime.call.NodeServiceStatus;
 import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.netty.*;
 import org.evd.game.runtime.serialize.OutputStream;
@@ -13,6 +16,9 @@ import org.evd.game.runtime.serializeBean.NodeFrameChunk;
 import org.evd.game.runtime.support.LogCore;
 
 import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 远程Node
@@ -42,6 +48,8 @@ public class RemoteNode {
     private volatile long reconnectInterval;
     private volatile NetChannel channel;
     private volatile boolean active;
+    private volatile Map<String, NodeServiceStatus> remoteServiceStatuses = Map.of();
+    private volatile long remoteServiceStatusTime;
 
     private final NetConnector connector;
     private final ChannelManager channelManager = new ChannelManager();
@@ -108,6 +116,14 @@ public class RemoteNode {
                     localNode.getId(), remoteId, needConnect);
             return;
         }
+        if (!canSendBusinessCall_nt(call)) {
+            LogCore.remote.warn(
+                    "远程Node Service当前不可接收业务RPC，丢弃消息: localNode={}, remoteNode={}, service={}, callType={}",
+                    localNode.getId(), remoteId,
+                    call == null || call.getTo() == null ? null : call.getTo().servId,
+                    call == null ? null : call.getClass().getSimpleName());
+            return;
+        }
         ByteBuf byteBuf = encodeCall_nt(call).getByteBuf();
         DebugPrint.printSendNodeFrame("sendCall", localNode.getId(), remoteId, activeChannel, byteBuf, call);
         if (!activeChannel.write(byteBuf)) {
@@ -115,6 +131,42 @@ public class RemoteNode {
                     localNode.getId(), remoteId, call.getClass().getSimpleName());
             activeChannel.close();
         }
+    }
+
+    /** 接收远端 Ping/Pong 携带的 Service 状态。 */
+    public void updateServiceStatuses_nt(List<NodeServiceStatus> statuses) {
+        Map<String, NodeServiceStatus> snapshot = new HashMap<>();
+        if (statuses != null) {
+            for (NodeServiceStatus status : statuses) {
+                if (status != null && status.getServiceId() != null) {
+                    snapshot.put(status.getServiceId(), status);
+                }
+            }
+        }
+        remoteServiceStatuses = Map.copyOf(snapshot);
+        remoteServiceStatusTime = System.currentTimeMillis();
+    }
+
+    boolean canSendBusinessCall_nt(CallBase call) {
+        if (call instanceof CallPing
+                || call instanceof CallPong
+                || call instanceof CallNodeServicesSync
+                || call instanceof CallResult) {
+            return true;
+        }
+        if (call == null || call.getTo() == null || call.getTo().servId == null) {
+            return false;
+        }
+        long statusAge = System.currentTimeMillis() - remoteServiceStatusTime;
+        if (remoteServiceStatusTime <= 0L
+                || statusAge > NetConstants.SERVICE_STATUS_TIMEOUT_MILLIS) {
+            return false;
+        }
+        NodeServiceStatus status = remoteServiceStatuses.get(call.getTo().servId);
+        if (status == null) {
+            return false;
+        }
+        return status.getReadyContinuations() < NetConstants.SERVICE_STATUS_BUSY_BACKLOG;
     }
 
     /** 握手/心跳直接走指定物理连接，不经过逻辑上线判定。 */
@@ -176,6 +228,7 @@ public class RemoteNode {
         call.from = new CallPoint(localNode.getId(), null);
         call.to = new CallPoint(remoteId, null);
         call.addr = localNode.getAddr();
+        call.setServiceStatuses(localNode.buildLocalServiceStatuses_nt());
 
         sendOnChannel(channel, call);
     }
@@ -216,6 +269,8 @@ public class RemoteNode {
             return false;
         }
         this.channel = null;
+        remoteServiceStatuses = Map.of();
+        remoteServiceStatusTime = 0L;
         if (active) {
             active = false;
             LogCore.remote.warn("远程Node逻辑下线: localNode={}, remoteNode={}", localNode.getId(), remoteId);
