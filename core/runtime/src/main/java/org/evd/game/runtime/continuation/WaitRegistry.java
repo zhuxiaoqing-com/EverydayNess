@@ -2,6 +2,7 @@ package org.evd.game.runtime.continuation;
 
 import org.evd.game.runtime.util.TimerScheduler;
 import org.evd.game.runtime.support.exception.SysException;
+import org.evd.game.runtime.support.exception.RpcTransportException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,11 +22,22 @@ public final class WaitRegistry {
         void onTimeout(Task.ContinuationWrapper continuation, long waitId);
     }
 
-    private record WaitContext(Task.ContinuationWrapper continuation,
-                               long timerId,
-                               WaitTimeoutHandler timeoutHandler,
-                               WaitType type,
-                               ContinuationDebugInfo.DebugInfo debugInfo) {
+    private static final class WaitContext {
+        private final Task.ContinuationWrapper continuation;
+        private final long timerId;
+        private final WaitTimeoutHandler timeoutHandler;
+        private final WaitType type;
+        private final ContinuationDebugInfo.DebugInfo debugInfo;
+
+        private WaitContext(Task.ContinuationWrapper continuation, long timerId,
+                            WaitTimeoutHandler timeoutHandler, WaitType type,
+                            ContinuationDebugInfo.DebugInfo debugInfo) {
+            this.continuation = continuation;
+            this.timerId = timerId;
+            this.timeoutHandler = timeoutHandler;
+            this.type = type;
+            this.debugInfo = debugInfo;
+        }
     }
 
     private final TimerScheduler timerScheduler;
@@ -66,13 +78,17 @@ public final class WaitRegistry {
         return remove(waitId) != null;
     }
 
+    public boolean isPending(long waitId) {
+        return waitContexts.containsKey(waitId);
+    }
+
     public boolean complete(long waitId, Object result, Task.Reason reason) {
         WaitContext waitContext = remove(waitId);
         if (waitContext == null) {
             return false;
         }
-        waitContext.continuation().setResult(result);
-        resumer.accept(waitContext.continuation(), reason);
+        waitContext.continuation.setResult(result);
+        resumer.accept(waitContext.continuation, reason);
         return true;
     }
 
@@ -81,22 +97,32 @@ public final class WaitRegistry {
         if (waitContext == null) {
             return false;
         }
-        waitContext.continuation().setFailure(failure);
-        resumer.accept(waitContext.continuation(), reason);
+        waitContext.continuation.setFailure(failure);
+        resumer.accept(waitContext.continuation, reason);
         return true;
     }
 
-    public int failForConnection(String remoteNodeId) {
-        if (remoteNodeId == null) {
+    public boolean bindTransport(long waitId, long channelId) {
+        WaitContext context = waitContexts.get(waitId);
+        if (context == null || context.type != WaitType.RPC || channelId < 0L
+                || !(context.debugInfo instanceof ContinuationDebugInfo.RpcWaitDebugInfo rpcWaitDebugInfo)) {
+            return false;
+        }
+        rpcWaitDebugInfo.setChannelId(channelId);
+        return true;
+    }
+
+    public int failForConnection(long channelId) {
+        if (channelId < 0L) {
             return 0;
         }
 
         int failed = 0;
         for (Map.Entry<Long, WaitContext> entry : new ArrayList<>(waitContexts.entrySet())) {
             WaitContext waitContext = entry.getValue();
-            if (waitContext.type() != WaitType.RPC
-                    || !(waitContext.debugInfo() instanceof ContinuationDebugInfo.RpcWaitDebugInfo rpcDebugInfo)
-                    || !remoteNodeId.equals(rpcDebugInfo.getTargetNodeId())) {
+            if (waitContext.type != WaitType.RPC
+                    || !(waitContext.debugInfo instanceof ContinuationDebugInfo.RpcWaitDebugInfo rpcWaitDebugInfo)
+                    || channelId != rpcWaitDebugInfo.getChannelId()) {
                 continue;
             }
 
@@ -104,7 +130,8 @@ public final class WaitRegistry {
             if (remove(waitId) == null) {
                 continue;
             }
-            completeByTimeout(waitContext, waitId);
+            waitContext.continuation.setFailure(new RpcTransportException(rpcWaitDebugInfo.getTargetNodeId(), waitId));
+            resumer.accept(waitContext.continuation, Task.Reason.RPC);
             failed++;
         }
         return failed;
@@ -131,8 +158,8 @@ public final class WaitRegistry {
         closed = true;
         List<Long> timerIds = new ArrayList<>(waitContexts.size());
         for (WaitContext waitContext : waitContexts.values()) {
-            if (waitContext.timerId() != 0L) {
-                timerIds.add(waitContext.timerId());
+            if (waitContext.timerId != 0L) {
+                timerIds.add(waitContext.timerId);
             }
         }
         timerScheduler.cancelAll(timerIds);
@@ -149,21 +176,21 @@ public final class WaitRegistry {
 
     private void completeByTimeout(WaitContext waitContext, long waitId) {
         try {
-            waitContext.timeoutHandler().onTimeout(waitContext.continuation(), waitId);
+        waitContext.timeoutHandler.onTimeout(waitContext.continuation, waitId);
         } catch (VirtualMachineError virtualMachineError) {
             throw virtualMachineError;
         } catch (Throwable failure) {
-            waitContext.continuation().setFailure(new SysException(
+            waitContext.continuation.setFailure(new SysException(
                     failure,
                     "wait timeout handler failed: waitId=" + waitId));
         }
-        resumer.accept(waitContext.continuation(), Task.Reason.TIMER);
+        resumer.accept(waitContext.continuation, Task.Reason.TIMER);
     }
 
     private WaitContext remove(long waitId) {
         WaitContext waitContext = waitContexts.remove(waitId);
-        if (waitContext != null && waitContext.timerId() != 0L) {
-            timerScheduler.cancel(waitContext.timerId());
+        if (waitContext != null && waitContext.timerId != 0L) {
+            timerScheduler.cancel(waitContext.timerId);
         }
         return waitContext;
     }

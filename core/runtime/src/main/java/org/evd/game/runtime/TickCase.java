@@ -13,6 +13,7 @@ public abstract class TickCase {
     protected final static int TICK_INTERVAL = 5;
     enum CaseStatus{
         New,
+        Initializing,
         Running,
         PendingKill,
         FinishKill,
@@ -58,7 +59,7 @@ public abstract class TickCase {
         // 统计时间
         frame.tick_t(timeFinish, timeFrame);
 
-        if (status == CaseStatus.Running || status == CaseStatus.PendingKill) {
+        if (status == CaseStatus.Initializing || status == CaseStatus.Running || status == CaseStatus.PendingKill) {
             // 计时心跳，心跳间隔时间动态变化
             long pulseLeftTime = tickInterval - timeFrame;
             if (pulseLeftTime <= 0)

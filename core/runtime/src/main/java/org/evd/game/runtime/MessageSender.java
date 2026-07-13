@@ -9,7 +9,6 @@ import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.continuation.WaitType;
 import org.evd.game.runtime.support.exception.ActorRpcCallTimeoutException;
-import org.evd.game.runtime.support.exception.SysException;
 
 public final class MessageSender {
     private final Service service;
@@ -20,10 +19,7 @@ public final class MessageSender {
 
     public void send(ActorAddress actorAddress, ActorId actorId, int methodKey, Object[] params) {
         CallBase message = CallFactory.buildActorRpc(service, actorAddress, actorId, methodKey, params, false, 0L);
-        if (!service.sendOutboundCall(message)) {
-            throw new SysException("send actor message failed: service={}, actorId={}, methodKey={}",
-                    service.id, actorId, methodKey);
-        }
+        service.sendOutboundCall(message);
     }
 
     public Object callWait(ActorAddress actorAddress, ActorId actorId, int methodKey, Object[] params) {
@@ -35,19 +31,23 @@ public final class MessageSender {
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         ActorId targetActorId = actorId == null ? null : new ActorId(actorId);
         ActorAddress targetActorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
+        CallBase message = CallFactory.buildActorRpc(service, actorAddress, actorId, methodKey, params, true, 0L);
+        ContinuationDebugInfo.ActorRpcWaitDebugInfo debugInfo =
+                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(targetActorId, targetActorAddress, methodKey, timeoutMillis);
         long waitId = continuationRuntime.registerWait(
                 timeoutMillis,
                 service.getWaitBaseTimeInternal(),
                 WaitType.RPC,
                 (ctx, timeoutWaitId) -> ctx.setFailure(
                         new ActorRpcCallTimeoutException(service.id, timeoutWaitId, timeoutMillis, methodKey, targetActorId, targetActorAddress)),
-                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(targetActorId, targetActorAddress, methodKey, timeoutMillis));
+                debugInfo);
 
-        CallBase message = CallFactory.buildActorRpc(service, actorAddress, actorId, methodKey, params, true, waitId);
-        if (!service.sendOutboundCall(message)) {
+        try {
+            message.setId(waitId);
+            service.sendOutboundCall(message);
+        } catch (Exception e) {
             continuationRuntime.cancelWait(waitId);
-            throw new SysException("send actor rpc call failed: service={}, actorId={}, methodKey={}",
-                    service.id, actorId, methodKey);
+            throw e;
         }
         return continuation.waitResult();
     }

@@ -34,7 +34,8 @@ public class Node extends TickCase{
     protected final ConcurrentMap<String, RemoteNode> remoteNodes = new ConcurrentHashMap<>();
     /** 发送给远程note的call请求 */
     private final ConcurrentLinkedQueue<RemoteCall> remoteCalls = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<CallBase> callBases = new ConcurrentLinkedQueue<>();
+    /** 非 Node 线程投递的 Node 事件，例如入站 Call 与连接断开后的状态清理。 */
+    private final ConcurrentLinkedQueue<Runnable> postedTasks = new ConcurrentLinkedQueue<>();
 
     /** 多个线程池，把有阻塞service和非阻塞service放到不同的线程 */
     private final List<ScheduledExecutor> scheduledExecutors = new ArrayList<>();
@@ -51,6 +52,8 @@ public class Node extends TickCase{
     private final NodeInfo nodeInfo;
     /** 本次心跳要发送给远程note的call请求 */
     private final List<RemoteCall> affirmRemoteCalls = new ArrayList<>();
+    /** 本帧需要在 Node 线程执行的投递事件。 */
+    private final List<Runnable> affirmPostedTasks = new ArrayList<>();
 //    /** ZMQ上下文 */
 //    protected final ZContext zmqContext;
 //    /** ZMQ连接 */
@@ -107,11 +110,11 @@ public class Node extends TickCase{
     protected void pulse() {
         // 确认本次心跳要发送的remoteCall
         pulseAffirmRemoteCall_nt();
+        pulseAffirmPostedTasks_nt();
         // 发送remoteCall
         pulseSendRemoteCall_nt();
         //pulseCallPuller_nt();
-        //处理其他Node发送过来的Call调用
-        pulseCallBaseProcess();
+        pulsePostedTasks_nt();
         //调用远程Node的心跳操作
         pulseRemoteNodes_nt();
         // 本地服务注册变化后，广播给已连接节点
@@ -157,15 +160,29 @@ public class Node extends TickCase{
     }*/
 
 
-    private void pulseCallBaseProcess() {
-        int callsToProcess = callBases.size();
-        for (int i = 0; i < callsToProcess; i++) {
-            CallBase callBase = callBases.poll();
-            if (callBase == null) {
+    private void pulseAffirmPostedTasks_nt() {
+        int tasksToProcess = postedTasks.size();
+        for (int i = 0; i < tasksToProcess; i++) {
+            Runnable task = postedTasks.poll();
+            if (task == null) {
                 return;
             }
-            handleInboundCall(callBase);
+            affirmPostedTasks.add(task);
         }
+    }
+
+    private void pulsePostedTasks_nt() {
+        for (Runnable task : affirmPostedTasks) {
+            try {
+                task.run();
+            } catch (Throwable e) {
+                if (e instanceof VirtualMachineError virtualMachineError) {
+                    throw virtualMachineError;
+                }
+                LogCore.core.error("node posted task failed: node={}", id, e);
+            }
+        }
+        affirmPostedTasks.clear();
     }
 
     /**
@@ -207,10 +224,8 @@ public class Node extends TickCase{
      */
     private void sendCall(RemoteCall call) {
         RemoteNode node = remoteNodes.get(call.getRemoteNodeId());
-        if (node != null) {
-            node.send(call.getPacket());
-        } else {
-            LogCore.remote.error("发送Call请求时，发现未知远程节点: call={}", call);
+        if (node == null || !node.send(call.getPacket(), call.getExpectedChannelId())) {
+            LogCore.remote.error("发送Call请求失败: remoteNode={}, call={}", call.getRemoteNodeId(), call);
         }
     }
 
@@ -263,41 +278,60 @@ public class Node extends TickCase{
     }
 
     void publishService(Service service) {
-        if (services.get(service.getId()) != service || !service.isInitialized()) {
+        if (services.get(service.getId()) != service || service.getStatus() != CaseStatus.Running) {
             throw new SysException("cannot publish service before initialization: {}", service.getId());
         }
         localServiceVersion.incrementAndGet();
     }
 
-
     /**
      * 发送请求
-     * @param nodeId
-     * @param buffer
-     * @param bufferLength
+     * @param nodeId 目标 Node
+     * @param channelId 目标物理连接
+     * @param buffer 序列化数据
+     * @param bufferLength 有效数据长度
      */
-    public void flushCall_st(String nodeId, byte[] buffer, int bufferLength) {
+    public boolean flushCall_st(String nodeId, long channelId, byte[] buffer, int bufferLength) {
         // 同一Node下 无需走传输协议 内部直接接收即可
         if (id.equals(nodeId)) {
             InputStream input = new InputStream(buffer, 0, bufferLength);
             localCallHandle_st(input);
+            return true;
             // 其余的需要通过远程Node来发送请求值目标Node
         } else {
-            remoteCalls.add(new RemoteCall(nodeId, NodeFrameChunk.wrap(buffer, bufferLength)));
+            RemoteNode remoteNode = remoteNodes.get(nodeId);
+            if (remoteNode == null) {
+                return false;
+            }
+            remoteCalls.add(new RemoteCall(nodeId, channelId, NodeFrameChunk.wrap(buffer, bufferLength)));
+            return true;
         }
     }
 
-    boolean canSendOutboundCall_nt(CallBase call) {
+    /**
+     * 这里返回能发送，后面的所有不能发送都不再处理发送失败;
+     */
+    public long captureChannelId(CallBase call) {
         if (call == null || call.to == null || call.to.nodeId == null) {
-            return false;
+            return -1L;
         }
         if (id.equals(call.to.nodeId)) {
-            return true;
+            return 0L;
         }
         RemoteNode remoteNode = remoteNodes.get(call.to.nodeId);
-        return remoteNode != null
-                && remoteNode.isActive()
-                && remoteNode.canSendBusinessCall_nt(call);
+        return remoteNode == null ? -1L : remoteNode.captureChannelId(call);
+    }
+
+    /** 仅检查目标 channel 的连接状态，用于检查已序列化但尚未满帧的数据。 */
+    public boolean canSendOutboundConnection_nt(String nodeId, long channelId) {
+        if (nodeId == null || channelId < 0L) {
+            return false;
+        }
+        if (id.equals(nodeId)) {
+            return channelId == 0L;
+        }
+        RemoteNode remoteNode = remoteNodes.get(nodeId);
+        return remoteNode != null && remoteNode.isCurrentChannel(channelId);
     }
 
     /**
@@ -371,7 +405,7 @@ public class Node extends TickCase{
             while (!input.isAtEnd()) {
                 CallBase call = input.read();
                 call.setSourceChannel(sourceChannel);
-                callBases.add(call);
+                post(() -> handleInboundCall(call));
             }
         } finally {
             BufferPool.deallocate(receiveBuffer);
@@ -383,6 +417,11 @@ public class Node extends TickCase{
         if (channel == null) {
             return;
         }
+        post(() -> handleChannelInactive_nt(channel));
+    }
+
+    /** 仅在 Node 线程处理连接断开，保证与该连接已入队的入站消息保持顺序。 */
+    private void handleChannelInactive_nt(NetChannel channel) {
         String remoteNodeId = channel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
         if (remoteNodeId == null) {
             return;
@@ -391,26 +430,38 @@ public class Node extends TickCase{
         if (remoteNode != null && remoteNode.onChannelInactive_nt(channel)) {
             remoteNodeServices.remove(remoteNode.getRemoteId());
             rebuildServiceIndexes();
-            failRpcWaitsForRemote_nt(remoteNodeId);
         }
+        failRpcWaitsForRemote_nt(remoteNodeId, channel.getChannelId());
     }
 
-    private void failRpcWaitsForRemote_nt(String remoteNodeId) {
+    /**
+     * 供 Netty 等外部线程安全投递任务到 Node 线程执行。
+     * 同一 channel 的入站 Call 和断链事件由同一 EventLoop 串行投递，
+     * 因而会以相同顺序在 Node 线程处理。
+     */
+    public void post(Runnable task) {
+        if (task == null) {
+            throw new SysException("posted node task is null: node={}", id);
+        }
+        postedTasks.add(task);
+    }
+
+    private void failRpcWaitsForRemote_nt(String remoteNodeId, long channelId) {
         for (Service service : services.values()) {
             if (service == null) {
                 continue;
             }
             try {
                 service.post(() -> {
-                    int failed = service.failRpcWaitsForRemote(remoteNodeId);
+                    int failed = service.failRpcWaitsForRemote(remoteNodeId, channelId);
                     if (failed > 0) {
-                        LogCore.remote.warn("远程Node断开，立即结束RPC等待: localNode={}, remoteNode={}, service={}, count={}",
-                                id, remoteNodeId, service.getId(), failed);
+                        LogCore.remote.warn("远程Node物理连接断开，结束对应连接RPC等待: localNode={}, remoteNode={}, channelId={}, service={}, count={}",
+                                id, remoteNodeId, channelId, service.getId(), failed);
                     }
                 });
             } catch (RuntimeException e) {
-                LogCore.remote.error("远程Node断开时投递RPC等待清理失败: localNode={}, remoteNode={}, service={}",
-                        id, remoteNodeId, service.getId(), e);
+                LogCore.remote.error("远程Node断开时投递RPC等待清理失败: localNode={}, remoteNode={}, channelId={}, service={}",
+                        id, remoteNodeId, channelId, service.getId(), e);
             }
         }
     }
@@ -459,7 +510,7 @@ public class Node extends TickCase{
                 Service service = services.get(call.to.servId);
                 if (service == null) {
                     throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_FOUND, "target service missing");
-                } else if (!service.isInitialized()) {
+                } else if (service.getStatus() != CaseStatus.Running) {
                     throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_READY, "target service not ready");
                 } else {
                     service.addCall_snt(call);
@@ -472,7 +523,7 @@ public class Node extends TickCase{
                 // 请求分发
                 if (service == null) {
                     throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_FOUND, "target service missing");
-                } else if (!service.isInitialized()) {
+                } else if (service.getStatus() != CaseStatus.Running) {
                     throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_READY, "target service not ready");
                 } else {
                     service.addCall_snt(call);
@@ -480,13 +531,13 @@ public class Node extends TickCase{
             }
             break;
             // PRC远程调用请求的返回值
-            case CallResult ignored: {
+            case CallResult callResult: {
                 Service service = services.get(call.to.servId);
                 if (service == null) {
                     LogCore.remote.error("rpc result cannot be delivered: node={}, targetService={}, waitId={}, reason={}",
                             id, call.to.servId, call.id, "service missing");
                 } else {
-                    service.addCall_snt(call);
+                    service.post(() -> service.handleInboundResult_st(callResult));
                 }
             }
             break;
@@ -653,7 +704,8 @@ public class Node extends TickCase{
     List<RegisteredService> buildLocalServicesSnapshot() {
         List<RegisteredService> snapshot = new ArrayList<>();
         for (Service service : services.values()) {
-            if (service == null || service.serviceInfo == null || !service.isInitialized()) {
+            if (service == null || service.serviceInfo == null
+                    || service.getStatus() != CaseStatus.Running) {
                 continue;
             }
 

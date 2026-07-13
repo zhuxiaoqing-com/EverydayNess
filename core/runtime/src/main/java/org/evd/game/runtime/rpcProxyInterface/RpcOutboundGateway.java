@@ -11,7 +11,6 @@ import org.evd.game.runtime.continuation.WaitType;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.exception.RpcCallTimeoutException;
-import org.evd.game.runtime.support.exception.SysException;
 
 public final class RpcOutboundGateway {
     private final Service service;
@@ -21,10 +20,7 @@ public final class RpcOutboundGateway {
     }
 
     public void call(CallPoint toCallPoint, int methodKey, Object[] params) {
-        if (!send(CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, false, 0L))) {
-            throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
-                    service.getId(), toCallPoint.nodeId, toCallPoint.servId, methodKey);
-        }
+        send(CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, false, 0L));
     }
 
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
@@ -35,32 +31,33 @@ public final class RpcOutboundGateway {
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         CallPoint targetCallPoint = new CallPoint(toCallPoint);
+        CallBase call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, 0L);
+        ContinuationDebugInfo.ServiceRpcWaitDebugInfo debugInfo =
+                new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(targetCallPoint, methodKey, timeoutMillis);
         long waitId = continuationRuntime.registerWait(
                 timeoutMillis,
                 service.getWaitBaseTimeInternal(),
                 WaitType.RPC,
                 (ctx, timeoutWaitId) -> ctx.setFailure(
                         new RpcCallTimeoutException(service.getId(), timeoutWaitId, timeoutMillis, targetCallPoint, methodKey)),
-                new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(targetCallPoint, methodKey, timeoutMillis));
+                debugInfo);
 
-        CallBase call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, waitId);
-        if (!send(call)) {
+        try {
+            call.setId(waitId);
+            send(call);
+        } catch (Exception e) {
             continuationRuntime.cancelWait(waitId);
-            throw new SysException("send rpc call failed: service={}, toNode={}, toService={}, methodKey={}",
-                    service.getId(), toCallPoint.nodeId, toCallPoint.servId, methodKey);
+            throw e;
         }
 
         return continuation.waitResult();
     }
 
     public void sendClientCmd(CallPoint toCallPoint, ClientSessionRef session, int msgId, Chunk body) {
-        if (!send(CallFactory.buildServiceClientCmd(service, toCallPoint, session, msgId, body))) {
-            throw new SysException("send client cmd failed: service={}, toNode={}, toService={}, msgId={}",
-                    service.getId(), toCallPoint.nodeId, toCallPoint.servId, msgId);
-        }
+        send(CallFactory.buildServiceClientCmd(service, toCallPoint, session, msgId, body));
     }
 
-    boolean send(CallBase call) {
-        return service.sendOutboundCall(call);
+    void send(CallBase call) {
+        service.sendOutboundCall(call);
     }
 }

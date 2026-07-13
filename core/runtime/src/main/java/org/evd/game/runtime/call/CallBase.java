@@ -18,6 +18,8 @@ public abstract class CallBase implements ISerializable {
     public long id;
     /** 运行时入站连接，仅用于本进程内分发，不参与序列化。 */
     private transient NetChannel sourceChannel;
+    /** 运行时出站连接标识，不参与序列化；未绑定为 -1，本地直连为 0。 */
+    private transient long outboundChannelId = -1L;
 
     public long getId() {
         return id;
@@ -49,5 +51,13 @@ public abstract class CallBase implements ISerializable {
 
     public void setSourceChannel(NetChannel sourceChannel) {
         this.sourceChannel = sourceChannel;
+    }
+
+    public long getOutboundChannelId() {
+        return outboundChannelId;
+    }
+
+    public void setOutboundChannelId(long outboundChannelId) {
+        this.outboundChannelId = outboundChannelId;
     }
 }

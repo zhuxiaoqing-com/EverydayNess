@@ -14,6 +14,7 @@ import org.evd.game.runtime.actorLogic.ActorManager;
 import org.evd.game.runtime.actorLogic.EventListenerInterfaceProcessor;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
@@ -173,9 +174,6 @@ public class Service extends TickCase {
      * rpc 入站分发
      */
     private final RpcInboundDispatcher rpcInboundDispatcher;
-    /** init continuation 完整结束后才允许发布服务和执行正常业务 tick。 */
-    private volatile boolean initialized;
-    private volatile Throwable initializationFailure;
     /**
      * ThreadLocal
      */
@@ -205,7 +203,7 @@ public class Service extends TickCase {
         this.scheduledName = scheduledName;
         this.scope = new ContinuationScope(name);
         this.callPoint = new CallPoint(node.getId(), name);
-        this.callTransport = new CallTransport(node, name);
+        this.callTransport = new CallTransport(node, this);
         this.messageSender = new MessageSender(this);
         this.processInnerSender = new ProcessInnerSender(this);
         this.rpcOutboundGateway = new RpcOutboundGateway(this);
@@ -221,8 +219,7 @@ public class Service extends TickCase {
     protected void init_t() {
         threadLocal.set(this);
         try {
-            // 修改状态
-            status = CaseStatus.Running;
+            status = CaseStatus.Initializing;
             // 先执行初始化
             initVirtual_t();
         } finally {
@@ -236,7 +233,7 @@ public class Service extends TickCase {
     @Override
     public final void _init() {
         super._init();
-        // 初始化期间先允许本节点投递响应，但未 READY 前不会出现在服务注册快照中。
+        // 初始化期间先允许本节点投递响应，用于恢复 init continuation。
         node.attachToNode(this);
         if (messageLocationSender != null) {
             newRepeatedTimer(
@@ -253,9 +250,9 @@ public class Service extends TickCase {
 
         init();
 
-        // init 可能挂起；只有完整成功返回后，服务才对本地和远端路由可见。
-        initialized = true;
+        status = CaseStatus.Running;
         node.publishService(this);
+
     }
 
     public void init() {
@@ -275,7 +272,6 @@ public class Service extends TickCase {
                 if (e instanceof VirtualMachineError virtualMachineError) {
                     throw virtualMachineError;
                 }
-                initializationFailure = e;
                 status = CaseStatus.FinishKill;
                 LogCore.core.error("service initialization failed: service={}, class={}",
                         id, getClass().getName(), e);
@@ -289,21 +285,22 @@ public class Service extends TickCase {
         threadLocal.set(this);
         ThreadContext.put("service", getId());
         try {
-            if (initializationFailure != null) {
+            if (status == CaseStatus.FinishKill) {
                 return;
             }
             pulseAffirm_st();
 
-            pulsePostedTasks_st();
-            // 初始化期 Node 只允许 CallResult 入队，用于恢复 init continuation。
             pulseCalls_st();
+            // 先处理已经进入 Service 的入站结果，再处理断链等 posted 事件。
+            // 这样同一帧已到达的 CallResult 不会被断链清理抢先结束。
+            pulsePostedTasks_st();
 
-            if (initialized) {
+            if (status == CaseStatus.Running) {
                 tick_st();
             }
 
             pulseTask_st();
-            if (initialized) {
+            if (status == CaseStatus.Running) {
                 pulseEntity_st();
             }
 
@@ -372,12 +369,18 @@ public class Service extends TickCase {
         return coroutineLockManager;
     }
 
-    public boolean sendOutboundCall(CallBase call) {
-        return callTransport.send(call);
+    public void sendOutboundCall(CallBase call) {
+        callTransport.send(call);
     }
 
-    int failRpcWaitsForRemote(String remoteNodeId) {
-        return continuationRuntime.failWaitsForConnection(remoteNodeId);
+    /** 仅在 Service 线程处理入站 RPC 结果，保持其与断链任务的 FIFO 顺序。 */
+    void handleInboundResult_st(CallResult callResult) {
+        rpcInboundDispatcher.handle(callResult);
+    }
+
+    int failRpcWaitsForRemote(String remoteNodeId, long channelId) {
+        callTransport.discard(remoteNodeId, channelId);
+        return continuationRuntime.failWaitsForConnection(channelId);
     }
 
     public CallPoint copyCallPoint() {
@@ -591,10 +594,6 @@ public class Service extends TickCase {
         LogCore.core.error("协程锁未显式释放，走运行时保底释放: service={}, conId={}, actorId={}",
                 id, continuation.getConId(), continuation.getActorId());
         coroutineLockManager.release(continuation);
-    }
-
-    public boolean isInitialized() {
-        return initialized;
     }
 
     /**

@@ -184,17 +184,12 @@ public final class ContinuationRuntime implements ContinuationHost {
         return waitRegistry;
     }
 
-    /**
-     * 连接断开时立即结束挂在该连接上的 RPC 等待。
-     *
-     * <p>调用方需要在 Service 所在线程执行，保证等待表和就绪队列不发生并发访问。</p>
-     */
-    public int failWaitsForConnection(String remoteNodeId) {
-        if (remoteNodeId == null) {
-            return 0;
-        }
+    public boolean bindWaitTransport(long waitId, long channelId) {
+        return waitRegistry.bindTransport(waitId, channelId);
+    }
 
-        return waitRegistry.failForConnection(remoteNodeId);
+    public int failWaitsForConnection(long channelId) {
+        return waitRegistry.failForConnection(channelId);
     }
 
     private void logDrainBudgetExceeded(String phase) {

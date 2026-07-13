@@ -95,6 +95,22 @@ public class RemoteNode {
         return active && activeChannel != null && activeChannel.isValid();
     }
 
+    synchronized long captureChannelId(CallBase call) {
+        NetChannel current = channel;
+        if (!active || current == null || !current.isValid()
+                || !canSendBusinessCall_nt(call)) {
+            return -1L;
+        }
+        return current.getChannelId();
+    }
+
+    boolean isCurrentChannel(long expectedChannelId) {
+        NetChannel current = channel;
+        return active && current != null
+                && current.getChannelId() == expectedChannelId
+                && current.isValid();
+    }
+
     public void close() {
         if (connector != null) {
             connector.shutdown();
@@ -190,16 +206,25 @@ public class RemoteNode {
      * 发送业务或服务同步请求
      * 只有逻辑UP时才允许发业务RPC
      */
-    public void send(NodeFrameChunk packet) {
+    public boolean send(NodeFrameChunk packet) {
+        return send(packet, channel == null ? -1L : channel.getChannelId());
+    }
+
+    public boolean send(NodeFrameChunk packet, long expectedChannelId) {
         NetChannel channel = this.channel;
-        if (!isActive() || channel == null || !channel.isValid()) {
+        if (!isActive() || channel == null || !channel.isValid()
+                || channel.getChannelId() != expectedChannelId) {
             LogCore.remote.warn("远程Node不可用，丢弃消息: localNode={}, remoteNode={}, needConnect={}",
                     localNode.getId(), remoteId, needConnect);
-            return;
+            return false;
         }
         ByteBuf byteBuf = packet.getByteBuf();
         DebugPrint.printSendNodeFrame("sendPacket", localNode.getId(), remoteId, channel, byteBuf, null);
-        channel.write(byteBuf);
+        if (!channel.write(byteBuf)) {
+            channel.close();
+            return false;
+        }
+        return true;
     }
 
 
