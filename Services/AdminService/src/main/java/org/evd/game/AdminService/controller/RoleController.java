@@ -1,7 +1,8 @@
 package org.evd.game.AdminService.controller;
 
 import org.evd.game.AdminService.http.HttpRequest;
-import org.evd.game.runtime.annotation.RequestMapping;
+import org.evd.game.AdminService.http.HttpRoute;
+import org.evd.game.AdminService.http.RequestType;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -11,10 +12,9 @@ import java.util.Map;
  * @Description: RoleController
  * @Date 2026/7/9 19:31
  **/
-@RequestMapping("/api")
 public class RoleController {
 
-    @RequestMapping("/ping")
+    @HttpRoute(value = "/api/ping", type = RequestType.GET)
     public Map<String, Object> ping(HttpRequest request) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("uri", request.getUri());
@@ -31,7 +31,7 @@ public class RoleController {
         return result;
     }
 
-    @RequestMapping("/guild")
+    @HttpRoute(value = "/api/guild", type = RequestType.GET)
     public Map<String, Object> guild(HttpRequest request) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("uri", request.getUri());

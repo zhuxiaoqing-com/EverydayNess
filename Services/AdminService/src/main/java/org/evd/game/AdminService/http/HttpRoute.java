@@ -1,4 +1,4 @@
-package org.evd.game.runtime.annotation;
+package org.evd.game.AdminService.http;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -6,12 +6,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @author zhuxiaoqing
- * @Description: RequestMapping
- * @Date 2026/7/9 19:50
- **/
+ * Admin HTTP 路由声明。
+ */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface RequestMapping {
+public @interface HttpRoute {
     String value();
+
+    RequestType type() default RequestType.GET;
 }

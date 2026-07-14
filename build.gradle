@@ -39,6 +39,7 @@ allprojects {
     }
     tasks.withType(JavaCompile) {
 //        options.compilerArgs.addAll(['--add-exports=java.base/jdk.internal.vm=ALL-UNNAMED'])
+        options.compilerArgs.addAll(['-parameters'])
         options.compilerArgs.addAll(['-Xlint:unchecked'])
         options.compilerArgs.addAll(['-Xlint:-options'])
     }

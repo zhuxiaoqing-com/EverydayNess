@@ -6,6 +6,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.util.CharsetUtil;
+import org.evd.game.runtime.Service;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -18,6 +19,7 @@ import java.util.Map;
  * AdminService 通用 HTTP 请求对象。
  */
 public final class HttpRequest {
+    private final Service service;
     private final String method;
     private final String uri;
     private final String path;
@@ -26,13 +28,15 @@ public final class HttpRequest {
     private final JSONObject jsonBody;
     private final Map<String, Object> params;
 
-    private HttpRequest(String method,
+    private HttpRequest(Service service,
+                        String method,
                         String uri,
                         String path,
                         String clientAddr,
                         String bodyText,
                         JSONObject jsonBody,
                         Map<String, Object> params) {
+        this.service = service;
         this.method = method;
         this.uri = uri;
         this.path = path;
@@ -42,17 +46,51 @@ public final class HttpRequest {
         this.params = Collections.unmodifiableMap(new LinkedHashMap<>(params));
     }
 
+    private HttpRequest(String method,
+                        String uri,
+                        String path,
+                        String clientAddr,
+                        String bodyText,
+                        JSONObject jsonBody,
+                        Map<String, Object> params) {
+        this(null, method, uri, path, clientAddr, bodyText, jsonBody, params);
+    }
+
     public static HttpRequest from(ChannelHandlerContext ctx, FullHttpRequest request) {
+        return from(null, ctx, request, HttpParameterValues.parse(request));
+    }
+
+    public static HttpRequest from(Service service,
+                                   ChannelHandlerContext ctx,
+                                   FullHttpRequest request) {
+        return from(service, ctx, request, HttpParameterValues.parse(request));
+    }
+
+    static HttpRequest from(ChannelHandlerContext ctx,
+                            FullHttpRequest request,
+                            HttpParameterValues parameterValues) {
+        return from(null, ctx, request, parameterValues, null);
+    }
+
+    static HttpRequest from(Service service,
+                            ChannelHandlerContext ctx,
+                            FullHttpRequest request,
+                            HttpParameterValues parameterValues,
+                            RequestType requestType) {
         QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
         String bodyText = readBodyText(request);
-        JSONObject jsonBody = parseJsonBody(bodyText);
+        JSONObject jsonBody = requestType == RequestType.POST_JSON
+                ? parseJsonBody(bodyText)
+                : requestType == null ? parseJsonBody(request, bodyText) : null;
         LinkedHashMap<String, Object> params = new LinkedHashMap<>();
-        for (Map.Entry<String, List<String>> entry : decoder.parameters().entrySet()) {
+        for (Map.Entry<String, List<String>> entry : parameterValues.asMultiValueMap().entrySet()) {
             List<String> values = entry.getValue();
             if (values == null || values.isEmpty()) {
                 continue;
             }
-            params.put(entry.getKey(), values.getFirst());
+            params.put(entry.getKey(), values.size() == 1
+                    ? values.getFirst()
+                    : List.copyOf(values));
         }
         if (jsonBody != null) {
             for (Map.Entry<String, Object> entry : jsonBody.entrySet()) {
@@ -60,6 +98,7 @@ public final class HttpRequest {
             }
         }
         return new HttpRequest(
+                service,
                 request.method().name(),
                 request.uri(),
                 HttpRequestMappingParser.normalizePath(decoder.path()),
@@ -68,6 +107,24 @@ public final class HttpRequest {
                 jsonBody,
                 params
         );
+    }
+
+    static HttpRequest from(ChannelHandlerContext ctx,
+                            FullHttpRequest request,
+                            HttpParameterValues parameterValues,
+                            RequestType requestType) {
+        return from(null, ctx, request, parameterValues, requestType);
+    }
+
+    public Service getService() {
+        return service;
+    }
+
+    public <T extends Service> T getService(Class<T> serviceType) {
+        if (serviceType == null) {
+            throw new IllegalArgumentException("serviceType 不能为空");
+        }
+        return serviceType.cast(service);
     }
 
     public String getMethod() {
@@ -182,6 +239,13 @@ public final class HttpRequest {
         }
         Object parsed = JSON.parse(bodyText);
         return parsed instanceof JSONObject jsonObject ? jsonObject : null;
+    }
+
+    private static JSONObject parseJsonBody(FullHttpRequest request, String bodyText) {
+        if (!HttpParameterValues.isJsonRequest(request)) {
+            return null;
+        }
+        return parseJsonBody(bodyText);
     }
 
     private static String resolveClientAddr(ChannelHandlerContext ctx) {

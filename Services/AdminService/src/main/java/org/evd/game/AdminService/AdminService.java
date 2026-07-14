@@ -17,7 +17,7 @@ public class AdminService extends Service {
     public void init() {
         super.init();
         int port = getServiceInfo().getAddressInfo().getPort();
-        this.httpServer = new AdminHttpServer(port);
+        this.httpServer = new AdminHttpServer(this, port);
         LogCore.core.info("AdminService HTTP 启动完成: service={}, port={}", id, port);
     }
 

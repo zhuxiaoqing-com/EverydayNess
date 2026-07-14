@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class RoleAdminControllerTest {
 
-    private final RoleAdminController controller = new RoleAdminController();
+    private final ServerController controller = new ServerController();
 
     @Test
     void banRole_shouldReturnHttpResult() {
@@ -20,7 +20,7 @@ class RoleAdminControllerTest {
 
         var result = controller.banRole(
                 request,
-                new RoleAdminController.BanRoleRequest(10001L, 45, "spam")
+                new ServerController.BanRoleRequest(10001L, 45, "spam")
         );
 
         assertEquals(200, result.status());
@@ -32,7 +32,7 @@ class RoleAdminControllerTest {
     void queryRole_shouldReturnHttpResultWithRoleVO() {
         HttpRequest request = newHttpRequest("/admin/role/query");
 
-        var result = controller.queryRole(request, new RoleAdminController.QueryRoleRequest(10001L));
+        var result = controller.queryRole(request, 10001L);
 
         assertEquals(200, result.status());
         assertEquals(10001L, result.data().roleId());
@@ -44,7 +44,7 @@ class RoleAdminControllerTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> controller.queryRole(request, new RoleAdminController.QueryRoleRequest(null))
+                () -> controller.queryRole(request, null)
         );
 
         assertEquals("roleId 必须大于 0", exception.getMessage());

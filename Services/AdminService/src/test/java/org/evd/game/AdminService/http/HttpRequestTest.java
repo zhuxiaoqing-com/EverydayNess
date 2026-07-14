@@ -1,7 +1,7 @@
 package org.evd.game.AdminService.http;
 
 import com.alibaba.fastjson2.JSONObject;
-import org.evd.game.AdminService.controller.RoleAdminController;
+import org.evd.game.AdminService.controller.ServerController;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
@@ -20,7 +20,7 @@ class HttpRequestTest {
                 "reason", "spam"
         ));
 
-        RoleAdminController.BanRoleRequest body = request.toBean(RoleAdminController.BanRoleRequest.class);
+        ServerController.BanRoleRequest body = request.toBean(ServerController.BanRoleRequest.class);
 
         assertEquals(10001L, body.roleId());
         assertEquals(30, body.minutes());
@@ -31,7 +31,7 @@ class HttpRequestTest {
     void toBean_shouldBindRequestParamsToQueryRecord() {
         HttpRequest request = newHttpRequest(Map.of("roleId", 9527L));
 
-        RoleAdminController.QueryRoleRequest body = request.toBean(RoleAdminController.QueryRoleRequest.class);
+        ServerController.QueryRoleRequest body = request.toBean(ServerController.QueryRoleRequest.class);
 
         assertEquals(9527L, body.roleId());
     }
@@ -43,7 +43,7 @@ class HttpRequestTest {
                 JSONObject.of("roleId", 10001L, "minutes", 60, "reason", "body")
         );
 
-        RoleAdminController.BanRoleRequest body = request.toBean(RoleAdminController.BanRoleRequest.class);
+        ServerController.BanRoleRequest body = request.toBean(ServerController.BanRoleRequest.class);
 
         assertEquals(10001L, body.roleId());
         assertEquals(60, body.minutes());

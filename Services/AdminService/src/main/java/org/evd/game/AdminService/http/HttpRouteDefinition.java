@@ -10,7 +10,8 @@ public record HttpRouteDefinition(String routeKey,
                                   Object controller,
                                   Method method,
                                   List<HttpRouteParameter> parameters,
-                                  Class<?> returnType) {
+                                  Class<?> returnType,
+                                  RequestType requestType) {
     public HttpRouteDefinition {
         parameters = List.copyOf(parameters);
     }

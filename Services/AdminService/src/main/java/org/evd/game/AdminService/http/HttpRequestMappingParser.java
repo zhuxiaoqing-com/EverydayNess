@@ -1,7 +1,5 @@
 package org.evd.game.AdminService.http;
 
-import org.evd.game.runtime.annotation.RequestMapping;
-
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
@@ -15,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 解析自定义 @RequestMapping，产出可供 AdminService HTTP 分发使用的路由表。
+ * 解析自定义 @HttpRoute，产出可供 AdminService HTTP 分发使用的路由表。
  */
 public final class HttpRequestMappingParser {
 
@@ -64,19 +62,21 @@ public final class HttpRequestMappingParser {
         }
 
         Class<?> controllerClass = controller.getClass();
-        RequestMapping classMapping = controllerClass.getAnnotation(RequestMapping.class);
-        String classPath = classMapping == null ? "/" : classMapping.value();
-
+        HttpRoute classRoute = controllerClass.getAnnotation(HttpRoute.class);
+        String classPath = classRoute == null ? "/" : classRoute.value();
         Method[] methods = controllerClass.getDeclaredMethods();
         Arrays.sort(methods, Comparator.comparing(Method::getName).thenComparing(Method::toGenericString));
         for (Method method : methods) {
-            RequestMapping methodMapping = method.getAnnotation(RequestMapping.class);
-            if (methodMapping == null) {
+            HttpRoute routeMapping = method.getAnnotation(HttpRoute.class);
+            if (routeMapping == null) {
                 continue;
             }
             validateHandlerMethod(controllerClass, method);
-            String routeKey = joinPaths(classPath, methodMapping.value());
-            HttpRouteDefinition previous = routes.putIfAbsent(routeKey, buildRouteDefinition(routeKey, controller, method));
+            HttpRouteParameterValidator.validate(method, routeMapping.type());
+            String routeKey = joinPaths(classPath, routeMapping.value());
+            HttpRouteDefinition previous = routes.putIfAbsent(
+                    routeKey,
+                    buildRouteDefinition(routeKey, controller, method, routeMapping));
             if (previous != null) {
                 throw new IllegalStateException("HTTP 路由重复注册: route=" + routeKey
                         + ", previous=" + previous.controllerClassName() + "#" + previous.methodName()
@@ -85,13 +85,27 @@ public final class HttpRequestMappingParser {
         }
     }
 
-    private HttpRouteDefinition buildRouteDefinition(String routeKey, Object controller, Method method) {
+    private HttpRouteDefinition buildRouteDefinition(String routeKey,
+                                                     Object controller,
+                                                     Method method,
+                                                     HttpRoute routeMapping) {
         List<HttpRouteParameter> parameters = new ArrayList<>();
         Parameter[] reflectParameters = method.getParameters();
         for (int i = 0; i < reflectParameters.length; i++) {
-            parameters.add(new HttpRouteParameter(i, reflectParameters[i].getType()));
+            Parameter parameter = reflectParameters[i];
+            parameters.add(new HttpRouteParameter(
+                    i,
+                    parameter.getName(),
+                    parameter.getType(),
+                    parameter.getParameterizedType()));
         }
-        return new HttpRouteDefinition(routeKey, controller, method, parameters, method.getReturnType());
+        return new HttpRouteDefinition(
+                routeKey,
+                controller,
+                method,
+                parameters,
+                method.getReturnType(),
+                routeMapping.type());
     }
 
     private void validateHandlerMethod(Class<?> controllerClass, Method method) {

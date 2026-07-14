@@ -1,9 +1,9 @@
 package org.evd.game.AdminService.http;
 
 import org.evd.game.common.ClassFinder;
-import org.evd.game.runtime.annotation.RequestMapping;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -14,7 +14,7 @@ import java.util.Map;
  * AdminService 的 HTTP 控制器注册表。
  */
 public final class AdminHttpRouteRegistry {
-    private static final String CONTROLLER_PACKAGE = "org.evd.game.AdminService.controller";
+    //private static final String CONTROLLER_PACKAGE = "org.evd.game.AdminService.controller";
 
     private final Map<String, HttpRouteDefinition> routes;
 
@@ -22,8 +22,8 @@ public final class AdminHttpRouteRegistry {
         this.routes = Collections.unmodifiableMap(new LinkedHashMap<>(routes));
     }
 
-    public static AdminHttpRouteRegistry load() {
-        List<Object> controllers = ClassFinder.getAllClass(CONTROLLER_PACKAGE).stream()
+    public static AdminHttpRouteRegistry load(String path) {
+        List<Object> controllers = ClassFinder.getAllClass(path).stream()
                 .filter(AdminHttpRouteRegistry::isConcreteController)
                 .map(AdminHttpRouteRegistry::newControllerInstance)
                 .toList();
@@ -54,9 +54,18 @@ public final class AdminHttpRouteRegistry {
 
     private static boolean isConcreteController(Class<?> clazz) {
         int modifiers = clazz.getModifiers();
-        return clazz.isAnnotationPresent(RequestMapping.class)
+        return hasHttpRoute(clazz)
                 && !clazz.isInterface()
                 && !Modifier.isAbstract(modifiers);
+    }
+
+    private static boolean hasHttpRoute(Class<?> clazz) {
+        for (Method method : clazz.getDeclaredMethods()) {
+            if (method.isAnnotationPresent(HttpRoute.class)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Object newControllerInstance(Class<?> controllerClass) {
