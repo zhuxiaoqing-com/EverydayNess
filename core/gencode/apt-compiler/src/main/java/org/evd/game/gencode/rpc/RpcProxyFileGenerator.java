@@ -37,6 +37,8 @@ final class RpcProxyFileGenerator {
 
             String content = support.renderTemplate(RpcSupport.TEMPLATE_RPC_PROXY, support.buildProxyRootMap(methods));
             writeIfChanged(serviceProxyDir.resolve(generatedClassName), content);
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("生成Rpc跨模块代理失败", e);
         }

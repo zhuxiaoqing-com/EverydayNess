@@ -1,6 +1,7 @@
 package org.evd.game.common.proxy.PlayerService;
 
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 
@@ -26,6 +27,43 @@ public final class PlayerServiceProxy {
     }
 
     /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Boolean> callBindPlayerSession(CallPoint remote, String userId, long playerId, ClientSessionRef session){
+        return RpcResult.call(() -> inst().bindPlayerSession(remote, userId, playerId, session));
+    }
+
+
+    /**
+    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Void> callEnterMap(CallPoint remote, long playerId){
+        return RpcResult.run(() -> {
+            Service service = Service.getCurrent();
+            service.callWait(remote, EnumCall.ENUM_PLAYERSERVICE_ENTERMAP_1, new Object[]{playerId});
+        });
+    }
+
+    /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Integer> callGetOnlineCount(CallPoint remote){
+        return RpcResult.call(() -> inst().getOnlineCount(remote));
+    }
+
+
+    /**
+    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Void> callOnPlayerOffline(CallPoint remote, String userId, long playerId, int brokenTypeCode){
+        return RpcResult.run(() -> {
+            Service service = Service.getCurrent();
+            service.callWait(remote, EnumCall.ENUM_PLAYERSERVICE_ONPLAYEROFFLINE_3, new Object[]{userId, playerId, brokenTypeCode});
+        });
+    }
+
+
+    /**
     * 对应源方法: org.evd.game.PlayerService.PlayerService#bindPlayerSession()
     */
     public boolean bindPlayerSession(CallPoint remote, String userId, long playerId, ClientSessionRef session){
@@ -33,10 +71,6 @@ public final class PlayerServiceProxy {
         return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERSERVICE_BINDPLAYERSESSION_0, new Object[]{userId, playerId, session});
     }
 
-    public boolean bindPlayerSession(CallPoint remote, String userId, long playerId, ClientSessionRef session, long timeoutMillis){
-        Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERSERVICE_BINDPLAYERSESSION_0, new Object[]{userId, playerId, session}, timeoutMillis);
-    }
 
     /**
     * 对应源方法: org.evd.game.PlayerService.PlayerService#enterMap()
@@ -55,10 +89,6 @@ public final class PlayerServiceProxy {
         return (int)service.callWait(remote, EnumCall.ENUM_PLAYERSERVICE_GETONLINECOUNT_2, new Object[]{});
     }
 
-    public int getOnlineCount(CallPoint remote, long timeoutMillis){
-        Service service = Service.getCurrent();
-        return (int)service.callWait(remote, EnumCall.ENUM_PLAYERSERVICE_GETONLINECOUNT_2, new Object[]{}, timeoutMillis);
-    }
 
     /**
     * 对应源方法: org.evd.game.PlayerService.PlayerService#onPlayerOffline()

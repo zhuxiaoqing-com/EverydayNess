@@ -1,6 +1,7 @@
 package org.evd.game.common.proxy.StageService;
 
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.annotation.ActorType;
@@ -25,6 +26,47 @@ public final class HaHaHaActorProxy {
         public final static int ENUM_HAHAHAACTOR_RPC3_2 = 2;
         public final static int ENUM_HAHAHAACTOR_RPC4_3 = 3;
     }
+
+    /**
+    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Void> callRpc1(long actorUniqueId, int a, int b){
+        return RpcResult.run(() -> {
+            ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
+            Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC1_0, new Object[]{a, b});
+        });
+    }
+
+    /**
+    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Void> callRpc2(long actorUniqueId, Object a, Object b){
+        return RpcResult.run(() -> {
+            ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
+            Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC2_1, new Object[]{a, b});
+        });
+    }
+
+    /**
+    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Void> callRpc3(CallPoint remote, Object a, Object b){
+        return RpcResult.run(() -> {
+            Service service = Service.getCurrent();
+            service.callWait(remote, EnumCall.ENUM_HAHAHAACTOR_RPC3_2, new Object[]{a, b});
+        });
+    }
+
+    /**
+    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Void> callRpc4(long actorUniqueId, Object a, Object b){
+        return RpcResult.run(() -> {
+            ActorId actorId = new ActorId(ActorType.MAP_PLAYER, actorUniqueId);
+            Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_HAHAHAACTOR_RPC4_3, new Object[]{a, b});
+        });
+    }
+
 
     /**
     * 对应源方法: org.evd.game.StageService.HaHaHaActor#rpc1()

@@ -15,7 +15,7 @@ public interface LocationInterface {
 
     public ActorAddress get(CallPoint remote, ActorId actorId);
 
-    public ActorAddress get(CallPoint remote, ActorId actorId, long timeoutMillis);
+//    public ActorAddress get(CallPoint remote, ActorId actorId, long timeoutMillis);
 
     public void remove(CallPoint remote, ActorId actorId);
 

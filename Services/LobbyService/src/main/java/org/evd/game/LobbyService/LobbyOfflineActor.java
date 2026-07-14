@@ -8,6 +8,7 @@ import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 
 @Actor
@@ -27,17 +28,22 @@ public final class LobbyOfflineActor {
         }
 
         BrokenType brokenType = BrokenType.fromCode(brokenTypeCode);
-        sessionRepository.clearActiveSession(userState);
 
         if (userState.getActivePlayerService() != null && playerId > 0L) {
-            PlayerServiceProxy.inst().onPlayerOffline(
+            RpcResult<Void> offlineResult = PlayerServiceProxy.callOnPlayerOffline(
                     userState.getActivePlayerService(),
                     userId,
                     playerId,
                     brokenType.getCode()
             );
+            if (!offlineResult.isSuccess()) {
+                LogCore.core.warn("LobbyService 通知 PlayerService 玩家离线失败: userId={}, playerId={}, errorCode={}, message={}",
+                        userId, playerId, offlineResult.getErrorCode(), offlineResult.getErrorMessage());
+                return;
+            }
             userState.setActivePlayerService(null);
         }
+        sessionRepository.clearActiveSession(userState);
 
         LogCore.core.info("LobbyService 处理离线: service={}, userId={}, playerId={}, brokenType={}",
                 owner.getId(), userId, playerId, brokenType);

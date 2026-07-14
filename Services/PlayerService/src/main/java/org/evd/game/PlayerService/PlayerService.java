@@ -12,6 +12,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.netty.BrokenType;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 
 import java.util.HashSet;
@@ -36,6 +37,7 @@ public class PlayerService extends Service {
         }
         if (onlinePlayerIds.contains(playerId)) {
             removePlayerActor(playerId);
+            onlinePlayerIds.remove(playerId);
         }
 
         registerPlayerActor(playerId);
@@ -47,10 +49,11 @@ public class PlayerService extends Service {
 
     @Rpc
     public void onPlayerOffline(String userId, long playerId, int brokenTypeCode) {
-        if (!onlinePlayerIds.remove(playerId)) {
+        if (!onlinePlayerIds.contains(playerId)) {
             return;
         }
         removePlayerActor(playerId);
+        onlinePlayerIds.remove(playerId);
         LogCore.core.info("PlayerService 玩家离线: service={}, userId={}, playerId={}, brokenType={}",
                 id, userId, playerId, BrokenType.fromCode(brokenTypeCode));
     }
@@ -67,7 +70,8 @@ public class PlayerService extends Service {
 
     private void registerPlayerActor(long playerId) {
         ActorId actorId = ActorId.player(playerId);
-        if (!hasActor(actorId)) {
+        boolean createdActor = !hasActor(actorId);
+        if (createdActor) {
             registerActor(actorId, MailBoxType.ORDERED);
         }
         ActorAddress actorAddress = getActorAddress(actorId);
@@ -75,18 +79,31 @@ public class PlayerService extends Service {
         if (locationService == null) {
             throw new IllegalStateException("找不到 LocationService 服务路由");
         }
-        LocationServiceProxy.inst().add(locationService, actorId, actorAddress);
+        RpcResult<Void> addResult = LocationServiceProxy.callAdd(locationService, actorId, actorAddress);
+        if (!addResult.isSuccess()) {
+            if (createdActor) {
+                unregisterActor(actorId);
+            }
+            throw new IllegalStateException("PlayerService 注册 Location 映射失败: playerId=" + playerId
+                    + ", errorCode=" + addResult.getErrorCode()
+                    + ", message=" + addResult.getErrorMessage());
+        }
         getMessageLocationSender().cache(actorId, actorAddress);
     }
 
     private void removePlayerActor(long playerId) {
         ActorId actorId = ActorId.player(playerId);
-        if (hasActor(actorId)) {
-            unregisterActor(actorId);
-        }
         CallPoint locationService = node.getAnyCallPointByType(ServiceType.LOC);
         if (locationService != null) {
-            LocationServiceProxy.inst().remove(locationService, actorId);
+            RpcResult<Void> removeResult = LocationServiceProxy.callRemove(locationService, actorId);
+            if (!removeResult.isSuccess()) {
+                throw new IllegalStateException("PlayerService 删除 Location 映射失败: playerId=" + playerId
+                        + ", errorCode=" + removeResult.getErrorCode()
+                        + ", message=" + removeResult.getErrorMessage());
+            }
+        }
+        if (hasActor(actorId)) {
+            unregisterActor(actorId);
         }
         getMessageLocationSender().remove(actorId);
     }

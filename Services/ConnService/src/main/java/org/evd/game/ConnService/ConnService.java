@@ -25,6 +25,7 @@ import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.ChannelManager;
 import org.evd.game.runtime.netty.NetAcceptor;
 import org.evd.game.runtime.netty.NetChannel;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 
 public class ConnService extends Service {
@@ -199,7 +200,7 @@ public class ConnService extends Service {
             LogCore.core.warn("ConnService 未找到 LobbyService，跳过离线流程: service={}, sessionId={}", id, sessionId);
             return;
         }
-        LobbyOfflineActorProxy.inst().onSessionOffline(
+        RpcResult<Void> offlineResult = LobbyOfflineActorProxy.callOnSessionOffline(
                 lobbyRemote,
                 sessionRef.getUserId(),
                 sessionRef.getPlayerId(),
@@ -207,6 +208,10 @@ public class ConnService extends Service {
                 sessionId,
                 session.getBrokenTypeCode()
         );
+        if (!offlineResult.isSuccess()) {
+            LogCore.core.warn("ConnService 通知 Lobby 离线失败: service={}, sessionId={}, errorCode={}, message={}",
+                    id, sessionId, offlineResult.getErrorCode(), offlineResult.getErrorMessage());
+        }
     }
 
 

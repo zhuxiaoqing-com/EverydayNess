@@ -11,6 +11,7 @@ nodes:
         services:
         - serviceType: ADMIN
           name: admin
+          publicAddr: 0.0.0.0:18081
         - serviceType: CONN
           name: conn
           publicAddr: 0.0.0.0:18080

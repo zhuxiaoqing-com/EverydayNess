@@ -1,7 +1,7 @@
 package org.evd.game.SdkService;
 
 import org.evd.game.annotation.Rpc;
-import org.evd.game.common.sdk.SdkValidateResult;
+import org.evd.game.common.serializeBean.SdkService.SdkValidateResult;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.config.ServiceInfo;

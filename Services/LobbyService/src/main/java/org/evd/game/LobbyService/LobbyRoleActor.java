@@ -14,6 +14,8 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.util.SnowflakeIdGenerator;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.netty.BrokenType;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+import org.evd.game.runtime.support.LogCore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,12 +68,10 @@ public final class LobbyRoleActor {
         }
 
         if (userState.getActivePlayerService() != null) {
-            PlayerServiceProxy.inst().onPlayerOffline(
-                    userState.getActivePlayerService(),
-                    userState.getUserId(),
-                    role.getPlayerId(),
-                    BrokenType.LOGIN_REPLACE.getCode()
-            );
+            if (!clearActivePlayerService(userState, role.getPlayerId())) {
+                pushSelectRoleResp(session, false, "旧角色下线失败", 0L);
+                return;
+            }
         }
 
         LobbyPlayerCandidate playerCandidate = loadBalancerActor.selectLeastLoadedPlayer();
@@ -80,20 +80,35 @@ public final class LobbyRoleActor {
             return;
         }
 
-        boolean bindSuccess = PlayerServiceProxy.inst().bindPlayerSession(
+        RpcResult<Boolean> bindResult = PlayerServiceProxy.callBindPlayerSession(
                 playerCandidate.callPoint(),
                 userState.getUserId(),
                 role.getPlayerId(),
                 session
         );
-        if (!bindSuccess) {
+        if (!bindResult.isSuccess()) {
+            pushSelectRoleResp(session, false, "PlayerService 不可用", 0L);
+            return;
+        }
+        if (!Boolean.TRUE.equals(bindResult.getValue())) {
             pushSelectRoleResp(session, false, "PlayerService 绑定失败", 0L);
             return;
         }
-
-        PlayerServiceProxy.inst().enterMap(playerCandidate.callPoint(), role.getPlayerId());
-        ConnServiceProxy.inst().updatePlayerBinding(session.getGate(), session.getSessionId(), role.getPlayerId());
         userState.setActivePlayerService(playerCandidate.callPoint());
+
+        RpcResult<Void> enterMapResult = PlayerServiceProxy.callEnterMap(playerCandidate.callPoint(), role.getPlayerId());
+        if (!enterMapResult.isSuccess()) {
+            clearActivePlayerService(userState, role.getPlayerId());
+            pushSelectRoleResp(session, false, "PlayerService 进入地图失败", 0L);
+            return;
+        }
+        RpcResult<Boolean> updateBindingResult = ConnServiceProxy.callUpdatePlayerBinding(
+                session.getGate(), session.getSessionId(), role.getPlayerId());
+        if (!updateBindingResult.isSuccess() || !Boolean.TRUE.equals(updateBindingResult.getValue())) {
+            clearActivePlayerService(userState, role.getPlayerId());
+            pushSelectRoleResp(session, false, "gate 玩家绑定失败", 0L);
+            return;
+        }
         pushSelectRoleResp(session, true, "ok", role.getPlayerId());
     }
 
@@ -110,6 +125,26 @@ public final class LobbyRoleActor {
         return Service.getCurrent(LobbyService.class);
     }
 
+    private boolean clearActivePlayerService(LobbyUserState userState, long playerId) {
+        var playerService = userState.getActivePlayerService();
+        if (playerService == null) {
+            return true;
+        }
+        RpcResult<Void> offlineResult = PlayerServiceProxy.callOnPlayerOffline(
+                playerService,
+                userState.getUserId(),
+                playerId,
+                BrokenType.LOGIN_REPLACE.getCode()
+        );
+        if (!offlineResult.isSuccess()) {
+            LogCore.core.warn("LobbyService 清理 PlayerService 玩家失败: userId={}, playerId={}, errorCode={}, message={}",
+                    userState.getUserId(), playerId, offlineResult.getErrorCode(), offlineResult.getErrorMessage());
+            return false;
+        }
+        userState.setActivePlayerService(null);
+        return true;
+    }
+
 
     public void pushCreateRoleResp(ClientSessionRef session, boolean success, String message, RoleData role) {
         S2C_CreateRole.Builder builder = S2C_CreateRole.newBuilder()
@@ -118,8 +153,12 @@ public final class LobbyRoleActor {
         if (role != null) {
             builder.setRole(role);
         }
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+        RpcResult<Void> pushResult = ConnServiceProxy.callPushToClient(session.getGate(), session.getSessionId(),
                 ClientFrameChunk.wrap(MsgId.S2C_CREATE_ROLE_VALUE, builder.build()));
+        if (!pushResult.isSuccess()) {
+            LogCore.core.warn("LobbyService 回创建角色响应失败: sessionId={}, errorCode={}, message={}",
+                    session.getSessionId(), pushResult.getErrorCode(), pushResult.getErrorMessage());
+        }
     }
 
     public void pushSelectRoleResp(ClientSessionRef session, boolean success, String message, long playerId) {
@@ -128,7 +167,11 @@ public final class LobbyRoleActor {
                 .setMessage(message)
                 .setPlayerId(playerId)
                 .build();
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+        RpcResult<Void> pushResult = ConnServiceProxy.callPushToClient(session.getGate(), session.getSessionId(),
                 ClientFrameChunk.wrap(MsgId.S2C_SELECT_ROLE_ENTER_VALUE, resp));
+        if (!pushResult.isSuccess()) {
+            LogCore.core.warn("LobbyService 回选择角色响应失败: sessionId={}, errorCode={}, message={}",
+                    session.getSessionId(), pushResult.getErrorCode(), pushResult.getErrorMessage());
+        }
     }
 }

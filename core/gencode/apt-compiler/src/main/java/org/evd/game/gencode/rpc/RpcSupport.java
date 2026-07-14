@@ -2,8 +2,10 @@ package org.evd.game.gencode.rpc;
 
 import freemarker.template.Configuration;
 import freemarker.template.Template;
+import freemarker.core.ParseException;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
+import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.ServiceOwnerResolver;
 import org.evd.game.gencode.struct.MethodStruct;
@@ -45,15 +47,23 @@ final class RpcSupport {
     static final String TEMPLATE_RPC_IMP = "RpcImp.ftl";
     static final String TEMPLATE_RPC_PROXY = "RpcProxy.ftl";
     private static final String COMMON_PROXY_PACKAGE = "org.evd.game.common.proxy";
+    /** 是否为所有 RPC 生成 callXxx(...) 结果方法。 */
+    private static final boolean GENERATE_RESULT_METHODS = true;
+    /** 是否为非 void RPC 生成带 long timeoutMillis 的普通与 Result 重载。 */
+    private static final boolean GENERATE_TIMEOUT_OVERLOADS = false;
 
     private final Elements elementUtils;
     private final Types typeUtils;
     private final ServiceOwnerResolver serviceOwnerResolver;
+    private final boolean generateResultMethods;
+    private final boolean generateTimeoutOverloads;
 
     RpcSupport(ProcessingEnvironment processingEnv) {
         this.elementUtils = processingEnv.getElementUtils();
         this.typeUtils = processingEnv.getTypeUtils();
         this.serviceOwnerResolver = new ServiceOwnerResolver(elementUtils, typeUtils);
+        this.generateResultMethods = GENERATE_RESULT_METHODS;
+        this.generateTimeoutOverloads = GENERATE_TIMEOUT_OVERLOADS;
     }
 
     List<MethodStruct<Rpc>> buildRpcMethodStructs(RoundEnvironment roundEnv) {
@@ -124,11 +134,14 @@ final class RpcSupport {
         dataModel.put("implementsProxyInterface", proxyInterfaceMetadata != null);
         dataModel.put("proxyInterfaceSimpleName",
                 proxyInterfaceMetadata == null ? "" : proxyInterfaceMetadata.simpleName);
+        dataModel.put("generateResultMethods", generateResultMethods);
+        dataModel.put("generateTimeoutOverloads", generateTimeoutOverloads);
 
         if (proxyInterfaceMetadata != null) {
             validateProxyInterface(proxyInterfaceMetadata.typeElement, methods);
             collectTypeImports(importPackages, generatedPackageName, proxyInterfaceMetadata.typeElement.asType());
         }
+        validateResultMethodNameConflicts(methods);
 
         for (MethodStruct<Rpc> method : methods) {
             collectMethodImports(importPackages, generatedPackageName, method);
@@ -156,9 +169,22 @@ final class RpcSupport {
             methodModel.put("enumCall", buildEnumCallName(method));
             methodModel.put("methodKey", method.methodKey);
             methodModel.put("methodName", method.methodName);
+            methodModel.put("resultMethodName", buildCallMethodName(method.methodName));
             methodModel.put("returnType", method.getDisplayReturnType());
-            methodModel.put("formalParams", method.toParamTypeAndTypes());
-            methodModel.put("nameParams", method.toParamNames());
+            boolean isVoid = "void".equals(method.returnType);
+            methodModel.put("returnTypeWrapper", isVoid ? "Void" : AptUtils.shortTypeName(method.returnTypeWrapper));
+            methodModel.put("generateResultMethod", true);
+            methodModel.put("isVoid", isVoid);
+            methodModel.put("hasResult", !isVoid);
+            String formalParams = method.toParamTypeAndTypes();
+            String nameParams = method.toParamNames();
+            String callTarget = routeService ? "remote" : "actorUniqueId";
+            methodModel.put("formalParams", formalParams);
+            methodModel.put("nameParams", nameParams);
+            methodModel.put("resultFormalParams", targetPrefix
+                    + (formalParams.isEmpty() ? "" : ", " + formalParams));
+            methodModel.put("resultCallArgs", callTarget
+                    + (nameParams.isEmpty() ? "" : ", " + nameParams));
             methodModel.put("targetPrefix", targetPrefix);
             methodModel.put("routeService", routeService);
             methodModel.put("routeLocation", routeLocation);
@@ -279,7 +305,19 @@ final class RpcSupport {
         Configuration configuration = new Configuration();
         configuration.setDirectoryForTemplateLoading(new File(GenConst.TEMPLATE_DIR));
         configuration.setEncoding(Locale.getDefault(), "UTF-8");
-        Template template = configuration.getTemplate(templateName, "UTF-8");
+        Template template;
+        try {
+            template = configuration.getTemplate(templateName, "UTF-8");
+        } catch (ParseException parseException) {
+            String parsedTemplateName = parseException.getTemplateName();
+            throw new IllegalStateException(
+                    "RPC FreeMarker 模板语法错误: template="
+                            + (parsedTemplateName == null ? templateName : parsedTemplateName)
+                            + ", line=" + parseException.getLineNumber()
+                            + ", column=" + parseException.getColumnNumber()
+                            + ", endLine=" + parseException.getEndLineNumber()
+                            + ", endColumn=" + parseException.getEndColumnNumber());
+        }
         StringWriter out = new StringWriter();
         template.process(rootMap, out);
         return out.toString();
@@ -495,11 +533,52 @@ final class RpcSupport {
         Set<String> signatures = new LinkedHashSet<>();
         for (MethodStruct<Rpc> method : methods) {
             signatures.add(buildGeneratedSignature(method, false));
-            if (!"void".equals(method.returnType)) {
+            if (generateTimeoutOverloads && !"void".equals(method.returnType)) {
                 signatures.add(buildGeneratedSignature(method, true));
             }
         }
         return signatures;
+    }
+
+    private void validateResultMethodNameConflicts(List<MethodStruct<Rpc>> methods) {
+        if (!generateResultMethods) {
+            return;
+        }
+        Set<String> regularMethods = new HashSet<>();
+        for (MethodStruct<Rpc> method : methods) {
+            regularMethods.add(buildGeneratedMethodKey(method.methodName, method, false));
+            if (generateTimeoutOverloads && !"void".equals(method.returnType)) {
+                regularMethods.add(buildGeneratedMethodKey(method.methodName, method, true));
+            }
+        }
+        for (MethodStruct<Rpc> method : methods) {
+            String resultMethodName = buildCallMethodName(method.methodName);
+            if (regularMethods.contains(buildGeneratedMethodKey(resultMethodName, method, false))) {
+                throw new IllegalStateException("RPC 结果代理方法命名冲突: " + resultMethodName);
+            }
+            if (generateTimeoutOverloads
+                    && regularMethods.contains(buildGeneratedMethodKey(resultMethodName, method, true))) {
+                throw new IllegalStateException("RPC 结果超时代理方法命名冲突: " + resultMethodName);
+            }
+        }
+    }
+
+    private String buildCallMethodName(String methodName) {
+        return "call" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1);
+    }
+
+    private String buildGeneratedMethodKey(String methodName,
+                                           MethodStruct<Rpc> method,
+                                           boolean timeoutOverload) {
+        List<String> paramTypes = new ArrayList<>();
+        paramTypes.add(isServiceRoute(method) ? "org.evd.game.runtime.call.CallPoint" : "long");
+        for (ParamStruct param : method.params) {
+            paramTypes.add(param.paramType);
+        }
+        if (timeoutOverload) {
+            paramTypes.add("long");
+        }
+        return methodName + "(" + String.join(",", paramTypes) + ")";
     }
 
     private String buildGeneratedSignature(MethodStruct<Rpc> method, boolean timeoutOverload) {

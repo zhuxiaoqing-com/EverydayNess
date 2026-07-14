@@ -12,13 +12,15 @@ import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proto.*;
 import org.evd.game.common.proxy.SdkService.SdkServiceProxy;
-import org.evd.game.common.sdk.SdkValidateResult;
+import org.evd.game.common.serializeBean.SdkService.SdkValidateResult;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.netty.BrokenType;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+import org.evd.game.runtime.support.LogCore;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,7 +28,7 @@ import java.util.UUID;
 @Actor
 public final class LobbyLoginActor {
     private static final long TOKEN_TTL_MILLIS = 5 * 60 * 1000L;
-    private static final long SDK_VALIDATE_TIMEOUT_MILLIS = 5_000L;
+   // private static final long SDK_VALIDATE_TIMEOUT_MILLIS = 5_000L;
 
     @ClientCmd(MsgId.C2S_LOGIN_VALUE)
     public void login(ClientSessionRef session, C2S_Login req) {
@@ -45,10 +47,17 @@ public final class LobbyLoginActor {
             return;
         }
 
-        SdkValidateResult validateResult = SdkServiceProxy.inst()
-                .requestValidate(sdkRemote, userId, req.getSdkToken(), SDK_VALIDATE_TIMEOUT_MILLIS);
-        if (!validateResult.success()) {
-            pushLoginResp(session, false, validateResult.message(), "", "", 0L);
+        RpcResult<SdkValidateResult> validateRpcResult = SdkServiceProxy
+                .callRequestValidate(sdkRemote, userId, req.getSdkToken());
+        if (!validateRpcResult.isSuccess()) {
+            LogCore.core.warn("LobbyService SDK 校验 RPC 失败: userId={}, errorCode={}, message={}",
+                    userId, validateRpcResult.getErrorCode(), validateRpcResult.getErrorMessage());
+            pushLoginResp(session, false, "SDK 服务不可用", "", "", 0L);
+            return;
+        }
+        SdkValidateResult validateResult = validateRpcResult.getValue();
+        if (!validateResult.isSuccess()) {
+            pushLoginResp(session, false, validateResult.getMessage(), "", "", 0L);
             return;
         }
 
@@ -90,32 +99,46 @@ public final class LobbyLoginActor {
         }
 
         LobbyUserState userState = sessionRepository.getOrCreateUser(tokenState.getUserId());
-        boolean confirm = ConnServiceProxy.inst().confirmLogin(
-                session.getGate(),
-                session.getSessionId(),
-                tokenState.getUserId(),
-                0L
-        );
-        if (!confirm) {
-            pushLogin2Resp(session, false, "gate 登录确认失败", List.of());
-            return;
-        }
-
         var oldGate = userState.getActiveGate();
         long oldSessionId = userState.getActiveSessionId();
-        sessionRepository.bindActiveSession(userState, session.getGate(), session.getSessionId());
-        sessionRepository.removeToken(token);
-        if (token.equals(userState.getPendingToken())) {
-            userState.clearPendingToken();
-        }
-
         if (oldGate != null && (!oldGate.equals(session.getGate()) || oldSessionId != session.getSessionId())) {
-            ConnServiceProxy.inst().kickSession(
+            RpcResult<Boolean> kickResult = ConnServiceProxy.callKickSession(
                     oldGate,
                     oldSessionId,
                     BrokenType.LOGIN_REPLACE.getCode(),
                     "duplicate login"
             );
+            if (!kickResult.isSuccess() || !Boolean.TRUE.equals(kickResult.getValue())) {
+                LogCore.core.warn("LobbyService 踢出旧会话失败: sessionId={}, errorCode={}, message={}",
+                        oldSessionId, kickResult.getErrorCode(), kickResult.getErrorMessage());
+                pushLogin2Resp(session, false, "旧会话关闭失败", List.of());
+                return;
+            }
+            sessionRepository.clearActiveSession(userState);
+        }
+
+        RpcResult<Boolean> confirmResult = ConnServiceProxy.callConfirmLogin(
+                session.getGate(),
+                session.getSessionId(),
+                tokenState.getUserId(),
+                0L
+        );
+        if (!confirmResult.isSuccess()) {
+            LogCore.core.warn("LobbyService 确认 gate 登录失败: userId={}, sessionId={}, errorCode={}, message={}",
+                    tokenState.getUserId(), session.getSessionId(),
+                    confirmResult.getErrorCode(), confirmResult.getErrorMessage());
+            pushLogin2Resp(session, false, "gate 服务不可用", List.of());
+            return;
+        }
+        if (!Boolean.TRUE.equals(confirmResult.getValue())) {
+            pushLogin2Resp(session, false, "gate 登录确认失败", List.of());
+            return;
+        }
+
+        sessionRepository.bindActiveSession(userState, session.getGate(), session.getSessionId());
+        sessionRepository.removeToken(token);
+        if (token.equals(userState.getPendingToken())) {
+            userState.clearPendingToken();
         }
 
         pushLogin2Resp(session, true, "ok", LobbyRoleActor.buildRoleList(userState));
@@ -141,8 +164,12 @@ public final class LobbyLoginActor {
                 .setToken(token == null ? "" : token)
                 .setTokenExpireAt(expireAt)
                 .build();
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+        RpcResult<Void> pushResult = ConnServiceProxy.callPushToClient(session.getGate(), session.getSessionId(),
                 ClientFrameChunk.wrap(MsgId.S2C_LOGIN_VALUE, resp));
+        if (!pushResult.isSuccess()) {
+            LogCore.core.warn("LobbyService 回登录响应失败: sessionId={}, errorCode={}, message={}",
+                    session.getSessionId(), pushResult.getErrorCode(), pushResult.getErrorMessage());
+        }
     }
 
     public void pushLogin2Resp(ClientSessionRef session, boolean success, String message, List<RoleData> roles) {
@@ -150,8 +177,12 @@ public final class LobbyLoginActor {
                 .setSuccess(success)
                 .setMessage(message);
         builder.addAllRoles(roles);
-        ConnServiceProxy.inst().pushToClient(session.getGate(), session.getSessionId(),
+        RpcResult<Void> pushResult = ConnServiceProxy.callPushToClient(session.getGate(), session.getSessionId(),
                 ClientFrameChunk.wrap(MsgId.S2C_LOGIN2_VALUE, builder.build()));
+        if (!pushResult.isSuccess()) {
+            LogCore.core.warn("LobbyService 回登录确认响应失败: sessionId={}, errorCode={}, message={}",
+                    session.getSessionId(), pushResult.getErrorCode(), pushResult.getErrorMessage());
+        }
     }
 
 

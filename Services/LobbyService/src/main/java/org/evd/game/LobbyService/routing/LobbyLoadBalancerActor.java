@@ -8,6 +8,8 @@ import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+import org.evd.game.runtime.support.LogCore;
 
 import java.util.List;
 
@@ -19,11 +21,23 @@ public final class LobbyLoadBalancerActor {
         LobbyConnCandidate best = null;
         for (RegisteredService service : services) {
             CallPoint callPoint = service.getCallPoint();
-            String publicAddr = ConnServiceProxy.inst().getPublicAddr(callPoint);
+            RpcResult<String> publicAddrResult = ConnServiceProxy.callGetPublicAddr(callPoint);
+            if (!publicAddrResult.isSuccess()) {
+                LogCore.core.warn("LobbyService 获取 ConnService 公网地址失败: callPoint={}, errorCode={}, message={}",
+                        callPoint, publicAddrResult.getErrorCode(), publicAddrResult.getErrorMessage());
+                continue;
+            }
+            String publicAddr = publicAddrResult.getValue();
             if (publicAddr == null || publicAddr.isBlank()) {
                 continue;
             }
-            int loginCount = ConnServiceProxy.inst().getLoginSessionCount(callPoint);
+            RpcResult<Integer> loginCountResult = ConnServiceProxy.callGetLoginSessionCount(callPoint);
+            if (!loginCountResult.isSuccess()) {
+                LogCore.core.warn("LobbyService 获取 ConnService 登录数失败: callPoint={}, errorCode={}, message={}",
+                        callPoint, loginCountResult.getErrorCode(), loginCountResult.getErrorMessage());
+                continue;
+            }
+            int loginCount = loginCountResult.getValue();
             if (best == null || loginCount < best.loginCount()) {
                 best = new LobbyConnCandidate(new CallPoint(callPoint), publicAddr, loginCount);
             }
@@ -37,7 +51,13 @@ public final class LobbyLoadBalancerActor {
         LobbyPlayerCandidate best = null;
         for (RegisteredService service : services) {
             CallPoint callPoint = service.getCallPoint();
-            int onlineCount = PlayerServiceProxy.inst().getOnlineCount(callPoint);
+            RpcResult<Integer> onlineCountResult = PlayerServiceProxy.callGetOnlineCount(callPoint);
+            if (!onlineCountResult.isSuccess()) {
+                LogCore.core.warn("LobbyService 获取 PlayerService 在线数失败: callPoint={}, errorCode={}, message={}",
+                        callPoint, onlineCountResult.getErrorCode(), onlineCountResult.getErrorMessage());
+                continue;
+            }
+            int onlineCount = onlineCountResult.getValue();
             if (best == null || onlineCount < best.onlineCount()) {
                 best = new LobbyPlayerCandidate(new CallPoint(callPoint), onlineCount);
             }

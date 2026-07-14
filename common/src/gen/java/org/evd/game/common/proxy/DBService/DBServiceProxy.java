@@ -1,6 +1,7 @@
 package org.evd.game.common.proxy.DBService;
 
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.Db.serialize.DBRsp;
@@ -25,6 +26,15 @@ public final class DBServiceProxy implements DBExecInterface {
     }
 
     /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<DBRsp> callDbExec(CallPoint remote, DBReq dbReq){
+        return RpcResult.call(() -> inst().dbExec(remote, dbReq));
+    }
+
+
+
+    /**
     * 对应源方法: org.evd.game.DBService.DBService#dbExec()
     */
     public DBRsp dbExec(CallPoint remote, DBReq dbReq){
@@ -32,9 +42,5 @@ public final class DBServiceProxy implements DBExecInterface {
         return (DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICE_DBEXEC_0, new Object[]{dbReq});
     }
 
-    public DBRsp dbExec(CallPoint remote, DBReq dbReq, long timeoutMillis){
-        Service service = Service.getCurrent();
-        return (DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICE_DBEXEC_0, new Object[]{dbReq}, timeoutMillis);
-    }
 
 }

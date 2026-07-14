@@ -3,6 +3,9 @@ package ${commonPackageName};
 <#if needsServiceImport>
 import org.evd.game.runtime.Service;
 </#if>
+<#if generateResultMethods>
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+</#if>
 <#if needsCallPointImport>
 import org.evd.game.runtime.call.CallPoint;
 </#if>
@@ -38,6 +41,43 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
     </#list>
     }
 
+    <#if generateResultMethods>
+    <#list methods as method>
+    <#if method.generateResultMethod>
+    <#if method.isVoid>
+    /**
+    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Void> ${method.resultMethodName}(${method.resultFormalParams}){
+        return RpcResult.run(() -> {
+            <#if method.routeService>
+            Service service = Service.getCurrent();
+            service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+            <#else>
+            ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
+            Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
+            </#if>
+        });
+    }
+    <#else>
+    /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<${method.returnTypeWrapper}> ${method.resultMethodName}(${method.resultFormalParams}){
+        return RpcResult.call(() -> inst().${method.methodName}(${method.resultCallArgs}));
+    }
+
+    <#if generateTimeoutOverloads>
+    public static RpcResult<${method.returnTypeWrapper}> ${method.resultMethodName}(${method.resultFormalParams}, long timeoutMillis){
+        return RpcResult.call(() -> inst().${method.methodName}(${method.resultCallArgs}, timeoutMillis));
+    }
+    </#if>
+    </#if>
+
+    </#if>
+    </#list>
+    </#if>
+
     <#list methods as method>
     /**
     * 对应源方法: ${fullClassName}#${method.methodName}()
@@ -62,7 +102,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         </#if>
     }
 
-    <#if method.returnType != "void">
+    <#if generateTimeoutOverloads && method.hasResult>
     public ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
         <#if method.routeService>
         Service service = Service.getCurrent();
