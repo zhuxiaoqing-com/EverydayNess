@@ -1,6 +1,7 @@
 package org.evd.game.gencode.struct;
 
 import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.SerializeIgnore;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
@@ -8,7 +9,6 @@ import javax.lang.model.element.*;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,19 +27,20 @@ public class ClassStruct {
 
     public List<FieldStruct> getFields(){
         List<FieldStruct> fieldElements = new ArrayList<>();
-        for(Element e : element.getEnclosedElements()){
-            if (e instanceof VariableElement){
-                fieldElements.add(new FieldStruct(e, env));
+        if (isRecord()) {
+            for (RecordComponentElement component : element.getRecordComponents()) {
+                if (!hasAnnotation(component, SerializeIgnore.class.getCanonicalName())) {
+                    fieldElements.add(new FieldStruct(component, env));
+                }
             }
+            return fieldElements;
         }
-        return fieldElements;
-    }
 
-    public <A extends Annotation> List<FieldStruct> getFields(Class<A> clazz){
-        List<FieldStruct> fieldElements = new ArrayList<>();
-        String annotationName = clazz.getCanonicalName();
         for(Element e : element.getEnclosedElements()){
-            if (e instanceof VariableElement && hasAnnotation(e, annotationName)){
+            if (e instanceof VariableElement
+                    && !e.getModifiers().contains(Modifier.STATIC)
+                    && !e.getModifiers().contains(Modifier.TRANSIENT)
+                    && !hasAnnotation(e, SerializeIgnore.class.getCanonicalName())){
                 fieldElements.add(new FieldStruct(e, env));
             }
         }
@@ -80,6 +81,10 @@ public class ClassStruct {
     }
     public boolean isEnum(){
         return element.getKind() == ElementKind.ENUM;
+    }
+
+    public boolean isRecord() {
+        return element.getKind() == ElementKind.RECORD;
     }
 
     private boolean isAssignableFrom(TypeMirror type, Class<?> clazz) {

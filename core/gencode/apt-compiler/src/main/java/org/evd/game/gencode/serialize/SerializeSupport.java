@@ -2,7 +2,6 @@ package org.evd.game.gencode.serialize;
 
 import freemarker.template.Configuration;
 import freemarker.template.Template;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.GenConst;
@@ -80,9 +79,11 @@ final class SerializeSupport {
         List<String> importsModel = new ArrayList<>();
         List<Map<String, Object>> fieldInfos = new ArrayList<>();
 
-        ClassStruct superClass = clazz.getSuperClass();
-        if (!superClass.getClassName().equals("Object")) {
-            dataModel.put("superClass", superClass.getFullClassName() + CLASS_SUFFIX);
+        if (!clazz.isRecord()) {
+            ClassStruct superClass = clazz.getSuperClass();
+            if (!superClass.getClassName().equals("Object")) {
+                dataModel.put("superClass", superClass.getFullClassName() + CLASS_SUFFIX);
+            }
         }
         dataModel.put("packageName", clazz.getPackageName());
         dataModel.put("className", clazz.getClassName());
@@ -90,11 +91,17 @@ final class SerializeSupport {
         dataModel.put("importPackages", importsModel);
         dataModel.put("fields", fieldInfos);
         dataModel.put("customized", clazz.isCustomizedSerialize());
+        dataModel.put("isRecord", clazz.isRecord());
+        dataModel.put("concrete", !clazz.isAbstract());
 
-        for (FieldStruct fieldStruct : clazz.getFields(SerializeField.class)) {
+        for (FieldStruct fieldStruct : clazz.getFields()) {
             Map<String, Object> field = new LinkedHashMap<>();
             fieldInfos.add(field);
             fillTypeInfo(fieldStruct, field);
+            field.put("accessor", clazz.isRecord()
+                    ? "instance." + fieldStruct.getName() + "()"
+                    : "instance." + ("boolean".equals(field.get("type")) ? "is" : "get")
+                            + capitalize(fieldStruct.getName()) + "()");
         }
 
         return dataModel;
@@ -112,6 +119,10 @@ final class SerializeSupport {
 
     private static String toRegisterName(String fullClassName) {
         return fullClassName.replaceAll("[^A-Za-z0-9]", "_");
+    }
+
+    private static String capitalize(String value) {
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
     private static void fillTypeInfo(FieldStruct field, Map<String, Object> info) {

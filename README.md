@@ -64,9 +64,9 @@ Bootstrap-all.yml node1
   * （必须）只能标注在Service的public成员函数上
 * @SerializeClass: [类] 序列化类，当类对象作为rpc参数时必须为类标记该注解
   * （必须）需要继承ISerializable接口
-  * （必须）需要有无参构造函数
-* @SerializeField: [变量] 序列化字段，需要序列化的成员变量
-  * （必须）需要有该成员变量的get、set函数
+  * （普通类和自定义序列化类）需要有无参构造函数；record 使用规范构造函数
+* 默认序列化全部非静态、非 transient 的成员变量；使用 @SerializeIgnore 排除字段
+  * （普通类）需要有该成员变量的get、set函数
 
 # 运行原理
 

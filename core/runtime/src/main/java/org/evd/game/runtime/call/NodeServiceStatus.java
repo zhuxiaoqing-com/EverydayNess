@@ -1,14 +1,11 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 @SerializeClass
 public class NodeServiceStatus implements ISerializable {
-    @SerializeField
     private String serviceId;
-    @SerializeField
     private int readyContinuations;
 
     public NodeServiceStatus() {

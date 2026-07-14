@@ -1,7 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 import java.util.List;
@@ -12,7 +11,6 @@ import java.util.List;
 @SerializeClass
 public class DbTableField implements ISerializable {
     /** 当前值的实际类型。 */
-    @SerializeField
     private List<DbValue> valueList;
 
 

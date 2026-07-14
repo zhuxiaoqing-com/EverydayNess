@@ -1,7 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 import java.util.ArrayList;
@@ -14,7 +13,6 @@ import java.util.List;
  **/
 @SerializeClass
 public class MysqlRsp implements ISerializable {
-    @SerializeField
     private List<DbTableField> tablFieldList = new ArrayList<>();
 
     public List<DbTableField> getTablFieldList() {

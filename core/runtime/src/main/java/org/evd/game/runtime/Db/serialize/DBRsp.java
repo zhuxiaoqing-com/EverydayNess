@@ -1,7 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 /**
@@ -13,14 +12,11 @@ import org.evd.game.base.ISerializable;
 public class DBRsp implements ISerializable {
 
 
-    @SerializeField
     boolean success;
-    @SerializeField
     String exceptionMessage;
     /**
      * 操作加上描述表里的字段，可以拼接成sql
      */
-    @SerializeField
     MysqlRsp mysqlRsp;
 
 

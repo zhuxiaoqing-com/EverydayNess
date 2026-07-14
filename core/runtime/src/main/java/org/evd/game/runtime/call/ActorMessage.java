@@ -1,24 +1,17 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.runtime.actor.ActorId;
 
 import java.util.Arrays;
 
 @SerializeClass
 public class ActorMessage extends CallBase {
-    @SerializeField
     private ActorId actorId;
-    @SerializeField
     private long mailBoxEpoch;
-    @SerializeField
     private int dispatchType = DispatchType.RPC;
-    @SerializeField
     private int methodKey;
-    @SerializeField
     private Object[] methodParam;
-    @SerializeField
     private boolean needResult;
 
     public CallResult createReturn() {

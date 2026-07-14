@@ -1,7 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 /**
@@ -12,10 +11,8 @@ import org.evd.game.base.ISerializable;
 @SerializeClass
 public class DBReq implements ISerializable {
 
-    @SerializeField
     private DbOpType dbOpType;
 
-    @SerializeField
     MysqlReq mysqlReq = new MysqlReq();
 
 

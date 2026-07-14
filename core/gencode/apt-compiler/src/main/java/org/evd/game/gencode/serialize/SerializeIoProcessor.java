@@ -49,6 +49,12 @@ public class SerializeIoProcessor extends ProcessorBase {
         if (clazz.isEnum()) {
             return;
         }
+        if (clazz.isRecord() && clazz.isCustomizedSerialize()) {
+            throw new IllegalStateException("record 不支持自定义序列化: " + clazz.getFullClassName());
+        }
+        if (clazz.isRecord() && !clazz.isAssignableFrom(ISerializable.class)) {
+            throw new IllegalStateException("record 序列化类必须实现 ISerializable: " + clazz.getFullClassName());
+        }
         if (clazz.isCustomizedSerialize() && !clazz.isAssignableFrom(ISerializable.class)) {
             throw new IllegalStateException("自定义序列化类必须实现 ISerializable: " + clazz.getFullClassName());
         }

@@ -1,23 +1,18 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 
 import java.util.Arrays;
 
 @SerializeClass
 public class Call extends CallBase {
     /** 负载分发类型，见 DispatchType */
-    @SerializeField
     public int dispatchType = DispatchType.RPC;
     /** to service后调用哪个方法 */
-    @SerializeField
     public int methodKey;
     /** to service后调用方法的参数 */
-    @SerializeField
     public Object[] methodParam;
     /** to service后调用的方法是否有返回值 */
-    @SerializeField
     public boolean needResult;
 
     public Call() {

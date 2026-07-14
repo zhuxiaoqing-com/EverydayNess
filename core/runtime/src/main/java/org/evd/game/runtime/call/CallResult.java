@@ -1,19 +1,13 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 
 @SerializeClass
 public class CallResult extends CallBase {
-    @SerializeField
     public boolean success = true;
-    @SerializeField
     public int methodKey;
-    @SerializeField
     public int errorCode;
-    @SerializeField
     public String errorMessage;
-    @SerializeField
     public Object result;
 
     public boolean isSuccess() {

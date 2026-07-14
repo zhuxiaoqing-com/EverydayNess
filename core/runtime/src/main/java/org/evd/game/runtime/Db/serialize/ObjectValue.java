@@ -1,7 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 /**
@@ -10,25 +9,18 @@ import org.evd.game.base.ISerializable;
 @SerializeClass
 public class ObjectValue implements ISerializable {
     /** 当前值的实际类型。 */
-    @SerializeField
     private DbValueType type;
     /** long 类型值。 */
-    @SerializeField
     private long longValue;
     /** int 类型值。 */
-    @SerializeField
     private int intValue;
     /** String 类型值。 */
-    @SerializeField
     private String stringValue;
     /** bytes 类型值。 */
-    @SerializeField
     private byte[] bytesValue;
     /** boolean 类型值。 */
-    @SerializeField
     private boolean booleanValue;
     /** double 类型值。 */
-    @SerializeField
     private double doubleValue;
 
     public Object getV() {

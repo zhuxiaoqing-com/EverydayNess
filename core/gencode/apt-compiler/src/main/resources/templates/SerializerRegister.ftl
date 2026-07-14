@@ -60,9 +60,7 @@ final class ${className}{
 
 <#list fields as field>
 	public static ISerializable ${field.registerName}Read(InputStream in) throws IOException{
-		${field.classFullName} ${field.className?uncap_first} = new ${field.classFullName}();
-		${field.serializerFullName}.read(in, ${field.className?uncap_first});
-		return ${field.className?uncap_first};
+		return ${field.serializerFullName}.read(in);
 	}
 </#list>
 

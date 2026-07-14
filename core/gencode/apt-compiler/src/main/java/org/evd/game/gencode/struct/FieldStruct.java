@@ -2,7 +2,6 @@ package org.evd.game.gencode.struct;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -10,13 +9,13 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
 public class FieldStruct {
-    private VariableElement element;
+    private final Element element;
     private final ProcessingEnvironment env;
     private final Elements elementUtils;
     private final Types typeUtils;
 
     public FieldStruct(Element element, ProcessingEnvironment env) {
-        this.element = (VariableElement)element;
+        this.element = element;
         this.env = env;
         this.elementUtils = env.getElementUtils();
         this.typeUtils = env.getTypeUtils();
@@ -52,7 +51,7 @@ public class FieldStruct {
         return isAssignableFrom(element.asType(), clazz);
     }
 
-    public VariableElement getElement() {
+    public Element getElement() {
         return element;
     }
 

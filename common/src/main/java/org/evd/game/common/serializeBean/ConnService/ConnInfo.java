@@ -1,42 +1,27 @@
 package org.evd.game.common.serializeBean.ConnService;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 
 import java.util.*;
 
 @SerializeClass
 public class ConnInfo extends ConnInfoBase{
-    @SerializeField
     public int a;
-    @SerializeField
     public long longValue;
-    @SerializeField
     public String stringValue;
-    @SerializeField
     public int[] intArrayValue;
-    @SerializeField
     public String[] stringArrayValue;
 
-    @SerializeField
     public List<Integer> list = new ArrayList<>();
-    @SerializeField
     public List<Integer> list1 = new LinkedList<>();
-    @SerializeField
     public List<CoInfo> list2 = new LinkedList<>();
 
-    @SerializeField
     public Map<Integer, String> map = new HashMap<>();
-    @SerializeField
     public Map<Integer, String> map1 = new LinkedHashMap<>();
-    @SerializeField
     public Map<Integer, CoInfo> map2 = new LinkedHashMap<>();
 
-    @SerializeField
     public Set<Integer> set1 = new HashSet<>();
-    @SerializeField
     public Set<String> set2 = new HashSet<>();
-    @SerializeField
     public Set<CoInfo> set3 = new HashSet<>();
 
     public int getA() {

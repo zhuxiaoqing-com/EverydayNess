@@ -1,7 +1,6 @@
 package org.evd.game.common.serializeBean.ConnService;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 import java.util.ArrayList;
@@ -10,10 +9,8 @@ import java.util.List;
 @SerializeClass
 public class CoInfo implements ISerializable {
 
-    @SerializeField
     public String aa;
 
-    @SerializeField
     public List<String> list = new ArrayList<>();
 
     public String getAa() {

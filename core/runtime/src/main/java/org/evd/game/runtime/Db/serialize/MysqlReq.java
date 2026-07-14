@@ -1,7 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 import java.util.ArrayList;
@@ -14,13 +13,9 @@ import java.util.List;
  **/
 @SerializeClass
 public class MysqlReq implements ISerializable {
-    @SerializeField
     private String sql;
-    @SerializeField
     private String tableName;
-    @SerializeField
     private MysqlTableMeta tableMeta;
-    @SerializeField
     private List<DbTableField> tablFieldList = new ArrayList<>();
 
 

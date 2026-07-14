@@ -1,14 +1,12 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @SerializeClass
 public class CallPong extends CallBase {
-    @SerializeField
     private List<NodeServiceStatus> serviceStatuses = new ArrayList<>();
 
     public List<NodeServiceStatus> getServiceStatuses() {

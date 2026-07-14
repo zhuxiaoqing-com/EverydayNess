@@ -2,21 +2,18 @@ package org.evd.game.runtime.config;
 
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
+import org.evd.game.annotation.SerializeIgnore;
 import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
 @SerializeClass
 public class RegisteredService implements ISerializable {
-    @SerializeField
     private ServiceType serviceType;
-    @SerializeField
     private String serviceClassName;
-    @SerializeField
     private String serviceId;
-    @SerializeField
     private String nodeId;
 
+    @SerializeIgnore
     private CallPoint callPoint;
 
     public RegisteredService() {
@@ -71,4 +68,5 @@ public class RegisteredService implements ISerializable {
         }
         return callPoint;
     }
+
 }

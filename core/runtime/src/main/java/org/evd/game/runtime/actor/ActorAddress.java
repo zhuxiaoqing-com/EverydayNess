@@ -2,7 +2,6 @@ package org.evd.game.runtime.actor;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -10,9 +9,7 @@ import java.util.Objects;
 
 @SerializeClass
 public class ActorAddress implements ISerializable {
-    @SerializeField
     private CallPoint callPoint;
-    @SerializeField
     private long mailBoxEpoch;
 
     public ActorAddress() {

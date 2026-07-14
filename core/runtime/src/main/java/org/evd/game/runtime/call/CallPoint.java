@@ -2,16 +2,13 @@ package org.evd.game.runtime.call;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 import java.util.Objects;
 
 @SerializeClass
 public class CallPoint implements ISerializable {
-    @SerializeField
     public String nodeId;
-    @SerializeField
     public String servId;
 
     public CallPoint(){

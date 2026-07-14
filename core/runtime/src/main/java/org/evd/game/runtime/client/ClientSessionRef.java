@@ -1,7 +1,6 @@
 package org.evd.game.runtime.client;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -11,15 +10,10 @@ import org.evd.game.runtime.call.CallPoint;
  */
 @SerializeClass
 public class ClientSessionRef implements ISerializable {
-    @SerializeField
     private CallPoint gate;
-    @SerializeField
     private long sessionId;
-    @SerializeField
     private boolean authorized;
-    @SerializeField
     private long playerId;
-    @SerializeField
     private String userId;
 
     public ClientSessionRef() {

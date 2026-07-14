@@ -1,7 +1,6 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.runtime.config.RegisteredService;
 
 import java.util.ArrayList;
@@ -9,11 +8,8 @@ import java.util.List;
 
 @SerializeClass
 public class CallNodeServicesSync extends CallBase {
-    @SerializeField
     private boolean init;
-    @SerializeField
     private String addr;
-    @SerializeField
     private List<RegisteredService> services = new ArrayList<>();
 
     public boolean isInit() {

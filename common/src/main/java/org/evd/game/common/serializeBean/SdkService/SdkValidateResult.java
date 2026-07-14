@@ -1,14 +1,11 @@
 package org.evd.game.common.serializeBean.SdkService;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeField;
 import org.evd.game.base.ISerializable;
 
 @SerializeClass
 public class SdkValidateResult implements ISerializable {
-    @SerializeField
     private boolean success;
-    @SerializeField
     private String message;
 
     public SdkValidateResult() {
