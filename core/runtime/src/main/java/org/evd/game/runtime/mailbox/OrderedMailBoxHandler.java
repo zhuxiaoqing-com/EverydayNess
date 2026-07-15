@@ -21,7 +21,7 @@ public final class OrderedMailBoxHandler {
     public void dispatch(MailBoxBean mailBox, ActorMessage message) {
         service.continuationRuntime().createAndEnterQueue(
                 () -> handle(mailBox, message),
-                message.getActorId(), Task.Reason.ORDER_RPC, new ContinuationDebugInfo.RpcDebugInfo(message.getMethodKey()));
+                message.getActorId(), Task.Reason.ORDER_RPC, new ContinuationDebugInfo.RpcDebugInfo(message));
     }
 
     private void handle(MailBoxBean mailBox, ActorMessage message) {

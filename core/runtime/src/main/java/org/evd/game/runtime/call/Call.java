@@ -5,60 +5,9 @@ import org.evd.game.annotation.SerializeClass;
 import java.util.Arrays;
 
 @SerializeClass
-public class Call extends CallBase {
-    /** 负载分发类型，见 DispatchType */
-    public int dispatchType = DispatchType.RPC;
-    /** to service后调用哪个方法 */
-    public int methodKey;
-    /** to service后调用方法的参数 */
-    public Object[] methodParam;
-    /** to service后调用的方法是否有返回值 */
-    public boolean needResult;
+public class Call extends RpcCallBase {
 
     public Call() {
-    }
-
-    public CallResult createReturn() {
-        CallResult callResult = new CallResult();
-
-        callResult.from = new CallPoint(this.to);
-        callResult.to = new CallPoint(this.from);
-        callResult.id = this.id;
-        callResult.methodKey = this.methodKey;
-
-        return callResult;
-    }
-
-    public int getMethodKey() {
-        return methodKey;
-    }
-
-    public int getDispatchType() {
-        return dispatchType;
-    }
-
-    public void setDispatchType(int dispatchType) {
-        this.dispatchType = dispatchType;
-    }
-
-    public void setMethodKey(int methodKey) {
-        this.methodKey = methodKey;
-    }
-
-    public Object[] getMethodParam() {
-        return methodParam;
-    }
-
-    public void setMethodParam(Object[] methodParam) {
-        this.methodParam = methodParam;
-    }
-
-    public boolean isNeedResult() {
-        return needResult;
-    }
-
-    public void setNeedResult(boolean needResult) {
-        this.needResult = needResult;
     }
 
     @Override

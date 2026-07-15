@@ -104,7 +104,6 @@ public Result execute(BanRequest first, BanRequest second)
 
 ```java
 HttpRequest
-FullHttpRequest
 ```
 
 框架参数不参与普通参数数量限制，因此下面写法合法：
@@ -114,8 +113,8 @@ public Result query(HttpRequest ctx, long roleId, String name)
 public Result ban(HttpRequest ctx, BanRequest request)
 ```
 
-不支持直接注入 `ChannelHandlerContext`，需要请求上下文时使用
-`HttpRequest`。
+不支持直接注入 `ChannelHandlerContext` 或 `FullHttpRequest`，需要请求上下文时使用
+`HttpRequest`。`HttpRequest` 是已经脱离 Netty 引用计数的请求快照。
 
 `HttpRequest` 会携带当前运行的 `Service`，可以在 Controller 中透传调用：
 
@@ -137,7 +136,7 @@ AdminService service = ctx.getService(AdminService.class);
 路由注册时会检查方法签名：
 
 - 方法必须是 `public`、非 `static`。
-- 最多一个 `HttpRequest` 或 `FullHttpRequest`。
+- 最多一个 `HttpRequest`。
 - GET/POST_FORM 不允许复杂对象。
 - POST_JSON 必须且只能有一个复杂对象。
 - 复杂对象不能与基础类型、List 或 Map 混用。

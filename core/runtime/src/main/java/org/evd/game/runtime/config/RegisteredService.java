@@ -69,4 +69,8 @@ public class RegisteredService implements ISerializable {
         return callPoint;
     }
 
+    public void setCallPoint(CallPoint callPoint) {
+        this.callPoint = callPoint;
+    }
+
 }

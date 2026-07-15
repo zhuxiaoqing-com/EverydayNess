@@ -23,6 +23,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class Main {
@@ -177,18 +181,19 @@ public class Main {
                         .sorted(Comparator.comparingInt(a -> ServiceType.shutdownOrderId(a.getServiceType())))
                         .toList();
 
-                int limitMill = 1000 * 20;
+                int limitMill = 1000 * 60;
                 for (Service service : list) {
-                    service.postCoroutine(service::stop);
+                    service.postCoroutine(() -> service.stop(true));
                     long serviceStopStartMill = System.currentTimeMillis();
-                    while (node.getServices().containsKey(service.getId())) {
-                        Thread.sleep(50);
-                        if (System.currentTimeMillis() - serviceStopStartMill > limitMill) {
-                            // 等待超过了秒进行警告
-                            LogCore.core.error("关服等待超过了 {} ，直接跳过！！！ service {} ", limitMill, service.getId());
-                            service.logCoroutineDebugDump("shutdown timeout");
-                            break;
-                        }
+                    try {
+                        service.closeFuture().toCompletableFuture().get(60, TimeUnit.SECONDS);
+                    } catch (ExecutionException e) {
+                        LogCore.core.error("关服时报错了！！！ service {} ", service.getId(), e);
+                        break;
+                    } catch (TimeoutException e) {
+                        LogCore.core.error("关服等待超过了 {} ，直接跳过！！！ service {} ", limitMill, service.getId());
+                        service.logCoroutineDebugDump("shutdown timeout");
+                        break;
                     }
                     LogCore.core.warn("关服 service {} costMill {} ", service.getId(), System.currentTimeMillis() - serviceStopStartMill);
                 }

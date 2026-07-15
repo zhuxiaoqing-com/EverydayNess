@@ -76,6 +76,8 @@ class HttpRouteBindingTest {
                 () -> parser.parseControllers(new InvalidGetObjectController()));
         assertThrows(IllegalStateException.class,
                 () -> parser.parseControllers(new InvalidPostFormObjectController()));
+        assertThrows(IllegalStateException.class,
+                () -> parser.parseControllers(new InvalidFullHttpRequestController()));
     }
 
     @Test
@@ -298,6 +300,12 @@ class HttpRouteBindingTest {
     public static class InvalidPostFormObjectController {
         @HttpRoute(value = "/test/invalid/post-form-object", type = RequestType.POST_FORM)
         public void invalid(BindingRequest request) {
+        }
+    }
+
+    public static class InvalidFullHttpRequestController {
+        @HttpRoute(value = "/test/invalid/full-request", type = RequestType.GET)
+        public void invalid(FullHttpRequest request) {
         }
     }
 

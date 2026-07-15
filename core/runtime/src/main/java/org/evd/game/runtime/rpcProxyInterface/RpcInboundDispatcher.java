@@ -19,14 +19,13 @@ public final class RpcInboundDispatcher {
 
     public void handle(CallBase callBase) {
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
-        if (callBase instanceof Call call) {
-            service.continuationRuntime().createAndEnterQueue(() -> dispatch(call), null, Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(call.methodKey));
-            return;
-        } else if (callBase instanceof ActorMessage actorMessage) {
+        if (callBase instanceof ActorMessage actorMessage) {
             service.getProcessInnerSender().dispatch(actorMessage);
             return;
-        } else {
-            CallResult callResult = (CallResult) callBase;
+        } else if (callBase instanceof Call call) {
+            service.continuationRuntime().createAndEnterQueue(() -> dispatch(call), null, Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(call));
+            return;
+        } else if(callBase instanceof CallResult callResult){
             boolean completed;
             if (callResult.success) {
                 completed = continuationRuntime.completeWait(callResult.id, callResult.result, Task.Reason.RPC);
@@ -45,6 +44,9 @@ public final class RpcInboundDispatcher {
                         callResult.id, callResult.methodKey, callResult.success, callResult.errorCode, callResult.errorMessage);
             }
             return;
+        } else if (callBase instanceof RpcCallBase rpcCallBase){
+            service.continuationRuntime().createAndEnterQueue(() -> dispatchBusinessCall(rpcCallBase), null, Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(rpcCallBase));
+            return;
         }
     }
 
@@ -53,18 +55,10 @@ public final class RpcInboundDispatcher {
     }
 
     public void dispatchMailBoxMessage(ActorMessage message) {
-        Call call = new Call();
-        call.from = new CallPoint(message.getFrom());
-        call.to = new CallPoint(message.getTo());
-        call.id = message.getId();
-        call.dispatchType = message.getDispatchType();
-        call.methodKey = message.getMethodKey();
-        call.methodParam = message.getMethodParam();
-        call.needResult = message.isNeedResult();
-        dispatchBusinessCall(call);
+        dispatchBusinessCall(message);
     }
 
-    private void dispatchBusinessCall(Call call) {
+    public void dispatchBusinessCall(RpcCallBase call) {
         if (call.dispatchType == DispatchType.CLIENT_CMD) {
             dispatchClientCmdCall(call);
             return;
@@ -74,7 +68,11 @@ public final class RpcInboundDispatcher {
         if (call.needResult) {
             CallResult callReturn = call.createReturn();
             try {
-                callReturn.result = service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
+                if(call.dispatchType == DispatchType.STOP_SERVICE) {
+                    callReturn.result = service.rpcStop();
+                } else {
+                    callReturn.result = service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
+                }
             } catch (Throwable e) {
                 rethrowFatal(e);
                 LogCore.core.error("rpc return dispatch failed: service={}, methodKey={}",
@@ -92,7 +90,7 @@ public final class RpcInboundDispatcher {
         }
     }
 
-    private void dispatchClientCmdCall(Call call) {
+    private void dispatchClientCmdCall(RpcCallBase call) {
         if (call.needResult) {
             CallResult callReturn = call.createReturn();
             try {

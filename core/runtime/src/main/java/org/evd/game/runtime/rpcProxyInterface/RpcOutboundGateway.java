@@ -1,15 +1,15 @@
 package org.evd.game.runtime.rpcProxyInterface;
 
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.call.CallFactory;
-import org.evd.game.runtime.call.CallBase;
-import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.continuation.WaitType;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.Chunk;
+import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.exception.RpcCallTimeoutException;
 
 public final class RpcOutboundGateway {
@@ -23,23 +23,28 @@ public final class RpcOutboundGateway {
         send(CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, false, 0L));
     }
 
-    public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
-        return callWait(toCallPoint, methodKey, params, service.getCallWaitTimeoutInternal());
+    public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
+        Call call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, 0L);
+        return callWait(call, timeoutMillis);
     }
 
-    public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
+    public Object callWait(RpcCallBase call, long timeoutMillis) {
+        if (!call.isNeedResult()) {
+            LogCore.core.error("rpc callWait rejected: needResult=false, service={}, callType={}, target={}, methodKey={}",
+                    service.getId(), call.getClass().getSimpleName(), call.getTo(), call.getMethodKey());
+            throw new SysException("rpc callWait requires needResult=true: service={}, callType={}, target={}, methodKey={}",
+                    service.getId(), call.getClass().getSimpleName(), call.getTo(), call.getMethodKey());
+        }
         ContinuationRuntime continuationRuntime = service.continuationRuntime();
         Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
-        CallPoint targetCallPoint = new CallPoint(toCallPoint);
-        CallBase call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, 0L);
         ContinuationDebugInfo.ServiceRpcWaitDebugInfo debugInfo =
-                new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(targetCallPoint, methodKey, timeoutMillis);
+                new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(call, timeoutMillis);
         long waitId = continuationRuntime.registerWait(
                 timeoutMillis,
                 service.getWaitBaseTimeInternal(),
                 WaitType.RPC,
                 (ctx, timeoutWaitId) -> ctx.setFailure(
-                        new RpcCallTimeoutException(service.getId(), timeoutWaitId, timeoutMillis, targetCallPoint, methodKey)),
+                        new RpcCallTimeoutException(service.getId(), timeoutWaitId, timeoutMillis, call.getTo(), call.getMethodKey())),
                 debugInfo);
 
         try {

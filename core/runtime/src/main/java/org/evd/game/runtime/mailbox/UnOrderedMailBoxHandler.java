@@ -17,7 +17,7 @@ public final class UnOrderedMailBoxHandler {
     public void dispatch(MailBoxBean mailBox, ActorMessage message) {
         service.continuationRuntime().createAndEnterQueue(
                 () -> handle(mailBox, message),
-                message.getActorId(),Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(message.getMethodKey()));
+                message.getActorId(),Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(message));
     }
 
     private void handle(MailBoxBean mailBox, ActorMessage message) {

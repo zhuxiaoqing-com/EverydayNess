@@ -34,7 +34,7 @@ public class ActorMailBoxRegistry {
                 boxType == MailBoxType.ORDERED ? org.evd.game.runtime.mailbox.MailBoxType.ORDERED : org.evd.game.runtime.mailbox.MailBoxType.UNORDERED);
         actors.put(key, mailBoxBean);
 
-        CallPoint callPoint = service.copyCallPoint();
+        CallPoint callPoint = service.getCallPoint();
         ActorAddress actorAddress = new ActorAddress(callPoint, mailBoxBean.getEpoch());
         locationInterface.add(callPoint, actorId, actorAddress);
     }
@@ -45,7 +45,7 @@ public class ActorMailBoxRegistry {
             log.error("ActorMailBoxRegistry unregister is null {} ", actorId);
             return;
         }
-        CallPoint callPoint = service.copyCallPoint();
+        CallPoint callPoint = service.getCallPoint();
         ActorAddress actorAddress = new ActorAddress(callPoint, remove.getEpoch());
         locationInterface.remove(callPoint, actorId);
     }

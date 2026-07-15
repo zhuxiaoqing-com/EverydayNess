@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionStage;
 
 /**
  * 直接按路径分发到 AdminService controller。
@@ -71,11 +72,39 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
                         "text/plain; charset=UTF-8");
                 return;
             }
-            Object result = invokeRoute(ctx, routeDefinition, request);
             LogCore.core.info("service={} HTTP 请求: method={}, path={}, handler={}#{}",
                     service.getId(), request.method(), routeKey,
                     routeDefinition.controllerClassName(), routeDefinition.methodName());
-            writeSuccessResponse(ctx, request, result);
+            boolean keepAlive = HttpUtil.isKeepAlive(request);
+            String requestMethod = request.method().name();
+            Object[] args = buildArgs(ctx, routeDefinition.parameters(), request, routeDefinition.requestType());
+            service.postCoroutine(() -> {
+                try {
+                    Object result = invokeRoute(routeDefinition, args);
+                    if (result instanceof CompletionStage<?> stage) {
+                        stage.whenComplete((value, error) -> {
+                            if (error == null) {
+                                writeSuccessResponse(ctx, keepAlive, value);
+                                return;
+                            }
+                            LogCore.core.error("service={} HTTP 异步调用失败: method={}, path={}",
+                                    service.getId(), requestMethod, routeKey, error);
+                            writeResponse(ctx, keepAlive, HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                                    errorMessage(error), "text/plain; charset=UTF-8");
+                        });
+                        return;
+                    }
+                    writeSuccessResponse(ctx, keepAlive, result);
+                } catch (Throwable e) {
+                    LogCore.core.error("service={} HTTP 调用失败: method={}, path={}",
+                            service.getId(), requestMethod, routeKey, e);
+                    HttpResponseStatus status = e instanceof IllegalArgumentException
+                            ? HttpResponseStatus.BAD_REQUEST
+                            : HttpResponseStatus.INTERNAL_SERVER_ERROR;
+                    writeResponse(ctx, keepAlive, status, errorMessage(e), "text/plain; charset=UTF-8");
+                }
+            });
+
         } catch (Throwable e) {
             LogCore.core.error("service={} HTTP 调用失败: method={}, path={}",
                     service.getId(), request.method(), routeKey, e);
@@ -86,11 +115,9 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
         }
     }
 
-    private Object invokeRoute(ChannelHandlerContext ctx,
-                               HttpRouteDefinition routeDefinition,
-                               FullHttpRequest request) throws Throwable {
+    private Object invokeRoute(HttpRouteDefinition routeDefinition,
+                               Object[] args) throws Throwable {
         Method method = routeDefinition.method();
-        Object[] args = buildArgs(ctx, routeDefinition.parameters(), request, routeDefinition.requestType());
         try {
             return method.invoke(routeDefinition.controller(), args);
         } catch (InvocationTargetException e) {
@@ -119,11 +146,6 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
                 args[i] = httpRequest;
                 continue;
             }
-            if (FullHttpRequest.class.isAssignableFrom(parameterType)) {
-                args[i] = request;
-                continue;
-            }
-
             String parameterName = parameter.name();
             if (isScalarType(parameterType)) {
                 if (jsonRequest) {
@@ -164,8 +186,7 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
         int count = 0;
         for (HttpRouteParameter parameter : parameters) {
             Class<?> type = parameter.parameterType();
-            if (!HttpRequest.class.isAssignableFrom(type)
-                    && !FullHttpRequest.class.isAssignableFrom(type)) {
+            if (!HttpRequest.class.isAssignableFrom(type)) {
                 count++;
             }
         }
@@ -324,20 +345,29 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
         return content.toString(CharsetUtil.UTF_8);
     }
 
-    private void writeSuccessResponse(ChannelHandlerContext ctx, FullHttpRequest request, Object result) {
+    private void writeSuccessResponse(ChannelHandlerContext ctx, boolean keepAlive, Object result) {
         if (result == null) {
-            writeResponse(ctx, request, HttpResponseStatus.OK, "ok", "text/plain; charset=UTF-8");
+            writeResponse(ctx, keepAlive, HttpResponseStatus.OK, "ok", "text/plain; charset=UTF-8");
             return;
         }
         if (result instanceof String text) {
-            writeResponse(ctx, request, HttpResponseStatus.OK, text, "text/plain; charset=UTF-8");
+            writeResponse(ctx, keepAlive, HttpResponseStatus.OK, text, "text/plain; charset=UTF-8");
             return;
         }
-        writeResponse(ctx, request, HttpResponseStatus.OK, JSON.toJSONString(result), "application/json; charset=UTF-8");
+        writeResponse(ctx, keepAlive, HttpResponseStatus.OK,
+                JSON.toJSONString(result), "application/json; charset=UTF-8");
     }
 
     private void writeResponse(ChannelHandlerContext ctx,
                                FullHttpRequest request,
+                               HttpResponseStatus status,
+                               String body,
+                               String contentType) {
+        writeResponse(ctx, HttpUtil.isKeepAlive(request), status, body, contentType);
+    }
+
+    private void writeResponse(ChannelHandlerContext ctx,
+                               boolean keepAlive,
                                HttpResponseStatus status,
                                String body,
                                String contentType) {
@@ -349,7 +379,6 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
         );
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, contentType);
         response.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, bytes.length);
-        boolean keepAlive = HttpUtil.isKeepAlive(request);
         if (keepAlive) {
             response.headers().set(HttpHeaderNames.CONNECTION, "keep-alive");
             ctx.writeAndFlush(response);

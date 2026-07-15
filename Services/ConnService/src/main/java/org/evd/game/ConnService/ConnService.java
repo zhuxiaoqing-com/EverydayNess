@@ -204,7 +204,7 @@ public class ConnService extends Service {
                 lobbyRemote,
                 sessionRef.getUserId(),
                 sessionRef.getPlayerId(),
-                copyCallPoint(),
+                getCallPoint(),
                 sessionId,
                 session.getBrokenTypeCode()
         );

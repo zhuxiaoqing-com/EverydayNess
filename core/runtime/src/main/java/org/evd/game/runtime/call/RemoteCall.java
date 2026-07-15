@@ -38,7 +38,7 @@ public class RemoteCall {
 
 	@Override
 	public String toString() {
-		Call call = null;
+		CallBase call = null;
 		if (packet != null) {
 			try {
 				call = packet.newPayloadInputStream().read();

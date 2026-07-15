@@ -3,6 +3,7 @@ package org.evd.game.runtime.continuation;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.call.RpcCallBase;
 
 public final class ContinuationDebugInfo {
     private ContinuationDebugInfo() {
@@ -30,14 +31,19 @@ public final class ContinuationDebugInfo {
 
     public static final class RpcDebugInfo extends DebugInfo {
         private final int rpcMethodKey;
+        private final int dispatchType;
 
-        public RpcDebugInfo(int rpcMethodKey) {
-            this.rpcMethodKey = rpcMethodKey;
+        public RpcDebugInfo(RpcCallBase rpcCallBase) {
+            this.dispatchType = rpcCallBase.getDispatchType();
+            this.rpcMethodKey = rpcCallBase.getMethodKey();
         }
 
         @Override
         public String toString() {
-            return "rpcMethodKey=" + rpcMethodKey;
+            return
+                    "rpcMethodKey=" + rpcMethodKey +
+                    ", dispatchType=" + dispatchType
+                    ;
         }
     }
 
@@ -72,9 +78,9 @@ public final class ContinuationDebugInfo {
         private final int methodKey;
         private final long timeoutMillis;
 
-        public ServiceRpcWaitDebugInfo(CallPoint targetCallPoint, int methodKey, long timeoutMillis) {
-            this.targetCallPoint = new CallPoint(targetCallPoint);
-            this.methodKey = methodKey;
+        public ServiceRpcWaitDebugInfo(RpcCallBase call, long timeoutMillis) {
+            this.targetCallPoint = call.getTo();
+            this.methodKey = call.getMethodKey();
             this.timeoutMillis = timeoutMillis;
         }
 

@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallNodeServicesSync;
@@ -8,6 +9,7 @@ import org.evd.game.runtime.call.CallPing;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallPong;
 import org.evd.game.runtime.call.CallResult;
+import org.evd.game.runtime.call.CallServiceStop;
 import org.evd.game.runtime.call.NodeServiceStatus;
 import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.netty.*;
@@ -124,13 +126,13 @@ public class RemoteNode {
     /**
      * 发送业务或服务同步请求
      */
-    public void sendCall(CallBase call) {
+    public ChannelFuture sendCall(CallBase call) {
         NetChannel activeChannel = channel;
         DebugPrint.printSendRpc(activeChannel, call);
         if (!isActive() || activeChannel == null || !activeChannel.isValid()) {
             LogCore.remote.warn("远程Node不可用，丢弃消息: localNode={}, remoteNode={}, needConnect={}",
                     localNode.getId(), remoteId, needConnect);
-            return;
+            return null;
         }
         if (!canSendBusinessCall_nt(call)) {
             LogCore.remote.warn(
@@ -138,15 +140,17 @@ public class RemoteNode {
                     localNode.getId(), remoteId,
                     call == null || call.getTo() == null ? null : call.getTo().servId,
                     call == null ? null : call.getClass().getSimpleName());
-            return;
+            return null;
         }
         ByteBuf byteBuf = encodeCall_nt(call).getByteBuf();
         DebugPrint.printSendNodeFrame("sendCall", localNode.getId(), remoteId, activeChannel, byteBuf, call);
-        if (!activeChannel.write(byteBuf)) {
+        ChannelFuture writeFuture = activeChannel.tryWrite(byteBuf);
+        if (writeFuture == null) {
             LogCore.remote.error("remote control/rpc frame rejected by Netty backpressure: localNode={}, remoteNode={}, callType={}",
                     localNode.getId(), remoteId, call.getClass().getSimpleName());
             activeChannel.close();
         }
+        return writeFuture;
     }
 
     /** 接收远端 Ping/Pong 携带的 Service 状态。 */
@@ -167,6 +171,7 @@ public class RemoteNode {
         if (call instanceof CallPing
                 || call instanceof CallPong
                 || call instanceof CallNodeServicesSync
+                || call instanceof CallServiceStop
                 || call instanceof CallResult) {
             return true;
         }

@@ -25,10 +25,13 @@ final class HttpRouteParameterValidator {
 
         for (Parameter parameter : method.getParameters()) {
             Class<?> type = parameter.getType();
+            if (FullHttpRequest.class.isAssignableFrom(type)) {
+                throw invalid(method, "不支持 FullHttpRequest 参数，请使用 HttpRequest");
+            }
             if (isFrameworkParameter(type)) {
                 frameworkParameterCount++;
                 if (frameworkParameterCount > 1) {
-                    throw invalid(method, "最多只能有一个 HttpRequest 或 FullHttpRequest 参数");
+                    throw invalid(method, "最多只能有一个 HttpRequest 参数");
                 }
                 continue;
             }
@@ -78,8 +81,7 @@ final class HttpRouteParameterValidator {
     }
 
     static boolean isFrameworkParameter(Class<?> type) {
-        return HttpRequest.class.isAssignableFrom(type)
-                || FullHttpRequest.class.isAssignableFrom(type);
+        return HttpRequest.class.isAssignableFrom(type);
     }
 
     static boolean isScalarType(Class<?> type) {

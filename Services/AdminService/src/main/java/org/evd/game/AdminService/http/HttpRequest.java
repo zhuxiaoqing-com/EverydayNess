@@ -57,13 +57,13 @@ public final class HttpRequest {
     }
 
     public static HttpRequest from(ChannelHandlerContext ctx, FullHttpRequest request) {
-        return from(null, ctx, request, HttpParameterValues.parse(request));
+        return from(null, ctx, request, HttpParameterValues.parse(request), null);
     }
 
     public static HttpRequest from(Service service,
                                    ChannelHandlerContext ctx,
                                    FullHttpRequest request) {
-        return from(service, ctx, request, HttpParameterValues.parse(request));
+        return from(service, ctx, request, HttpParameterValues.parse(request), null);
     }
 
     static HttpRequest from(ChannelHandlerContext ctx,

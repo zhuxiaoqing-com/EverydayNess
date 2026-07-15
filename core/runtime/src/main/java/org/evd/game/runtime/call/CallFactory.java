@@ -11,7 +11,7 @@ public final class CallFactory {
     private CallFactory() {
     }
 
-    public static CallBase buildServiceRpc(
+    public static Call buildServiceRpc(
             Service current,
             CallPoint to,
             int methodKey,
@@ -20,8 +20,8 @@ public final class CallFactory {
             long id
     ) {
         Call call = new Call();
-        call.setFrom(current.copyCallPoint());
-        call.setTo(copyCallPoint(to));
+        call.setFrom(current.getCallPoint());
+        call.setTo(to);
         call.setId(id);
         call.setMethodKey(methodKey);
         call.setMethodParam(params);
@@ -29,7 +29,7 @@ public final class CallFactory {
         return call;
     }
 
-    public static CallBase buildServiceClientCmd(
+    public static Call buildServiceClientCmd(
             Service current,
             CallPoint to,
             ClientSessionRef session,
@@ -37,8 +37,8 @@ public final class CallFactory {
             Chunk body
     ) {
         Call call = new Call();
-        call.setFrom(current.copyCallPoint());
-        call.setTo(copyCallPoint(to));
+        call.setFrom(current.getCallPoint());
+        call.setTo(to);
         call.setDispatchType(DispatchType.CLIENT_CMD);
         call.setMethodKey(msgId);
         call.setMethodParam(new Object[]{session, body});
@@ -46,7 +46,7 @@ public final class CallFactory {
         return call;
     }
 
-    public static CallBase buildActorRpc(
+    public static ActorMessage buildActorRpc(
             Service current,
             ActorAddress addr,
             ActorId actorId,
@@ -60,7 +60,7 @@ public final class CallFactory {
         }
 
         ActorMessage message = new ActorMessage();
-        message.setFrom(current.copyCallPoint());
+        message.setFrom(current.getCallPoint());
         message.setTo(new CallPoint(addr.getCallPoint()));
         message.setActorId(actorId == null ? null : new ActorId(actorId));
         message.setId(id);
@@ -71,7 +71,7 @@ public final class CallFactory {
         return message;
     }
 
-    public static CallBase buildActorClientCmd(
+    public static ActorMessage buildActorClientCmd(
             Service current,
             ActorAddress addr,
             ActorId actorId,
@@ -84,7 +84,7 @@ public final class CallFactory {
         }
 
         ActorMessage message = new ActorMessage();
-        message.setFrom(current.copyCallPoint());
+        message.setFrom(current.getCallPoint());
         message.setTo(new CallPoint(addr.getCallPoint()));
         message.setActorId(actorId == null ? null : new ActorId(actorId));
         message.setMailBoxEpoch(addr.getMailBoxEpoch());
@@ -95,10 +95,14 @@ public final class CallFactory {
         return message;
     }
 
-    private static CallPoint copyCallPoint(CallPoint to) {
-        if (to == null) {
-            throw new SysException("call point is null");
-        }
-        return new CallPoint(to);
+
+    public static CallServiceStop buildCallServiceStop(Service current, CallPoint to) {
+        CallServiceStop callServiceStop = new CallServiceStop();
+        callServiceStop.setFrom(current.getCallPoint());
+        callServiceStop.setTo(to);
+        callServiceStop.setDispatchType(DispatchType.STOP_SERVICE);
+        callServiceStop.setNeedResult(true);
+        return callServiceStop;
     }
+
 }

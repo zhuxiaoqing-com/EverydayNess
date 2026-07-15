@@ -15,6 +15,7 @@ import org.evd.game.runtime.actorLogic.EventListenerInterfaceProcessor;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
+import org.evd.game.runtime.call.RpcCallBase;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
@@ -219,7 +220,6 @@ public class Service extends TickCase {
     protected void init_t() {
         threadLocal.set(this);
         try {
-            status = CaseStatus.Initializing;
             // 先执行初始化
             initVirtual_t();
         } finally {
@@ -250,7 +250,6 @@ public class Service extends TickCase {
 
         init();
 
-        status = CaseStatus.Running;
         node.publishService(this);
 
     }
@@ -285,24 +284,16 @@ public class Service extends TickCase {
         threadLocal.set(this);
         ThreadContext.put("service", getId());
         try {
-            if (status == CaseStatus.FinishKill) {
-                return;
-            }
             pulseAffirm_st();
 
             pulseCalls_st();
             // 先处理已经进入 Service 的入站结果，再处理断链等 posted 事件。
             // 这样同一帧已到达的 CallResult 不会被断链清理抢先结束。
             pulsePostedTasks_st();
-
-            if (status == CaseStatus.Running) {
-                tick_st();
-            }
+            tick_st();
 
             pulseTask_st();
-            if (status == CaseStatus.Running) {
-                pulseEntity_st();
-            }
+            pulseEntity_st();
 
             drainQueuedContinuations_st();
 
@@ -383,8 +374,8 @@ public class Service extends TickCase {
         return continuationRuntime.failWaitsForConnection(channelId);
     }
 
-    public CallPoint copyCallPoint() {
-        return new CallPoint(callPoint);
+    public CallPoint getCallPoint() {
+        return callPoint;
     }
 
     public long getWaitBaseTimeInternal() {
@@ -617,11 +608,16 @@ public class Service extends TickCase {
      * @param params
      */
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
-        return rpcOutboundGateway.callWait(toCallPoint, methodKey, params);
+        return rpcOutboundGateway.callWait(toCallPoint, methodKey, params, getCallWaitTimeoutInternal());
     }
 
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
         return rpcOutboundGateway.callWait(toCallPoint, methodKey, params, timeoutMillis);
+    }
+
+
+    public Object callWait(RpcCallBase rpcCallBase, long timeoutMillis) {
+        return rpcOutboundGateway.callWait(rpcCallBase, timeoutMillis);
     }
 
     /**
@@ -778,7 +774,7 @@ public class Service extends TickCase {
 
     protected ActorAddress getActorAddress(ActorId actorId) {
         MailBoxBean mailBoxBean = actorMailBoxRegistry.requireMailBox(actorId);
-        return new ActorAddress(copyCallPoint(), mailBoxBean.getEpoch());
+        return new ActorAddress(getCallPoint(), mailBoxBean.getEpoch());
     }
 
     public MessageSender getMessageSender() {
@@ -793,15 +789,28 @@ public class Service extends TickCase {
      * 关服逻辑要写这里，等这个方法结束就结束，协程运行
      */
     @Override
-    protected void onStop() {
-        super.onStop();
-
-        if (mdb != null && !mdb.isClosing()) {
-            mdb.close();
-            mdb = null;
+    protected final void onStopInternal(boolean force) {
+            super.onStopInternal(force);
+        boolean success = false;
+        try {
+            onStop(force);
+            success = true;
+        } finally {
+            // 数据库在force的情况下 强制再同步一次
+            if (success || force) {
+                if (mdb != null && !mdb.isClosing()) {
+                    mdb.close();
+                    mdb = null;
+                }
+            }
         }
+    }
+
+    protected void onStop(boolean force) {
 
     }
+
+
 
     @Override
     public void onClose() {

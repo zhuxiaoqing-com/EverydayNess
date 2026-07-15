@@ -16,6 +16,7 @@ import org.evd.game.runtime.serializeBean.TickTimer;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.exception.InboundBusinessException;
+import org.evd.game.runtime.support.exception.ServiceStoppingException;
 import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.RuntimeUtils;
 
@@ -39,6 +40,8 @@ public class Node extends TickCase{
 
     /** 多个线程池，把有阻塞service和非阻塞service放到不同的线程 */
     private final List<ScheduledExecutor> scheduledExecutors = new ArrayList<>();
+    /** 驱动 Node 心跳的调度器。 */
+    private final ScheduledExecutor nodeExecutor;
     /** node包含的services */
     private final ConcurrentHashMap<Object, Service> services = new ConcurrentHashMap<>();
     /** 远程node -> services镜像 */
@@ -88,7 +91,8 @@ public class Node extends TickCase{
         String addrWC = RegExUtils.replacePattern(addr, "\\d+.\\d+.\\d+.\\d+", "*");
         this.zmqPull.bind(addrWC);*/
 
-        bindScheduledExecutor(new ScheduledExecutor(name, 1));
+        nodeExecutor = new ScheduledExecutor(name, 1);
+        bindScheduledExecutor(nodeExecutor);
 
     }
 
@@ -119,6 +123,10 @@ public class Node extends TickCase{
         pulseRemoteNodes_nt();
         // 本地服务注册变化后，广播给已连接节点
         pulseServiceRegistry_nt();
+
+        if(services.isEmpty()) {
+            stop(false);
+        }
     }
 
     private void pulseAffirmRemoteCall_nt() {
@@ -254,13 +262,51 @@ public class Node extends TickCase{
     }
 
     /**
+     * 关服逻辑要写这里，等这个方法结束就结束，协程运行
+     *
+     * @param force
+     */
+    @Override
+    protected void onStopInternal(boolean force) {
+        super.onStopInternal(force);
+
+        NetAcceptor currentAcceptor = acceptor;
+        acceptor = null;
+        if (currentAcceptor != null) {
+            currentAcceptor.shutdown();
+        }
+
+        for (RemoteNode remoteNode : remoteNodes.values()) {
+            remoteNode.close();
+        }
+    }
+
+    @Override
+    protected void onClose() {
+        remoteCalls.clear();
+        postedTasks.clear();
+        affirmRemoteCalls.clear();
+        affirmPostedTasks.clear();
+        remoteNodes.clear();
+        remoteNodeServices.clear();
+        channelManager.clear();
+
+        for (ScheduledExecutor scheduledExecutor : scheduledExecutors) {
+            scheduledExecutor.shutdown();
+        }
+        nodeExecutor.shutdown();
+
+        System.exit(0);
+    }
+
+    /**
      * 创建任务异步添加到service
      * @param service
      */
     public void addService(Service service){
         // node还未启动，services起到pending暂存的作用
         if (status == CaseStatus.New){
-            services.put(service.getId(), service);
+            registerService(service);
         }else{
             Optional<ScheduledExecutor> result = scheduledExecutors.stream().filter(s->s.getName().equals(service.getScheduledName())).findFirst();
             if (result.isEmpty()){
@@ -268,13 +314,21 @@ public class Node extends TickCase{
                 return;
             }
             ScheduledExecutor scheduledExecutor = result.get();
+            registerService(service);
             service.bindScheduledExecutor(scheduledExecutor);
             service.start();
         }
     }
 
     void attachToNode(Service service){
-        services.put(service.getId(), service);
+        registerService(service);
+    }
+
+    private void registerService(Service service) {
+        Service existing = services.putIfAbsent(service.getId(), service);
+        if (existing != null && existing != service) {
+            throw new SysException("duplicate service id: {}", service.getId());
+        }
     }
 
     void publishService(Service service) {
@@ -506,19 +560,23 @@ public class Node extends TickCase{
         String remoteId = call.from.nodeId;
         // 根据请求类型来分别处理
         switch (call) {
-            case ActorMessage ignored: {
+            case RpcCallBase ignored: {
                 Service service = services.get(call.to.servId);
                 if (service == null) {
                     throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_FOUND, "target service missing");
                 } else if (service.getStatus() != CaseStatus.Running) {
-                    throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_READY, "target service not ready");
+                    if (service.isStopping()) {
+                        throw new ServiceStoppingException("target service is stopping");
+                    } else {
+                        throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_READY, "target service not ready");
+                    }
                 } else {
                     service.addCall_snt(call);
                 }
             }
             break;
             // PRC远程调用请求
-            case Call ignored: {
+         /*   case Call ignored: {
                 Service service = services.get(call.to.servId);
                 // 请求分发
                 if (service == null) {
@@ -529,7 +587,7 @@ public class Node extends TickCase{
                     service.addCall_snt(call);
                 }
             }
-            break;
+            break;*/
             // PRC远程调用请求的返回值
             case CallResult callResult: {
                 Service service = services.get(call.to.servId);
@@ -588,10 +646,8 @@ public class Node extends TickCase{
 
     private void sendInboundBusinessFailure(CallBase call, InboundBusinessException exception) {
         CallResult result;
-        if (call instanceof Call request && request.isNeedResult()) {
+        if (call instanceof RpcCallBase request && request.isNeedResult()) {
             result = request.createReturn();
-        } else if (call instanceof ActorMessage message && message.isNeedResult()) {
-            result = message.createReturn();
         } else {
             return;
         }

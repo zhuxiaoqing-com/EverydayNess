@@ -1,11 +1,14 @@
 package org.evd.game.runtime;
 
+import org.evd.game.runtime.call.CallServiceStopResult;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.misc.FrameStatistics;
 import org.evd.game.runtime.misc.ScheduledExecutor;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.exception.SysException;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 
 public abstract class TickCase {
@@ -13,7 +16,6 @@ public abstract class TickCase {
     protected final static int TICK_INTERVAL = 5;
     enum CaseStatus{
         New,
-        Initializing,
         Running,
         PendingKill,
         FinishKill,
@@ -22,9 +24,21 @@ public abstract class TickCase {
 
     /** 服务状态 */
     protected volatile CaseStatus status = CaseStatus.New;
+    /** 在 stop 与 onClose 完整执行后完成，供 Service 外部等待真实关闭结果。 */
+    private final CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+    /** onStop 的失败会在 onClose 后反馈给外部等待者。 */
+    private volatile RuntimeException stopFailure;
 
     public CaseStatus getStatus() {
         return status;
+    }
+
+    /**
+     * 返回真实关闭完成信号：仅当 onStop 与 onClose 均正常返回后才成功完成。
+     * 该信号必须由 Service 外部等待，Service 自己在关闭过程中不能依赖它恢复协程。
+     */
+    public final CompletionStage<Void> closeFuture() {
+        return closeFuture;
     }
 
     protected final String id;
@@ -59,7 +73,7 @@ public abstract class TickCase {
         // 统计时间
         frame.tick_t(timeFinish, timeFrame);
 
-        if (status == CaseStatus.Initializing || status == CaseStatus.Running || status == CaseStatus.PendingKill) {
+        if (status == CaseStatus.Running || status == CaseStatus.PendingKill) {
             // 计时心跳，心跳间隔时间动态变化
             long pulseLeftTime = tickInterval - timeFrame;
             if (pulseLeftTime <= 0)
@@ -70,35 +84,70 @@ public abstract class TickCase {
             // service被停止
         } else if (status == CaseStatus.FinishKill) {
             status = CaseStatus.Closed;
-            onClose();
+            try {
+                onClose();
+                if (stopFailure == null) {
+                    closeFuture.complete(null);
+                } else {
+                    closeFuture.completeExceptionally(stopFailure);
+                }
+            } catch (RuntimeException | Error e) {
+                closeFuture.completeExceptionally(e);
+                throw e;
+            }
         }
     }
 
-    public void stop() {
+    public final CallServiceStopResult rpcStop() {
+        try {
+            // 这里基本不会进来,service不是running的情况下，任何主动rpc调用都没会被拦截掉; 具体看这个方法：org.evd.game.runtime.Node.callHandle_snt
+            if (isStopping()) {
+                return new CallServiceStopResult(true, "关服中");
+            }
+            stop(false);
+            return new CallServiceStopResult(true, "success");
+        } catch (Exception e) {
+            return new CallServiceStopResult(false, "fail : " + e.getMessage());
+        }
+    }
+
+    public final void stop(boolean force) {
         if (isStopping()) {
-            LogCore.core.warn("already stop service  !!! class {} ", getClass().getSimpleName());
+            LogCore.core.warn("already stop service  !!! class {}  force {} ", getClass().getSimpleName(), force);
             return;
         }
-        LogCore.core.info("stop service start !!!class {} ", getClass().getSimpleName());
+        LogCore.core.info("stop service start !!!class {}  force {}", getClass().getSimpleName(), force);
         status = CaseStatus.PendingKill;
         long currTime = System.currentTimeMillis();
+        boolean success = false;
         try {
-            onStop();
+            onStopInternal(force);
+            success = true;
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
-            LogCore.core.error("stop service error!!! costMill {} class {} ", endTime - currTime, getClass().getSimpleName(), e);
+            LogCore.core.error("stop service error!!! costMill {} class {} force {}", endTime - currTime, getClass().getSimpleName(), force, e);
+                SysException sysException = new SysException(e, "停止服务失败: {} force {}", id);
+            if (force) {
+                stopFailure = sysException;
+            }else{
+                status = CaseStatus.Running;
+                throw sysException;
+            }
         } finally {
-            status = CaseStatus.FinishKill;
+            if (force || success) {
+                status = CaseStatus.FinishKill;
+            }
         }
         long endTime = System.currentTimeMillis();
-        LogCore.core.info("stop service end costMill {} class {} ", endTime - currTime, getClass().getSimpleName());
+        LogCore.core.info("stop service end costMill {} class {}  force {} success {}", endTime - currTime, getClass().getSimpleName(), force, success);
     }
 
     /**
      * 关服逻辑要写这里，等这个方法结束就结束，协程运行
      */
-    protected void onStop() {
+    protected void onStopInternal(boolean force) {
     }
+
 
     protected void onClose() {
     }

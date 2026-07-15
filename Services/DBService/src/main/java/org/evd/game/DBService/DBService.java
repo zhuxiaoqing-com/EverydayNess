@@ -59,8 +59,8 @@ public class DBService extends Service {
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
+    protected final void onStop(boolean force) {
+        super.onStop(force);
 
         if (dbCache != null) {
             dbCache.stop();
@@ -70,6 +70,7 @@ public class DBService extends Service {
             storageEngine.close();
         }
     }
+
 
 
     /**
