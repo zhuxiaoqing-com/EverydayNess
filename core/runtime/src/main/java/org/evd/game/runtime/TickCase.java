@@ -16,6 +16,7 @@ public abstract class TickCase {
     protected final static int TICK_INTERVAL = 5;
     enum CaseStatus{
         New,
+        Starting,
         Running,
         PendingKill,
         FinishKill,
@@ -73,7 +74,7 @@ public abstract class TickCase {
         // 统计时间
         frame.tick_t(timeFinish, timeFrame);
 
-        if (status == CaseStatus.Running || status == CaseStatus.PendingKill) {
+        if (status == CaseStatus.Starting || status == CaseStatus.Running || status == CaseStatus.PendingKill) {
             // 计时心跳，心跳间隔时间动态变化
             long pulseLeftTime = tickInterval - timeFrame;
             if (pulseLeftTime <= 0)
@@ -99,24 +100,20 @@ public abstract class TickCase {
     }
 
     public final CallServiceStopResult rpcStop() {
-        try {
-            // 这里基本不会进来,service不是running的情况下，任何主动rpc调用都没会被拦截掉; 具体看这个方法：org.evd.game.runtime.Node.callHandle_snt
-            if (isStopping()) {
-                return new CallServiceStopResult(true, "关服中");
-            }
-            stop(false);
-            return new CallServiceStopResult(true, "success");
-        } catch (Exception e) {
-            return new CallServiceStopResult(false, "fail : " + e.getMessage());
+        // 这里基本不会进来,service不是running的情况下，任何主动rpc调用都没会被拦截掉; 具体看这个方法：org.evd.game.runtime.Node.callHandle_snt
+        if (isStopping()) {
+            return new CallServiceStopResult(true, "关服中");
         }
+        stop(false);
+        return new CallServiceStopResult(true, "success");
     }
 
     public final void stop(boolean force) {
         if (isStopping()) {
-            LogCore.core.warn("already stop service  !!! class {}  force {} ", getClass().getSimpleName(), force);
+            LogCore.core.warn("already stop service  !!! id {}  force {} ", getId(), force);
             return;
         }
-        LogCore.core.info("stop service start !!!class {}  force {}", getClass().getSimpleName(), force);
+        LogCore.core.info("stop service start !!!id {}  force {}", getId(), force);
         status = CaseStatus.PendingKill;
         long currTime = System.currentTimeMillis();
         boolean success = false;
@@ -125,7 +122,7 @@ public abstract class TickCase {
             success = true;
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
-            LogCore.core.error("stop service error!!! costMill {} class {} force {}", endTime - currTime, getClass().getSimpleName(), force, e);
+            LogCore.core.error("stop service error!!! costMill {} id {} force {}", endTime - currTime, getId(), force, e);
                 SysException sysException = new SysException(e, "停止服务失败: {} force {}", id);
             if (force) {
                 stopFailure = sysException;
@@ -139,7 +136,7 @@ public abstract class TickCase {
             }
         }
         long endTime = System.currentTimeMillis();
-        LogCore.core.info("stop service end costMill {} class {}  force {} success {}", endTime - currTime, getClass().getSimpleName(), force, success);
+        LogCore.core.info("stop service end costMill {} id {}  force {} success {}", endTime - currTime, getId(), force, success);
     }
 
     /**
@@ -171,7 +168,7 @@ public abstract class TickCase {
         if (scheduledExecutor == null){
             throw new SysException("[{}] start error, because scheduledExecutor is null", id);
         }
-        status = CaseStatus.Running;
+        status = CaseStatus.Starting;
         onStart();
 
         // 提交task，task中会添加并启动service
@@ -205,6 +202,14 @@ public abstract class TickCase {
 
     public boolean isRunning() {
         return status == CaseStatus.Running;
+    }
+
+    /** 初始化成功后进入可提供业务的运行状态。 */
+    protected final void markRunning() {
+        if (status != CaseStatus.Starting) {
+            throw new SysException("cannot mark running from status: {} id: {}", status, id);
+        }
+        status = CaseStatus.Running;
     }
 
     /**

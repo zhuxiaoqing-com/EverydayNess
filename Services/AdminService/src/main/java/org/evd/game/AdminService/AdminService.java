@@ -5,6 +5,7 @@ import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 
 public class AdminService extends Service {
@@ -35,8 +36,8 @@ public class AdminService extends Service {
     /**
      * 远程服务器
      */
-    public CallServiceStopResult callRemoteRpcServiceStop(CallPoint to, long timeoutMill) {
+    public RpcResult<CallServiceStopResult> callRemoteRpcServiceStop(CallPoint to, long timeoutMill) {
         CallServiceStop callServiceStop = CallFactory.buildCallServiceStop(this, to);
-        return (CallServiceStopResult)callWait(callServiceStop, timeoutMill);
+        return RpcResult.call(() -> (CallServiceStopResult) callWait(callServiceStop, timeoutMill));
     }
 }

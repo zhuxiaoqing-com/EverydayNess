@@ -14,6 +14,9 @@ public final class RpcResult<T> {
     private static final RpcResult<Void> VOID_SUCCESS = new RpcResult<>(null, 0, null);
 
     private final T value;
+    /**
+     * {@link org.evd.game.runtime.support.RpcErrorCodes}
+     */
     private final int errorCode;
     private final String errorMessage;
 

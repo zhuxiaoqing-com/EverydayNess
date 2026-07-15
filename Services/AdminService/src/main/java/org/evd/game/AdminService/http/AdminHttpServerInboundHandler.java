@@ -72,12 +72,13 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
                         "text/plain; charset=UTF-8");
                 return;
             }
-            LogCore.core.info("service={} HTTP 请求: method={}, path={}, handler={}#{}",
-                    service.getId(), request.method(), routeKey,
-                    routeDefinition.controllerClassName(), routeDefinition.methodName());
             boolean keepAlive = HttpUtil.isKeepAlive(request);
             String requestMethod = request.method().name();
             Object[] args = buildArgs(ctx, routeDefinition.parameters(), request, routeDefinition.requestType());
+            LogCore.core.info("service={} HTTP 请求: method={}, path={}, handler={}#{}, params={}",
+                    service.getId(), request.method(), routeKey,
+                    routeDefinition.controllerClassName(), routeDefinition.methodName(),
+                    extractRequestParameters(routeDefinition.parameters(), args));
             service.postCoroutine(() -> {
                 try {
                     Object result = invokeRoute(routeDefinition, args);
@@ -180,6 +181,20 @@ public final class AdminHttpServerInboundHandler extends SimpleChannelInboundHan
             args[i] = convertJsonValue(bodyJson, parameter.genericType());
         }
         return args;
+    }
+
+    private Map<String, Object> extractRequestParameters(List<HttpRouteParameter> parameters, Object[] args) {
+        Map<String, Object> requestParameters = new LinkedHashMap<>();
+        for (int i = 0; i < parameters.size(); i++) {
+            HttpRouteParameter parameter = parameters.get(i);
+            Object value = args[i];
+            if (HttpRequest.class.isAssignableFrom(parameter.parameterType())) {
+                requestParameters.putAll(((HttpRequest) value).getParams());
+                continue;
+            }
+            requestParameters.put(parameter.name(), value);
+        }
+        return requestParameters;
     }
 
     private static int countNormalParameters(List<HttpRouteParameter> parameters) {

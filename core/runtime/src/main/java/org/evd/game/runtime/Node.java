@@ -44,6 +44,7 @@ public class Node extends TickCase{
     private final ScheduledExecutor nodeExecutor;
     /** node包含的services */
     private final ConcurrentHashMap<Object, Service> services = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Object, Service> pendServices = new ConcurrentHashMap<>();
     /** 远程node -> services镜像 */
     private final ConcurrentHashMap<String, List<RegisteredService>> remoteNodeServices = new ConcurrentHashMap<>();
     /** serviceType -> services缓存 */
@@ -112,6 +113,11 @@ public class Node extends TickCase{
 
     @Override
     protected void pulse() {
+        // 启动期间持续扫描所有 Service；任一服务关闭即关闭整个 Node。
+        pulseServiceLifecycle_nt();
+        if (getStatus() != CaseStatus.Running) {
+            return;
+        }
         // 确认本次心跳要发送的remoteCall
         pulseAffirmRemoteCall_nt();
         pulseAffirmPostedTasks_nt();
@@ -123,10 +129,51 @@ public class Node extends TickCase{
         pulseRemoteNodes_nt();
         // 本地服务注册变化后，广播给已连接节点
         pulseServiceRegistry_nt();
+    }
 
-        if(services.isEmpty()) {
-            stop(false);
+    private void pulseServiceLifecycle_nt() {
+        if (status != CaseStatus.Starting && status != CaseStatus.Running) {
+            return;
         }
+
+        // 运行状态下 所有的services都没了 就关服;
+        if (services.isEmpty() && status == CaseStatus.Running) {
+            stopForServiceTermination_nt(null, CaseStatus.Closed);
+            return;
+        }
+
+        // 启动状态下，等所有的都启动完成，node才算是启动完成，遍历pendService 检测状态,
+        // 或者有一个启动失败就是失败
+        if (status == CaseStatus.Starting) {
+            boolean allRunning = true;
+            for (Service service : pendServices.values()) {
+                CaseStatus serviceStatus = service.getStatus();
+                // 有一个在启动中状态不对就关闭;
+                if (serviceStatus == CaseStatus.Closed) {
+                    stopForServiceTermination_nt(service, serviceStatus);
+                    return;
+                }
+                // 有一个启动没有完成就 false
+                if (serviceStatus != CaseStatus.Running) {
+                    allRunning = false;
+                }
+            }
+
+            if (allRunning) {
+                markRunning();
+                localServiceVersion.incrementAndGet();
+                LogCore.core.info("node startup completed: node={}, services={}", id, services.keySet());
+            }
+        }
+    }
+
+    private void stopForServiceTermination_nt(Service service, CaseStatus serviceStatus) {
+        if (status != CaseStatus.Starting && status != CaseStatus.Running) {
+            return;
+        }
+        LogCore.core.error("service terminated, shutting down node: node={}, service={}, status={}",
+                id, service == null ? null : service.getId(), serviceStatus);
+        stop(true);
     }
 
     private void pulseAffirmRemoteCall_nt() {
@@ -226,6 +273,26 @@ public class Node extends TickCase{
     }
 
 
+    private void sendCallResult(CallResult result) {
+        if (id.equals(result.to.nodeId)) {
+            Service sourceService = services.get(result.to.servId);
+            if (sourceService == null) {
+                LogCore.remote.error("local rpc rejection result cannot be delivered: node={}, targetService={}, waitId={}",
+                        id, result.to.servId, result.id);
+            } else {
+                sourceService.addCall_snt(result);
+            }
+            return;
+        }
+        RemoteNode remoteNode = remoteNodes.get(result.to.nodeId);
+        if (remoteNode == null) {
+            LogCore.remote.error("remote rpc rejection result cannot be delivered: node={}, remoteNode={}, waitId={}",
+                    id, result.to.nodeId, result.id);
+            return;
+        }
+        remoteNode.sendCall(result);
+    }
+
     /**
      * 发送RemoteCall
      * @param call
@@ -238,6 +305,7 @@ public class Node extends TickCase{
     }
 
 
+
     /**
      * 启动
      * @throws RuntimeException
@@ -247,16 +315,8 @@ public class Node extends TickCase{
 //        if (scheduledExecutors.isEmpty()){
 //            throw new SysException("node还为创建线程池");
 //        }
-
-        List<Service> pendingAdd = new ArrayList<>();
-        for (Map.Entry<Object, Service> entry: services.entrySet()){
-            pendingAdd.add(entry.getValue());
-        }
-        // 清理services，后面会重新addService
-        services.clear();
-
         // addService
-        for (Service service : pendingAdd){
+        for (Service service : pendServices.values()){
             addService(service);
         }
     }
@@ -279,6 +339,13 @@ public class Node extends TickCase{
         for (RemoteNode remoteNode : remoteNodes.values()) {
             remoteNode.close();
         }
+
+        for (Service service : services.values()) {
+            if (service.isStopping()) {
+                continue;
+            }
+            service.postCoroutine(() -> service.stop(true));
+        }
     }
 
     @Override
@@ -291,11 +358,8 @@ public class Node extends TickCase{
         remoteNodeServices.clear();
         channelManager.clear();
 
-        for (ScheduledExecutor scheduledExecutor : scheduledExecutors) {
-            scheduledExecutor.shutdown();
-        }
-        nodeExecutor.shutdown();
-
+        // System.exit 会先执行 Bootstrap 注册的关闭钩子；此时不能提前关闭 Service 调度器，
+        // 否则关闭钩子无法投递 Service.stop(true)。
         System.exit(0);
     }
 
@@ -306,7 +370,10 @@ public class Node extends TickCase{
     public void addService(Service service){
         // node还未启动，services起到pending暂存的作用
         if (status == CaseStatus.New){
-            registerService(service);
+            Service existing = pendServices.putIfAbsent(service.getId(), service);
+            if (existing != null && existing != service) {
+                throw new SysException("duplicate service id: {}", service.getId());
+            }
         }else{
             Optional<ScheduledExecutor> result = scheduledExecutors.stream().filter(s->s.getName().equals(service.getScheduledName())).findFirst();
             if (result.isEmpty()){
@@ -314,7 +381,6 @@ public class Node extends TickCase{
                 return;
             }
             ScheduledExecutor scheduledExecutor = result.get();
-            registerService(service);
             service.bindScheduledExecutor(scheduledExecutor);
             service.start();
         }
@@ -428,7 +494,7 @@ public class Node extends TickCase{
 
 
     public void remove(Service service) {
-        services.remove(service.getId());
+        services.remove(service.getId(), service);
         localServiceVersion.incrementAndGet();
     }
 
@@ -561,6 +627,20 @@ public class Node extends TickCase{
         // 根据请求类型来分别处理
         switch (call) {
             case RpcCallBase ignored: {
+                if(ignored instanceof CallServiceStop callServiceStop){
+                    // service 不存在 或者已经关了，直接返回成功
+                    Service service = services.get(call.to.servId);
+                    if(service == null || service.isStopping()) {
+                        CallServiceStopResult callServiceStopResult = new CallServiceStopResult(true, "服务器已关闭");
+                        CallResult aReturn = callServiceStop.createReturn();
+                        aReturn.result = callServiceStopResult;
+                        sendCallResult(aReturn);
+                        break;
+                    }
+                }
+                if (status != CaseStatus.Running) {
+                    throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_READY, "node not ready");
+                }
                 Service service = services.get(call.to.servId);
                 if (service == null) {
                     throw new InboundBusinessException(RpcErrorCodes.SERVICE_NOT_FOUND, "target service missing");
@@ -654,24 +734,10 @@ public class Node extends TickCase{
         result.setSuccess(false);
         result.setErrorCode(exception.getErrorCode());
         result.setErrorMessage(exception.getMessage());
-        if (id.equals(result.to.nodeId)) {
-            Service sourceService = services.get(result.to.servId);
-            if (sourceService == null) {
-                LogCore.remote.error("local rpc rejection result cannot be delivered: node={}, targetService={}, waitId={}",
-                        id, result.to.servId, result.id);
-            } else {
-                sourceService.addCall_snt(result);
-            }
-            return;
-        }
-        RemoteNode remoteNode = remoteNodes.get(result.to.nodeId);
-        if (remoteNode == null) {
-            LogCore.remote.error("remote rpc rejection result cannot be delivered: node={}, remoteNode={}, waitId={}",
-                    id, result.to.nodeId, result.id);
-            return;
-        }
-        remoteNode.sendCall(result);
+        sendCallResult(result);
     }
+
+
 
     private void onRemotePing_nt(String remoteNodeId, NetChannel sourceChannel, CallPing ping) {
         RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
@@ -744,7 +810,7 @@ public class Node extends TickCase{
     List<NodeServiceStatus> buildLocalServiceStatuses_nt() {
         List<NodeServiceStatus> snapshot = new ArrayList<>();
         for (Service service : services.values()) {
-            if (service == null) {
+            if (service == null ||service.getStatus() != CaseStatus.Running) {
                 continue;
             }
             Service.PressureSnapshot pressure = service.pressureSnapshot();
@@ -758,6 +824,9 @@ public class Node extends TickCase{
     }
 
     List<RegisteredService> buildLocalServicesSnapshot() {
+        if (status != CaseStatus.Running) {
+            return List.of();
+        }
         List<RegisteredService> snapshot = new ArrayList<>();
         for (Service service : services.values()) {
             if (service == null || service.serviceInfo == null
@@ -875,6 +944,9 @@ public class Node extends TickCase{
         return services;
     }
 
+    public ConcurrentHashMap<String, List<RegisteredService>> getRemoteNodeServices() {
+        return remoteNodeServices;
+    }
 }
 
 

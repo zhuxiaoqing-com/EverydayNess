@@ -126,23 +126,12 @@ public class Main {
             starter.second.invoke(null, node);
         }
 
-        // 节点启动
-        node.start();
-        // addRemoteNode
-        for (NodeInfo remoteInfo : config.getNodes()){
-            if (!node.getId().equals(remoteInfo.getName())){
-                node.addRemoteNode(remoteInfo.getName(), remoteInfo.getAddr(), NodeInfo.needConnect(nodeInfo, remoteInfo));
-            }
-        }
-        // addService
+        // 预注册全部 Service，避免 Node 首个心跳在 Service 尚未创建时误判为空。
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()){
             for (ServiceInfo serviceInfo : scheduleInfo.getServices()){
                 String className = serviceInfo.getClassName();
                 String serviceClassName = "org.evd.game." + className + "." + className;
                 Class<ServiceInfo> clazz = (Class<ServiceInfo>) Class.forName(serviceClassName);
-                if (clazz == null){
-                    throw new SysException("service class not exist {}", serviceClassName);
-                }
                 // TODO 按service名加载 XXXService.jar
                 Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class, ServiceInfo.class);
            /*     if (serviceInfo.getNum() < 0){
@@ -158,9 +147,19 @@ public class Main {
                 int num = serviceInfo.getNum();
                 num = Math.max(1, num);
                 for (int i = 1; i<= num; ++i){
-                    Service service = (Service)con.newInstance(node, serviceInfo.getName() + i, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
+                    String serviceName = GlobalConfig.getServiceName(serviceInfo, i);
+                    Service service = (Service)con.newInstance(node, serviceName, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
                     node.addService(service);
                 }
+            }
+        }
+
+        // Node 启动时会启动所有预注册 Service；每个 Service 在 onStart 中加入 Node 后再执行 init。
+        node.start();
+        // addRemoteNode
+        for (NodeInfo remoteInfo : config.getNodes()){
+            if (!node.getId().equals(remoteInfo.getName())){
+                node.addRemoteNode(remoteInfo.getName(), remoteInfo.getAddr(), NodeInfo.needConnect(nodeInfo, remoteInfo));
             }
         }
 

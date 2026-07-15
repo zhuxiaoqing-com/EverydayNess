@@ -73,4 +73,15 @@ public class RegisteredService implements ISerializable {
         this.callPoint = callPoint;
     }
 
+
+    @Override
+    public String toString() {
+        return "RegisteredService{" +
+                "serviceType=" + serviceType +
+                ", serviceClassName='" + serviceClassName + '\'' +
+                ", serviceId='" + serviceId + '\'' +
+                ", nodeId='" + nodeId + '\'' +
+                ", callPoint=" + callPoint +
+                '}';
+    }
 }

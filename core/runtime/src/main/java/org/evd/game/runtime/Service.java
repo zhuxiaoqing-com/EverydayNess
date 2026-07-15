@@ -228,13 +228,20 @@ public class Service extends TickCase {
     }
 
     /**
+     * Service 启动后立即登记到 Node，随后才开始异步初始化。
+     * Node 通过心跳观察该 Service 的完整状态变化。
+     */
+    @Override
+    protected void onStart() {
+        node.attachToNode(this);
+    }
+
+    /**
      * init由协程执行，交给子类继承
      */
     @Override
     public final void _init() {
         super._init();
-        // 初始化期间先允许本节点投递响应，用于恢复 init continuation。
-        node.attachToNode(this);
         if (messageLocationSender != null) {
             newRepeatedTimer(
                     MessageLocationSender.getCleanupIntervalMillis(),
@@ -250,8 +257,9 @@ public class Service extends TickCase {
 
         init();
 
-        node.publishService(this);
+        markRunning();
 
+        node.publishService(this);
     }
 
     public void init() {

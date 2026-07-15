@@ -1,10 +1,11 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
+import org.evd.game.base.ISerializable;
 
 /** 服务级关服的最终结果；success 代表目标服务的 onClose 已正常结束。 */
 @SerializeClass
-public class CallServiceStopResult {
+public class CallServiceStopResult implements ISerializable {
     private boolean success;
     private String errorMessage;
 

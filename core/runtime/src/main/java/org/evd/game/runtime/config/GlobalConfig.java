@@ -1,12 +1,17 @@
 package org.evd.game.runtime.config;
 
 
+import org.evd.game.annotation.ServiceType;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.exception.SysException;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 public final class GlobalConfig {
     private static NodeConfig nodeConfig;
@@ -78,5 +83,38 @@ public final class GlobalConfig {
         } catch (IOException e) {
             throw new SysException(e);
         }
+    }
+
+    /**
+     * 从1开始
+     */
+    public static String getServiceName(ServiceInfo serviceInfo, int index) {
+        return serviceInfo.getName() + index;
+    }
+
+    public static List<RegisteredService> getAllRegisteredServiceList() {
+        List<RegisteredService> returnList = new ArrayList<>();
+
+        for (NodeInfo nodeInfo : requireNodeConfig().getNodes()) {
+            for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
+                for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
+                    int serviceNum = Math.max(1, serviceInfo.getNum());
+                    String className = serviceInfo.getClassName();
+                    String serviceClassName = "org.evd.game." + className + "." + className;
+                    for (int index = 1; index <= serviceNum; index++) {
+                        returnList.add(new RegisteredService(
+                                serviceInfo.getServiceType(),
+                                serviceClassName,
+                                getServiceName(serviceInfo, index),
+                                nodeInfo.getName()));
+                    }
+                }
+            }
+        }
+
+        // 按关服顺序排序
+        return returnList.stream()
+                .sorted(Comparator.comparingInt(a -> ServiceType.shutdownOrderId(a.getServiceType())))
+                .toList();
     }
 }

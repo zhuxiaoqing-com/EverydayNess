@@ -19,9 +19,9 @@ public enum ServiceType {
     DB(7, ServiceName.DB_SERVICE),
     LOC(8, ServiceName.LOCATION_SERVICE),
     ADMIN(9, ServiceName.ADMIN_SERVICE),
-    GLOC(10, ServiceName.LOCATION_SERVICE),
-    GSTAGE(11, ServiceName.STAGE_SERVICE, false),
-    GSCENE_MANAGER(12, ServiceName.SCENE_MANAGER_SERVICE),
+    GLOC(100, ServiceName.LOCATION_SERVICE),
+    GSTAGE(101, ServiceName.STAGE_SERVICE, false),
+    GSCENE_MANAGER(102, ServiceName.SCENE_MANAGER_SERVICE),
 
     ;
     final int type;
@@ -48,7 +48,15 @@ public enum ServiceType {
                 return i;
             }
         }
-        return 9999;
+        // 保证admin 最后一个停
+        if(serviceType == ADMIN) {
+            return 9999;
+        }
+        return 999;
+    }
+
+    public static boolean isGlobal(ServiceType serviceType) {
+        return serviceType.getType() >= 100;
     }
 
 
@@ -76,6 +84,10 @@ public enum ServiceType {
 
     public boolean isSingle() {
         return single;
+    }
+
+    public boolean isGlobal() {
+        return ServiceType.isGlobal(this);
     }
 
     @Override
