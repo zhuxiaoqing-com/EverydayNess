@@ -36,7 +36,7 @@ public class Node extends TickCase{
     /** 发送给远程note的call请求 */
     private final ConcurrentLinkedQueue<RemoteCall> remoteCalls = new ConcurrentLinkedQueue<>();
     /** 非 Node 线程投递的 Node 事件，例如入站 Call 与连接断开后的状态清理。 */
-    private final ConcurrentLinkedQueue<Runnable> postedTasks = new ConcurrentLinkedQueue<>();
+    private final FrameQueue<Runnable> postedTasks = new FrameQueue<>(new ConcurrentLinkedQueue<>());
 
     /** 多个线程池，把有阻塞service和非阻塞service放到不同的线程 */
     private final List<ScheduledExecutor> scheduledExecutors = new ArrayList<>();
@@ -216,7 +216,7 @@ public class Node extends TickCase{
 
 
     private void pulseAffirmPostedTasks_nt() {
-        int tasksToProcess = postedTasks.size();
+        int tasksToProcess = postedTasks.getFrameProcessNum();
         for (int i = 0; i < tasksToProcess; i++) {
             Runnable task = postedTasks.poll();
             if (task == null) {

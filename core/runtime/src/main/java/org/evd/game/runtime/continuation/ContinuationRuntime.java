@@ -1,6 +1,7 @@
 package org.evd.game.runtime.continuation;
 
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.FrameQueue;
 import org.evd.game.runtime.util.TimerScheduler;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
@@ -30,7 +31,8 @@ public final class ContinuationRuntime implements ContinuationHost {
     private long conIdAlloc = 1;
     private Task.ContinuationWrapper runningContinuation;
     private final Map<Long, Task.ContinuationWrapper> continuations = new HashMap<>();
-    private final ArrayDeque<Task.ContinuationWrapper> readyContinuations = new ArrayDeque<>();
+    private final FrameQueue<Task.ContinuationWrapper> readyContinuations =
+            new FrameQueue<>(new ArrayDeque<>());
     private long lastDrainDeferredLogNanos;
     private boolean closed;
 
@@ -109,12 +111,8 @@ public final class ContinuationRuntime implements ContinuationHost {
         return readyContinuations.size();
     }
 
-    public int drain(String phase, int maxCount) {
-        if (maxCount <= 0) {
-            return 0;
-        }
-
-        int scheduled = Math.min(maxCount, readyContinuations.size());
+    public int drain(String phase) {
+        int scheduled = readyContinuations.getFrameProcessNum();
         int resumed = 0;
         Task.ContinuationWrapper continuation;
         while (resumed < scheduled && (continuation = readyContinuations.pollFirst()) != null) {
@@ -210,7 +208,7 @@ public final class ContinuationRuntime implements ContinuationHost {
         try {
             return ContinuationRuntimeDebugFormatter.section(
                     "  就绪协程队列:\n",
-                    new ArrayList<>(readyContinuations),
+                    readyContinuations.snapshot(),
                     null);
         } catch (RuntimeException e) {
             return ContinuationRuntimeDebugFormatter.section(
@@ -234,7 +232,7 @@ public final class ContinuationRuntime implements ContinuationHost {
         try {
             heldSnapshot = new HashMap<>(continuations);
             waitSnapshot = waitRegistry.snapshotContinuations();
-            readySnapshot = new ArrayList<>(readyContinuations);
+            readySnapshot = readyContinuations.snapshot();
         } catch (RuntimeException e) {
             return ContinuationRuntimeDebugFormatter.section(
                     "  已持有但未入队/未等待协程:\n",

@@ -43,8 +43,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
  * 服务
  */
 public class Service extends TickCase {
-    private static final int MAX_READY_CONTINUATIONS_PER_FRAME = 1_000;
-
     public void addCall_snt(CallBase call) {
         if (call == null) {
             throw new SysException("service call is null: service={}", id);
@@ -90,7 +88,7 @@ public class Service extends TickCase {
     /**
      * service的接收队列
      */
-    private final ConcurrentLinkedDeque<CallBase> calls = new ConcurrentLinkedDeque<>();
+    private final FrameQueue<CallBase> calls = new FrameQueue<>(new ConcurrentLinkedDeque<>());
     /**
      * 此帧要执行的calls
      */
@@ -98,7 +96,7 @@ public class Service extends TickCase {
     /**
      * 非 service 线程投递过来的任务
      */
-    private final ConcurrentLinkedDeque<Runnable> postedTasks = new ConcurrentLinkedDeque<>();
+    private final FrameQueue<Runnable> postedTasks = new FrameQueue<>(new ConcurrentLinkedDeque<>());
     /**
      * 此帧要执行的投递任务
      */
@@ -478,8 +476,8 @@ public class Service extends TickCase {
      * 先固定本帧开始时的数量，避免转移过程中不断吸入新任务，导致此帧执行时间不可控。
      */
     private void pulseAffirm_st() {
-        int callsToAffirm = calls.size();
-        int postedTasksToAffirm = postedTasks.size();
+        int callsToAffirm = calls.getFrameProcessNum();
+        int postedTasksToAffirm = postedTasks.getFrameProcessNum();
         for (int i = 0; i < callsToAffirm; i++) {
             CallBase call = calls.poll();
             if (call == null) {
@@ -509,7 +507,7 @@ public class Service extends TickCase {
     }
 
     private void drainQueuedContinuations_st() {
-        continuationRuntime.drain("frame", MAX_READY_CONTINUATIONS_PER_FRAME);
+        continuationRuntime.drain("frame");
     }
 
     /**
