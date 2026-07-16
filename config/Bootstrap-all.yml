@@ -5,6 +5,9 @@ nodes:
   - name: node1 # 节点
     addr: 127.0.0.1:15001
     linkLevel: 0
+    platformId: 0  #平台id
+    zone: 0  #战区区分;某些服务器在同一个战区这样;
+    serverId: 0 #服务器id;
     schedule:
       - name: logic  #线程池名
         num: 10
