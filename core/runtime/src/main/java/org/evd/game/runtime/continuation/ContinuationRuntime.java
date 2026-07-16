@@ -182,12 +182,12 @@ public final class ContinuationRuntime implements ContinuationHost {
         return waitRegistry;
     }
 
-    public boolean bindWaitTransport(long waitId, long channelId) {
-        return waitRegistry.bindTransport(waitId, channelId);
+    public boolean bindWaitTransport(long waitId, long sessionId) {
+        return waitRegistry.bindTransport(waitId, sessionId);
     }
 
-    public int failWaitsForConnection(long channelId) {
-        return waitRegistry.failForConnection(channelId);
+    public int failWaitsForSession(long sessionId) {
+        return waitRegistry.failForSession(sessionId);
     }
 
     private void logDrainBudgetExceeded(String phase) {

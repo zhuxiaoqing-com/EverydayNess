@@ -15,7 +15,7 @@ final class CallTransport {
     private final Node node;
     private final Service service;
     private final String serviceId;
-    /** 每个远端 Node 的每个物理 channel 各自持有独立缓冲，避免重连后混用旧 channel。 */
+    /** 每个远端 Node 的每个 Session 各自持有独立缓冲，避免重连后混用旧 Session。 */
     private final Map<CallFrameBufferKey, CallPulseBuffer> callFrameBuffers = new HashMap<>();
 
     CallTransport(Node node, Service service) {
@@ -24,15 +24,24 @@ final class CallTransport {
         this.serviceId = service.getId();
     }
 
-    /** 在传输入口捕获当前 channel，并将等待绑定到该 channel。 */
+    /** 在传输入口捕获当前 Session，并将等待绑定到该 Session。 */
     void send(CallBase call) {
         DebugPrint.printSendRpc(null, call);
         if (call == null) {
             throw new RpcTransportException("rpc transport unavailable: null call");
         }
+        if (call instanceof CallResult callResult && callResult.getSourceSessionId() >= 0L) {
+            if (!node.sendCallResultOnSource(callResult)) {
+                LogCore.remote.warn("远程 RPC 结果原 Session 不可写，丢弃结果: localNode={}, remoteNode={}, sessionId={}, waitId={}",
+                        node.getId(), callResult.to == null ? null : callResult.to.nodeId,
+                        callResult.getSourceSessionId(), callResult.getId());
+            }
+            return;
+        }
         String toNodeId = call.to == null ? null : call.to.nodeId;
-        long channelId = node.captureChannelId(call);
-        if (channelId < 0L) {
+        boolean local = node.getId().equals(toNodeId);
+        RemoteSession session = local ? null : node.captureRemoteSession(call);
+        if (!local && session == null) {
             LogCore.remote.warn("远程Node Service当前不可接收业务RPC，拒绝进入出站缓冲: localNode={}, remoteNode={}, service={}, callType={}",
                     node.getId(), toNodeId, call.to == null ? null : call.to.servId,
                     call.getClass().getSimpleName());
@@ -40,16 +49,17 @@ final class CallTransport {
                     serviceId, toNodeId, call.to == null ? null : call.to.servId,
                     call.getClass().getSimpleName());
         }
-        call.setOutboundChannelId(channelId);
+        long sessionId = local ? 0L : session.getSessionId();
+        call.setOutboundSessionId(sessionId);
         long waitId = call instanceof CallResult ? 0L : call.getId();
-        if (waitId != 0L && !service.continuationRuntime().bindWaitTransport(waitId, channelId)) {
-            throw new RpcTransportException("rpc wait is not bindable: service={}, waitId={}, channelId={}",
-                    serviceId, waitId, channelId);
+        if (waitId != 0L && !service.continuationRuntime().bindWaitTransport(waitId, sessionId)) {
+            throw new RpcTransportException("rpc wait is not bindable: service={}, waitId={}, sessionId={}",
+                    serviceId, waitId, sessionId);
         }
-        CallFrameBufferKey bufferKey = new CallFrameBufferKey(toNodeId, channelId);
+        CallFrameBufferKey bufferKey = new CallFrameBufferKey(toNodeId, sessionId);
         CallPulseBuffer buffer = callFrameBuffers.get(bufferKey);
         if (buffer == null) {
-            buffer = new CallPulseBuffer(toNodeId, channelId, service);
+            buffer = new CallPulseBuffer(toNodeId, sessionId);
             callFrameBuffers.put(bufferKey, buffer);
         }
 
@@ -85,15 +95,15 @@ final class CallTransport {
         callFrameBuffers.clear();
     }
 
-    /** 丢弃指定物理 channel 尚未刷出的消息。 */
-    void discard(String remoteNodeId, long channelId) {
-        CallFrameBufferKey bufferKey = new CallFrameBufferKey(remoteNodeId, channelId);
+    /** 丢弃指定 Session 尚未刷出的消息。 */
+    void discard(String remoteNodeId, long sessionId) {
+        CallFrameBufferKey bufferKey = new CallFrameBufferKey(remoteNodeId, sessionId);
         CallPulseBuffer buffer = callFrameBuffers.remove(bufferKey);
         if (buffer != null) {
             buffer.close();
         }
     }
 
-    private record CallFrameBufferKey(String nodeId, long channelId) {
+    private record CallFrameBufferKey(String nodeId, long sessionId) {
     }
 }

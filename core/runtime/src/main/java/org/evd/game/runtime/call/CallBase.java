@@ -3,7 +3,6 @@ package org.evd.game.runtime.call;
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.annotation.SerializeIgnore;
 import org.evd.game.base.ISerializable;
-import org.evd.game.runtime.netty.NetChannel;
 
 @SerializeClass
 public abstract class CallBase implements ISerializable {
@@ -13,12 +12,12 @@ public abstract class CallBase implements ISerializable {
     public CallPoint to;
     /** 请求后回调contextid */
     public long id;
-    /** 运行时入站连接，仅用于本进程内分发，不参与序列化。 */
+    /** 运行时入站 Session 标识，仅用于本进程内分发，不参与序列化。 */
     @SerializeIgnore
-    private transient NetChannel sourceChannel;
-    /** 运行时出站连接标识，不参与序列化；未绑定为 -1，本地直连为 0。 */
+    private transient long sourceSessionId = -1L;
+    /** 运行时出站 Session 标识，不参与序列化；未绑定为 -1，本地直连为 0。 */
     @SerializeIgnore
-    private transient long outboundChannelId = -1L;
+    private transient long outboundSessionId = -1L;
 
     public long getId() {
         return id;
@@ -44,19 +43,19 @@ public abstract class CallBase implements ISerializable {
         this.to = to;
     }
 
-    public NetChannel getSourceChannel() {
-        return sourceChannel;
+    public long getSourceSessionId() {
+        return sourceSessionId;
     }
 
-    public void setSourceChannel(NetChannel sourceChannel) {
-        this.sourceChannel = sourceChannel;
+    public void setSourceSessionId(long sourceSessionId) {
+        this.sourceSessionId = sourceSessionId;
     }
 
-    public long getOutboundChannelId() {
-        return outboundChannelId;
+    public long getOutboundSessionId() {
+        return outboundSessionId;
     }
 
-    public void setOutboundChannelId(long outboundChannelId) {
-        this.outboundChannelId = outboundChannelId;
+    public void setOutboundSessionId(long outboundSessionId) {
+        this.outboundSessionId = outboundSessionId;
     }
 }

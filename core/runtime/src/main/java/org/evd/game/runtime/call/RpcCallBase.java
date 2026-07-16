@@ -25,6 +25,7 @@ public abstract class RpcCallBase extends CallBase {
         callResult.to = new CallPoint(this.from);
         callResult.id = this.id;
         callResult.methodKey = this.methodKey;
+        callResult.setSourceSessionId(getSourceSessionId());
         return callResult;
     }
 

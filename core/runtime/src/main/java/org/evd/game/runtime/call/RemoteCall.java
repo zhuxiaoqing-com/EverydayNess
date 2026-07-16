@@ -11,16 +11,12 @@ public class RemoteCall {
     String remoteNodeId;
     /** call数据 */
     NodeFrameChunk packet;
-    /** 入队时绑定的物理连接标识。 */
-    long expectedChannelId;
+    /** 入队时绑定的 RemoteSession 标识。 */
+    long expectedSessionId;
 
-    public RemoteCall(String remoteNodeId, NodeFrameChunk data) {
-        this(remoteNodeId, 0L, data);
-    }
-
-    public RemoteCall(String remoteNodeId, long expectedChannelId, NodeFrameChunk data) {
+    public RemoteCall(String remoteNodeId, long expectedSessionId, NodeFrameChunk data) {
         this.remoteNodeId = remoteNodeId;
-        this.expectedChannelId = expectedChannelId;
+        this.expectedSessionId = expectedSessionId;
         this.packet = data;
     }
 
@@ -32,8 +28,8 @@ public class RemoteCall {
 		return packet;
 	}
 
-    public long getExpectedChannelId() {
-        return expectedChannelId;
+    public long getExpectedSessionId() {
+        return expectedSessionId;
     }
 
 	@Override

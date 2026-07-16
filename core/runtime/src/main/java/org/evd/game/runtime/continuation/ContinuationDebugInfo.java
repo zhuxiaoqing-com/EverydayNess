@@ -15,17 +15,17 @@ public final class ContinuationDebugInfo {
     }
 
     public static abstract class RpcWaitDebugInfo extends DebugInfo {
-        /** 绑定 RPC 出站物理连接；仅用于本地等待匹配和调试，不参与序列化。 */
-        private volatile long channelId = -1L;
+        /** 绑定 RPC 出站 Session；仅用于本地等待匹配和调试，不参与序列化。 */
+        private volatile long sessionId = -1L;
 
         public abstract String getTargetNodeId();
 
-        public final long getChannelId() {
-            return channelId;
+        public final long getSessionId() {
+            return sessionId;
         }
 
-        public final void setChannelId(long channelId) {
-            this.channelId = channelId;
+        public final void setSessionId(long sessionId) {
+            this.sessionId = sessionId;
         }
     }
 
@@ -92,7 +92,7 @@ public final class ContinuationDebugInfo {
         @Override
         public String toString() {
             return "serviceRpc target=" + targetCallPoint + ", methodKey=" + methodKey
-                    + ", timeoutMillis=" + timeoutMillis + ", channelId=" + getChannelId();
+                    + ", timeoutMillis=" + timeoutMillis + ", sessionId=" + getSessionId();
         }
     }
 
@@ -119,7 +119,7 @@ public final class ContinuationDebugInfo {
         public String toString() {
             return "actorRpc actorId=" + actorId + ", actorAddress=" + actorAddress
                     + ", methodKey=" + methodKey + ", timeoutMillis=" + timeoutMillis
-                    + ", channelId=" + getChannelId();
+                    + ", sessionId=" + getSessionId();
         }
     }
 

@@ -284,13 +284,18 @@ public class Node extends TickCase{
             }
             return;
         }
-        RemoteNode remoteNode = remoteNodes.get(result.to.nodeId);
-        if (remoteNode == null) {
-            LogCore.remote.error("remote rpc rejection result cannot be delivered: node={}, remoteNode={}, waitId={}",
-                    id, result.to.nodeId, result.id);
-            return;
+        if (!sendCallResultOnSource(result)) {
+            LogCore.remote.warn("远程 RPC 结果原 Session 不可写，丢弃结果: node={}, remoteNode={}, sessionId={}, waitId={}",
+                    id, result.to.nodeId, result.getSourceSessionId(), result.id);
         }
-        remoteNode.sendCall(result);
+    }
+
+    boolean sendCallResultOnSource(CallResult result) {
+        if (result == null || result.to == null || result.to.nodeId == null) {
+            return false;
+        }
+        RemoteNode remoteNode = remoteNodes.get(result.to.nodeId);
+        return remoteNode != null && remoteNode.sendCallOnSession(result, result.getSourceSessionId());
     }
 
     /**
@@ -299,7 +304,7 @@ public class Node extends TickCase{
      */
     private void sendCall(RemoteCall call) {
         RemoteNode node = remoteNodes.get(call.getRemoteNodeId());
-        if (node == null || !node.send(call.getPacket(), call.getExpectedChannelId())) {
+        if (node == null || !node.send(call.getPacket(), call.getExpectedSessionId())) {
             LogCore.remote.error("发送Call请求失败: remoteNode={}, call={}", call.getRemoteNodeId(), call);
         }
     }
@@ -407,11 +412,11 @@ public class Node extends TickCase{
     /**
      * 发送请求
      * @param nodeId 目标 Node
-     * @param channelId 目标物理连接
+     * @param sessionId 目标 RemoteSession
      * @param buffer 序列化数据
      * @param bufferLength 有效数据长度
      */
-    public boolean flushCall_st(String nodeId, long channelId, byte[] buffer, int bufferLength) {
+    public boolean flushCall_st(String nodeId, long sessionId, byte[] buffer, int bufferLength) {
         // 同一Node下 无需走传输协议 内部直接接收即可
         if (id.equals(nodeId)) {
             InputStream input = new InputStream(buffer, 0, bufferLength);
@@ -423,7 +428,7 @@ public class Node extends TickCase{
             if (remoteNode == null) {
                 return false;
             }
-            remoteCalls.add(new RemoteCall(nodeId, channelId, NodeFrameChunk.wrap(buffer, bufferLength)));
+            remoteCalls.add(new RemoteCall(nodeId, sessionId, NodeFrameChunk.wrap(buffer, bufferLength)));
             return true;
         }
     }
@@ -431,27 +436,27 @@ public class Node extends TickCase{
     /**
      * 这里返回能发送，后面的所有不能发送都不再处理发送失败;
      */
-    public long captureChannelId(CallBase call) {
+    public RemoteSession captureRemoteSession(CallBase call) {
         if (call == null || call.to == null || call.to.nodeId == null) {
-            return -1L;
+            return null;
         }
         if (id.equals(call.to.nodeId)) {
-            return 0L;
+            return null;
         }
         RemoteNode remoteNode = remoteNodes.get(call.to.nodeId);
-        return remoteNode == null ? -1L : remoteNode.captureChannelId(call);
+        return remoteNode == null ? null : remoteNode.captureSession(call);
     }
 
-    /** 仅检查目标 channel 的连接状态，用于检查已序列化但尚未满帧的数据。 */
-    public boolean canSendOutboundConnection_nt(String nodeId, long channelId) {
-        if (nodeId == null || channelId < 0L) {
+    /** 仅检查目标 Session 的连接状态，用于检查已序列化但尚未满帧的数据。 */
+    public boolean canSendOutboundSession_nt(String nodeId, long sessionId) {
+        if (nodeId == null || sessionId < 0L) {
             return false;
         }
         if (id.equals(nodeId)) {
-            return channelId == 0L;
+            return sessionId == 0L;
         }
         RemoteNode remoteNode = remoteNodes.get(nodeId);
-        return remoteNode != null && remoteNode.isCurrentChannel(channelId);
+        return remoteNode != null && remoteNode.isCurrentSession(sessionId);
     }
 
     /**
@@ -462,7 +467,7 @@ public class Node extends TickCase{
         // 是否已读取到末尾
         while (!input.isAtEnd()) {
             CallBase call = input.read();
-            handleInboundCall(call);
+            handleInboundCall(call, null);
         }
     }
 
@@ -524,8 +529,7 @@ public class Node extends TickCase{
             InputStream input = new InputStream(receiveBuffer, 0, len);
             while (!input.isAtEnd()) {
                 CallBase call = input.read();
-                call.setSourceChannel(sourceChannel);
-                post(() -> handleInboundCall(call));
+                post(() -> handleInboundCall(call, sourceChannel));
             }
         } finally {
             BufferPool.deallocate(receiveBuffer);
@@ -543,15 +547,21 @@ public class Node extends TickCase{
     /** 仅在 Node 线程处理连接断开，保证与该连接已入队的入站消息保持顺序。 */
     private void handleChannelInactive_nt(NetChannel channel) {
         String remoteNodeId = channel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+        RemoteSession session = channel.getChannel().attr(ServerAttributeKey.remoteSession).get();
+        if (session != null) {
+            remoteNodeId = session.getRemoteNodeId();
+        }
         if (remoteNodeId == null) {
             return;
         }
         RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
-        if (remoteNode != null && remoteNode.onChannelInactive_nt(channel)) {
+        if (remoteNode != null && remoteNode.onChannelInactive_nt(channel, session)) {
             remoteNodeServices.remove(remoteNode.getRemoteId());
             rebuildServiceIndexes();
         }
-        failRpcWaitsForRemote_nt(remoteNodeId, channel.getChannelId());
+        if (session != null) {
+            failRpcWaitsForRemote_nt(remoteNodeId, session);
+        }
     }
 
     /**
@@ -566,22 +576,22 @@ public class Node extends TickCase{
         postedTasks.add(task);
     }
 
-    private void failRpcWaitsForRemote_nt(String remoteNodeId, long channelId) {
+    private void failRpcWaitsForRemote_nt(String remoteNodeId, RemoteSession session) {
         for (Service service : services.values()) {
             if (service == null) {
                 continue;
             }
             try {
                 service.post(() -> {
-                    int failed = service.failRpcWaitsForRemote(remoteNodeId, channelId);
+                    int failed = service.failRpcWaitsForRemote(remoteNodeId, session.getSessionId());
                     if (failed > 0) {
-                        LogCore.remote.warn("远程Node物理连接断开，结束对应连接RPC等待: localNode={}, remoteNode={}, channelId={}, service={}, count={}",
-                                id, remoteNodeId, channelId, service.getId(), failed);
+                        LogCore.remote.warn("远程Node物理连接断开，结束对应 Session RPC等待: localNode={}, remoteNode={}, sessionId={}, channelId={}, service={}, count={}",
+                                id, remoteNodeId, session.getSessionId(), session.getChannelId(), service.getId(), failed);
                     }
                 });
             } catch (RuntimeException e) {
-                LogCore.remote.error("远程Node断开时投递RPC等待清理失败: localNode={}, remoteNode={}, channelId={}, service={}",
-                        id, remoteNodeId, channelId, service.getId(), e);
+                LogCore.remote.error("远程Node断开时投递RPC等待清理失败: localNode={}, remoteNode={}, sessionId={}, channelId={}, service={}",
+                        id, remoteNodeId, session.getSessionId(), session.getChannelId(), service.getId(), e);
             }
         }
     }
@@ -589,8 +599,7 @@ public class Node extends TickCase{
     /**
      * 处理接收到的Call请求
      */
-    public void callHandle_snt(CallBase call) {
-        NetChannel sourceChannel = call.getSourceChannel();
+    public void callHandle_snt(CallBase call, NetChannel sourceChannel) {
         if (call.getFrom() == null || call.getTo() == null) {
             /*if (sourceChannel != null) {
                 sourceChannel.close();
@@ -612,7 +621,21 @@ public class Node extends TickCase{
                 LogCore.remote.error("收到未完成远程节点握手的非法消息: node={}, callType={}, remoteNode={}",
                         getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
                 sourceChannel.close();
-
+                return;
+            }
+            if (!(call instanceof CallNodeServicesSync) && call.getSourceSessionId() < 0L) {
+                LogCore.remote.error("收到未绑定 Session 的远程调用: node={}, callType={}, remoteNode={}",
+                        getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
+                sourceChannel.close();
+                return;
+            }
+            RemoteNode remoteNode = attrRemoteNodeId == null ? null : remoteNodes.get(attrRemoteNodeId);
+            if (!(call instanceof CallNodeServicesSync)
+                    && (remoteNode == null || !remoteNode.isCurrentSession(call.getSourceSessionId()))) {
+                LogCore.remote.error("收到已过期 Session 的远程调用: node={}, callType={}, remoteNode={}, sessionId={}",
+                        getId(), call.getClass().getSimpleName(), attrRemoteNodeId, call.getSourceSessionId());
+                sourceChannel.close();
+                return;
             }
             if(attrRemoteNodeId != null && !attrRemoteNodeId.equals(call.from.nodeId)) {
                 LogCore.remote.error("收到from.nodeId != attr.remoteId的非法消息: node={}, callType={}, from.remoteNode={}  attr.remoteId={}",
@@ -707,9 +730,13 @@ public class Node extends TickCase{
     /**
      * 统一处理入站Call，负责把节点路由阶段的业务拒绝转换为RPC失败响应。
      */
-    private void handleInboundCall(CallBase call) {
+    private void handleInboundCall(CallBase call, NetChannel sourceChannel) {
+        if (sourceChannel != null) {
+            RemoteSession sourceSession = sourceChannel.getChannel().attr(ServerAttributeKey.remoteSession).get();
+            call.setSourceSessionId(sourceSession == null ? -1L : sourceSession.getSessionId());
+        }
         try {
-            callHandle_snt(call);
+            callHandle_snt(call, sourceChannel);
         } catch (InboundBusinessException e) {
             LogCore.remote.error("rpc inbound rejected: node={}, from={}, to={}, callType={}, reason={}",
                     id, call.getFrom(), call.getTo(), call.getClass().getSimpleName(), e.getMessage());

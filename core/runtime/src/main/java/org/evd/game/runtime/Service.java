@@ -375,9 +375,9 @@ public class Service extends TickCase {
         rpcInboundDispatcher.handle(callResult);
     }
 
-    int failRpcWaitsForRemote(String remoteNodeId, long channelId) {
-        callTransport.discard(remoteNodeId, channelId);
-        return continuationRuntime.failWaitsForConnection(channelId);
+    int failRpcWaitsForRemote(String remoteNodeId, long sessionId) {
+        callTransport.discard(remoteNodeId, sessionId);
+        return continuationRuntime.failWaitsForSession(sessionId);
     }
 
     public CallPoint getCallPoint() {

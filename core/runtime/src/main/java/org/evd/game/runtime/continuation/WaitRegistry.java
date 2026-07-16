@@ -102,18 +102,18 @@ public final class WaitRegistry {
         return true;
     }
 
-    public boolean bindTransport(long waitId, long channelId) {
+    public boolean bindTransport(long waitId, long sessionId) {
         WaitContext context = waitContexts.get(waitId);
-        if (context == null || context.type != WaitType.RPC || channelId < 0L
+        if (context == null || context.type != WaitType.RPC || sessionId < 0L
                 || !(context.debugInfo instanceof ContinuationDebugInfo.RpcWaitDebugInfo rpcWaitDebugInfo)) {
             return false;
         }
-        rpcWaitDebugInfo.setChannelId(channelId);
+        rpcWaitDebugInfo.setSessionId(sessionId);
         return true;
     }
 
-    public int failForConnection(long channelId) {
-        if (channelId < 0L) {
+    public int failForSession(long sessionId) {
+        if (sessionId < 0L) {
             return 0;
         }
 
@@ -122,7 +122,7 @@ public final class WaitRegistry {
             WaitContext waitContext = entry.getValue();
             if (waitContext.type != WaitType.RPC
                     || !(waitContext.debugInfo instanceof ContinuationDebugInfo.RpcWaitDebugInfo rpcWaitDebugInfo)
-                    || channelId != rpcWaitDebugInfo.getChannelId()) {
+                    || sessionId != rpcWaitDebugInfo.getSessionId()) {
                 continue;
             }
 

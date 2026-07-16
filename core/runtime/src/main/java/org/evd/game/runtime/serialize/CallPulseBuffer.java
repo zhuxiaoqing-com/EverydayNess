@@ -1,15 +1,7 @@
 package org.evd.game.runtime.serialize;
 
 import org.evd.game.runtime.call.CallBase;
-import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.Node;
-import org.evd.game.runtime.Service;
-import org.evd.game.runtime.continuation.Task;
-import org.evd.game.runtime.misc.BufferPool;
-import org.evd.game.runtime.support.exception.RpcTransportException;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -19,23 +11,20 @@ import java.util.Map;
 public class CallPulseBuffer implements AutoCloseable{
 	/** 目标Node名称 */
 	private final String targetNodeId;
-	/** 调用所属的 Service，用于结束被丢弃调用关联的 wait。 */
-	private final Service service;
 	/**
-	 * Service 线程顺序刷新各 channel；同一时刻只有一个有效 channel，
+	 * Service 线程顺序刷新各 Session；同一时刻只有一个有效 Session，
 	 * 因此复用同一输出流即可，避免为每次刷新反复申请缓冲。
 	 */
 	private final OutputStream buffer = new OutputStream();
 
-	private long channelId;
+	private final long sessionId;
 	/**
 	 * 构造函数
 	 * @param targetNodeId 目标 Node
 	 */
-	public CallPulseBuffer(String targetNodeId, long channelId, Service service) {
+	public CallPulseBuffer(String targetNodeId, long sessionId) {
 		this.targetNodeId = targetNodeId;
-		this.channelId = channelId;
-		this.service = service;
+		this.sessionId = sessionId;
 	}
 	
 	/**
@@ -55,13 +44,13 @@ public class CallPulseBuffer implements AutoCloseable{
 		}
 
 		try {
-			if (!node.canSendOutboundConnection_nt(targetNodeId, channelId)) {
+			if (!node.canSendOutboundSession_nt(targetNodeId, sessionId)) {
 				org.evd.game.runtime.support.LogCore.remote.warn(
-						"出站 channel 已失效，跳过该 channel 缓冲: targetNode={}, channelId={}",
-						targetNodeId, channelId);
+						"出站 Session 已失效，跳过该 Session 缓冲: targetNode={}, sessionId={}",
+						targetNodeId, sessionId);
 				return;
 			}
-			node.flushCall_st(targetNodeId, channelId, buffer.getBuffer(), buffer.getLength());
+			node.flushCall_st(targetNodeId, sessionId, buffer.getBuffer(), buffer.getLength());
 		} finally {
 			buffer.reset();
 		}
