@@ -11,16 +11,23 @@ import java.util.concurrent.atomic.AtomicLong;
  * 因而旧链路断开时可以只结束旧 Session 的 RPC 等待，不会影响重连后的新链路。</p>
  */
 public final class RemoteSession {
+    public enum Direction {
+        OUTBOUND,
+        INBOUND
+    }
+
     private static final AtomicLong SESSION_ID_ALLOC = new AtomicLong();
 
     private final long sessionId;
     private final String remoteNodeId;
     private final NetChannel channel;
+    private final Direction direction;
 
-    RemoteSession(String remoteNodeId, NetChannel channel) {
+    RemoteSession(String remoteNodeId, NetChannel channel, Direction direction) {
         this.sessionId = SESSION_ID_ALLOC.incrementAndGet();
         this.remoteNodeId = remoteNodeId;
         this.channel = channel;
+        this.direction = direction;
     }
 
     public long getSessionId() {
@@ -37,6 +44,14 @@ public final class RemoteSession {
 
     public NetChannel getChannel() {
         return channel;
+    }
+
+    public boolean isOutbound() {
+        return direction == Direction.OUTBOUND;
+    }
+
+    public boolean isInbound() {
+        return direction == Direction.INBOUND;
     }
 
     public boolean matches(NetChannel netChannel) {

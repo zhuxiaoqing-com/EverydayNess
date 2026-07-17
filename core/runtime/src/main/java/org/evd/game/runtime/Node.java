@@ -295,7 +295,7 @@ public class Node extends TickCase{
             return false;
         }
         RemoteNode remoteNode = remoteNodes.get(result.to.nodeId);
-        return remoteNode != null && remoteNode.sendCallOnSession(result, result.getSourceSessionId());
+        return remoteNode != null && remoteNode.sendCallOnInboundSession(result, result.getSourceSessionId());
     }
 
     /**
@@ -456,7 +456,7 @@ public class Node extends TickCase{
             return sessionId == 0L;
         }
         RemoteNode remoteNode = remoteNodes.get(nodeId);
-        return remoteNode != null && remoteNode.isCurrentSession(sessionId);
+        return remoteNode != null && remoteNode.isCurrentOutboundSession(sessionId);
     }
 
     /**
@@ -555,11 +555,12 @@ public class Node extends TickCase{
             return;
         }
         RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
+        boolean outboundSession = remoteNode != null && remoteNode.isOutboundSession(session);
         if (remoteNode != null && remoteNode.onChannelInactive_nt(channel, session)) {
             remoteNodeServices.remove(remoteNode.getRemoteId());
             rebuildServiceIndexes();
         }
-        if (session != null) {
+        if (outboundSession) {
             failRpcWaitsForRemote_nt(remoteNodeId, session);
         }
     }
@@ -637,6 +638,18 @@ public class Node extends TickCase{
                 sourceChannel.close();
                 return;
             }
+            if (call instanceof RpcCallBase && !remoteNode.isCurrentInboundSession(call.getSourceSessionId())) {
+                LogCore.remote.error("收到非入站 Session 的远程 RPC 请求: node={}, callType={}, remoteNode={}, sessionId={}",
+                        getId(), call.getClass().getSimpleName(), attrRemoteNodeId, call.getSourceSessionId());
+                sourceChannel.close();
+                return;
+            }
+            if (call instanceof CallResult && !remoteNode.isCurrentOutboundSession(call.getSourceSessionId())) {
+                LogCore.remote.error("收到非出站 Session 的远程 RPC 响应: node={}, remoteNode={}, sessionId={}",
+                        getId(), attrRemoteNodeId, call.getSourceSessionId());
+                sourceChannel.close();
+                return;
+            }
             if(attrRemoteNodeId != null && !attrRemoteNodeId.equals(call.from.nodeId)) {
                 LogCore.remote.error("收到from.nodeId != attr.remoteId的非法消息: node={}, callType={}, from.remoteNode={}  attr.remoteId={}",
                         getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId, attrRemoteNodeId);
@@ -706,7 +719,8 @@ public class Node extends TickCase{
             case CallNodeServicesSync callNodeServicesSync: {
                 RemoteNode node = remoteNodes.get(remoteId);
                 if (node == null) {
-                    node = addRemoteNode(remoteId, callNodeServicesSync.getAddr());
+                    // 动态发现的远端同样主动回连，保证双方各自拥有独立的出站 RPC 链路。
+                    node = addRemoteNode(remoteId, callNodeServicesSync.getAddr(), true);
                 }
                 if (callNodeServicesSync.isInit()) {
                     node.onNodeServicesSync_nt(sourceChannel);
@@ -783,7 +797,10 @@ public class Node extends TickCase{
         call.from = new CallPoint(id, null);
         call.to = new CallPoint(remoteNodeId, null);
         call.setServiceStatuses(buildLocalServiceStatuses_nt());
-        remoteNode.sendCall(call);
+        if (!remoteNode.sendCallOnInboundSession(call, ping.getSourceSessionId())) {
+            LogCore.remote.warn("远程Node Ping 原 Session 不可写，丢弃 Pong: localNode={}, remoteNode={}, sessionId={}",
+                    id, remoteNodeId, ping.getSourceSessionId());
+        }
     }
 
     private void onRemotePong_nt(String remoteNodeId, NetChannel sourceChannel, CallPong pong) {

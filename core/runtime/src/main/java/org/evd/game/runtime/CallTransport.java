@@ -30,6 +30,13 @@ final class CallTransport {
         if (call == null) {
             throw new RpcTransportException("rpc transport unavailable: null call");
         }
+
+        // NodeId一样 直接原地转发
+        if (service.node.getId().equals(call.to.getNodeId())) {
+            node.post(() -> node.callHandle_snt(call, null));
+            return;
+        }
+
         if (call instanceof CallResult callResult && callResult.getSourceSessionId() >= 0L) {
             if (!node.sendCallResultOnSource(callResult)) {
                 LogCore.remote.warn("远程 RPC 结果原 Session 不可写，丢弃结果: localNode={}, remoteNode={}, sessionId={}, waitId={}",

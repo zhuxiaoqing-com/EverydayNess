@@ -59,3 +59,23 @@ RPC
 3.固定角色连接，就是哪个服务器是客户端，哪个服务器是服务器固定死;
 4.服务发现+懒连接，懒连接就是第一次发送RPC的时候才建立连接，先把要发送的消息缓存起来，然后等链接上以后遍历发送，ET是懒连接的;
 5.就是都是平等的服务器，但是用服务器id比较大小，大的或者小的当客户端连接，这样的好处和固定角色连接一样，服务器上线下线可以有明确的回调，可以做一些服务器缓存以及一致性,监听服务器上线或者下线;
+
+
+将rpc改成懒加载双链接+注册中心实现node上下线;实际看service关心哪些，才连接哪些;
+
+在org.evd.game.runtime.CallTransport.send的时候，如果是同一个node就直接调用org.evd.game.runtime.Node.handleInboundCall,
+注册进去，如果不是同一个Node,就根据是否是callReturn，来进行检测session要往出口发 还是入口发，
+然后这RemoteNode的两个session都写一起好吗，这个我也不清楚，感觉remoteNode里应该存的是出口的session，Node里应该弄个像ChannelManager一样，
+存一个入口的session;
+
+
+
+
+
+
+
+
+
+
+
+
