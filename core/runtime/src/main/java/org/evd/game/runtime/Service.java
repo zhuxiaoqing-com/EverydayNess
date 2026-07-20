@@ -29,7 +29,9 @@ import org.evd.game.runtime.rpcProxyInterface.RpcMethodInvoker;
 import org.evd.game.runtime.rpcProxyInterface.RpcOutboundGateway;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.exception.SysException;
+import org.evd.game.runtime.util.DeadlineTimerWheelScheduler;
 import org.evd.game.runtime.util.TimerScheduler;
 
 import java.util.ArrayList;
@@ -119,7 +121,7 @@ public class Service extends TickCase {
     /**
      * 通用定时调度器
      */
-    private final TimerScheduler timerScheduler = new TimerScheduler(
+    private final TimerScheduler timerScheduler = new DeadlineTimerWheelScheduler(
             (timerId, failure) -> LogCore.core.error(
                     "service timer callback failed: service={}, timerId={}", id, timerId, failure));
     /**
@@ -127,13 +129,13 @@ public class Service extends TickCase {
      */
     private final ContinuationRuntime continuationRuntime = new ContinuationRuntime(
             this,
-            timerScheduler,
             this::onContinuationComplete);
     /**
      * 通用协程锁
      */
     private final CoroutineLockManager coroutineLockManager = new CoroutineLockManager(
-            continuationRuntime.waitRegistry(),
+            timerScheduler,
+            continuationRuntime,
             continuationRuntime::requireRunning,
             this::getWaitBaseTimeInternal,
             id);
@@ -202,7 +204,7 @@ public class Service extends TickCase {
         this.scheduledName = scheduledName;
         this.scope = new ContinuationScope(name);
         this.callPoint = new CallPoint(node.getId(), name);
-        this.callTransport = new CallTransport(node, this);
+        this.callTransport = new CallTransport(node, this, timerScheduler);
         this.messageSender = new MessageSender(this);
         this.processInnerSender = new ProcessInnerSender(this);
         this.rpcOutboundGateway = new RpcOutboundGateway(this);
@@ -370,6 +372,23 @@ public class Service extends TickCase {
         callTransport.send(call);
     }
 
+    public CallTransport getCallTransport() {
+        return callTransport;
+    }
+
+    public boolean handleRpcResult(CallResult callResult) {
+        if (callResult.success) {
+            return callTransport.completePendingRpc(callResult.id, callResult.result);
+        }
+        return callTransport.failPendingRpc(
+                callResult.id,
+                new RpcCallException(
+                        callResult.errorCode,
+                        "rpc call failed: service=" + id + ", waitId=" + callResult.id
+                                + ", methodKey=" + callResult.methodKey
+                                + ", errorCode=" + callResult.errorCode + ", message=" + callResult.errorMessage));
+    }
+
     /** 仅在 Service 线程处理入站 RPC 结果，保持其与断链任务的 FIFO 顺序。 */
     void handleInboundResult_st(CallResult callResult) {
         rpcInboundDispatcher.handle(callResult);
@@ -377,7 +396,7 @@ public class Service extends TickCase {
 
     int failRpcWaitsForRemote(String remoteNodeId, long sessionId) {
         callTransport.discard(remoteNodeId, sessionId);
-        return continuationRuntime.failWaitsForSession(sessionId);
+        return callTransport.failPendingRpcForSession(sessionId);
     }
 
     public CallPoint getCallPoint() {
@@ -580,10 +599,6 @@ public class Service extends TickCase {
         }
     }
 
-    public void unHoldContinuation(Task.ContinuationWrapper conTask) {
-        continuationRuntime.unhold(conTask);
-    }
-
     private void onContinuationComplete(Task.ContinuationWrapper continuation) {
         if (!coroutineLockManager.owns(continuation)) {
             return;
@@ -634,11 +649,12 @@ public class Service extends TickCase {
             return;
         }
         Task.ContinuationWrapper thisContinuation = requireRunningContinuation();
-        registerWait(
-                delayMillis,
-                WaitType.SLEEP,
-                (continuation, waitId) -> continuation.setResult(null),
-                new ContinuationDebugInfo.SleepDebugInfo(delayMillis));
+        thisContinuation.prepareWait();
+        thisContinuation.markWaiting(new ContinuationDebugInfo.SleepDebugInfo(delayMillis));
+        timerScheduler.scheduleDelay(getWaitBaseTime(), delayMillis, () -> {
+            thisContinuation.setResult(null);
+            continuationRuntime.queue(thisContinuation, Task.Reason.TIMER);
+        });
         thisContinuation.waitResult();
     }
 
@@ -648,13 +664,6 @@ public class Service extends TickCase {
 
     public Task.ContinuationWrapper requireRunningContinuation() {
         return continuationRuntime.requireRunning();
-    }
-
-    public long registerWait(long timeoutMillis,
-                      WaitType type,
-                      ContinuationRuntime.WaitTimeoutHandler timeoutHandler,
-                      ContinuationDebugInfo.DebugInfo waitDebugInfo) {
-        return continuationRuntime.registerWait(timeoutMillis, getWaitBaseTime(), type, timeoutHandler, waitDebugInfo);
     }
 
     protected final Task.ContinuationWrapper currentContinuation() {
@@ -679,22 +688,30 @@ public class Service extends TickCase {
 
     protected final <T> T awaitCompletionStage(CompletionStage<T> stage, long timeoutMillis) {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
-        long waitId = registerWait(
-                timeoutMillis,
-                WaitType.COMPLETION_STAGE,
-                (ctx, timeoutWaitId) -> ctx.setFailure(new SysException("async wait timeout: service={}, waitId={}, timeoutMillis={}",
-                        id, timeoutWaitId, timeoutMillis)),
-                new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));
+        continuation.prepareWait();
+        continuation.markWaiting(new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));
+        long timerId = timeoutMillis > 0L
+                ? timerScheduler.scheduleDelay(getWaitBaseTime(), timeoutMillis, () -> {
+                    continuation.setFailure(new SysException("async wait timeout: service={}, timeoutMillis={}",
+                            id, timeoutMillis));
+                    continuationRuntime.queue(continuation, Task.Reason.TIMER);
+                })
+                : 0L;
         stage.whenComplete((result, throwable) -> post(() -> {
+            if (timerId != 0L && !timerScheduler.cancel(timerId)) {
+                return;
+            }
             if (throwable != null) {
                 Throwable cause = unwrapCompletionFailure(throwable);
                 RuntimeException failure = cause instanceof RuntimeException runtimeException
                         ? runtimeException
                         : new SysException(cause);
-                continuationRuntime.failWait(waitId, failure, Task.Reason.RPC);
+                continuation.setFailure(failure);
+                continuationRuntime.queue(continuation, Task.Reason.RPC);
                 return;
             }
-            continuationRuntime.completeWait(waitId, result, Task.Reason.RPC);
+            continuation.setResult(result);
+            continuationRuntime.queue(continuation, Task.Reason.RPC);
         }));
         @SuppressWarnings("unchecked")
         T result = (T) continuation.waitResult();
@@ -821,6 +838,7 @@ public class Service extends TickCase {
     @Override
     public void onClose() {
         super.onClose();
+        callTransport.close();
         coroutineLockManager.close();
         continuationRuntime.close();
         timerScheduler.close();
@@ -829,7 +847,6 @@ public class Service extends TickCase {
         if (messageLocationSender != null) {
             messageLocationSender.close();
         }
-        callTransport.close();
     }
 
     /**

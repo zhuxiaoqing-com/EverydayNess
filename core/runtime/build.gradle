@@ -26,6 +26,7 @@ dependencies {
 
     implementation group: 'org.zeromq', name: 'jeromq', version: '0.5.4'
     implementation group: 'org.quartz-scheduler', name: 'quartz', version: '2.3.2'
+    implementation 'org.agrona:agrona:2.5.0'
 
     implementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')

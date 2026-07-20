@@ -1,6 +1,7 @@
 package org.evd.game.runtime.continuation;
 
 import org.evd.game.runtime.support.exception.CoroutineLockTimeoutException;
+import org.evd.game.runtime.util.TimerScheduler;
 
 import java.util.*;
 import java.util.function.LongSupplier;
@@ -38,17 +39,18 @@ public final class CoroutineLockManager {
 
     private static final class ReadyContinuation {
         private final Task.ContinuationWrapper continuation;
-        private final long waitId;
+        private final long timerId;
 
-        private ReadyContinuation(Task.ContinuationWrapper continuation, long waitId) {
+        private ReadyContinuation(Task.ContinuationWrapper continuation, long timerId) {
             this.continuation = continuation;
-            this.waitId = waitId;
+            this.timerId = timerId;
         }
     }
 
     private static final class WaitingContinuation {
         private final Task.ContinuationWrapper continuation;
         private final long waitId;
+        private long timerId;
 
         private WaitingContinuation(Task.ContinuationWrapper continuation, long waitId) {
             this.continuation = continuation;
@@ -61,20 +63,24 @@ public final class CoroutineLockManager {
         private final ArrayDeque<WaitingContinuation> waiters = new ArrayDeque<>();
     }
 
-    private final WaitRegistry waitRegistry;
+    private final TimerScheduler timerScheduler;
+    private final ContinuationRuntime continuationRuntime;
     private final Supplier<Task.ContinuationWrapper> currentContinuation;
     private final LongSupplier now;
     private final String serviceId;
     private final Map<LockKey, LockQueue> queues = new HashMap<>();
     private final IdentityHashMap<Task.ContinuationWrapper, LockKey> owners = new IdentityHashMap<>();
     private final IdentityHashMap<Task.ContinuationWrapper, LockKey> waiters = new IdentityHashMap<>();
+    private long waitIdAlloc = 1L;
     private boolean closed;
 
-    public CoroutineLockManager(WaitRegistry waitRegistry,
+    public CoroutineLockManager(TimerScheduler timerScheduler,
+                                ContinuationRuntime continuationRuntime,
                                 Supplier<Task.ContinuationWrapper> currentContinuation,
                                 LongSupplier now,
                                 String serviceId) {
-        this.waitRegistry = waitRegistry;
+        this.timerScheduler = timerScheduler;
+        this.continuationRuntime = continuationRuntime;
         this.currentContinuation = currentContinuation;
         this.now = now;
         this.serviceId = serviceId;
@@ -93,21 +99,18 @@ public final class CoroutineLockManager {
             return;
         }
 
-        long waitId = waitRegistry.register(continuation, timeoutMillis, now.getAsLong(), WaitType.LOCK, (ctx, timeoutWaitId) -> {
-            if (!cancelWait(ctx)) {
-                return;
-            }
-            ctx.setFailure(new CoroutineLockTimeoutException(
-                    serviceId,
-                    type,
-                    key,
-                    timeoutWaitId,
-                    timeoutMillis));
-        }, new ContinuationDebugInfo.LockWaitDebugInfo(type, key, timeoutMillis));
+        continuation.prepareWait();
+        continuation.markWaiting(new ContinuationDebugInfo.LockWaitDebugInfo(type, key, timeoutMillis));
         try {
-            addWaiter(type, key, continuation, waitId);
+            WaitingContinuation waitingContinuation = addWaiter(type, key, continuation, waitIdAlloc++);
+            if (timeoutMillis > 0L) {
+                waitingContinuation.timerId = timerScheduler.scheduleDelay(
+                        now.getAsLong(),
+                        timeoutMillis,
+                        () -> timeoutWait(type, key, timeoutMillis, waitingContinuation));
+            }
         } catch (RuntimeException failure) {
-            waitRegistry.cancel(waitId);
+            cancelWait(continuation);
             throw failure;
         }
         continuation.waitResult();
@@ -123,14 +126,11 @@ public final class CoroutineLockManager {
             return;
         }
 
-        if (next.waitId == 0) {
-            release(next.continuation);
-            return;
+        if (next.timerId != 0L) {
+            timerScheduler.cancel(next.timerId);
         }
-        if (!waitRegistry.complete(next.waitId, null, Task.Reason.UNLOCK)) {
-            release(next.continuation);
-            return;
-        }
+        next.continuation.setResult(null);
+        continuationRuntime.queue(next.continuation, Task.Reason.UNLOCK);
     }
 
     private boolean tryAcquire(LockType type, Object key, Task.ContinuationWrapper continuation) {
@@ -161,7 +161,7 @@ public final class CoroutineLockManager {
         return false;
     }
 
-    private void addWaiter(LockType type, Object key, Task.ContinuationWrapper continuation, long waitId) {
+    private WaitingContinuation addWaiter(LockType type, Object key, Task.ContinuationWrapper continuation, long waitId) {
         LockKey lockKey = new LockKey(type, key);
         LockQueue queue = queues.computeIfAbsent(lockKey, ignore -> new LockQueue());
         if (queue.owner == null) {
@@ -173,7 +173,9 @@ public final class CoroutineLockManager {
         if (waiters.put(continuation, lockKey) != null) {
             throw new IllegalStateException("coroutine lock waiter already registered: " + key);
         }
-        queue.waiters.addLast(new WaitingContinuation(continuation, waitId));
+        WaitingContinuation waitingContinuation = new WaitingContinuation(continuation, waitId);
+        queue.waiters.addLast(waitingContinuation);
+        return waitingContinuation;
     }
 
     private boolean cancelWait(Task.ContinuationWrapper continuation) {
@@ -223,7 +225,7 @@ public final class CoroutineLockManager {
             }
             queue.owner = next.continuation;
             owners.put(next.continuation, lockKey);
-            return new ReadyContinuation(next.continuation, next.waitId);
+            return new ReadyContinuation(next.continuation, next.timerId);
         }
 
         queue.owner = null;
@@ -262,9 +264,34 @@ public final class CoroutineLockManager {
     }
 
     public void close() {
+        List<Long> timerIds = new ArrayList<>();
+        for (LockQueue queue : queues.values()) {
+            for (WaitingContinuation waiter : queue.waiters) {
+                if (waiter.timerId != 0L) {
+                    timerIds.add(waiter.timerId);
+                }
+            }
+        }
+        timerScheduler.cancelAll(timerIds);
         closed = true;
         queues.clear();
         owners.clear();
         waiters.clear();
+    }
+
+    private void timeoutWait(LockType type,
+                             Object key,
+                             long timeoutMillis,
+                             WaitingContinuation waitingContinuation) {
+        if (!cancelWait(waitingContinuation.continuation)) {
+            return;
+        }
+        waitingContinuation.continuation.setFailure(new CoroutineLockTimeoutException(
+                serviceId,
+                type,
+                key,
+                waitingContinuation.waitId,
+                timeoutMillis));
+        continuationRuntime.queue(waitingContinuation.continuation, Task.Reason.TIMER);
     }
 }

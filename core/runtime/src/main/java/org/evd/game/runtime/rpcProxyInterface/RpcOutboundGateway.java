@@ -3,9 +3,6 @@ package org.evd.game.runtime.rpcProxyInterface;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
-import org.evd.game.runtime.continuation.ContinuationRuntime;
-import org.evd.game.runtime.continuation.Task;
-import org.evd.game.runtime.continuation.WaitType;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
@@ -35,27 +32,14 @@ public final class RpcOutboundGateway {
             throw new SysException("rpc callWait requires needResult=true: service={}, callType={}, target={}, methodKey={}",
                     service.getId(), call.getClass().getSimpleName(), call.getTo(), call.getMethodKey());
         }
-        ContinuationRuntime continuationRuntime = service.continuationRuntime();
-        Task.ContinuationWrapper continuation = continuationRuntime.requireRunning();
         ContinuationDebugInfo.ServiceRpcWaitDebugInfo debugInfo =
                 new ContinuationDebugInfo.ServiceRpcWaitDebugInfo(call, timeoutMillis);
-        long waitId = continuationRuntime.registerWait(
+        return service.getCallTransport().awaitRpcCall(
+                call,
                 timeoutMillis,
-                service.getWaitBaseTimeInternal(),
-                WaitType.RPC,
-                (ctx, timeoutWaitId) -> ctx.setFailure(
-                        new RpcCallTimeoutException(service.getId(), timeoutWaitId, timeoutMillis, call.getTo(), call.getMethodKey())),
-                debugInfo);
-
-        try {
-            call.setId(waitId);
-            send(call);
-        } catch (Exception e) {
-            continuationRuntime.cancelWait(waitId);
-            throw e;
-        }
-
-        return continuation.waitResult();
+                debugInfo,
+                timeoutWaitId -> new RpcCallTimeoutException(
+                        service.getId(), timeoutWaitId, timeoutMillis, call.getTo(), call.getMethodKey()));
     }
 
     public void sendClientCmd(CallPoint toCallPoint, ClientSessionRef session, int msgId, Chunk body) {

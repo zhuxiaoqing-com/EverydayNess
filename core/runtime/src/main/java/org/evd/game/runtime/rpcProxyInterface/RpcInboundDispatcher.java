@@ -6,7 +6,6 @@ import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.ContinuationRuntime;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.exception.SysException;
 
@@ -26,19 +25,7 @@ public final class RpcInboundDispatcher {
             service.continuationRuntime().createAndEnterQueue(() -> dispatch(call), null, Task.Reason.RPC, new ContinuationDebugInfo.RpcDebugInfo(call));
             return;
         } else if(callBase instanceof CallResult callResult){
-            boolean completed;
-            if (callResult.success) {
-                completed = continuationRuntime.completeWait(callResult.id, callResult.result, Task.Reason.RPC);
-            } else {
-                completed = continuationRuntime.failWait(
-                        callResult.id,
-                        new RpcCallException(
-                                callResult.errorCode,
-                                "rpc call failed: service=" + service.getId() + ", waitId=" + callResult.id
-                                        + ", methodKey=" + callResult.methodKey
-                                        + ", errorCode=" + callResult.errorCode + ", message=" + callResult.errorMessage),
-                        Task.Reason.RPC);
-            }
+            boolean completed = service.handleRpcResult(callResult);
             if (!completed) {
                 LogCore.core.warn("callback is null or timeout, waitId={}, methodKey={}, success={}, errorCode={}, message={}",
                         callResult.id, callResult.methodKey, callResult.success, callResult.errorCode, callResult.errorMessage);
