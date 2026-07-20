@@ -8,7 +8,7 @@ import java.util.List;
 public class NodeInfo {
     private String name;
     private String addr;
-    /** 历史单链路选主配置；双向 RPC 链路不再使用该值。 */
+    /** 链路优先级：低层级主动连接高层级；同层级再按 nodeId 比较。 */
     private int linkLevel;
     private AddressInfo addressInfo;
     private List<ScheduleInfo> schedule;
@@ -54,6 +54,9 @@ public class NodeInfo {
     }
 
     public static boolean needConnect(NodeInfo localNode, NodeInfo remoteNode) {
-        return true;
+        if (localNode.getLinkLevel() != remoteNode.getLinkLevel()) {
+            return localNode.getLinkLevel() < remoteNode.getLinkLevel();
+        }
+        return localNode.getName().compareTo(remoteNode.getName()) > 0;
     }
 }
