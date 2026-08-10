@@ -206,7 +206,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         }
 
         try {
-            Map<K, V> tempMap = modifyTRecordCache.stream().collect(Collectors.toMap(TRecord::getKey, TRecord::getValue));
+            Map<K, V> tempMap = removeTRecordCache.stream().collect(Collectors.toMap(TRecord::getKey, TRecord::getValue));
             removeSuccess = dbExec(createBatchRemoveDBReq(tempMap), callPoint);
         } catch (Exception e) {
             logger.error("checkpoint removeCache fail table {} ", this.getName(), e);
@@ -350,9 +350,15 @@ public abstract class TTable<K, V extends DirtyObject> {
 
 
     public void close() {
+        close(true);
+    }
+
+    void close(boolean runCheckpoint) {
         long currTime = System.currentTimeMillis();
         logger.info("{}  table stop begin {}  ", getName(), mdb.service.getId());
-        checkpoint(true);
+        if (runCheckpoint) {
+            checkpoint(true);
+        }
         cache.clear();
         long endTime = System.currentTimeMillis();
         logger.info("{}  mdb stop end {}  costMill {}", getName(), mdb.service.getId(), endTime - currTime);

@@ -378,10 +378,10 @@ public class Service extends TickCase {
 
     public boolean handleRpcResult(CallResult callResult) {
         if (callResult.success) {
-            return callTransport.completePendingRpc(callResult.id, callResult.result);
+            return callTransport.completePendingRpc(callResult);
         }
         return callTransport.failPendingRpc(
-                callResult.id,
+                callResult,
                 new RpcCallException(
                         callResult.errorCode,
                         "rpc call failed: service=" + id + ", waitId=" + callResult.id
@@ -652,8 +652,7 @@ public class Service extends TickCase {
         thisContinuation.prepareWait();
         thisContinuation.markWaiting(new ContinuationDebugInfo.SleepDebugInfo(delayMillis));
         timerScheduler.scheduleDelay(getWaitBaseTime(), delayMillis, () -> {
-            thisContinuation.setResult(null);
-            continuationRuntime.queue(thisContinuation, Task.Reason.TIMER);
+            continuationRuntime.resume(thisContinuation, null, Task.Reason.TIMER);
         });
         thisContinuation.waitResult();
     }
@@ -670,20 +669,20 @@ public class Service extends TickCase {
         return requireRunningContinuation();
     }
 
-    protected final void resumeContinuation(Task.ContinuationWrapper continuation, Object result) {
+    protected final void resumeContinuation(Task.ContinuationWrapper continuation,
+                                            Object result) {
         if (continuation == null) {
             return;
         }
-        continuation.setResult(result);
-        continuationRuntime.queue(continuation, Task.Reason.RPC);
+        continuationRuntime.resume(continuation, result, Task.Reason.RPC);
     }
 
-    protected final void failContinuation(Task.ContinuationWrapper continuation, RuntimeException failure) {
+    protected final void failContinuation(Task.ContinuationWrapper continuation,
+                                          RuntimeException failure) {
         if (continuation == null) {
             return;
         }
-        continuation.setFailure(failure);
-        continuationRuntime.queue(continuation, Task.Reason.RPC);
+        continuationRuntime.fail(continuation, failure, Task.Reason.RPC);
     }
 
     protected final <T> T awaitCompletionStage(CompletionStage<T> stage, long timeoutMillis) {
@@ -692,27 +691,33 @@ public class Service extends TickCase {
         continuation.markWaiting(new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));
         long timerId = timeoutMillis > 0L
                 ? timerScheduler.scheduleDelay(getWaitBaseTime(), timeoutMillis, () -> {
-                    continuation.setFailure(new SysException("async wait timeout: service={}, timeoutMillis={}",
-                            id, timeoutMillis));
-                    continuationRuntime.queue(continuation, Task.Reason.TIMER);
+                    continuationRuntime.fail(
+                            continuation,
+                            new SysException("async wait timeout: service={}, timeoutMillis={}", id, timeoutMillis),
+                            Task.Reason.TIMER);
                 })
                 : 0L;
-        stage.whenComplete((result, throwable) -> post(() -> {
-            if (timerId != 0L && !timerScheduler.cancel(timerId)) {
-                return;
+        try {
+            stage.whenComplete((result, throwable) -> post(() -> {
+                if (timerId != 0L && !timerScheduler.cancel(timerId)) {
+                    return;
+                }
+                if (throwable != null) {
+                    Throwable cause = unwrapCompletionFailure(throwable);
+                    RuntimeException failure = cause instanceof RuntimeException runtimeException
+                            ? runtimeException
+                            : new SysException(cause);
+                    continuationRuntime.fail(continuation, failure, Task.Reason.RPC);
+                    return;
+                }
+                continuationRuntime.resume(continuation, result, Task.Reason.RPC);
+            }));
+        } catch (RuntimeException | Error registrationFailure) {
+            if (timerId != 0L) {
+                timerScheduler.cancel(timerId);
             }
-            if (throwable != null) {
-                Throwable cause = unwrapCompletionFailure(throwable);
-                RuntimeException failure = cause instanceof RuntimeException runtimeException
-                        ? runtimeException
-                        : new SysException(cause);
-                continuation.setFailure(failure);
-                continuationRuntime.queue(continuation, Task.Reason.RPC);
-                return;
-            }
-            continuation.setResult(result);
-            continuationRuntime.queue(continuation, Task.Reason.RPC);
-        }));
+            throw registrationFailure;
+        }
         @SuppressWarnings("unchecked")
         T result = (T) continuation.waitResult();
         return result;

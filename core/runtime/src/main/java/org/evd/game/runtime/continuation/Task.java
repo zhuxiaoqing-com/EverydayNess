@@ -158,6 +158,10 @@ public class Task {
             continuation.run();
         }
 
+        public boolean isDone() {
+            return continuation.isDone();
+        }
+
         public long getConId(){
             return conId;
         }

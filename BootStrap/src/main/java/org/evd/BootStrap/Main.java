@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class Main {
@@ -154,17 +153,10 @@ public class Main {
             }
         }
 
-        // Node 启动时会启动所有预注册 Service；每个 Service 在 onStart 中加入 Node 后再执行 init。
-        node.start();
-        // addRemoteNode
-        for (NodeInfo remoteInfo : config.getNodes()){
-            if (!node.getId().equals(remoteInfo.getName())){
-                node.addRemoteNode(remoteInfo.getName(), remoteInfo.getAddr(), NodeInfo.needConnect(nodeInfo, remoteInfo));
-            }
-        }
-
         // 系统关闭时进行清理
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            boolean shutdownInterrupted = false;
+            node.beginJvmShutdown();
             long currTime = System.currentTimeMillis();
             LogCore.core.info("ShutdownHook start!!!  {} ", TimeUtils.DateTimeUtils.getDateTimeOfTimestamp(currTime));
             try {
@@ -172,7 +164,7 @@ public class Main {
                     try {
                         ender.second.invoke(null, node);
                     } catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new RuntimeException(e);
+                        LogCore.core.error("关服 ender 执行失败，继续关闭后续资源: method={}", ender.second, e);
                     }
                 }
 
@@ -188,11 +180,17 @@ public class Main {
                         service.closeFuture().toCompletableFuture().get(60, TimeUnit.SECONDS);
                     } catch (ExecutionException e) {
                         LogCore.core.error("关服时报错了！！！ service {} ", service.getId(), e);
-                        break;
+                        continue;
                     } catch (TimeoutException e) {
                         LogCore.core.error("关服等待超过了 {} ，直接跳过！！！ service {} ", limitMill, service.getId());
                         service.logCoroutineDebugDump("shutdown timeout");
-                        break;
+                        continue;
+                    } catch (InterruptedException e) {
+                        shutdownInterrupted = true;
+                        Thread.interrupted();
+                        LogCore.core.error("关闭钩子等待 Service 时被中断，继续关闭后续 Service: service={}",
+                                service.getId(), e);
+                        continue;
                     }
                     LogCore.core.warn("关服 service {} costMill {} ", service.getId(), System.currentTimeMillis() - serviceStopStartMill);
                 }
@@ -211,14 +209,45 @@ public class Main {
                     }
                 }*/
                 long endTime = System.currentTimeMillis();
-                LogCore.core.info("等待node结束消耗毫秒 {} {} ", endTime - currTime, TimeUtils.DateTimeUtils.getDateTimeOfTimestamp(endTime));
-                org.apache.logging.log4j.LogManager.shutdown();
+                LogCore.core.info("等待 Service 结束消耗毫秒 {} {} ", endTime - currTime, TimeUtils.DateTimeUtils.getDateTimeOfTimestamp(endTime));
                 // TODO 处理service.close函数
                 // TODO 处理各jar包的end函数
-            } catch (InterruptedException e) {
-                LogCore.core.error("关闭钩子等待结束时被中断", e);
+            } catch (RuntimeException e) {
+                LogCore.core.error("关闭钩子执行异常", e);
+            } finally {
+                try {
+                    try {
+                        boolean forceNodeStop = !node.getServices().isEmpty();
+                        node.requestStop(forceNodeStop);
+                        node.closeFuture().toCompletableFuture().get(60, TimeUnit.SECONDS);
+                    } catch (ExecutionException e) {
+                        LogCore.core.error("关闭 Node 时发生错误: node={}", node.getId(), e);
+                    } catch (TimeoutException e) {
+                        LogCore.core.error("等待 Node 关闭超时: node={}", node.getId(), e);
+                    } catch (InterruptedException e) {
+                        shutdownInterrupted = true;
+                        Thread.interrupted();
+                        LogCore.core.error("关闭钩子等待 Node 时被中断: node={}", node.getId(), e);
+                    } catch (RuntimeException e) {
+                        LogCore.core.error("触发 Node 关闭时发生错误: node={}", node.getId(), e);
+                    }
+                } finally {
+                    org.apache.logging.log4j.LogManager.shutdown();
+                    if (shutdownInterrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
             }
         }));
+
+        // Node 启动前准备完整远程拓扑，避免启动期握手与配置注册竞争。
+        for (NodeInfo remoteInfo : config.getNodes()){
+            if (!node.getId().equals(remoteInfo.getName())){
+                node.addRemoteNode(remoteInfo.getName(), remoteInfo.getAddr(), NodeInfo.needConnect(nodeInfo, remoteInfo));
+            }
+        }
+        // Node 启动时会启动所有预注册 Service；每个 Service 在 onStart 中加入 Node 后再执行 init。
+        node.startNode();
 
         LogCore.core.info("press ENTER to call System.exit() and run the shutdown routine.");
         String osName = System.getProperty("os.name");
@@ -228,7 +257,7 @@ public class Main {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            System.exit(0);
+            node.requestJvmShutdown();
         }
     }
 }

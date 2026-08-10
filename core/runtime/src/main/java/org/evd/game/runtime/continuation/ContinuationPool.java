@@ -18,10 +18,17 @@ public class ContinuationPool {
     }
 
     public void recycle(Task.ContinuationWrapper callBack) {
+        if (callBack.isDone()) {
+            throw new IllegalStateException("terminated continuation cannot be recycled");
+        }
         // 清理
         callBack.close();
         // 回收
         pool.add(callBack);
+    }
+
+    public void discard(Task.ContinuationWrapper callBack) {
+        callBack.close();
     }
 
     public void clear() {

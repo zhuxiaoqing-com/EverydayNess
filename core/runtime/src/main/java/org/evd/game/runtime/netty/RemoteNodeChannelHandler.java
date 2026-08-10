@@ -5,12 +5,11 @@ import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.RemoteNode;
-import org.evd.game.runtime.support.LogCore;
 
 @Slf4j
 public final class RemoteNodeChannelHandler extends  BaseChannelHandler<ByteBuf>  {
-   private Node node;
-   private RemoteNode remoteNode;
+   private final Node node;
+   private final RemoteNode remoteNode;
 
     public RemoteNodeChannelHandler(ChannelManager channelManager, RemoteNode remoteNode) {
         super(channelManager);
@@ -23,7 +22,7 @@ public final class RemoteNodeChannelHandler extends  BaseChannelHandler<ByteBuf>
     protected void onChannelActive(ChannelHandlerContext ctx) {
         NetChannel netChannel = getNetChannel(ctx);
         log.info("Netty onChannelActive: node={}, remoteNode={} sessionId={}", node.getId(), remoteNode.getRemoteId(), netChannel.getChannelId());
-        remoteNode.onOutboundChannelActive(netChannel);
+        node.onOutboundChannelActive(remoteNode, netChannel);
     }
 
     @Override

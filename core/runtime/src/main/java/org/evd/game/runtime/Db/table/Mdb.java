@@ -291,7 +291,7 @@ public class Mdb {
         logger.info("@@@@@@@@@@@@@@@@  mdb stop begin   @@@@@@@@@@@@@@@@  {}", service.getId());
 
         for (TTable tables : tableList) {
-            tables.close();
+            tables.close(runCheckpoint);
         }
         tableList.clear();
         class2TableMap.clear();

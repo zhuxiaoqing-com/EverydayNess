@@ -155,4 +155,22 @@ public final class ContinuationDebugInfo {
             return "lock type=" + lockType + ", key=" + lockKey + ", timeoutMillis=" + timeoutMillis;
         }
     }
+
+    public static final class LocationLockWaitDebugInfo extends DebugInfo {
+        private final ActorId actorId;
+        private final ActorAddress actorAddress;
+        private final long timeoutMillis;
+
+        public LocationLockWaitDebugInfo(ActorId actorId, ActorAddress actorAddress, long timeoutMillis) {
+            this.actorId = actorId == null ? null : new ActorId(actorId);
+            this.actorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
+            this.timeoutMillis = timeoutMillis;
+        }
+
+        @Override
+        public String toString() {
+            return "location lock actorId=" + actorId + ", actorAddress=" + actorAddress
+                    + ", timeoutMillis=" + timeoutMillis;
+        }
+    }
 }

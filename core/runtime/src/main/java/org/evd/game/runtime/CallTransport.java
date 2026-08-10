@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.LongFunction;
 
 public final class CallTransport {
@@ -62,13 +63,17 @@ public final class CallTransport {
         }
         Task.ContinuationWrapper continuation = service.continuationRuntime().requireRunning();
         long waitId = registerPendingRpc(continuation, timeoutMillis, debugInfo, timeoutFailureFactory);
+        boolean sent = false;
         try {
             call.setId(waitId);
             send(call);
-        } catch (Exception e) {
-            cancelPendingRpc(waitId);
-            throw e;
+            sent = true;
+        } finally {
+            if (!sent) {
+                cancelPendingRpc(waitId);
+            }
         }
+        continuation.markWaiting(debugInfo);
         return continuation.waitResult();
     }
 
@@ -82,8 +87,8 @@ public final class CallTransport {
                     + ", timeoutMillis=" + timeoutMillis);
         }
         continuation.prepareWait();
-        continuation.markWaiting(debugInfo);
-        PendingRpcCall pendingRpcCall = new PendingRpcCall(continuation, debugInfo, timeoutFailureFactory);
+        PendingRpcCall pendingRpcCall = new PendingRpcCall(
+                continuation, debugInfo, timeoutFailureFactory);
         pendingRpcCall.timerId = timerScheduler.scheduleDelay(
                 service.getWaitBaseTimeInternal(),
                 timeoutMillis,
@@ -96,23 +101,27 @@ public final class CallTransport {
         return removePendingRpc(waitId) != null;
     }
 
-    boolean completePendingRpc(long waitId, Object result) {
-        PendingRpcCall pendingRpcCall = removePendingRpc(waitId);
+    boolean completePendingRpc(CallResult callResult) {
+        PendingRpcCall pendingRpcCall = removePendingRpc(callResult);
         if (pendingRpcCall == null) {
             return false;
         }
-        pendingRpcCall.continuation.setResult(result);
-        resume(pendingRpcCall.continuation, Task.Reason.RPC);
+        service.continuationRuntime().resume(
+                pendingRpcCall.continuation,
+                callResult.result,
+                Task.Reason.RPC);
         return true;
     }
 
-    boolean failPendingRpc(long waitId, RuntimeException failure) {
-        PendingRpcCall pendingRpcCall = removePendingRpc(waitId);
+    boolean failPendingRpc(CallResult callResult, RuntimeException failure) {
+        PendingRpcCall pendingRpcCall = removePendingRpc(callResult);
         if (pendingRpcCall == null) {
             return false;
         }
-        pendingRpcCall.continuation.setFailure(failure);
-        resume(pendingRpcCall.continuation, Task.Reason.RPC);
+        service.continuationRuntime().fail(
+                pendingRpcCall.continuation,
+                failure,
+                Task.Reason.RPC);
         return true;
     }
 
@@ -131,9 +140,10 @@ public final class CallTransport {
             if (removePendingRpc(waitId) == null) {
                 continue;
             }
-            pendingRpcCall.continuation.setFailure(
-                    new RpcTransportException(pendingRpcCall.debugInfo.getTargetNodeId(), waitId));
-            resume(pendingRpcCall.continuation, Task.Reason.RPC);
+            service.continuationRuntime().fail(
+                    pendingRpcCall.continuation,
+                    new RpcTransportException(pendingRpcCall.debugInfo.getTargetNodeId(), waitId),
+                    Task.Reason.RPC);
             failed++;
         }
         return failed;
@@ -154,16 +164,12 @@ public final class CallTransport {
                 throw new RpcTransportException("rpc wait is not bindable: service={}, waitId={}, sessionId=0",
                         serviceId, waitId);
             }
-            node.post(() -> node.callHandle_snt(call, null));
+            node.postLocalCall(call);
             return;
         }
 
         if (call instanceof CallResult callResult && callResult.getSourceSessionId() >= 0L) {
-            if (!node.sendCallResultOnSource(callResult)) {
-                LogCore.remote.warn("远程 RPC 结果原 Session 不可写，丢弃结果: localNode={}, remoteNode={}, sessionId={}, waitId={}",
-                        node.getId(), callResult.to == null ? null : callResult.to.nodeId,
-                        callResult.getSourceSessionId(), callResult.getId());
-            }
+            node.postCallResultOnSource(callResult);
             return;
         }
         String toNodeId = call.to == null ? null : call.to.nodeId;
@@ -235,6 +241,32 @@ public final class CallTransport {
         callFrameBuffers.clear();
     }
 
+    private PendingRpcCall removePendingRpc(CallResult callResult) {
+        if (callResult == null) {
+            return null;
+        }
+        PendingRpcCall pendingRpcCall = pendingRpcCalls.get(callResult.id);
+        if (pendingRpcCall == null) {
+            return null;
+        }
+        String expectedNodeId = pendingRpcCall.debugInfo.getTargetNodeId();
+        String sourceNodeId = callResult.from == null ? null : callResult.from.nodeId;
+        long expectedSessionId = pendingRpcCall.debugInfo.getSessionId();
+        if (!Objects.equals(expectedNodeId, sourceNodeId)
+                || expectedSessionId != callResult.getSourceSessionId()) {
+            LogCore.remote.error(
+                    "RPC响应来源与等待不匹配，拒绝完成: service={}, waitId={}, expectedNode={}, sourceNode={}, expectedSession={}, sourceSession={}",
+                    serviceId,
+                    callResult.id,
+                    expectedNodeId,
+                    sourceNodeId,
+                    expectedSessionId,
+                    callResult.getSourceSessionId());
+            return null;
+        }
+        return removePendingRpc(callResult.id);
+    }
+
     /** 丢弃指定 Session 尚未刷出的消息。 */
     void discard(String remoteNodeId, long sessionId) {
         CallFrameBufferKey bufferKey = new CallFrameBufferKey(remoteNodeId, sessionId);
@@ -258,16 +290,20 @@ public final class CallTransport {
         if (removePendingRpc(waitId) == null) {
             return;
         }
+        RuntimeException timeoutFailure;
         try {
-            pendingRpcCall.continuation.setFailure(pendingRpcCall.timeoutFailureFactory.apply(waitId));
+            timeoutFailure = pendingRpcCall.timeoutFailureFactory.apply(waitId);
         } catch (VirtualMachineError virtualMachineError) {
             throw virtualMachineError;
         } catch (Throwable failure) {
-            pendingRpcCall.continuation.setFailure(new SysException(
+            timeoutFailure = new SysException(
                     failure,
-                    "rpc timeout failure factory failed: waitId=" + waitId));
+                    "rpc timeout failure factory failed: waitId=" + waitId);
         }
-        resume(pendingRpcCall.continuation, Task.Reason.TIMER);
+        service.continuationRuntime().fail(
+                pendingRpcCall.continuation,
+                timeoutFailure,
+                Task.Reason.TIMER);
     }
 
     private PendingRpcCall removePendingRpc(long waitId) {
@@ -276,10 +312,6 @@ public final class CallTransport {
             timerScheduler.cancel(pendingRpcCall.timerId);
         }
         return pendingRpcCall;
-    }
-
-    private void resume(Task.ContinuationWrapper continuation, Task.Reason reason) {
-        service.continuationRuntime().queue(continuation, reason);
     }
 
     private void ensureOpen() {

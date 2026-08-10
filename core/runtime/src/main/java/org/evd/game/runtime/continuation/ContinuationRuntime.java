@@ -45,15 +45,17 @@ public final class ContinuationRuntime implements ContinuationHost {
 
 
     public void createAndEnterQueue(Runnable task, ActorId actorId, Task.Reason queueReason, ContinuationDebugInfo.DebugInfo debugInfo) {
+        requireServiceThread();
         ensureOpen();
         Task.ContinuationWrapper context = continuationPool.apply();
         context.bindTask(task, nextConId(), actorId);
         context.bindDebugInfo(debugInfo);
-        queue(context, queueReason);
+        queueNew(context, queueReason);
     }
 
 
     public void createAndRun(Runnable task, ActorId actorId) {
+        requireServiceThread();
         ensureOpen();
         Task.ContinuationWrapper context = continuationPool.apply();
         context.bindTask(task, nextConId(), actorId);
@@ -61,6 +63,7 @@ public final class ContinuationRuntime implements ContinuationHost {
     }
 
     public Task.ContinuationWrapper create(Runnable task, ActorId actorId) {
+        requireServiceThread();
         ensureOpen();
         Task.ContinuationWrapper context = continuationPool.apply();
         context.bindTask(task, nextConId(), actorId);
@@ -68,6 +71,14 @@ public final class ContinuationRuntime implements ContinuationHost {
     }
 
     public void runImmediate(Task.ContinuationWrapper continuation) {
+        requireServiceThread();
+        Task.DebugState state = continuation.getDebugState();
+        if (runningContinuation != null || (state != Task.DebugState.NEW && state != Task.DebugState.READY)) {
+            throw new SysException(
+                    "continuation cannot run from current state: service={}, conId={}, state={}, runningConId={}",
+                    service.getId(), continuation.getConId(), state,
+                    runningContinuation == null ? null : runningContinuation.getConId());
+        }
         runningContinuation = continuation;
         continuation.markRunning();
         try {
@@ -75,6 +86,17 @@ public final class ContinuationRuntime implements ContinuationHost {
         } finally {
             continuation.markExecutionPaused();
             runningContinuation = null;
+            if (continuation.getDebugState() == Task.DebugState.COMPLETED) {
+                if (continuation.isDone()) {
+                    LogCore.core.error(
+                            "terminal continuation discarded instead of recycled: service={}, conId={}, actorId={}, state={}",
+                            service.getId(), continuation.getConId(), continuation.getActorId(),
+                            continuation.getDebugState());
+                    continuationPool.discard(continuation);
+                } else {
+                    continuationPool.recycle(continuation);
+                }
+            }
         }
     }
 
@@ -89,7 +111,6 @@ public final class ContinuationRuntime implements ContinuationHost {
             completionHandler.accept(continuation);
         } finally {
             continuation.markCompleted();
-            continuationPool.recycle(continuation);
         }
     }
 
@@ -98,7 +119,45 @@ public final class ContinuationRuntime implements ContinuationHost {
         return service.getScope();
     }
 
-    public void queue(Task.ContinuationWrapper continuation, Task.Reason queueReason) {
+    public void resume(Task.ContinuationWrapper continuation,
+                       Object result,
+                       Task.Reason queueReason) {
+        requireServiceThread();
+        ensureOpen();
+        requireWaiting(continuation, queueReason);
+        continuation.setResult(result);
+        enqueue(continuation, queueReason);
+    }
+
+    public void fail(Task.ContinuationWrapper continuation,
+                     RuntimeException failure,
+                     Task.Reason queueReason) {
+        requireServiceThread();
+        ensureOpen();
+        requireWaiting(continuation, queueReason);
+        continuation.setFailure(failure);
+        enqueue(continuation, queueReason);
+    }
+
+    private void requireWaiting(Task.ContinuationWrapper continuation,
+                                Task.Reason queueReason) {
+        Task.DebugState state = continuation.getDebugState();
+        if (state != Task.DebugState.WAITING) {
+            throw new SysException(
+                    "only a waiting continuation can resume: service={}, conId={}, state={}, reason={}",
+                    service.getId(), continuation.getConId(), state, queueReason);
+        }
+    }
+
+    private void queueNew(Task.ContinuationWrapper continuation, Task.Reason queueReason) {
+        if (continuation.getDebugState() != Task.DebugState.NEW) {
+            throw new SysException("new continuation has invalid state: service={}, conId={}, state={}",
+                    service.getId(), continuation.getConId(), continuation.getDebugState());
+        }
+        enqueue(continuation, queueReason);
+    }
+
+    private void enqueue(Task.ContinuationWrapper continuation, Task.Reason queueReason) {
         ensureOpen();
         continuation.markQueued(queueReason);
         readyContinuations.addLast(continuation);
@@ -110,6 +169,7 @@ public final class ContinuationRuntime implements ContinuationHost {
     }
 
     public int drain(String phase) {
+        requireServiceThread();
         int scheduled = readyContinuations.getFrameProcessNum();
         int resumed = 0;
         Task.ContinuationWrapper continuation;
@@ -143,11 +203,20 @@ public final class ContinuationRuntime implements ContinuationHost {
     }
 
     public Task.ContinuationWrapper requireRunning() {
+        requireServiceThread();
         Task.ContinuationWrapper continuation = runningContinuation;
         if (continuation == null) {
             throw new SysException("continuation wait must run inside continuation: service={}", service.getId());
         }
         return continuation;
+    }
+
+    void requireServiceThread() {
+        if (Service.getCurrent() != service) {
+            throw new SysException(
+                    "continuation runtime must run on its service thread: service={}, currentService={}",
+                    service.getId(), Service.getCurrent() == null ? null : Service.getCurrent().getId());
+        }
     }
 
     private void logDrainBudgetExceeded(String phase) {

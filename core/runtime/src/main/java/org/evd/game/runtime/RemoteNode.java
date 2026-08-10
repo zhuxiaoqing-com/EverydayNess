@@ -45,13 +45,11 @@ public class RemoteNode {
     /** 本地Node名称 */
     private final Node localNode;
 
-    private volatile long lastConnectAttemptTime;
+    private long lastConnectAttemptTime;
     /** 下一次允许发起主动重连前需要等待的退让时长。 */
-    private volatile long reconnectInterval;
-    private volatile NetChannel channel;
+    private long reconnectInterval;
     /** 当前物理链路对应的 Session；每次新建连接都会创建新的 Session。 */
     private volatile RemoteSession currentSession;
-    private volatile boolean active;
     private volatile Map<String, NodeServiceStatus> remoteServiceStatuses = Map.of();
     private volatile long remoteServiceStatusTime;
 
@@ -96,12 +94,12 @@ public class RemoteNode {
      */
     public boolean isActive() {
         RemoteSession session = currentSession;
-        return active && session != null && session.isValid();
+        return session != null && session.isValid();
     }
 
-    synchronized RemoteSession captureSession(CallBase call) {
+    RemoteSession captureSession(CallBase call) {
         RemoteSession session = currentSession;
-        if (!active || session == null || !session.isValid()
+        if (session == null || !session.isValid()
                 || !canSendBusinessCall_nt(call)) {
             return null;
         }
@@ -110,7 +108,7 @@ public class RemoteNode {
 
     boolean isCurrentSession(long expectedSessionId) {
         RemoteSession session = currentSession;
-        return active && session != null
+        return session != null
                 && session.getSessionId() == expectedSessionId
                 && session.isValid();
     }
@@ -119,9 +117,9 @@ public class RemoteNode {
         if (connector != null) {
             connector.shutdown();
         }
-        NetChannel activeChannel = channel;
-        if (activeChannel != null) {
-            activeChannel.close();
+        RemoteSession session = currentSession;
+        if (session != null) {
+            session.getChannel().close();
         }
     }
 
@@ -129,7 +127,8 @@ public class RemoteNode {
      * 发送业务或服务同步请求
      */
     public ChannelFuture sendCall(CallBase call) {
-        NetChannel activeChannel = channel;
+        RemoteSession session = currentSession;
+        NetChannel activeChannel = session == null ? null : session.getChannel();
         DebugPrint.printSendRpc(activeChannel, call);
         if (!isActive() || activeChannel == null || !activeChannel.isValid()) {
             LogCore.remote.warn("远程Node不可用，丢弃消息: localNode={}, remoteNode={}, needConnect={}",
@@ -270,7 +269,8 @@ public class RemoteNode {
     }
 
     private void sendPing() {
-        NetChannel channel = this.channel;
+        RemoteSession session = currentSession;
+        NetChannel channel = session == null ? null : session.getChannel();
         if (channel == null || !channel.isValid()) {
             return;
         }
@@ -300,19 +300,24 @@ public class RemoteNode {
             return;
         }
         channel.getChannel().attr(ServerAttributeKey.remoteNodeId).set(remoteId);
-        bindChannel(channel);
+        if (!bindChannel(channel)) {
+            return;
+        }
         sendNodeServicesSync(channel, true);
     }
 
-    public void onNodeServicesSync_nt(NetChannel channel) {
+    public boolean onNodeServicesSync_nt(NetChannel channel) {
         if (channel == null) {
-            return;
+            return false;
         }
-        bindChannel(channel);
+        if (!bindChannel(channel)) {
+            return false;
+        }
         sendNodeServicesSync(channel, false);
+        return true;
     }
 
-    public synchronized boolean onChannelInactive_nt(NetChannel netChannel, RemoteSession endedSession) {
+    public boolean onChannelInactive_nt(NetChannel netChannel, RemoteSession endedSession) {
         if (currentSession == null || !currentSession.matches(netChannel) || currentSession != endedSession) {
             long sessionId = currentSession == null ? -1L : currentSession.getSessionId();
             log.info("远程Node旧 Session 已断开: localNode={}, remoteNode={}, currentSessionId={}, endedSessionId={}, channelId={}",
@@ -320,41 +325,42 @@ public class RemoteNode {
                     endedSession == null ? -1L : endedSession.getSessionId(), netChannel.getChannelId());
             return false;
         }
-        this.channel = null;
         this.currentSession = null;
         remoteServiceStatuses = Map.of();
         remoteServiceStatusTime = 0L;
-        if (active) {
-            active = false;
-            LogCore.remote.warn("远程Node逻辑下线: localNode={}, remoteNode={}", localNode.getId(), remoteId);
-            return true;
-        }
-        return false;
+        LogCore.remote.warn("远程Node逻辑下线: localNode={}, remoteNode={}", localNode.getId(), remoteId);
+        return true;
     }
 
 
-    private synchronized void bindChannel(NetChannel channel) {
-        NetChannel oldChannel = this.channel;
-        RemoteSession session = currentSession;
-        if (session == null || !session.matches(channel)) {
-            session = new RemoteSession(remoteId, channel);
-            currentSession = session;
-            channel.getChannel().attr(ServerAttributeKey.remoteSession).set(session);
+    private boolean bindChannel(NetChannel channel) {
+        RemoteSession oldSession = currentSession;
+        if (oldSession != null && oldSession.matches(channel)) {
+            return true;
         }
-        this.channel = channel;
-        if (oldChannel != null && oldChannel != channel) {
+        if (oldSession != null && channel.getChannelId() <= oldSession.getChannelId()) {
+            LogCore.remote.warn(
+                    "拒绝迟到的旧远程连接: localNode={}, remoteNode={}, currentChannelId={}, rejectedChannelId={}",
+                    localNode.getId(), remoteId, oldSession.getChannelId(), channel.getChannelId());
+            channel.close();
+            return false;
+        }
+        RemoteSession session = new RemoteSession(remoteId, channel);
+        channel.getChannel().attr(ServerAttributeKey.remoteSession).set(session);
+        remoteServiceStatuses = Map.of();
+        remoteServiceStatusTime = 0L;
+        currentSession = session;
+        if (oldSession != null) {
             LogCore.remote.info("旧的远程Node关闭: localNode={}, remoteNode={}, needConnect={} oldChannelId {} ",
-                    localNode.getId(), remoteId, needConnect, oldChannel.getChannelId());
-            oldChannel.close();
+                    localNode.getId(), remoteId, needConnect, oldSession.getChannelId());
+            oldSession.getChannel().close();
         }
         // 一旦链路重新握手成功，重连退让立即清零，下一次断线从基础间隔重新开始。
         reconnectInterval = 0L;
         channel.getChannel().attr(ServerAttributeKey.remoteNodeId).set(remoteId);
-        if (!active) {
-            active = true;
-            LogCore.remote.info("远程Node逻辑上线: localNode={}, remoteNode={}, needConnect={} sessionId={} channelId={}",
-                    localNode.getId(), remoteId, needConnect, session.getSessionId(), channel.getChannelId());
-        }
+        LogCore.remote.info("远程Node逻辑上线: localNode={}, remoteNode={}, needConnect={} sessionId={} channelId={}",
+                localNode.getId(), remoteId, needConnect, session.getSessionId(), channel.getChannelId());
+        return true;
     }
 
 

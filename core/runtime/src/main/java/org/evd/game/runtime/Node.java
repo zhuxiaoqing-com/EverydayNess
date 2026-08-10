@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -33,8 +34,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class Node extends TickCase{
     /** 远程节点 */
     protected final ConcurrentMap<String, RemoteNode> remoteNodes = new ConcurrentHashMap<>();
-    /** 发送给远程note的call请求 */
-    private final ConcurrentLinkedQueue<RemoteCall> remoteCalls = new ConcurrentLinkedQueue<>();
     /** 非 Node 线程投递的 Node 事件，例如入站 Call 与连接断开后的状态清理。 */
     private final FrameQueue<Runnable> postedTasks = new FrameQueue<>(new ConcurrentLinkedQueue<>());
 
@@ -54,8 +53,6 @@ public class Node extends TickCase{
     /** 地址 */
     private final String addr;
     private final NodeInfo nodeInfo;
-    /** 本次心跳要发送给远程note的call请求 */
-    private final List<RemoteCall> affirmRemoteCalls = new ArrayList<>();
     /** 本帧需要在 Node 线程执行的投递事件。 */
     private final List<Runnable> affirmPostedTasks = new ArrayList<>();
 //    /** ZMQ上下文 */
@@ -67,6 +64,8 @@ public class Node extends TickCase{
     private final TickTimer remoteNodePulseTimer = new TickTimer(RemoteNode.INTERVAL_PING, true);
     /** 本地服务注册版本 */
     private volatile AtomicLong localServiceVersion = new AtomicLong();
+    /** JVM 关服已开始；同时防止重复 System.exit，并关闭新 Service 注册入口。 */
+    private final AtomicBoolean jvmShutdownRequested = new AtomicBoolean();
     /** 本地服务注册是否有变化 */
     private long syncLocalServicesDirty;
 
@@ -118,12 +117,7 @@ public class Node extends TickCase{
         if (getStatus() != CaseStatus.Running) {
             return;
         }
-        // 确认本次心跳要发送的remoteCall
-        pulseAffirmRemoteCall_nt();
         pulseAffirmPostedTasks_nt();
-        // 发送remoteCall
-        pulseSendRemoteCall_nt();
-        //pulseCallPuller_nt();
         pulsePostedTasks_nt();
         //调用远程Node的心跳操作
         pulseRemoteNodes_nt();
@@ -173,22 +167,47 @@ public class Node extends TickCase{
         }
         LogCore.core.error("service terminated, shutting down node: node={}, service={}, status={}",
                 id, service == null ? null : service.getId(), serviceStatus);
-        stop(true);
+        requestJvmShutdown();
     }
 
-    private void pulseAffirmRemoteCall_nt() {
-        // 本心跳要执行的call
-        RemoteCall call;
-        while ((call = remoteCalls.poll()) != null) {
-            affirmRemoteCalls.add(call);
+    /**
+     * 这里不能在 Node 心跳线程里直接调用 System.exit(0)，
+     * 因为 System.exit 会等待 ShutdownHook，
+     * 而 ShutdownHook 中 Service 的远程传输依赖 Node 心跳线程，会互相等待。
+     */
+    public void requestJvmShutdown() {
+        if (!jvmShutdownRequested.compareAndSet(false, true)) {
+            return;
         }
+        Thread shutdownThread = new Thread(() -> System.exit(0), "node-shutdown-" + id);
+        shutdownThread.start();
     }
 
-    private void pulseSendRemoteCall_nt() {
-        for (RemoteCall call : affirmRemoteCalls) {
-            sendCall(call);
+    /** ShutdownHook 开始后关闭新 Service 注册，但保留远程传输供 Service 完成清理。 */
+    public synchronized void beginJvmShutdown() {
+        jvmShutdownRequested.set(true);
+    }
+
+    /** Bootstrap 唯一启动入口，避免 ShutdownHook 与 Node 启动交叉。 */
+    public synchronized void startNode() {
+        if (jvmShutdownRequested.get()) {
+            throw new SysException("cannot start node after JVM shutdown begins: node={}", id);
         }
-        affirmRemoteCalls.clear();
+        start();
+    }
+
+    /** 从外部线程请求关闭；已启动的 Node 始终回到自己的单线程执行器完成 stop。 */
+    public synchronized void requestStop(boolean force) {
+        if (isStopping()) {
+            return;
+        }
+        if (status == CaseStatus.New) {
+            stop(force);
+            return;
+        }
+        // 启动尚未完成时不再等待 Service 优雅退出，避免异步初始化与 Node 关闭交叉。
+        boolean actualForce = force || status == CaseStatus.Starting;
+        nodeExecutor.submit(() -> stop(actualForce));
     }
 
     /**
@@ -298,6 +317,19 @@ public class Node extends TickCase{
         return remoteNode != null && remoteNode.sendCallOnSession(result, result.getSourceSessionId());
     }
 
+    void postCallResultOnSource(CallResult result) {
+        post(() -> {
+            if (!sendCallResultOnSource(result)) {
+                LogCore.remote.warn(
+                        "远程 RPC 结果原 Session 不可写，丢弃结果: node={}, remoteNode={}, sessionId={}, waitId={}",
+                        id,
+                        result == null || result.to == null ? null : result.to.nodeId,
+                        result == null ? -1L : result.getSourceSessionId(),
+                        result == null ? 0L : result.id);
+            }
+        });
+    }
+
     /**
      * 发送RemoteCall
      * @param call
@@ -334,6 +366,16 @@ public class Node extends TickCase{
     @Override
     protected void onStopInternal(boolean force) {
         super.onStopInternal(force);
+        if (!force && !services.isEmpty()) {
+            throw new SysException(
+                    "cannot stop node before services close: node={}, services={}",
+                    id,
+                    services.keySet());
+        }
+        if (force && !services.isEmpty()) {
+            LogCore.core.warn("force closing node with services still present: node={}, services={}",
+                    id, services.keySet());
+        }
 
         NetAcceptor currentAcceptor = acceptor;
         acceptor = null;
@@ -344,35 +386,40 @@ public class Node extends TickCase{
         for (RemoteNode remoteNode : remoteNodes.values()) {
             remoteNode.close();
         }
-
-        for (Service service : services.values()) {
-            if (service.isStopping()) {
-                continue;
-            }
-            service.postCoroutine(() -> service.stop(true));
-        }
+        NetConnector.shutdownSharedGroup();
     }
 
     @Override
     protected void onClose() {
-        remoteCalls.clear();
+        nodeExecutor.shutdown();
+        for (ScheduledExecutor scheduledExecutor : scheduledExecutors) {
+            scheduledExecutor.shutdown();
+        }
+        scheduledExecutors.clear();
+
         postedTasks.clear();
-        affirmRemoteCalls.clear();
         affirmPostedTasks.clear();
+        services.clear();
+        pendServices.clear();
         remoteNodes.clear();
         remoteNodeServices.clear();
+        type2ServiceMap = Map.of();
+        callPoint2ServiceMap = Map.of();
+        type2CallMap = Map.of();
         channelManager.clear();
 
-        // System.exit 会先执行 Bootstrap 注册的关闭钩子；此时不能提前关闭 Service 调度器，
-        // 否则关闭钩子无法投递 Service.stop(true)。
-        System.exit(0);
+        // JVM 退出由 Bootstrap 或 requestJvmShutdown 负责；Node 这里只完成资源收尾。
     }
 
     /**
      * 创建任务异步添加到service
      * @param service
      */
-    public void addService(Service service){
+    public synchronized void addService(Service service){
+        if (jvmShutdownRequested.get()) {
+            throw new SysException("cannot add service after JVM shutdown begins: node={}, service={}",
+                    id, service == null ? null : service.getId());
+        }
         // node还未启动，services起到pending暂存的作用
         if (status == CaseStatus.New){
             Service existing = pendServices.putIfAbsent(service.getId(), service);
@@ -420,7 +467,9 @@ public class Node extends TickCase{
         // 同一Node下 无需走传输协议 内部直接接收即可
         if (id.equals(nodeId)) {
             InputStream input = new InputStream(buffer, 0, bufferLength);
-            localCallHandle_st(input);
+            while (!input.isAtEnd()) {
+                postLocalCall(input.read());
+            }
             return true;
             // 其余的需要通过远程Node来发送请求值目标Node
         } else {
@@ -428,7 +477,9 @@ public class Node extends TickCase{
             if (remoteNode == null) {
                 return false;
             }
-            remoteCalls.add(new RemoteCall(nodeId, sessionId, NodeFrameChunk.wrap(buffer, bufferLength)));
+            RemoteCall remoteCall = new RemoteCall(
+                    nodeId, sessionId, NodeFrameChunk.wrap(buffer, bufferLength));
+            post(() -> sendCall(remoteCall));
             return true;
         }
     }
@@ -471,6 +522,14 @@ public class Node extends TickCase{
         }
     }
 
+    void postLocalCall(CallBase call) {
+        post(() -> handleInboundCall(call, null));
+    }
+
+    public void onOutboundChannelActive(RemoteNode remoteNode, NetChannel channel) {
+        post(() -> remoteNode.onOutboundChannelActive(channel));
+    }
+
 
     /**
      * 添加远程Node
@@ -481,7 +540,12 @@ public class Node extends TickCase{
         return addRemoteNode(name, addr, false);
     }
 
-    public RemoteNode addRemoteNode(String name, String addr, boolean needConnect) {
+    public synchronized RemoteNode addRemoteNode(String name, String addr, boolean needConnect) {
+        if (jvmShutdownRequested.get()
+                && status != CaseStatus.Starting
+                && status != CaseStatus.Running) {
+            throw new SysException("cannot add remote node after JVM shutdown begins: node={}, remoteNode={}", id, name);
+        }
         RemoteNode remote = remoteNodes.get(name);
         if (remote != null) {
             return remote;
@@ -617,20 +681,28 @@ public class Node extends TickCase{
         //  sourceChannel==null,说明是同node的消息
         if (sourceChannel != null) {
             String attrRemoteNodeId = sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
-            if (attrRemoteNodeId == null && !(call instanceof CallNodeServicesSync)) {
-                LogCore.remote.error("收到未完成远程节点握手的非法消息: node={}, callType={}, remoteNode={}",
-                        getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
+            boolean initialHandshake = call instanceof CallNodeServicesSync sync && sync.isInit();
+            if (attrRemoteNodeId == null) {
+                if (!initialHandshake) {
+                    LogCore.remote.error("收到未完成远程节点握手的非法消息: node={}, callType={}, remoteNode={}",
+                            getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
+                    sourceChannel.close();
+                    return;
+                }
+            } else if (initialHandshake) {
+                LogCore.remote.error("已绑定 Session 的连接重复发送初始化握手: node={}, remoteNode={}, channelId={}",
+                        getId(), attrRemoteNodeId, sourceChannel.getChannelId());
                 sourceChannel.close();
                 return;
             }
-            if (!(call instanceof CallNodeServicesSync) && call.getSourceSessionId() < 0L) {
+            if (!initialHandshake && call.getSourceSessionId() < 0L) {
                 LogCore.remote.error("收到未绑定 Session 的远程调用: node={}, callType={}, remoteNode={}",
                         getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
                 sourceChannel.close();
                 return;
             }
             RemoteNode remoteNode = attrRemoteNodeId == null ? null : remoteNodes.get(attrRemoteNodeId);
-            if (!(call instanceof CallNodeServicesSync)
+            if (!initialHandshake
                     && (remoteNode == null || !remoteNode.isCurrentSession(call.getSourceSessionId()))) {
                 LogCore.remote.error("收到已过期 Session 的远程调用: node={}, callType={}, remoteNode={}, sessionId={}",
                         getId(), call.getClass().getSimpleName(), attrRemoteNodeId, call.getSourceSessionId());
@@ -708,8 +780,8 @@ public class Node extends TickCase{
                 if (node == null) {
                     node = addRemoteNode(remoteId, callNodeServicesSync.getAddr());
                 }
-                if (callNodeServicesSync.isInit()) {
-                    node.onNodeServicesSync_nt(sourceChannel);
+                if (callNodeServicesSync.isInit() && !node.onNodeServicesSync_nt(sourceChannel)) {
+                    break;
                 }
                 syncRemoteServices_nt(remoteId, callNodeServicesSync.getServices());
             }
@@ -734,6 +806,8 @@ public class Node extends TickCase{
         if (sourceChannel != null) {
             RemoteSession sourceSession = sourceChannel.getChannel().attr(ServerAttributeKey.remoteSession).get();
             call.setSourceSessionId(sourceSession == null ? -1L : sourceSession.getSessionId());
+        } else {
+            call.setSourceSessionId(0L);
         }
         try {
             callHandle_snt(call, sourceChannel);

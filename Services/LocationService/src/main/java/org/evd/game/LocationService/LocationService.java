@@ -5,6 +5,7 @@ import org.evd.game.annotation.RpcService;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.ContinuationDebugInfo;
 import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -131,15 +132,18 @@ public class LocationService extends Service {
         ActorId key = actorId;
         ActorAddress lockActorAddress = oldActorAddress;
         Task.ContinuationWrapper lockContinuation = currentContinuation();
+        lockContinuation.prepareWait();
         long revision = nextLockRevision++;
         long timerId = timeMillis > 0
                 ? newOnceTimer(timeMillis, () -> onLockTimeout(key, revision))
                 : 0L;
 
-        lockInfos.put(key, new LockInfo(lockActorAddress, lockContinuation, revision, timerId));
+        lockInfos.put(key, new LockInfo(
+                lockActorAddress, lockContinuation, revision, timerId));
         LogCore.core.info("LocationService 锁定actor: actorId={}, address={}, timeMillis={}",
                 actorId, oldActorAddress, timeMillis);
-        lockContinuation.prepareWait();
+        lockContinuation.markWaiting(
+                new ContinuationDebugInfo.LocationLockWaitDebugInfo(actorId, oldActorAddress, timeMillis));
         lockContinuation.waitResult();
     }
 

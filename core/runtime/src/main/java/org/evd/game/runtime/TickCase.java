@@ -84,18 +84,25 @@ public abstract class TickCase {
 
             // service被停止
         } else if (status == CaseStatus.FinishKill) {
-            status = CaseStatus.Closed;
-            try {
-                onClose();
-                if (stopFailure == null) {
-                    closeFuture.complete(null);
-                } else {
-                    closeFuture.completeExceptionally(stopFailure);
-                }
-            } catch (RuntimeException | Error e) {
-                closeFuture.completeExceptionally(e);
-                throw e;
+            finishClose();
+        }
+    }
+
+    private void finishClose() {
+        if (status != CaseStatus.FinishKill) {
+            return;
+        }
+        status = CaseStatus.Closed;
+        try {
+            onClose();
+            if (stopFailure == null) {
+                closeFuture.complete(null);
+            } else {
+                closeFuture.completeExceptionally(stopFailure);
             }
+        } catch (RuntimeException | Error e) {
+            closeFuture.completeExceptionally(e);
+            throw e;
         }
     }
 
@@ -113,27 +120,38 @@ public abstract class TickCase {
             LogCore.core.warn("already stop service  !!! id {}  force {} ", getId(), force);
             return;
         }
+        boolean closeWithoutPulse = status == CaseStatus.New;
         LogCore.core.info("stop service start !!!id {}  force {}", getId(), force);
         status = CaseStatus.PendingKill;
         long currTime = System.currentTimeMillis();
         boolean success = false;
+        boolean fatalFailure = false;
         try {
             onStopInternal(force);
             success = true;
-        } catch (Exception e) {
+        } catch (VirtualMachineError e) {
+            fatalFailure = true;
+            throw e;
+        } catch (Throwable e) {
             long endTime = System.currentTimeMillis();
             LogCore.core.error("stop service error!!! costMill {} id {} force {}", endTime - currTime, getId(), force, e);
-                SysException sysException = new SysException(e, "停止服务失败: {} force {}", id);
+            SysException sysException = new SysException(e, "停止服务失败: {} force {}", id, force);
             if (force) {
                 stopFailure = sysException;
             }else{
                 status = CaseStatus.Running;
+                if (e instanceof Error error) {
+                    throw error;
+                }
                 throw sysException;
             }
         } finally {
-            if (force || success) {
+            if (!fatalFailure && (force || success)) {
                 status = CaseStatus.FinishKill;
             }
+        }
+        if (closeWithoutPulse) {
+            finishClose();
         }
         long endTime = System.currentTimeMillis();
         LogCore.core.info("stop service end costMill {} id {}  force {} success {}", endTime - currTime, getId(), force, success);
