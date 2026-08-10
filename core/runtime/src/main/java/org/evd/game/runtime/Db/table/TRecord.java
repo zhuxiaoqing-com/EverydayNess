@@ -174,11 +174,11 @@ public class TRecord<K, V extends DirtyObject> {
         try {
             switch (state) {
                 case ADD:
-                    return table.dbExec(table.createSaveDBReq(value), ownerCallPoint);
+                    return table.dbExec(table.createSaveDBReq(key, value), ownerCallPoint);
                 case REMOVE:
                     return table.dbExec(table.createRemoveDBReq(key), ownerCallPoint);
                 case GET:
-                    return table.dbExec(table.createSaveDBReq(value), ownerCallPoint);
+                    return table.dbExec(table.createSaveDBReq(key, value), ownerCallPoint);
             }
         } catch (Exception e) {
             // 如果flush时候报错，则清除标识，下次会继续同步

@@ -90,6 +90,10 @@ public enum ServiceType {
         return ServiceType.isGlobal(this);
     }
 
+    public boolean isSupportFlush() {
+        return this == PLAYER;
+    }
+
     @Override
     public String toString() {
         return "ServiceType{" +

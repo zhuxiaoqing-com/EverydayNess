@@ -65,7 +65,7 @@ final class DbDirtyJsonTableRenderer {
         sb.append("        return createReq(DbOpType.GET, List.of(createKeyField(key)));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
-        sb.append("    public DBReq createSaveDBReq(").append(entity.beanClassName).append(" value) {\n");
+        sb.append("    protected DBReq serializeSaveDBReq(").append(entity.beanClassName).append(" value) {\n");
         sb.append("        ").append(keyType).append(" key = getPrimaryKey(value);\n");
         sb.append("        return createReq(DbOpType.SAVE, List.of(toSaveField(key, value)));\n");
         sb.append("    }\n\n");
@@ -78,8 +78,7 @@ final class DbDirtyJsonTableRenderer {
         sb.append("        return createReq(DbOpType.BATCH_GET, toKeyFieldList(map));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
-        sb.append("    public DBReq createBatchSaveDBReq(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
-        sb.append("        requireBatchMap(map);\n");
+        sb.append("    protected DBReq serializeBatchSaveDBReq(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
         sb.append("        List<DbTableField> tableFieldList = new ArrayList<>(map.size());\n");
         sb.append("        for (Map.Entry<").append(keyType).append(", ").append(entity.beanClassName).append("> entry : map.entrySet()) {\n");
         sb.append("            tableFieldList.add(toSaveField(entry.getKey(), entry.getValue()));\n");

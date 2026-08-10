@@ -3,6 +3,7 @@ package org.evd.game.runtime.Db.table;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
@@ -39,7 +40,9 @@ public abstract class TTable<K, V extends DirtyObject> {
 
 
     public void checkCreateTable(CallPoint callPoint) {
-        dbExec(createCreateTableDBReq(), callPoint);
+        if (!dbExec(createCreateTableDBReq(), callPoint)) {
+            throw new DBException("create table fail table " + getName());
+        }
     }
 
 
@@ -58,8 +61,10 @@ public abstract class TTable<K, V extends DirtyObject> {
             return null;
         }
         CallPoint callPoint = findDBServiceCallPoint(key);
+        if (callPoint == null) {
+            throw new DBException("DBService未连接: table=" + getName() + ", key=" + key);
+        }
         // 加协程锁
-        V v;
         try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
             tRecord = cache.get(key);
             if (tRecord != null) {
@@ -68,19 +73,24 @@ public abstract class TTable<K, V extends DirtyObject> {
                 }
                 return tRecord.get();
             }
-            v = getExec(createGetDBReq(key), callPoint);
-        }
 
-        if (v != null) {
-            tRecord = new TRecord<>(this, key, v, TRecord.GET, callPoint);
-            cache.put(key, tRecord);
-        } else {
+            if (findFailCache.getIfPresent(key) != null) {
+                return null;
+            }
+
+            V v = getExec(createGetDBReq(key), callPoint);
+
+            if (v != null) {
+                tRecord = new TRecord<>(this, key, v, TRecord.GET, callPoint);
+                cache.put(key, tRecord);
+                return tRecord.getValue();
+            }
+
             findFailCache.put(key, defaultValue);
             // getMiss
             countGetMiss.incrementAndGet();
+            return null;
         }
-
-        return tRecord == null ? null : tRecord.getValue();
 
     }
 
@@ -96,12 +106,22 @@ public abstract class TTable<K, V extends DirtyObject> {
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
             tRecord.add(value);
-        } else {
+            return true;
+        }
+
+        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+                LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+            tRecord = cache.get(key);
+            if (tRecord != null) {
+                tRecord.add(value);
+                return true;
+            }
+
             tRecord = new TRecord<>(this, key, value, TRecord.ADD, findDBServiceCallPoint(key));
             cache.put(key, tRecord);
             findFailCache.invalidate(key);
+            return true;
         }
-        return true;
     }
 
     public boolean remove(K key) {
@@ -110,17 +130,21 @@ public abstract class TTable<K, V extends DirtyObject> {
             tRecord.remove();
             return true;
         }
-        // 没有找到就直接新建一个
-        tRecord = new TRecord<K, V>(this, key, newValue(), TRecord.REMOVE, findDBServiceCallPoint(key));
-        cache.put(key, tRecord);
-        /**
-         * 未加载 remove 现在能正常留下删除标记了，但这里没有清理 findFailCache。
-         * 如果这个 key 之前查库未命中过，之后又经历 remove -> add -> tickClearCache 写回 DB，旧的未命中缓存可能在 cache 被清掉后继续让 get 返回 null。
-         * 这个窗口比较绕，但清掉 findFailCache 成本很低。
-         */
-        findFailCache.invalidate(key);
 
-        return true;
+        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+                LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+            tRecord = cache.get(key);
+            if (tRecord != null) {
+                tRecord.remove();
+                return true;
+            }
+
+            // 没有找到就直接新建一个删除标记。
+            tRecord = new TRecord<K, V>(this, key, newValue(), TRecord.REMOVE, findDBServiceCallPoint(key));
+            cache.put(key, tRecord);
+            findFailCache.invalidate(key);
+            return true;
+        }
     }
 
 
@@ -189,28 +213,34 @@ public abstract class TTable<K, V extends DirtyObject> {
         boolean modifySuccess = true;
         boolean removeSuccess = true;
 
-        try {
-            Map<K, V> tempMap = addTRecordCache.stream().collect(Collectors.toMap(TRecord::getKey, TRecord::getValue));
-            addSuccess = dbExec(createBatchSaveDBReq(tempMap), callPoint);
-        } catch (Exception e) {
-            logger.error("checkpoint addCache fail table {} ", this.getName(), e);
-            addSuccess = false;
+        if (!addTRecordCache.isEmpty()) {
+            try {
+                Map<K, V> tempMap = createValueMap(addTRecordCache);
+                addSuccess = dbExec(createBatchSaveDBReq(tempMap), callPoint);
+            } catch (Exception e) {
+                logger.error("checkpoint addCache fail table {} ", this.getName(), e);
+                addSuccess = false;
+            }
         }
 
-        try {
-            Map<K, V> tempMap = modifyTRecordCache.stream().collect(Collectors.toMap(TRecord::getKey, TRecord::getValue));
-            modifySuccess = dbExec(createBatchSaveDBReq(tempMap), callPoint);
-        } catch (Exception e) {
-            logger.error("checkpoint modifyCache fail table {} ", this.getName(), e);
-            modifySuccess = false;
+        if (!modifyTRecordCache.isEmpty()) {
+            try {
+                Map<K, V> tempMap = createValueMap(modifyTRecordCache);
+                modifySuccess = dbExec(createBatchSaveDBReq(tempMap), callPoint);
+            } catch (Exception e) {
+                logger.error("checkpoint modifyCache fail table {} ", this.getName(), e);
+                modifySuccess = false;
+            }
         }
 
-        try {
-            Map<K, V> tempMap = removeTRecordCache.stream().collect(Collectors.toMap(TRecord::getKey, TRecord::getValue));
-            removeSuccess = dbExec(createBatchRemoveDBReq(tempMap), callPoint);
-        } catch (Exception e) {
-            logger.error("checkpoint removeCache fail table {} ", this.getName(), e);
-            removeSuccess = false;
+        if (!removeTRecordCache.isEmpty()) {
+            try {
+                Map<K, V> tempMap = removeTRecordCache.stream().collect(Collectors.toMap(TRecord::getKey, TRecord::getValue));
+                removeSuccess = dbExec(createBatchRemoveDBReq(tempMap), callPoint);
+            } catch (Exception e) {
+                logger.error("checkpoint removeCache fail table {} ", this.getName(), e);
+                removeSuccess = false;
+            }
         }
 
         if (removeSuccess) {
@@ -273,6 +303,14 @@ public abstract class TTable<K, V extends DirtyObject> {
         }
     }
 
+    private Map<K, V> createValueMap(Collection<TRecord<K, V>> records) {
+        Map<K, V> result = new LinkedHashMap<>(records.size());
+        for (TRecord<K, V> record : records) {
+            result.put(record.getKey(), record.getValue());
+        }
+        return result;
+    }
+
     /**
      * 定时把30分钟还没有访问的数据清理
      */
@@ -329,6 +367,8 @@ public abstract class TTable<K, V extends DirtyObject> {
             boolean flush = one.flush("tickClearCache");
             if (flush) {
                 successRecord.add(one);
+            } else {
+                one.checkPointFail();
             }
         }
 
@@ -376,7 +416,7 @@ public abstract class TTable<K, V extends DirtyObject> {
     public abstract String getName();
 
     public boolean isSupportFlush() {
-        return true;
+        return getMdb().isSupportFlush();
     }
 
 
@@ -438,17 +478,35 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     protected abstract V newValue();
 
+    protected void validateKeyValue(K key, V value) {
+    }
+
     public abstract DBReq createCreateTableDBReq();
 
     public abstract DBReq createGetDBReq(K key);
 
-    public abstract DBReq createSaveDBReq(V player);
+    public final DBReq createSaveDBReq(K key, V value) {
+        validateKeyValue(key, value);
+        return serializeSaveDBReq(value);
+    }
+
+    protected abstract DBReq serializeSaveDBReq(V value);
 
     public abstract DBReq createRemoveDBReq(K key);
 
     public abstract DBReq createBatchGetDBReq(Map<K, V> map);
 
-    public abstract DBReq createBatchSaveDBReq(Map<K, V> map);
+    public final DBReq createBatchSaveDBReq(Map<K, V> map) {
+        if (map == null || map.isEmpty()) {
+            throw new IllegalArgumentException("batch map 不能为空");
+        }
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            validateKeyValue(entry.getKey(), entry.getValue());
+        }
+        return serializeBatchSaveDBReq(map);
+    }
+
+    protected abstract DBReq serializeBatchSaveDBReq(Map<K, V> map);
 
     public abstract DBReq createBatchRemoveDBReq(Map<K, V> map);
 

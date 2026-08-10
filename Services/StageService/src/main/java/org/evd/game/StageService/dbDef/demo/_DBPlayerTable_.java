@@ -71,6 +71,16 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
     }
 
     @Override
+    protected void validateKeyValue(Long key, DBPlayer value) {
+        Objects.requireNonNull(key, "key 不能为空");
+        Long primaryKey = value.getId();
+        if (!Objects.equals(key, primaryKey)) {
+            throw new IllegalArgumentException("table key 与实体主键不一致: table=" + TABLE_NAME
+                    + ", key=" + key + ", primaryKey=" + primaryKey);
+        }
+    }
+
+    @Override
     public DBReq createCreateTableDBReq() {
         return createInitReq(CREATE_TABLE_SQL, new ArrayList<>());
     }
@@ -81,7 +91,7 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
     }
 
     @Override
-    public DBReq createSaveDBReq(DBPlayer player) {
+    protected DBReq serializeSaveDBReq(DBPlayer player) {
         return createReq(DbOpType.SAVE, List.of(toTableField(player)));
     }
 
@@ -96,8 +106,7 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
     }
 
     @Override
-    public DBReq createBatchSaveDBReq(Map<Long, DBPlayer> map) {
-        requireBatchMap(map);
+    protected DBReq serializeBatchSaveDBReq(Map<Long, DBPlayer> map) {
         List<DbTableField> tableFieldList = new ArrayList<>(map.size());
         for (DBPlayer player : map.values()) {
             tableFieldList.add(toTableField(player));

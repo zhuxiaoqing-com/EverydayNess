@@ -19,6 +19,13 @@ import java.util.stream.Collectors;
 public class Mdb {
     public static Logger logger = LoggerFactory.getLogger(Mdb.class.getName());
 
+    private enum LifecycleState {
+        NEW,
+        RUNNING,
+        CLOSING,
+        CLOSED
+    }
+
     public Mdb() {
     }
 
@@ -29,13 +36,14 @@ public class Mdb {
     DBExecInterface dbExecInterface;
     Service service;
 
-    public boolean running = false;
-    private volatile boolean closing = false;
+    private volatile LifecycleState lifecycleState = LifecycleState.NEW;
 
 
     public void start(Class<?> ownerClass, DBExecInterface dbExecInterface, Service service) {
+        if (lifecycleState != LifecycleState.NEW) {
+            throw new DBException("MDB不能重复调用start: state=" + lifecycleState);
+        }
         logger.warn("@@@@@@@@@@@@@@@@ mdb start begin @@@@@@@@@@@@@@@@ mdb metadata {}", ownerClass.getName());
-        closing = false;
         if(dbExecInterface == null){
             throw  new DBException("DBExecInterface is null !!!");
         }
@@ -45,12 +53,15 @@ public class Mdb {
         try {
             TableRegistry tableRegistry = loadTableRegistry(ownerClass);
             tableRegistry.register(this);
+            lifecycleState = LifecycleState.RUNNING;
 
-            checkTableCreate();
+            if (!checkTableCreate()) {
+                logger.warn("MDB等待DBService连接: service={}", service.getId());
+                return;
+            }
             logger.warn("{} has {} tables ......", ownerClass.getSimpleName(), tableList.size());
 
             logger.warn("@@@@@@@@@@@@@@@@  mdb start end  @@@@@@@@@@@@@@@@");
-            running = true;
         } catch (Throwable e) {
             logger.error("Mdb start error", e);
             closeInternal(true, false);
@@ -238,6 +249,9 @@ public class Mdb {
     public long nextTickTime;
     @SuppressWarnings({"rawtypes"})
     public void tick(long currTime) {
+        if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
+            return;
+        }
         if (currTime < nextTickTime) {
             return;
         }
@@ -247,6 +261,9 @@ public class Mdb {
     }
 
     public void tickCoroutine(long currTime) {
+        if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
+            return;
+        }
         for (TTable table : tableList) {
             table.tick(currTime);
         }
@@ -263,16 +280,17 @@ public class Mdb {
         }
     }
 
-    public void checkTableCreate() {
+    public boolean checkTableCreate() {
         CallPoint callPoint = service.getNode().getAnyCallPointByType(ServiceType.DB);
         if (callPoint == null) {
             logger.warn("checkCreateTable callPoint == null");
-            return;
+            return false;
         }
         for (TTable<?, ?> tTable : tableList) {
             tTable.checkCreateTable(callPoint);
         }
         logger.info("checkTableCreate success!!!");
+        return true;
     }
 
 
@@ -283,10 +301,10 @@ public class Mdb {
 
     @SuppressWarnings({"rawtypes"})
     private void closeInternal(boolean force, boolean runCheckpoint) {
-        if (!force && !running) {
+        if (!force && lifecycleState != LifecycleState.RUNNING) {
             return;
         }
-        closing = true;
+        lifecycleState = LifecycleState.CLOSING;
         long currTime = System.currentTimeMillis();
         logger.info("@@@@@@@@@@@@@@@@  mdb stop begin   @@@@@@@@@@@@@@@@  {}", service.getId());
 
@@ -296,7 +314,7 @@ public class Mdb {
         tableList.clear();
         class2TableMap.clear();
 
-        running = false;
+        lifecycleState = LifecycleState.CLOSED;
         long endTime = System.currentTimeMillis();
         logger.info("@@@@@@@@@@@@@@@@  mdb stop end   @@@@@@@@@@@@@@@@  {}  costMill {}",service.getId(), endTime - currTime);
     }
@@ -305,12 +323,27 @@ public class Mdb {
 
     @SuppressWarnings("unchecked")
     public <K, V extends DirtyObject> TTable<K, V> getTTable(Class<?> clazz) {
-        return (TTable<K, V>) class2TableMap.get(clazz);
+        if (lifecycleState != LifecycleState.RUNNING) {
+            String serviceId = service == null ? "unknown" : service.getId();
+            throw new DBException("MDB未就绪: service=" + serviceId + ", state=" + lifecycleState);
+        }
+        if (clazz == null) {
+            throw new DBException("MDB表类型不能为空");
+        }
+        TTable<?, ?> table = class2TableMap.get(clazz);
+        if (table == null) {
+            throw new DBException("MDB表未注册: " + clazz.getName());
+        }
+        return (TTable<K, V>) table;
     }
 
 
     public boolean isClosing() {
-        return closing;
+        return lifecycleState == LifecycleState.CLOSING;
+    }
+
+    public boolean isSupportFlush() {
+        return service.getServiceType().isSupportFlush();
     }
 
     public DBExecInterface getDbExecInterface() {
@@ -319,6 +352,9 @@ public class Mdb {
 
 
     public void disconnectService(Collection<RegisteredService> collection) {
+        if (lifecycleState != LifecycleState.RUNNING) {
+            return;
+        }
         Set<CallPoint> disconnCallPointSet = collection.stream()
                 .filter(a -> a.getServiceType() == ServiceType.DB)
                 .map(RegisteredService::getCallPoint).collect(Collectors.toSet());
@@ -327,41 +363,48 @@ public class Mdb {
             return;
         }
 
-        Collection<TRecord<?, ?>> expireTRecord = new ArrayList<>();
-        // 将过期的CallPoint的对象重新分配;
+        // 先清除已经断开的归属，再通过延迟切换重新分配。
         for (TTable<?, ?> tTable : tableList) {
             for (TRecord<?, ?> tRecord : tTable.getCacheList()) {
                 if (disconnCallPointSet.contains(tRecord.getOwnerCallPoint())) {
                     tRecord.clearCallPoint();
                 }
-
-                // 不止现在过期的，之前有没分配的也会在这里分配
-                if (tRecord.getOwnerCallPoint() == null) {
-                    expireTRecord.add(tRecord);
-                }
             }
         }
 
+        reassignUnownedRecords();
+    }
+
+    public void connectService(Collection<RegisteredService> collection) {
+        if (lifecycleState != LifecycleState.RUNNING) {
+            return;
+        }
+        boolean hasDBService = collection.stream()
+                .anyMatch(a -> a.getServiceType() == ServiceType.DB);
+
+        if (!hasDBService) {
+            return;
+        }
+
+        if (!checkTableCreate()) {
+            return;
+        }
+        reassignUnownedRecords();
+    }
+
+    private void reassignUnownedRecords() {
         List<CallPoint> callPoints = allCallPoint();
         if (callPoints.isEmpty()) {
             return;
         }
-        for (TRecord<?, ?> tRecord : expireTRecord) {
-            CallPoint dbServiceCallPoint = findDBServiceCallPoint(tRecord.getKey());
-            tRecord.setWillCallPoint(dbServiceCallPoint);
+
+        for (TTable<?, ?> tTable : tableList) {
+            for (TRecord<?, ?> tRecord : tTable.getCacheList()) {
+                if (tRecord.getOwnerCallPoint() == null) {
+                    tRecord.setWillCallPoint(RuntimeUtils.mod(tRecord.getKey(), callPoints));
+                }
+            }
         }
-    }
-
-    public void connectService(Collection<RegisteredService> collection) {
-        Set<CallPoint> disconnCallPointSet = collection.stream()
-                .filter(a -> a.getServiceType() == ServiceType.DB)
-                .map(RegisteredService::getCallPoint).collect(Collectors.toSet());
-
-        if (disconnCallPointSet.isEmpty()) {
-            return;
-        }
-
-        checkTableCreate();
     }
 
 

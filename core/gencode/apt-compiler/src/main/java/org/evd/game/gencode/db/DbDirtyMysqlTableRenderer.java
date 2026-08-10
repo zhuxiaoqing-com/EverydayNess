@@ -90,6 +90,17 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("    }\n\n");
 
         sb.append("    @Override\n");
+        sb.append("    protected void validateKeyValue(").append(keyType).append(" key, ")
+                .append(entity.beanClassName).append(" value) {\n");
+        sb.append("        Objects.requireNonNull(key, \"key 不能为空\");\n");
+        sb.append("        ").append(keyType).append(" primaryKey = Objects.requireNonNull(getPrimaryKey(value), \"实体主键不能为空\");\n");
+        sb.append("        if (!Objects.equals(key, primaryKey)) {\n");
+        sb.append("            throw new IllegalArgumentException(\"table key 与实体主键不一致: table=\" + TABLE_NAME\n");
+        sb.append("                    + \", key=\" + key + \", primaryKey=\" + primaryKey);\n");
+        sb.append("        }\n");
+        sb.append("    }\n\n");
+
+        sb.append("    @Override\n");
         sb.append("    public DBReq createCreateTableDBReq() {\n");
         sb.append("        return createInitReq(CREATE_TABLE_SQL, new ArrayList<>());\n");
         sb.append("    }\n\n");
@@ -98,7 +109,7 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("        return createReq(DbOpType.GET, List.of(createKeyField(key)));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
-        sb.append("    public DBReq createSaveDBReq(").append(entity.beanClassName).append(" value) {\n");
+        sb.append("    protected DBReq serializeSaveDBReq(").append(entity.beanClassName).append(" value) {\n");
         sb.append("        return createReq(DbOpType.SAVE, List.of(toTableField(value)));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
@@ -110,8 +121,7 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("        return createReq(DbOpType.BATCH_GET, toKeyFieldList(map));\n");
         sb.append("    }\n\n");
         sb.append("    @Override\n");
-        sb.append("    public DBReq createBatchSaveDBReq(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
-        sb.append("        requireBatchMap(map);\n");
+        sb.append("    protected DBReq serializeBatchSaveDBReq(Map<").append(keyType).append(", ").append(entity.beanClassName).append("> map) {\n");
         sb.append("        List<DbTableField> tableFieldList = new ArrayList<>(map.size());\n");
         sb.append("        for (").append(entity.beanClassName).append(" value : map.values()) {\n");
         sb.append("            tableFieldList.add(toTableField(value));\n");

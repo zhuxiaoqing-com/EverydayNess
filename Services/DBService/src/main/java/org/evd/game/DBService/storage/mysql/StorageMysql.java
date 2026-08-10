@@ -49,6 +49,9 @@ public class StorageMysql implements StorageEngine {
         this.dbService = dbService;
         this.logger = logger;
         this.batchPerCount = storageConfig.getBatchPerCount();
+        if (batchPerCount <= 0) {
+            throw new IllegalArgumentException("batchPerCount must be greater than 0: " + batchPerCount);
+        }
         this.costMsWarn = storageConfig.getCostMsWarn();
         this.batchCostMsWarn = storageConfig.getBatchCostMsWarn();
         this.operationTimeout = logger.getOperationTimeout();

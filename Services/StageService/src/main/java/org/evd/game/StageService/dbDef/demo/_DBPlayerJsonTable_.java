@@ -49,7 +49,7 @@ public class _DBPlayerJsonTable_ extends TTable<Long, DBPlayer> {
 		return createReq(DbOpType.GET, List.of(createKeyField(key)));
 	}
 
-	public DBReq createSaveDBReq(DBPlayer player) {
+	protected DBReq serializeSaveDBReq(DBPlayer player) {
 		return createReq(DbOpType.SAVE, List.of(toSaveField(player.getId(), player)));
 	}
 
@@ -61,8 +61,7 @@ public class _DBPlayerJsonTable_ extends TTable<Long, DBPlayer> {
 		return createReq(DbOpType.BATCH_GET, toKeyFieldList(map));
 	}
 
-	public DBReq createBatchSaveDBReq(Map<Long, DBPlayer> map) {
-		requireBatchMap(map);
+	protected DBReq serializeBatchSaveDBReq(Map<Long, DBPlayer> map) {
 		List<DbTableField> tableFieldList = new ArrayList<>(map.size());
 		for (Map.Entry<Long, DBPlayer> entry : map.entrySet()) {
 			tableFieldList.add(toSaveField(entry.getKey(), entry.getValue()));
