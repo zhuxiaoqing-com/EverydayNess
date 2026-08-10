@@ -155,7 +155,7 @@ public class TRecord<K, V extends DirtyObject> {
 
     public void checkpointRefreshState(int _state) {
         // 设置为没变化
-        value.makeModify();
+        value.clearModify();
 
         switch (_state) {
             case ADD:

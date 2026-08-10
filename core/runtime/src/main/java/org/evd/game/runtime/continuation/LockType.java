@@ -7,7 +7,8 @@ public enum LockType {
     ACTOR(1),
     MAILBOX(2),
     LOCATION(3),
-    TABLE_RECORD(4);
+    TABLE_RECORD(4),
+    DB_CACHE(5);
 
     private final int code;
 

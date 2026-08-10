@@ -3,7 +3,7 @@ package org.evd.game.runtime.call;
 import org.evd.game.annotation.SerializeClass;
 import org.evd.game.base.ISerializable;
 
-/** 服务级关服的最终结果；success 代表目标服务的 onClose 已正常结束。 */
+/** 服务级关服结果；success 代表 onStop（包括 MDB 落库）已完成，并已进入最终关闭阶段。 */
 @SerializeClass
 public class CallServiceStopResult implements ISerializable {
     private boolean success;

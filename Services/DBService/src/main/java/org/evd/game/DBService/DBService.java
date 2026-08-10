@@ -62,12 +62,17 @@ public class DBService extends Service {
     protected final void onStop(boolean force) {
         super.onStop(force);
 
-        if (dbCache != null) {
-            dbCache.stop();
-        }
-
-        if (storageEngine != null) {
-            storageEngine.close();
+        boolean closeStorage = force;
+        try {
+            if (dbCache != null) {
+                dbCache.stop(force);
+            }
+            closeStorage = true;
+        } finally {
+            // 普通停服刷盘失败时 Service 会恢复运行，连接池必须保留；强停则无论如何都要释放。
+            if (closeStorage && storageEngine != null) {
+                storageEngine.close();
+            }
         }
     }
 

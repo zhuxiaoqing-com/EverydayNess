@@ -64,8 +64,8 @@ public class Node extends TickCase{
     private final TickTimer remoteNodePulseTimer = new TickTimer(RemoteNode.INTERVAL_PING, true);
     /** 本地服务注册版本 */
     private volatile AtomicLong localServiceVersion = new AtomicLong();
-    /** JVM 关服已开始；同时防止重复 System.exit，并关闭新 Service 注册入口。 */
-    private final AtomicBoolean jvmShutdownRequested = new AtomicBoolean();
+    /** 关服已经开始；关闭新的 Service 注册入口。 */
+    private final AtomicBoolean shutdownStarted = new AtomicBoolean();
     /** 本地服务注册是否有变化 */
     private long syncLocalServicesDirty;
 
@@ -130,9 +130,9 @@ public class Node extends TickCase{
             return;
         }
 
-        // 运行状态下 所有的services都没了 就关服;
+        // Admin 已按全局顺序关闭完本机 Service，Node 再关闭自己的网络和线程资源。
         if (services.isEmpty() && status == CaseStatus.Running) {
-            stopForServiceTermination_nt(null, CaseStatus.Closed);
+            stopAfterServicesClosed_nt();
             return;
         }
 
@@ -171,26 +171,50 @@ public class Node extends TickCase{
     }
 
     /**
+     * 正常 Admin 停服路径：先完整关闭 Node，等 closeFuture 完成后再退出进程。
+     * 不能先调用 System.exit，否则 ShutdownHook 会反过来承担正常关闭流程。
+     */
+    private void stopAfterServicesClosed_nt() {
+        if (!shutdownStarted.compareAndSet(false, true)) {
+            return;
+        }
+        LogCore.core.info("all services closed, stopping node: node={}", id);
+        closeFuture().whenComplete((ignored, failure) -> {
+            if (failure != null) {
+                LogCore.core.error("node close failed before process exit: node={}", id, failure);
+            }
+            requestProcessExit();
+        });
+        // Service 已经全部关闭；这里的 force 只用于保证 Node 网络资源收尾失败时，
+        // closeFuture 仍会异常完成并触发进程退出，避免永久卡在 shutdownStarted。
+        stop(true);
+    }
+
+    /**
      * 这里不能在 Node 心跳线程里直接调用 System.exit(0)，
      * 因为 System.exit 会等待 ShutdownHook，
      * 而 ShutdownHook 中 Service 的远程传输依赖 Node 心跳线程，会互相等待。
      */
     public void requestJvmShutdown() {
-        if (!jvmShutdownRequested.compareAndSet(false, true)) {
+        if (!shutdownStarted.compareAndSet(false, true)) {
             return;
         }
+        requestProcessExit();
+    }
+
+    private void requestProcessExit() {
         Thread shutdownThread = new Thread(() -> System.exit(0), "node-shutdown-" + id);
         shutdownThread.start();
     }
 
     /** ShutdownHook 开始后关闭新 Service 注册，但保留远程传输供 Service 完成清理。 */
     public synchronized void beginJvmShutdown() {
-        jvmShutdownRequested.set(true);
+        shutdownStarted.set(true);
     }
 
     /** Bootstrap 唯一启动入口，避免 ShutdownHook 与 Node 启动交叉。 */
     public synchronized void startNode() {
-        if (jvmShutdownRequested.get()) {
+        if (shutdownStarted.get()) {
             throw new SysException("cannot start node after JVM shutdown begins: node={}", id);
         }
         start();
@@ -416,7 +440,7 @@ public class Node extends TickCase{
      * @param service
      */
     public synchronized void addService(Service service){
-        if (jvmShutdownRequested.get()) {
+        if (shutdownStarted.get()) {
             throw new SysException("cannot add service after JVM shutdown begins: node={}, service={}",
                     id, service == null ? null : service.getId());
         }
@@ -541,7 +565,7 @@ public class Node extends TickCase{
     }
 
     public synchronized RemoteNode addRemoteNode(String name, String addr, boolean needConnect) {
-        if (jvmShutdownRequested.get()
+        if (shutdownStarted.get()
                 && status != CaseStatus.Starting
                 && status != CaseStatus.Running) {
             throw new SysException("cannot add remote node after JVM shutdown begins: node={}, remoteNode={}", id, name);
@@ -563,6 +587,10 @@ public class Node extends TickCase{
 
 
     public void remove(Service service) {
+        post(() -> removeService_nt(service));
+    }
+
+    private void removeService_nt(Service service) {
         services.remove(service.getId(), service);
         localServiceVersion.incrementAndGet();
     }

@@ -213,6 +213,14 @@ public abstract class TTable<K, V extends DirtyObject> {
             removeSuccess = false;
         }
 
+        if (removeSuccess) {
+            for (TRecord<K, V> tRecord : removeTRecordCache) {
+                if (tRecord.isRemoveState() && cache.remove(tRecord.getKey(), tRecord)) {
+                    findFailCache.put(tRecord.getKey(), defaultValue);
+                }
+            }
+        }
+
         // 全部成功了
         if (addSuccess && modifySuccess && removeSuccess) {
             return;

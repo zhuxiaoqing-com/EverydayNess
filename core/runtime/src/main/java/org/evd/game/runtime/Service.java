@@ -842,15 +842,20 @@ public class Service extends TickCase {
 
     @Override
     public void onClose() {
-        super.onClose();
-        callTransport.close();
-        coroutineLockManager.close();
-        continuationRuntime.close();
-        timerScheduler.close();
-        node.remove(this);
+        try {
+            super.onClose();
+            callTransport.close();
+            coroutineLockManager.close();
+            continuationRuntime.close();
+            timerScheduler.close();
 
-        if (messageLocationSender != null) {
-            messageLocationSender.close();
+            if (messageLocationSender != null) {
+                messageLocationSender.close();
+            }
+        } finally {
+            // 即使本地资源关闭失败，也必须让 Node 脱离该 Service，避免整机停服永久等待。
+            // rpcStop 回包已经更早投递到同一 Node 队列，FIFO 保证先发回包、后移除 Service。
+            node.remove(this);
         }
     }
 

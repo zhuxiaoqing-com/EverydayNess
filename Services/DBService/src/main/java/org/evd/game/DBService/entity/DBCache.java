@@ -5,11 +5,11 @@ import org.evd.game.DBService.DBService;
 import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DbOpType;
-import org.evd.game.runtime.serializeBean.TickTimer;
-import org.evd.game.runtime.util.TimeUtils;
-import org.evd.game.runtime.serializeBean.TimeoutFlag;
+import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.config.DbConfig;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,72 +21,90 @@ import java.util.Map;
  **/
 @Slf4j
 public class DBCache {
-    DBService dbService;
+    private final DBService dbService;
+    private final long flushIntervalMs;
+    private final Map<String, TableCache> cache = new HashMap<>();
 
-    TickTimer tickTimer;
-    // 有数据代表在保存中;相当于带超时的标记位
-    TimeoutFlag syncSaveFlag;
-
-    Map<String, TableCache> cache = new HashMap<>();
+    private boolean stopping;
+    private boolean flushing;
+    private long nextFlushTime;
 
     public DBCache(DBService dbService) {
         DbConfig dbConfig = GlobalConfig.requireDbConfig();
-        long millis = dbConfig.getDb().getStorage().getCacheFlushMs();
-        this.tickTimer = new TickTimer(millis);
+        this.flushIntervalMs = dbConfig.getDb().getStorage().getCacheFlushMs();
+        if (flushIntervalMs <= 0) {
+            throw new IllegalArgumentException("cacheFlushMs must be greater than 0: " + flushIntervalMs);
+        }
         this.dbService = dbService;
+        this.nextFlushTime = dbService.getTimeCurrent() + flushIntervalMs;
     }
 
     public void tick() {
-        if (!tickTimer.isPeriod(dbService.getTimeCurrent())) {
+        if (stopping || flushing || dbService.getTimeCurrent() < nextFlushTime) {
             return;
         }
 
-        if (!TimeoutFlag.checkExpire(syncSaveFlag)) {
-            return;
+        flushing = true;
+        try {
+            dbService.launchCoroutine(this::flushWithLock);
+        } catch (RuntimeException | Error e) {
+            flushing = false;
+            throw e;
         }
-        dbService.postCoroutine(this::tickCoroutine);
     }
 
-    public void stop() {
-        tickCoroutine();
+    public void stop(boolean force) {
+        stopping = true;
+        try (ContinuationLockScope ignored = dbService.awaitCoroutineLockScope(LockType.DB_CACHE, this, 0)) {
+            flushOnce();
+            if (hasPendingRecords()) {
+                throw new IllegalStateException("DB cache stop flush failed, pendingRecordCount="
+                        + pendingRecordCount());
+            }
+        } catch (RuntimeException | Error e) {
+            if (!force) {
+                stopping = false;
+                nextFlushTime = dbService.getTimeCurrent() + flushIntervalMs;
+            }
+            throw e;
+        }
     }
 
-    /**
-     * 每个应该需要一个类似版本号的东西，保存之间将版本号获取过来，统一保存完毕后，检查下 符合的全部删除
-     */
-    private void tickCoroutine() {
-        // 时间到了 开始保存;
-        syncSaveFlag = new TimeoutFlag(TimeUtils.MIN * 4);
-        for (TableCache value : cache.values()) {
+    private void flushWithLock() {
+        try (ContinuationLockScope ignored = dbService.awaitCoroutineLockScope(LockType.DB_CACHE, this)) {
+            if (!stopping) {
+                flushOnce();
+            }
+        } finally {
+            flushing = false;
+            if (!stopping) {
+                nextFlushTime = dbService.getTimeCurrent() + flushIntervalMs;
+            }
+        }
+    }
+
+    private void flushOnce() {
+        List<TableCache> tableCaches = new ArrayList<>(cache.values());
+        for (TableCache tableCache : tableCaches) {
+            HashMap<Object, TRecord> snapshot = new HashMap<>(tableCache.getCache());
+            if (snapshot.isEmpty()) {
+                continue;
+            }
+
             try {
-                HashMap<Object, TRecord> copyMap = new HashMap<>(value.getCache());
-                List<DBReq> dbReqs = dbService.storageEngine.buildSaveDBReq(value);
+                List<DBReq> dbReqs = dbService.storageEngine.buildSaveDBReq(
+                        tableCache.getTableName(), snapshot.values());
                 for (DBReq dbReq : dbReqs) {
                     save(dbReq);
                 }
 
-                for (Map.Entry<Object, TRecord> entry : copyMap.entrySet()) {
-                    TRecord tRecord = value.getCache().get(entry.getKey());
-                    // 正常不可能删除的
-                    if (tRecord == null) {
-                        log.error("tick tRecord == null tableName {} key {}", value.getTableName(), entry.getKey());
-                        continue;
-                    }
-
-                    // 变化了 代表数据变了
-                    if (entry.getValue().tickVersion() != tRecord.tickVersion()) {
-                        continue;
-                    }
-
-                    // 删除没变化的,因为已经缓存到数据库了
-                    value.getCache().remove(entry.getKey());
+                for (Map.Entry<Object, TRecord> entry : snapshot.entrySet()) {
+                    tableCache.getCache().remove(entry.getKey(), entry.getValue());
                 }
             } catch (Exception e) {
-                log.error("", e);
+                log.error("DB cache flush failed, tableName={}", tableCache.getTableName(), e);
             }
         }
-
-        syncSaveFlag = null;
     }
 
 
@@ -111,4 +129,22 @@ public class DBCache {
     public TableCache getTableCache(String tableName) {
         return cache.computeIfAbsent(tableName, a -> new TableCache(tableName));
     }
+
+    private boolean hasPendingRecords() {
+        for (TableCache tableCache : cache.values()) {
+            if (!tableCache.getCache().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int pendingRecordCount() {
+        int count = 0;
+        for (TableCache tableCache : cache.values()) {
+            count += tableCache.getCache().size();
+        }
+        return count;
+    }
+
 }

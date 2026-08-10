@@ -25,6 +25,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -420,10 +421,10 @@ public class StorageMysql implements StorageEngine {
     }
 
     @Override
-    public List<DBReq> buildSaveDBReq(TableCache tableCache) {
+    public List<DBReq> buildSaveDBReq(String tableName, Collection<TRecord> records) {
         List<DBReq> dbReqList = new ArrayList<>();
 
-        Map<DbOpType, List<MysqlTRecord>> collect = tableCache.getCache().values().stream()
+        Map<DbOpType, List<MysqlTRecord>> collect = records.stream()
                 .map(a -> (MysqlTRecord) a)
                 .collect(Collectors.groupingBy(MysqlTRecord::getDbOpType));
 
@@ -436,7 +437,7 @@ public class StorageMysql implements StorageEngine {
             MysqlReq mysqlReq = new MysqlReq();
             dbReq.setMysqlReq(mysqlReq);
 
-            mysqlReq.setTableName(tableCache.getTableName());
+            mysqlReq.setTableName(tableName);
             for (MysqlTRecord mysqlTRecord : value) {
                 mysqlReq.getTablFieldList().add(mysqlTRecord.getDbTableField());
             }
@@ -510,6 +511,11 @@ public class StorageMysql implements StorageEngine {
                 for (TRecord record : returnList) {
                     tableCache.getCache().put(record.getKey(), record);
                 }
+                dbRsp = new DBRsp();
+                mysqlRsp = new MysqlRsp();
+                dbRsp.setMysqlRsp(mysqlRsp);
+                dbRsp.setSuccess(true);
+                return dbRsp;
             default: return null;
 
         }

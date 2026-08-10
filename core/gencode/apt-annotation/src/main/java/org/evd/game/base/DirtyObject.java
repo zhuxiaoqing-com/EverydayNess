@@ -27,6 +27,10 @@ public abstract class DirtyObject {
         parentMakeModify();
     }
 
+    public void clearModify() {
+        dirty = false;
+    }
+
     private void parentMakeModify() {
         if (_parent != null && _parent != this) {
             _parent.parentMakeModify();

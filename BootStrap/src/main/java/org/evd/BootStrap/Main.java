@@ -155,6 +155,16 @@ public class Main {
 
         // 系统关闭时进行清理
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            var nodeCloseFuture = node.closeFuture().toCompletableFuture();
+            if (nodeCloseFuture.isDone()) {
+                if (nodeCloseFuture.isCompletedExceptionally()) {
+                    LogCore.core.error("Node 已结束但关闭过程存在异常，ShutdownHook 只关闭日志: node={}", node.getId());
+                } else {
+                    LogCore.core.info("Node 已正常关闭，ShutdownHook 只关闭日志: node={}", node.getId());
+                }
+                org.apache.logging.log4j.LogManager.shutdown();
+                return;
+            }
             boolean shutdownInterrupted = false;
             node.beginJvmShutdown();
             long currTime = System.currentTimeMillis();
