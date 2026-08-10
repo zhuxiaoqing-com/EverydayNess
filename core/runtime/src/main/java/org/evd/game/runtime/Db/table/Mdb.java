@@ -54,14 +54,15 @@ public class Mdb {
             TableRegistry tableRegistry = loadTableRegistry(ownerClass);
             tableRegistry.register(this);
             lifecycleState = LifecycleState.RUNNING;
-
-            if (!checkTableCreate()) {
-                logger.warn("MDB等待DBService连接: service={}", service.getId());
-                return;
-            }
             logger.warn("{} has {} tables ......", ownerClass.getSimpleName(), tableList.size());
-
-            logger.warn("@@@@@@@@@@@@@@@@  mdb start end  @@@@@@@@@@@@@@@@");
+            service.launchCoroutine(() -> {
+                if (!checkTableCreate()) {
+                    logger.warn("MDB等待DBService连接: service={}", service.getId());
+                    return;
+                }
+                logger.warn("@@@@@@@@@@@@@@@@  mdb remote start end  @@@@@@@@@@@@@@@@");
+            });
+            logger.warn("@@@@@@@@@@@@@@@@  mdb local start end  @@@@@@@@@@@@@@@@");
         } catch (Throwable e) {
             logger.error("Mdb start error", e);
             closeInternal(true, false);
@@ -292,7 +293,6 @@ public class Mdb {
         logger.info("checkTableCreate success!!!");
         return true;
     }
-
 
     public void close() {
         closeInternal(false, true);

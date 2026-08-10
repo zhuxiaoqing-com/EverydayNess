@@ -251,8 +251,7 @@ public class Service extends TickCase {
 
         if (supportMdb()) {
             this.mdb = new Mdb();
-            // DBService 的 READY 顺序独立，MDB 仍在服务 tick 中异步启动，避免初始化依赖环。
-            postCoroutine(() -> mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE), this));
+            mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE), this);
         }
 
         init();

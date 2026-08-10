@@ -335,6 +335,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         logger.info("tickClearCache tickClearCacheLogicThread start tableName {}  ", this.getName());
 
         List<TRecord<K, V>> expireList = new ArrayList<>();
+        List<TRecord<K, V>> deleteList = new ArrayList<>();
         for (TRecord<K, V> kvtRecord : cache.values()) {
             // 30分钟没访问删除
             if (curNano - kvtRecord.getLastAccessTime() < expairNano) {
@@ -342,18 +343,22 @@ public abstract class TTable<K, V extends DirtyObject> {
             }
 
             if (!kvtRecord.checkCallPoint(callPoint)) {
-                return;
+                continue;
             }
 
             if (!kvtRecord.isModified()) {
-                // 没有变化过 直接删除;
-                cache.remove(kvtRecord.getKey());
+                // 遍历结束后统一删除，避免修改正在遍历的HashMap。
+                deleteList.add(kvtRecord);
                 continue;
             }
             // 这里先将其设置为没修改过，然后等存好数据库数据以后,再返回，如果还是没修改过，那就进行删除cache，如果修改过了，就不动;
             int flushState = kvtRecord.getState();
             kvtRecord.checkpointRefreshState(flushState);
             expireList.add(kvtRecord);
+        }
+
+        for (TRecord<K, V> record : deleteList) {
+            cache.remove(record.getKey(), record);
         }
 
         if (expireList.isEmpty()) {
@@ -406,6 +411,16 @@ public abstract class TTable<K, V extends DirtyObject> {
         logger.info("{}  table stop begin {}  ", getName(), mdb.service.getId());
         if (runCheckpoint) {
             checkpoint(true);
+            int dirtyRecordCount = 0;
+            for (TRecord<K, V> record : cache.values()) {
+                if (record.isModified()) {
+                    dirtyRecordCount++;
+                }
+            }
+            if (dirtyRecordCount > 0) {
+                logger.error("MDB停服checkpoint未完成，仍有脏数据将被清理: service={} table={} dirtyRecordCount={}",
+                        mdb.service.getId(), getName(), dirtyRecordCount);
+            }
         }
         cache.clear();
         long endTime = System.currentTimeMillis();
