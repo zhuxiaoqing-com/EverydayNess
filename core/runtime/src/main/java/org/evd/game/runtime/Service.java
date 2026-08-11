@@ -1,8 +1,8 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
-import org.apache.logging.log4j.ThreadContext;
 import org.evd.game.annotation.ServiceName;
+import org.apache.logging.log4j.ThreadContext;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -251,7 +251,10 @@ public class Service extends TickCase {
 
         if (supportMdb()) {
             this.mdb = new Mdb();
-            mdb.start(getClass(), (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE), this);
+            DBExecInterface dbExecutor = node.hasNodeDbExecutor()
+                    ? node.getNodeDbExecutor()
+                    : (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE);
+            mdb.start(getClass(), dbExecutor, this);
         }
 
         init();
@@ -684,7 +687,7 @@ public class Service extends TickCase {
         continuationRuntime.fail(continuation, failure, Task.Reason.RPC);
     }
 
-    protected final <T> T awaitCompletionStage(CompletionStage<T> stage, long timeoutMillis) {
+    public final <T> T awaitCompletionStage(CompletionStage<T> stage, long timeoutMillis) {
         Task.ContinuationWrapper continuation = requireRunningContinuation();
         continuation.prepareWait();
         continuation.markWaiting(new ContinuationDebugInfo.CompletionStageWaitDebugInfo(stage.getClass(), timeoutMillis));

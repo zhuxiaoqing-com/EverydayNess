@@ -3,7 +3,7 @@ package org.evd.game.DBService.storage.mysql;
 import io.r2dbc.spi.Connection;
 import io.r2dbc.spi.Result;
 import io.r2dbc.spi.Statement;
-import org.evd.game.DBService.DBService;
+import org.evd.game.DBService.DBProxy;
 import org.evd.game.DBService.entity.DBCache;
 import org.evd.game.DBService.entity.MysqlTRecord;
 import org.evd.game.DBService.entity.TRecord;
@@ -26,10 +26,10 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class StorageMysql implements StorageEngine {
@@ -40,13 +40,13 @@ public class StorageMysql implements StorageEngine {
     private final int batchCostMsWarn;
     private final Duration operationTimeout;
     private final long dbOperationTimeoutMillis;
-    private final DBService dbService;
+    private final DBProxy dbProxy;
     private final LoggerMysql logger;
     /** 建表后把表结构注册下来，后续 CRUD 在这里统一拼 SQL。 */
-    private final Map<String, TableMeta> tableMetaCache = new HashMap<>();
+    private final Map<String, TableMeta> tableMetaCache = new ConcurrentHashMap<>();
 
-    public StorageMysql(DBService dbService, LoggerMysql logger, DbStorageConfig storageConfig) {
-        this.dbService = dbService;
+    public StorageMysql(DBProxy dbProxy, LoggerMysql logger, DbStorageConfig storageConfig) {
+        this.dbProxy = dbProxy;
         this.logger = logger;
         this.batchPerCount = storageConfig.getBatchPerCount();
         if (batchPerCount <= 0) {
@@ -111,12 +111,9 @@ public class StorageMysql implements StorageEngine {
             return;
         }
 
-        TableMeta tableMeta = tableMetaCache.get(tableName);
-        if (tableMeta == null) {
-            String keyColumnName = tableMetaData.getKeyColumnName();
-            List<String> columnNames = tableMetaData.getColumnNames();
-            tableMeta = new TableMeta(tableName, keyColumnName, List.copyOf(columnNames));
-            tableMetaCache.put(tableName, tableMeta);
+        TableMeta tableMeta = new TableMeta(tableName, tableMetaData.getKeyColumnName(),
+                List.copyOf(tableMetaData.getColumnNames()));
+        if (tableMetaCache.putIfAbsent(tableName, tableMeta) == null) {
             log.info("TableMeta register  {}", tableMeta);
         }
     }
@@ -401,55 +398,43 @@ public class StorageMysql implements StorageEngine {
     }
 
     @Override
-    public List<TRecord> createTRecord(DBReq _dbReq) {
-        ArrayList<TRecord> returnList = new ArrayList<>();
-        for (DbTableField dbTableField : _dbReq.getMysqlReq().getTablFieldList()) {
-            DbOpType dbOpType =
-                    // 这里映射成批量的，下面就不用处理了
-                    switch (_dbReq.getDbOpType()) {
-                        case SAVE -> DbOpType.BATCH_SAVE;
-                        case REMOVE -> DbOpType.BATCH_REMOVE;
-                        default -> _dbReq.getDbOpType();
-                    };
-
-            TRecord tRecord = new MysqlTRecord(dbOpType, dbTableField);
-            returnList.add(tRecord);
+    public List<TRecord> createTRecord(DBReq dbReq) {
+        List<TRecord> records = new ArrayList<>();
+        for (DbTableField tableField : dbReq.getMysqlReq().getTablFieldList()) {
+            DbOpType opType = switch (dbReq.getDbOpType()) {
+                case SAVE -> DbOpType.BATCH_SAVE;
+                case REMOVE -> DbOpType.BATCH_REMOVE;
+                default -> dbReq.getDbOpType();
+            };
+            records.add(new MysqlTRecord(opType, tableField));
         }
-        return returnList;
+        return records;
     }
 
     @Override
-    public String parseTableName(DBReq _dbReq) {
-        return _dbReq.getMysqlReq().getTableName();
+    public String parseTableName(DBReq dbReq) {
+        return dbReq.getMysqlReq().getTableName();
     }
 
     @Override
     public List<DBReq> buildSaveDBReq(String tableName, Collection<TRecord> records) {
-        List<DBReq> dbReqList = new ArrayList<>();
-
-        Map<DbOpType, List<MysqlTRecord>> collect = records.stream()
-                .map(a -> (MysqlTRecord) a)
+        List<DBReq> requests = new ArrayList<>();
+        Map<DbOpType, List<MysqlTRecord>> grouped = records.stream()
+                .map(record -> (MysqlTRecord) record)
                 .collect(Collectors.groupingBy(MysqlTRecord::getDbOpType));
-
-        for (Map.Entry<DbOpType, List<MysqlTRecord>> entry : collect.entrySet()) {
-            DbOpType key = entry.getKey();
-            List<MysqlTRecord> value = entry.getValue();
-
-            DBReq dbReq = new DBReq();
-            dbReq.setDbOpType(key);
+        for (Map.Entry<DbOpType, List<MysqlTRecord>> entry : grouped.entrySet()) {
+            DBReq request = new DBReq();
+            request.setDbOpType(entry.getKey());
             MysqlReq mysqlReq = new MysqlReq();
-            dbReq.setMysqlReq(mysqlReq);
-
             mysqlReq.setTableName(tableName);
-            for (MysqlTRecord mysqlTRecord : value) {
-                mysqlReq.getTablFieldList().add(mysqlTRecord.getDbTableField());
+            for (MysqlTRecord record : entry.getValue()) {
+                mysqlReq.getTablFieldList().add(record.getDbTableField());
             }
-
-            dbReqList.add(dbReq);
+            request.setMysqlReq(mysqlReq);
+            requests.add(request);
         }
-        return dbReqList;
+        return requests;
     }
-
 
     @Override
     public DBRsp cache(DBReq dbReq, DBCache dbCache) {
@@ -458,69 +443,48 @@ public class StorageMysql implements StorageEngine {
         }
         TableCache tableCache = dbCache.getTableCache(dbReq.getMysqlReq().getTableName());
         switch (dbReq.getDbOpType()) {
-            case GET:
-            case BATCH_GET:
+            case GET, BATCH_GET -> {
                 DBRsp dbRsp = new DBRsp();
                 MysqlRsp mysqlRsp = new MysqlRsp();
                 dbRsp.setMysqlRsp(mysqlRsp);
                 dbRsp.setSuccess(true);
-                ArrayList<DbTableField> notFindList = new ArrayList<>();
-                for (DbTableField dbTableField : dbReq.getMysqlReq().getTablFieldList()) {
-                    Object tableKey = dbTableField.getTableKey();
-                    MysqlTRecord tRecord = (MysqlTRecord) tableCache.getCache().get(tableKey);
-                    if (tRecord != null) {
-                        if(DbOpType.isRemove(tRecord.getDbOpType())) {
-                            mysqlRsp.getTablFieldList().add(new DbTableField());
-                        } else {
-                            mysqlRsp.getTablFieldList().add(tRecord.getDbTableField());
-                        }
+                List<DbTableField> notFound = new ArrayList<>();
+                for (DbTableField tableField : dbReq.getMysqlReq().getTablFieldList()) {
+                    MysqlTRecord record = (MysqlTRecord) tableCache.getCache().get(tableField.getTableKey());
+                    if (record == null) {
+                        notFound.add(tableField);
+                    } else if (DbOpType.isRemove(record.getDbOpType())) {
+                        mysqlRsp.getTablFieldList().add(new DbTableField());
                     } else {
-                        notFindList.add(dbTableField);
+                        mysqlRsp.getTablFieldList().add(record.getDbTableField());
                     }
                 }
-                // 将没在缓存里的其他查询一下;
-                if (!notFindList.isEmpty()) {
-                    DBReq copyDBReq = new DBReq();
-                    copyDBReq.setDbOpType(dbReq.getDbOpType());
-                    copyDBReq.setMysqlReq(new MysqlReq());
-                    copyDBReq.getMysqlReq().setTablFieldList(notFindList);
-                    copyDBReq.getMysqlReq().setTableName(dbReq.getMysqlReq().getTableName());
-                    DBRsp batch = null;
-                    if (dbReq.getDbOpType() == DbOpType.GET) {
-                        batch = find(copyDBReq);
-                    } else if (dbReq.getDbOpType() == DbOpType.BATCH_GET) {
-                        batch = findBatch(copyDBReq);
-                    }
-                    mysqlRsp.getTablFieldList().addAll(batch.getMysqlRsp().getTablFieldList());
+                if (!notFound.isEmpty()) {
+                    DBReq uncachedRequest = new DBReq();
+                    uncachedRequest.setDbOpType(dbReq.getDbOpType());
+                    MysqlReq uncachedMysqlReq = new MysqlReq();
+                    uncachedMysqlReq.setTableName(dbReq.getMysqlReq().getTableName());
+                    uncachedMysqlReq.setTablFieldList(notFound);
+                    uncachedRequest.setMysqlReq(uncachedMysqlReq);
+                    DBRsp uncachedResponse = dbReq.getDbOpType() == DbOpType.GET
+                            ? find(uncachedRequest)
+                            : findBatch(uncachedRequest);
+                    mysqlRsp.getTablFieldList().addAll(uncachedResponse.getMysqlRsp().getTablFieldList());
                 }
                 return dbRsp;
-            case SAVE:
-            case BATCH_SAVE:
-            case REMOVE:
-            case BATCH_REMOVE:
-                ArrayList<TRecord> returnList = new ArrayList<>();
-                for (DbTableField dbTableField : dbReq.getMysqlReq().getTablFieldList()) {
-                    DbOpType dbOpType =
-                            // 这里映射成批量的，下面就不用处理了
-                            switch (dbReq.getDbOpType()) {
-                                case SAVE -> DbOpType.BATCH_SAVE;
-                                case REMOVE -> DbOpType.BATCH_REMOVE;
-                                default -> dbReq.getDbOpType();
-                            };
-
-                    TRecord tRecord = new MysqlTRecord(dbOpType, dbTableField);
-                    returnList.add(tRecord);
-                }
-                for (TRecord record : returnList) {
+            }
+            case SAVE, BATCH_SAVE, REMOVE, BATCH_REMOVE -> {
+                for (TRecord record : createTRecord(dbReq)) {
                     tableCache.getCache().put(record.getKey(), record);
                 }
-                dbRsp = new DBRsp();
-                mysqlRsp = new MysqlRsp();
-                dbRsp.setMysqlRsp(mysqlRsp);
+                DBRsp dbRsp = new DBRsp();
+                dbRsp.setMysqlRsp(new MysqlRsp());
                 dbRsp.setSuccess(true);
                 return dbRsp;
-            default: return null;
-
+            }
+            default -> {
+                return null;
+            }
         }
     }
 
@@ -554,8 +518,9 @@ public class StorageMysql implements StorageEngine {
     }
 
     private <T> T await(Mono<T> operation) {
-        return dbService.awaitDb(operation, dbOperationTimeoutMillis);
+        return dbProxy.awaitDb(operation, dbOperationTimeoutMillis);
     }
+
 
     private String resolveSql(DBReq dbReq) {
         MysqlReq mysqlReq = dbReq.getMysqlReq();

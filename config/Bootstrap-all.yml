@@ -3,6 +3,7 @@ debug: true
 
 nodes:
   - name: node1 # 节点
+    # dbTopology: NODE_LOCAL 时移除本节点的 DB Service，并关闭 db-dev.yml 的 enableMemoryCache。
     addr: 127.0.0.1:15001
     linkLevel: 0
     platformId: 0  #平台id

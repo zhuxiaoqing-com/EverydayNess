@@ -1,30 +1,18 @@
 package org.evd.game.DBService;
 
-import org.evd.game.DBService.entity.DBCache;
-import org.evd.game.DBService.storage.mysql.LoggerMysql;
-import org.evd.game.DBService.storage.mysql.StorageEngine;
-import org.evd.game.DBService.storage.mysql.StorageMysql;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
-import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
-import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.config.DbConfig;
-import org.evd.game.runtime.config.DbMysqlConfig;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
 
 @RpcService(DBExecInterface.class)
 public class DBService extends Service {
-    public static final String MYSQL = "mysql";
-
-    public DBCache dbCache;
-
-    public StorageEngine storageEngine;
+    private DBProxy dbProxy;
 
 
     public DBService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
@@ -34,45 +22,23 @@ public class DBService extends Service {
     @Override
     public void init() {
         super.init();
-        DbConfig dbConfig = GlobalConfig.requireDbConfig();
-        if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
-            dbCache = new DBCache(this);
-        }
-        switch (dbConfig.getDb().getEngine()) {
-            case MYSQL:
-                DbMysqlConfig mysqlConfig = dbConfig.getDb().getMysql();
-                LoggerMysql loggerMysql = new LoggerMysql(mysqlConfig);
-                storageEngine = new StorageMysql(this, loggerMysql, dbConfig.getDb().getStorage());
-
-                break;
-            default:
-                throw new IllegalArgumentException("unsupported db engine: " + dbConfig.getDb().getEngine());
-        }
+        dbProxy = new DBProxy(this);
     }
 
     @Override
     public void tick() {
         super.tick();
-        if (dbCache != null) {
-            dbCache.tick();
+        if (dbProxy != null) {
+            dbProxy.tick();
         }
     }
 
     @Override
     protected final void onStop(boolean force) {
         super.onStop(force);
-
-        boolean closeStorage = force;
-        try {
-            if (dbCache != null) {
-                dbCache.stop(force);
-            }
-            closeStorage = true;
-        } finally {
-            // 普通停服刷盘失败时 Service 会恢复运行，连接池必须保留；强停则无论如何都要释放。
-            if (closeStorage && storageEngine != null) {
-                storageEngine.close();
-            }
+        if (dbProxy != null) {
+            dbProxy.stop(force);
+            dbProxy = null;
         }
     }
 
@@ -94,51 +60,12 @@ public class DBService extends Service {
 
     @Rpc
     public DBRsp dbExec(DBReq dbReq) {
-        if(isStopping()) {
+        if (isStopping()) {
             throw new ServiceStoppingException("dbExec service is stopping");
         }
-
-        DBRsp dbRsp = new DBRsp();
-        dbRsp.setSuccess(true);
-        try {
-            DBRsp cache = storageEngine.cache(dbReq, dbCache);
-            if (cache != null) {
-                return cache;
-            }
-
-            switch (dbReq.getDbOpType()) {
-                case DbOpType.CREATE_TABLE:
-                    storageEngine.initTable(dbReq);
-                    break;
-                case DbOpType.GET:
-                    dbRsp = storageEngine.find(dbReq);
-                    break;
-                case DbOpType.BATCH_GET:
-                    dbRsp = storageEngine.findBatch(dbReq);
-                    break;
-                case DbOpType.SAVE:
-                    storageEngine.replace(dbReq);
-                    break;
-                case DbOpType.BATCH_SAVE:
-                    storageEngine.replaceBatch(dbReq);
-                    break;
-                case DbOpType.REMOVE:
-                    storageEngine.remove(dbReq);
-                    break;
-                case DbOpType.BATCH_REMOVE:
-                    storageEngine.removeBatch(dbReq);
-                    break;
-
-            }
-        } catch (Exception e) {
-            return new DBRsp(e.getMessage());
-        }
-        return dbRsp;
+        return dbProxy.dbExec(null, dbReq);
     }
 
-    public <T> T awaitDb(reactor.core.publisher.Mono<T> mono, long dbOperationTimeoutMillis) {
-        return awaitCompletionStage(mono.toFuture(), dbOperationTimeoutMillis);
-    }
 
     @Override
     protected boolean supportLocation() {

@@ -1,7 +1,8 @@
 package org.evd.game.DBService.entity;
 
 import lombok.extern.slf4j.Slf4j;
-import org.evd.game.DBService.DBService;
+import org.evd.game.DBService.storage.mysql.StorageEngine;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DbOpType;
@@ -21,7 +22,8 @@ import java.util.Map;
  **/
 @Slf4j
 public class DBCache {
-    private final DBService dbService;
+    private final Service cacheOwner;
+    private final StorageEngine storageEngine;
     private final long flushIntervalMs;
     private final Map<String, TableCache> cache = new HashMap<>();
 
@@ -29,24 +31,25 @@ public class DBCache {
     private boolean flushing;
     private long nextFlushTime;
 
-    public DBCache(DBService dbService) {
+    public DBCache(Service cacheOwner, StorageEngine storageEngine) {
         DbConfig dbConfig = GlobalConfig.requireDbConfig();
         this.flushIntervalMs = dbConfig.getDb().getStorage().getCacheFlushMs();
         if (flushIntervalMs <= 0) {
             throw new IllegalArgumentException("cacheFlushMs must be greater than 0: " + flushIntervalMs);
         }
-        this.dbService = dbService;
-        this.nextFlushTime = dbService.getTimeCurrent() + flushIntervalMs;
+        this.cacheOwner = cacheOwner;
+        this.storageEngine = storageEngine;
+        this.nextFlushTime = cacheOwner.getTimeCurrent() + flushIntervalMs;
     }
 
     public void tick() {
-        if (stopping || flushing || dbService.getTimeCurrent() < nextFlushTime) {
+        if (stopping || flushing || cacheOwner.getTimeCurrent() < nextFlushTime) {
             return;
         }
 
         flushing = true;
         try {
-            dbService.launchCoroutine(this::flushWithLock);
+            cacheOwner.launchCoroutine(this::flushWithLock);
         } catch (RuntimeException | Error e) {
             flushing = false;
             throw e;
@@ -55,7 +58,7 @@ public class DBCache {
 
     public void stop(boolean force) {
         stopping = true;
-        try (ContinuationLockScope ignored = dbService.awaitCoroutineLockScope(LockType.DB_CACHE, this, 0)) {
+        try (ContinuationLockScope ignored = cacheOwner.awaitCoroutineLockScope(LockType.DB_CACHE, this, 0)) {
             flushOnce();
             if (hasPendingRecords()) {
                 throw new IllegalStateException("DB cache stop flush failed, pendingRecordCount="
@@ -64,21 +67,21 @@ public class DBCache {
         } catch (RuntimeException | Error e) {
             if (!force) {
                 stopping = false;
-                nextFlushTime = dbService.getTimeCurrent() + flushIntervalMs;
+                nextFlushTime = cacheOwner.getTimeCurrent() + flushIntervalMs;
             }
             throw e;
         }
     }
 
     private void flushWithLock() {
-        try (ContinuationLockScope ignored = dbService.awaitCoroutineLockScope(LockType.DB_CACHE, this)) {
+        try (ContinuationLockScope ignored = cacheOwner.awaitCoroutineLockScope(LockType.DB_CACHE, this)) {
             if (!stopping) {
                 flushOnce();
             }
         } finally {
             flushing = false;
             if (!stopping) {
-                nextFlushTime = dbService.getTimeCurrent() + flushIntervalMs;
+                nextFlushTime = cacheOwner.getTimeCurrent() + flushIntervalMs;
             }
         }
     }
@@ -92,7 +95,7 @@ public class DBCache {
             }
 
             try {
-                List<DBReq> dbReqs = dbService.storageEngine.buildSaveDBReq(
+                List<DBReq> dbReqs = storageEngine.buildSaveDBReq(
                         tableCache.getTableName(), snapshot.values());
                 for (DBReq dbReq : dbReqs) {
                     save(dbReq);
@@ -110,18 +113,11 @@ public class DBCache {
 
     public void save(DBReq dbReq) {
         switch (dbReq.getDbOpType()) {
-            case DbOpType.SAVE:
-                dbService.storageEngine.replace(dbReq);
-                break;
-            case DbOpType.BATCH_SAVE:
-                dbService.storageEngine.replaceBatch(dbReq);
-                break;
-            case DbOpType.REMOVE:
-                dbService.storageEngine.remove(dbReq);
-                break;
-            case DbOpType.BATCH_REMOVE:
-                dbService.storageEngine.removeBatch(dbReq);
-                break;
+            case DbOpType.SAVE -> storageEngine.replace(dbReq);
+            case DbOpType.BATCH_SAVE -> storageEngine.replaceBatch(dbReq);
+            case DbOpType.REMOVE -> storageEngine.remove(dbReq);
+            case DbOpType.BATCH_REMOVE -> storageEngine.removeBatch(dbReq);
+            default -> throw new IllegalArgumentException("unsupported cache flush operation: " + dbReq.getDbOpType());
         }
     }
 

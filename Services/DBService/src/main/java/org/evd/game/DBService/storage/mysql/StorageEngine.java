@@ -1,6 +1,5 @@
 package org.evd.game.DBService.storage.mysql;
 
-
 import org.evd.game.DBService.entity.DBCache;
 import org.evd.game.DBService.entity.TRecord;
 import org.evd.game.runtime.Db.serialize.DBReq;
@@ -38,13 +37,12 @@ public interface StorageEngine {
 
     void close();
 
+    List<TRecord> createTRecord(DBReq dbReq);
 
-    List<TRecord> createTRecord(DBReq _dbReq);
-
-    String parseTableName(DBReq _dbReq);
+    String parseTableName(DBReq dbReq);
 
     List<DBReq> buildSaveDBReq(String tableName, Collection<TRecord> records);
 
-    public DBRsp cache(DBReq dbReq, DBCache dbCache);
+    DBRsp cache(DBReq dbReq, DBCache dbCache);
 
 }

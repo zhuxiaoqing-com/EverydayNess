@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.ClassFinder;
 import org.evd.game.runtime.config.GlobalConfig;
+import org.evd.game.runtime.config.DbTopology;
 import org.evd.game.runtime.util.TimeUtils;
 import org.evd.game.runtime.config.NodeConfig;
 import org.evd.game.runtime.config.NodeInfo;
@@ -16,6 +17,7 @@ import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.TupleUtils;
 import org.evd.game.runtime.support.TwoTuple;
 import org.evd.game.runtime.annotation.Module;
+import org.evd.game.DBService.DBProxy;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -94,6 +96,18 @@ public class Main {
 
         NodeInfo nodeInfo = GlobalConfig.requireNodeInfo(nodeId);
         Node node = new Node(nodeId, nodeInfo);
+        if (nodeInfo.getDbTopology() == DbTopology.NODE_LOCAL) {
+            boolean containsDbService = nodeInfo.getSchedule().stream()
+                    .flatMap(schedule -> schedule.getServices().stream())
+                    .anyMatch(service -> service.getServiceType() == ServiceType.DB);
+            if (containsDbService) {
+                throw new SysException("NODE_LOCAL mode must not configure DBService: node={}", nodeId);
+            }
+            if (GlobalConfig.requireDbConfig().getDb().getStorage().isEnableMemoryCache()) {
+                throw new SysException("NODE_LOCAL mode must disable enableMemoryCache: node={}", nodeId);
+            }
+            node.setNodeDbExecutor(new DBProxy(null));
+        }
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
             node.createExecutor(scheduleInfo.getName(), scheduleInfo.getNum());
         }

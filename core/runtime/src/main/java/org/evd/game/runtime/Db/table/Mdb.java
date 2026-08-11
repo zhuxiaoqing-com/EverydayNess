@@ -44,8 +44,8 @@ public class Mdb {
             throw new DBException("MDB不能重复调用start: state=" + lifecycleState);
         }
         logger.warn("@@@@@@@@@@@@@@@@ mdb start begin @@@@@@@@@@@@@@@@ mdb metadata {}", ownerClass.getName());
-        if(dbExecInterface == null){
-            throw  new DBException("DBExecInterface is null !!!");
+        if (dbExecInterface == null) {
+            throw new DBException("DBExecInterface is null !!!");
         }
         this.dbExecInterface = dbExecInterface;
         this.service = service;
@@ -57,7 +57,7 @@ public class Mdb {
             logger.warn("{} has {} tables ......", ownerClass.getSimpleName(), tableList.size());
             service.launchCoroutine(() -> {
                 if (!checkTableCreate()) {
-                    logger.warn("MDB等待DBService连接: service={}", service.getId());
+                    logger.warn("MDB等待数据库连接: service={}", service.getId());
                     return;
                 }
                 logger.warn("@@@@@@@@@@@@@@@@  mdb remote start end  @@@@@@@@@@@@@@@@");
@@ -282,7 +282,8 @@ public class Mdb {
     }
 
     public boolean checkTableCreate() {
-        CallPoint callPoint = service.getNode().getAnyCallPointByType(ServiceType.DB);
+        List<CallPoint> callPoints = allCallPoint();
+        CallPoint callPoint = callPoints.isEmpty() ? null : callPoints.getFirst();
         if (callPoint == null) {
             logger.warn("checkCreateTable callPoint == null");
             return false;
@@ -408,7 +409,7 @@ public class Mdb {
     }
 
 
-        public CallPoint findDBServiceCallPoint(Object key) {
+    public CallPoint findDBServiceCallPoint(Object key) {
         List<CallPoint> callPoints = allCallPoint();
         return RuntimeUtils.mod(key, callPoints);
     }
@@ -417,6 +418,9 @@ public class Mdb {
      * 获取所有callPoint
      */
     public List<CallPoint> allCallPoint() {
+        if (service.getNode().hasNodeDbExecutor()) {
+            return List.of(service.getNode().getNodeDbCallPoint());
+        }
         return service.getNode().getCallPointByType(ServiceType.DB);
     }
 

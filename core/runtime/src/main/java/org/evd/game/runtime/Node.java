@@ -6,6 +6,7 @@ import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.misc.BufferPool;
 import org.evd.game.runtime.misc.ScheduledExecutor;
@@ -70,12 +71,17 @@ public class Node extends TickCase{
     private long syncLocalServicesDirty;
 
     private volatile NetAcceptor acceptor;
+    /** NODE_LOCAL 模式下由 Node 独占的数据库入口，不是 Service。 */
+    private volatile NodeDbExecutor nodeDbExecutor;
+    /** NODE_LOCAL 模式数据库入口的固定路由标识。 */
+    private final CallPoint nodeDbCallPoint;
     ChannelManager channelManager = new ChannelManager();
 
     public Node(String name, NodeInfo nodeInfo){
         super(name, 1);
         this.nodeInfo = nodeInfo;
         this.addr = nodeInfo.getAddr();
+        this.nodeDbCallPoint = new CallPoint(getId(), "$node-db");
 
         int port = nodeInfo.getAddressInfo().getPort();
         acceptor = new NetAcceptor(port,
@@ -411,6 +417,11 @@ public class Node extends TickCase{
             remoteNode.close();
         }
         NetConnector.shutdownSharedGroup();
+
+        if (nodeDbExecutor != null) {
+            nodeDbExecutor.close();
+            nodeDbExecutor = null;
+        }
     }
 
     @Override
@@ -666,6 +677,28 @@ public class Node extends TickCase{
             throw new SysException("posted node task is null: node={}", id);
         }
         postedTasks.add(task);
+    }
+
+    public synchronized void setNodeDbExecutor(NodeDbExecutor nodeDbExecutor) {
+        if (status != CaseStatus.New) {
+            throw new SysException("cannot set node database after node starts: node={}", id);
+        }
+        if (this.nodeDbExecutor != null) {
+            throw new SysException("node database already exists: node={}", id);
+        }
+        this.nodeDbExecutor = Objects.requireNonNull(nodeDbExecutor, "nodeDbExecutor");
+    }
+
+    public boolean hasNodeDbExecutor() {
+        return nodeDbExecutor != null;
+    }
+
+    public NodeDbExecutor getNodeDbExecutor() {
+        return nodeDbExecutor;
+    }
+
+    public CallPoint getNodeDbCallPoint() {
+        return nodeDbCallPoint;
     }
 
     private void failRpcWaitsForRemote_nt(String remoteNodeId, RemoteSession session) {

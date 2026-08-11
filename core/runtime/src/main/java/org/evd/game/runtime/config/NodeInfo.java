@@ -8,6 +8,8 @@ import java.util.List;
 public class NodeInfo {
     private String name;
     private String addr;
+    /** 默认保持现有独立 DBService 路由。 */
+    private DbTopology dbTopology = DbTopology.REMOTE_SERVICE;
     /** 链路优先级：低层级主动连接高层级；同层级再按 nodeId 比较。 */
     private int linkLevel;
     private AddressInfo addressInfo;
@@ -27,6 +29,14 @@ public class NodeInfo {
 
     public void setAddr(String addr) {
         this.addr = addr;
+    }
+
+    public DbTopology getDbTopology() {
+        return dbTopology;
+    }
+
+    public void setDbTopology(DbTopology dbTopology) {
+        this.dbTopology = dbTopology;
     }
 
     public int getLinkLevel() {
