@@ -2,6 +2,7 @@ package org.evd.game.runtime;
 
 import io.netty.buffer.ByteBuf;
 import lombok.extern.slf4j.Slf4j;
+import org.evd.game.annotation.NodeType;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.config.NodeInfo;
@@ -54,6 +55,11 @@ public class Node extends TickCase{
     /** 地址 */
     private final String addr;
     private final NodeInfo nodeInfo;
+
+    public NodeType getNodeType() {
+        return nodeInfo.getNodeType();
+    }
+
     /** 本帧需要在 Node 线程执行的投递事件。 */
     private final List<Runnable> affirmPostedTasks = new ArrayList<>();
 //    /** ZMQ上下文 */

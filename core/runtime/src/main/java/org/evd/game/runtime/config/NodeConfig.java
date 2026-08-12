@@ -6,6 +6,8 @@ import java.util.List;
 public class NodeConfig {
     private String dbConfigPath;
     private boolean debug;
+    private int platformId;
+    private int serverId;
     private List<NodeInfo> nodes = new ArrayList<>();
 
     public String getDbConfigPath() {
@@ -30,5 +32,21 @@ public class NodeConfig {
 
     public void setDebug(boolean debug) {
         this.debug = debug;
+    }
+
+    public int getPlatformId() {
+        return platformId;
+    }
+
+    public void setPlatformId(int platformId) {
+        this.platformId = platformId;
+    }
+
+    public int getServerId() {
+        return serverId;
+    }
+
+    public void setServerId(int serverId) {
+        this.serverId = serverId;
     }
 }

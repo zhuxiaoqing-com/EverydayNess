@@ -19,14 +19,21 @@ public enum ServiceType {
     DB(7, ServiceName.DB_SERVICE),
     LOC(8, ServiceName.LOCATION_SERVICE),
     ADMIN(9, ServiceName.ADMIN_SERVICE),
-    GLOC(100, ServiceName.LOCATION_SERVICE),
-    GSTAGE(101, ServiceName.STAGE_SERVICE, false),
-    GSCENE_MANAGER(102, ServiceName.SCENE_MANAGER_SERVICE),
+
+    // 新枚举必须追加在已有枚举之后，避免改变已有 ServiceType 的序列化 ordinal。
+    ZLOC(50, ServiceName.LOCATION_SERVICE, NodeType.ZONE),
+    ZSTAGE(51, ServiceName.STAGE_SERVICE, false, NodeType.ZONE),
+    ZSCENE_MANAGER(52, ServiceName.SCENE_MANAGER_SERVICE, NodeType.ZONE),
+
+    GLOC(100, ServiceName.LOCATION_SERVICE, NodeType.GLOBAL),
+    GSTAGE(101, ServiceName.STAGE_SERVICE, false, NodeType.GLOBAL),
+    GSCENE_MANAGER(102, ServiceName.SCENE_MANAGER_SERVICE, NodeType.GLOBAL),
 
     ;
     final int type;
     final String className;
     final boolean single;
+    final NodeType nodeType;
 
     static ServiceType[] shutdownOrder = new ServiceType[] {
             CONN,
@@ -61,13 +68,22 @@ public enum ServiceType {
 
 
     ServiceType(int type, String name) {
-        this(type, name, true);
+        this(type, name, true, NodeType.GAME);
     }
 
     ServiceType(int type, String name, boolean single) {
+        this(type, name, single, NodeType.GAME);
+    }
+
+    ServiceType(int type, String name, NodeType nodeType) {
+        this(type, name, true, nodeType);
+    }
+
+    ServiceType(int type, String name, boolean single, NodeType nodeType) {
         this.type = type;
         this.className = name;
         this.single = single;
+        this.nodeType = nodeType;
     }
 
     public int getType() {
@@ -84,6 +100,14 @@ public enum ServiceType {
 
     public boolean isSingle() {
         return single;
+    }
+
+    public NodeType getNodeType() {
+        return nodeType;
+    }
+
+    public boolean isSupportNodeType(NodeType nodeType) {
+        return this.nodeType == nodeType;
     }
 
     public boolean isGlobal() {

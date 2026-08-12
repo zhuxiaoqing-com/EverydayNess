@@ -71,6 +71,35 @@ public class Main {
         }
     }
 
+    private static void validateNodeServiceTypes(NodeConfig config) {
+        for (NodeInfo nodeInfo : config.getNodes()) {
+            if (nodeInfo.getNodeType() == null) {
+                throw new SysException("nodeType is required: node={}", nodeInfo.getName());
+            }
+            if (nodeInfo.getSchedule() == null) {
+                continue;
+            }
+            for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
+                if (scheduleInfo.getServices() == null) {
+                    continue;
+                }
+                for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
+                    if (serviceInfo == null || serviceInfo.getServiceType() == null) {
+                        throw new SysException("serviceType is required: node={}, schedule={}",
+                                nodeInfo.getName(), scheduleInfo.getName());
+                    }
+                    ServiceType serviceType = serviceInfo.getServiceType();
+                    if (!serviceType.isSupportNodeType(nodeInfo.getNodeType())) {
+                        throw new SysException(
+                                "serviceType does not support nodeType: node={}, nodeType={}, serviceType={}, serviceNodeType={}",
+                                nodeInfo.getName(), nodeInfo.getNodeType(), serviceType,
+                                serviceType.getNodeType());
+                    }
+                }
+            }
+        }
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void main(String[] args) throws Exception {
 //        if (args.length < 2){
@@ -92,6 +121,7 @@ public class Main {
         log.info("start  node {} ", nodeId);
         GlobalConfig.init(bootStrapName);
         NodeConfig config = GlobalConfig.requireNodeConfig();
+        validateNodeServiceTypes(config);
         validateSingleServices(config);
 
         NodeInfo nodeInfo = GlobalConfig.requireNodeInfo(nodeId);

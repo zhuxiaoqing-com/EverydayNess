@@ -1,6 +1,7 @@
 package org.evd.game.runtime.config;
 
 import io.netty.util.internal.StringUtil;
+import org.evd.game.annotation.NodeType;
 import org.evd.game.runtime.netty.AddressInfo;
 
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.List;
 public class NodeInfo {
     private String name;
     private String addr;
+    private NodeType nodeType;
     /** 默认保持现有独立 DBService 路由。 */
     private DbTopology dbTopology = DbTopology.REMOTE_SERVICE;
     /** 链路优先级：低层级主动连接高层级；同层级再按 nodeId 比较。 */
@@ -29,6 +31,14 @@ public class NodeInfo {
 
     public void setAddr(String addr) {
         this.addr = addr;
+    }
+
+    public NodeType getNodeType() {
+        return nodeType;
+    }
+
+    public void setNodeType(NodeType nodeType) {
+        this.nodeType = nodeType;
     }
 
     public DbTopology getDbTopology() {
