@@ -1,5 +1,8 @@
 package org.evd.game.runtime.util.id;
 
+import org.evd.game.runtime.util.id.multiNode.MultiNodeIdLayout0;
+import org.evd.game.runtime.util.id.rollingServer.RollingServerIdLayout0;
+
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 
@@ -21,12 +24,11 @@ public final class SnowflakeIdGenerator {
             .toInstant(ZoneOffset.ofHours(8))
             .toEpochMilli();
 
-    private static final SnowflakeIdLayout V0_DECODER = new RollingServerIdLayout(0, 0);
-    private static final SnowflakeIdLayout V1_DECODER = new MultiNodeIdLayout(0, 0, 0);
+    private static final SnowflakeIdLayout ROLLING_V0_DECODER = new RollingServerIdLayout0(0, 0);
+    private static final SnowflakeIdLayout MULTI_NODE_V0_DECODER = new MultiNodeIdLayout0(0, 0, 0);
 
-    private static SnowflakeIdLayout layout = V0_DECODER;
-    private static long lastEpochSecond = -1;
-    private static long sequence;
+    private static volatile SnowflakeIdLayout layout = ROLLING_V0_DECODER;
+    private static final GenerationState STATE = new GenerationState();
 
     /**
      * 保留旧类隐式公开的无参构造器；生成状态仍由静态 API 统一管理。
@@ -35,47 +37,29 @@ public final class SnowflakeIdGenerator {
     }
 
     /**
-     * 使用滚服布局初始化，并指定滚服节点编号。
+     * 根据游戏部署类型选择 version 0 布局。
+     */
+    public static synchronized void init(SnowflakeIdType idType,
+                                         int platformId, int playerServerId, int nodeId) {
+        SnowflakeIdLayout newLayout = switch (idType) {
+            case ROLLING_SERVER -> new RollingServerIdLayout0(platformId, playerServerId, nodeId);
+            case MULTI_NODE -> new MultiNodeIdLayout0(platformId, playerServerId, nodeId);
+        };
+        layout = newLayout;
+    }
+
+    /**
+     * 保留当前多 Node 初始化方式。
      */
     public static synchronized void init(int platformId, int playerServerId, int nodeId) {
-        layout = new MultiNodeIdLayout(platformId, playerServerId, nodeId);
-        // 检查是否合法
+        init(SnowflakeIdType.MULTI_NODE, platformId, playerServerId, nodeId);
     }
 
     /**
      * 创建玩家 ID。类级锁继续保证同一 JVM 内的 sequence 生成串行化。
      */
     public static synchronized long createPlayerId() {
-        long nowEpochSecond = currentEpochSecond();
-        if (nowEpochSecond < 0) {
-            throw new IllegalStateException("current time is before snowflake epoch: " + nowEpochSecond);
-        }
-        if (lastEpochSecond >= 0 && nowEpochSecond < lastEpochSecond) {
-            throw new IllegalStateException("clock moved backwards: current=" + nowEpochSecond
-                    + ", last=" + lastEpochSecond);
-        }
-
-        if (nowEpochSecond > lastEpochSecond) {
-            lastEpochSecond = nowEpochSecond;
-            sequence = 0;
-        } else {
-            sequence++;
-            if (sequence > layout.sequenceMask()) {
-                lastEpochSecond = waitUntilNextSecond(lastEpochSecond);
-                sequence = 0;
-            }
-        }
-
-        if (lastEpochSecond > layout.maxEpochSecond()) {
-            throw new IllegalStateException("epochSecond overflow for snowflake version "
-                    + layout.version() + ": " + lastEpochSecond);
-        }
-
-        long id = layout.pack(lastEpochSecond, sequence);
-        if (id <= 0) {
-            throw new IllegalStateException("generated snowflake id must be positive: " + id);
-        }
-        return id;
+        return layout.createId(currentEpochSecond(), STATE);
     }
 
     /**
@@ -107,37 +91,41 @@ public final class SnowflakeIdGenerator {
     }
 
     private static SnowflakeIdLayout layoutOf(long id) {
-        return switch (versionOf(id)) {
-            case RollingServerIdLayout.VERSION -> V0_DECODER;
-            case MultiNodeIdLayout.VERSION -> V1_DECODER;
-            default -> throw new IllegalArgumentException("unsupported snowflake version: "
-                    + SnowflakeIdLayout.extractVersion(id));
+        int version = versionOf(id);
+        SnowflakeIdType currentType = layout.type();
+        return switch (currentType) {
+            case ROLLING_SERVER -> switch (version) {
+                case RollingServerIdLayout0.VERSION -> ROLLING_V0_DECODER;
+                default -> throw unsupportedLayout(currentType, version);
+            };
+            case MULTI_NODE -> switch (version) {
+                case MultiNodeIdLayout0.VERSION -> MULTI_NODE_V0_DECODER;
+                default -> throw unsupportedLayout(currentType, version);
+            };
         };
+    }
+
+    private static IllegalArgumentException unsupportedLayout(SnowflakeIdType idType, int version) {
+        return new IllegalArgumentException("unsupported snowflake layout: type=" + idType
+                + ", version=" + version);
     }
 
     private static long currentEpochSecond() {
         return Math.floorDiv(System.currentTimeMillis() - EPOCH_MILLIS, 1000);
     }
 
-    private static long waitUntilNextSecond(long previousEpochSecond) {
-        long nowEpochSecond = currentEpochSecond();
-        while (nowEpochSecond <= previousEpochSecond) {
-            if (nowEpochSecond < previousEpochSecond) {
-                throw new IllegalStateException("clock moved backwards while waiting for next second: current="
-                        + nowEpochSecond + ", last=" + previousEpochSecond);
-            }
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("interrupted while waiting for next second", e);
-            }
-            nowEpochSecond = currentEpochSecond();
-        }
-        return nowEpochSecond;
-    }
-
     private static void validatePositiveIdBits(long id) {
         SnowflakeIdLayout.requireSignBit(id);
+    }
+
+    /**
+     * 进程级生成水位。切换 Layout 时继续复用，避免 sequence 状态被重置。
+     */
+    static final class GenerationState {
+        /** 上一次观察到的物理时间，仅用于识别真实时钟回拨。 */
+        long lastObservedEpochSecond = -1;
+        /** 实际写入 ID 的逻辑时间，sequence 溢出时可以领先物理时间。 */
+        long lastEpochSecond = -1;
+        long sequence;
     }
 }
