@@ -9,8 +9,12 @@ import java.util.Objects;
 
 @SerializeClass
 public class ActorId implements ISerializable {
+    /**
+     * {@link ActorType}
+     */
     private int typeCode;
     private long uniqueId;
+    private ActorSceneKey sceneKey;
 
     public ActorId() {
     }
@@ -22,6 +26,15 @@ public class ActorId implements ISerializable {
     public ActorId(int typeCode, long uniqueId) {
         this.typeCode = typeCode;
         this.uniqueId = uniqueId;
+    }
+
+
+    /**
+     * 根据 typeCode 做判断
+     */
+    public boolean isCrossActor() {
+        //if(typeCode == )
+        return false;
     }
 
     public ActorId(ActorId other) {
@@ -68,27 +81,23 @@ public class ActorId implements ISerializable {
         this.typeCode = typeCode;
     }
 
+    public ActorSceneKey getSceneKey() {
+        return sceneKey;
+    }
+
+    public void setSceneKey(ActorSceneKey sceneKey) {
+        this.sceneKey = sceneKey;
+    }
+
     @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        if (!(other instanceof ActorId that)) {
-            return false;
-        }
-        return typeCode == that.typeCode && uniqueId == that.uniqueId;
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ActorId actorId = (ActorId) o;
+        return typeCode == actorId.typeCode && uniqueId == actorId.uniqueId && Objects.equals(sceneKey, actorId.sceneKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(typeCode, uniqueId);
-    }
-
-    @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .append("type", getType())
-                .append("uniqueId", getUniqueId())
-                .toString();
+        return Objects.hash(typeCode, uniqueId, sceneKey);
     }
 }
