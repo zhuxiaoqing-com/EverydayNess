@@ -12,4 +12,9 @@ connService接收到连接以后，等待接收登录协议;
 然后随机一个Gateip和端口，还有token发送给客户端，客户端进行重新校验连接，校验的时候带token来，这一步因为换连接了，
 所以有可能登录被拦截，然后让其他的账号登录这个好像没办法，而且其实sdk登录不是也可以这样拦截吗;
 发送校验token协议，连接指定的gate，然后发送角色列表给客户端，客户端收到角色列表，空的话就创建角色(名字,角色id);
-    不是空的或者等角色创建完成以后，就进行选择一个角色进入游戏，发送协议给gate，gate转发给online,然后online查询Location服务器
+    不是空的或者等角色创建完成以后，就进行选择一个角色进入游戏，发送协议给gate，gate转发给online 进行AddLocation ActorType.GATE,然后online查询Location服务器,看玩家是否有绑定的ActorType.PLAYER,
+    有的话就还是这个去指定的PlayerService,没有的话就负载均衡一个PlayerService 进行addLocation进行绑定, 然后协议发送给PlayService，玩家进入游戏;到此结束;
+
+addLocation 里面都需要判断该service是不是真的和其相连接，和查询location的时候要检测是否真的和该Service有连接，没有的话，如果之前和该Service有连接的话，就进行
+
+    然后就是离线先GATE触发，调用给online离线，然后发送个PlayerService,由PlayService进行校验，看是否

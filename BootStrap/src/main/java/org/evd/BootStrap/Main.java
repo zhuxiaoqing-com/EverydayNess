@@ -13,7 +13,6 @@ import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.TupleUtils;
 import org.evd.game.runtime.support.TwoTuple;
 import org.evd.game.runtime.annotation.Module;
@@ -32,74 +31,6 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class Main {
 
-    private static void validateSingleServices(NodeConfig config) {
-        Map<ServiceType, Integer> serviceCountMap = new EnumMap<>(ServiceType.class);
-        Map<ServiceType, List<String>> serviceSourceMap = new EnumMap<>(ServiceType.class);
-        for (NodeInfo nodeInfo : config.getNodes()) {
-            if (nodeInfo.getSchedule() == null) {
-                continue;
-            }
-            for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
-                if (scheduleInfo.getServices() == null) {
-                    continue;
-                }
-                for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
-                    if (serviceInfo == null || serviceInfo.getServiceType() == null) {
-                        continue;
-                    }
-                    ServiceType serviceType = serviceInfo.getServiceType();
-                    if (!serviceType.isSingle()) {
-                        continue;
-                    }
-                    int instanceCount = Math.max(1, serviceInfo.getNum());
-                    serviceCountMap.merge(serviceType, instanceCount, Integer::sum);
-                    serviceSourceMap.computeIfAbsent(serviceType, key -> new ArrayList<>())
-                            .add(String.format("node=%s,schedule=%s,service=%s,num=%d",
-                                    nodeInfo.getName(),
-                                    scheduleInfo.getName(),
-                                    serviceInfo.getName(),
-                                    instanceCount));
-                }
-            }
-        }
-
-        for (Map.Entry<ServiceType, Integer> entry : serviceCountMap.entrySet()) {
-            if (entry.getValue() > 1) {
-                throw new SysException("single service type duplicated: {} total={} detail={}",
-                        entry.getKey(), entry.getValue(), serviceSourceMap.get(entry.getKey()));
-            }
-        }
-    }
-
-    private static void validateNodeServiceTypes(NodeConfig config) {
-        for (NodeInfo nodeInfo : config.getNodes()) {
-            if (nodeInfo.getNodeType() == null) {
-                throw new SysException("nodeType is required: node={}", nodeInfo.getName());
-            }
-            if (nodeInfo.getSchedule() == null) {
-                continue;
-            }
-            for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
-                if (scheduleInfo.getServices() == null) {
-                    continue;
-                }
-                for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
-                    if (serviceInfo == null || serviceInfo.getServiceType() == null) {
-                        throw new SysException("serviceType is required: node={}, schedule={}",
-                                nodeInfo.getName(), scheduleInfo.getName());
-                    }
-                    ServiceType serviceType = serviceInfo.getServiceType();
-                    if (!serviceType.isSupportNodeType(nodeInfo.getNodeType())) {
-                        throw new SysException(
-                                "serviceType does not support nodeType: node={}, nodeType={}, serviceType={}, serviceNodeType={}",
-                                nodeInfo.getName(), nodeInfo.getNodeType(), serviceType,
-                                serviceType.getNodeType());
-                    }
-                }
-            }
-        }
-    }
-
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static void main(String[] args) throws Exception {
 //        if (args.length < 2){
@@ -110,32 +41,21 @@ public class Main {
 //            throw new SysException("param Error");
 //        }
         String bootStrapName = "Bootstrap-all.yml";
-        String nodeId = "node1";
+        int nodeId = 0;
         if (args.length > 0){
             bootStrapName = args[0];
         }
         if (args.length > 1){
-            nodeId = args[1];
+            nodeId = Integer.parseInt(args[1]);
         }
 
         log.info("start  node {} ", nodeId);
-        GlobalConfig.init(bootStrapName);
+        GlobalConfig.init(bootStrapName, nodeId);
         NodeConfig config = GlobalConfig.requireNodeConfig();
-        validateNodeServiceTypes(config);
-        validateSingleServices(config);
 
-        NodeInfo nodeInfo = GlobalConfig.requireNodeInfo(nodeId);
-        Node node = new Node(nodeId, nodeInfo);
+        NodeInfo nodeInfo = GlobalConfig.requireLocalNodeInfo();
+        Node node = new Node(nodeInfo);
         if (nodeInfo.getDbTopology() == DbTopology.NODE_LOCAL) {
-            boolean containsDbService = nodeInfo.getSchedule().stream()
-                    .flatMap(schedule -> schedule.getServices().stream())
-                    .anyMatch(service -> service.getServiceType() == ServiceType.DB);
-            if (containsDbService) {
-                throw new SysException("NODE_LOCAL mode must not configure DBService: node={}", nodeId);
-            }
-            if (GlobalConfig.requireDbConfig().getDb().getStorage().isEnableMemoryCache()) {
-                throw new SysException("NODE_LOCAL mode must disable enableMemoryCache: node={}", nodeId);
-            }
             node.setNodeDbExecutor(new DBProxy(null));
         }
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
@@ -296,8 +216,9 @@ public class Main {
 
         // Node 启动前准备完整远程拓扑，避免启动期握手与配置注册竞争。
         for (NodeInfo remoteInfo : config.getNodes()){
-            if (!node.getId().equals(remoteInfo.getName())){
-                node.addRemoteNode(remoteInfo.getName(), remoteInfo.getAddr(), NodeInfo.needConnect(nodeInfo, remoteInfo));
+            if (nodeInfo.getNodeId() != remoteInfo.getNodeId()){
+                node.addRemoteNode(Integer.toString(remoteInfo.getNodeId()), remoteInfo.getAddr(),
+                        NodeInfo.needConnect(nodeInfo, remoteInfo));
             }
         }
         // Node 启动时会启动所有预注册 Service；每个 Service 在 onStart 中加入 Node 后再执行 init。

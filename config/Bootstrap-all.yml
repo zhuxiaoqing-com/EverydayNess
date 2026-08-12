@@ -4,7 +4,8 @@ platformId: 0  #平台id
 serverId: 0 #服务器id;
 
 nodes:
-  - name: node1 # 节点
+  - nodeId: 0
+    name: 游戏服节点
     nodeType: GAME
     # dbTopology: NODE_LOCAL 时移除本节点的 DB Service，并关闭 db-dev.yml 的 enableMemoryCache。
     addr: 127.0.0.1:15001
@@ -39,7 +40,8 @@ nodes:
           name: stage
           num: 2
 
-  - name: node2 # 节点
+  - nodeId: 1
+    name: 大跨服节点
     nodeType: GLOBAL
     addr: 127.0.0.1:15002
     linkLevel: 1

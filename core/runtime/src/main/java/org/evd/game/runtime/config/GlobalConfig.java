@@ -16,12 +16,13 @@ import java.util.List;
 public final class GlobalConfig {
     private static NodeConfig nodeConfig;
     private static DbConfig dbConfig;
+    private static NodeInfo localNodeInfo;
 
     private GlobalConfig() {
     }
 
-    public static synchronized void init(String bootStrapName) {
-        if (nodeConfig != null && dbConfig != null) {
+    public static synchronized void init(String bootStrapName, int localNodeId) {
+        if (nodeConfig != null && dbConfig != null && localNodeInfo != null) {
             return;
         }
 
@@ -33,12 +34,13 @@ public final class GlobalConfig {
         if (nodeConfig.getDbConfigPath() == null || nodeConfig.getDbConfigPath().isBlank()) {
             throw new SysException("bootstrap dbConfig is empty: {}", configPath);
         }
-
         String dbPath = ConstPath.CONFIGURATION_PATH + nodeConfig.getDbConfigPath();
         dbConfig = loadYaml(dbPath, DbConfig.class);
         if (dbConfig == null) {
             throw new SysException("db config is empty: {}", dbPath);
         }
+        nodeConfig.validate(dbConfig);
+        localNodeInfo = requireNodeInfo(localNodeId);
     }
 
     public static NodeConfig requireNodeConfig() {
@@ -55,13 +57,20 @@ public final class GlobalConfig {
         return dbConfig;
     }
 
-    public static NodeInfo requireNodeInfo(String nodeId) {
+    public static NodeInfo requireNodeInfo(int nodeId) {
         for (NodeInfo nodeInfo : requireNodeConfig().getNodes()) {
-            if (nodeInfo.getName().equals(nodeId)) {
+            if (nodeInfo.getNodeId() == nodeId) {
                 return nodeInfo;
             }
         }
         throw new SysException("node config not exist: {}", nodeId);
+    }
+
+    public static NodeInfo requireLocalNodeInfo() {
+        if (localNodeInfo == null) {
+            throw new SysException("GlobalConfig localNodeInfo not initialized");
+        }
+        return localNodeInfo;
     }
 
   /*  public static List<CallPoint> getCallLocalPoint(ServiceType serviceType) {
@@ -89,7 +98,7 @@ public final class GlobalConfig {
      * 从1开始
      */
     public static String getServiceName(ServiceInfo serviceInfo, int index) {
-        return serviceInfo.getName() + index;
+        return serviceInfo.getInstanceName(index);
     }
 
     public static List<RegisteredService> getAllRegisteredServiceList() {
@@ -106,7 +115,7 @@ public final class GlobalConfig {
                                 serviceInfo.getServiceType(),
                                 serviceClassName,
                                 getServiceName(serviceInfo, index),
-                                nodeInfo.getName()));
+                                Integer.toString(nodeInfo.getNodeId())));
                     }
                 }
             }

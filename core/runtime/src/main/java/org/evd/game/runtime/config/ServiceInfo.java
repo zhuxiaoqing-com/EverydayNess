@@ -33,6 +33,13 @@ public class ServiceInfo {
         this.name = name;
     }
 
+    /**
+     * 获取实际注册到 Node 的 Service 实例 ID，index 从 1 开始。
+     */
+    public String getInstanceName(int index) {
+        return name + index;
+    }
+
     public int getNum() {
         return num;
     }

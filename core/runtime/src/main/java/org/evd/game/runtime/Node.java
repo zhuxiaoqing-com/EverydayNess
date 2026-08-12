@@ -83,8 +83,8 @@ public class Node extends TickCase{
     private final CallPoint nodeDbCallPoint;
     ChannelManager channelManager = new ChannelManager();
 
-    public Node(String name, NodeInfo nodeInfo){
-        super(name, 1);
+    public Node(NodeInfo nodeInfo){
+        super(Integer.toString(nodeInfo.getNodeId()), 1);
         this.nodeInfo = nodeInfo;
         this.addr = nodeInfo.getAddr();
         this.nodeDbCallPoint = new CallPoint(getId(), "$node-db");
@@ -103,7 +103,7 @@ public class Node extends TickCase{
         String addrWC = RegExUtils.replacePattern(addr, "\\d+.\\d+.\\d+.\\d+", "*");
         this.zmqPull.bind(addrWC);*/
 
-        nodeExecutor = new ScheduledExecutor(name, 1);
+        nodeExecutor = new ScheduledExecutor(getId(), 1);
         bindScheduledExecutor(nodeExecutor);
 
     }
@@ -180,6 +180,10 @@ public class Node extends TickCase{
         LogCore.core.error("service terminated, shutting down node: node={}, service={}, status={}",
                 id, service == null ? null : service.getId(), serviceStatus);
         requestJvmShutdown();
+    }
+
+    public String getName() {
+        return nodeInfo.getName();
     }
 
     /**

@@ -20,8 +20,8 @@ EverydayNess是一个为基于jdk21的分布式、Actor模型、协程游戏服�
 jvm参数：因为使用Continuation，要加一下参数
 --add-exports java.base/jdk.internal.vm=ALL-UNNAMED
 
-启动参数：暂时没接入服务注册，用config下的Bootstrap-all.yml作为服务发现，node1表示启动哪个节点配置
-Bootstrap-all.yml node1
+启动参数：暂时没接入服务注册，用 config 下的 Bootstrap-all.yml 作为服务发现，第二个参数表示启动的 nodeId
+Bootstrap-all.yml 0
 
 # 目录结构
 

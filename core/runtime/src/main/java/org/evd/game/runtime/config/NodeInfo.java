@@ -7,6 +7,7 @@ import org.evd.game.runtime.netty.AddressInfo;
 import java.util.List;
 
 public class NodeInfo {
+    private int nodeId = -1;
     private String name;
     private String addr;
     private NodeType nodeType;
@@ -16,6 +17,14 @@ public class NodeInfo {
     private int linkLevel;
     private AddressInfo addressInfo;
     private List<ScheduleInfo> schedule;
+
+    public int getNodeId() {
+        return nodeId;
+    }
+
+    public void setNodeId(int nodeId) {
+        this.nodeId = nodeId;
+    }
 
     public String getName() {
         return name;
@@ -77,6 +86,6 @@ public class NodeInfo {
         if (localNode.getLinkLevel() != remoteNode.getLinkLevel()) {
             return localNode.getLinkLevel() < remoteNode.getLinkLevel();
         }
-        return localNode.getName().compareTo(remoteNode.getName()) > 0;
+        return localNode.getNodeId() > remoteNode.getNodeId();
     }
 }

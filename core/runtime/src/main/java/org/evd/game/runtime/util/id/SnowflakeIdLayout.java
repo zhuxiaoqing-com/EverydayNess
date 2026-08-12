@@ -79,6 +79,10 @@ public abstract class SnowflakeIdLayout {
         return maxSequence;
     }
 
+    public final long maxNodeId() {
+        return maxNodeId;
+    }
+
     public final long maxEpochSecond() {
         return maxEpochSecond;
     }
