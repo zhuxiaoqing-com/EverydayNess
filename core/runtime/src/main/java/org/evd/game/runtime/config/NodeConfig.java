@@ -12,6 +12,8 @@ import java.util.Set;
 
 public class NodeConfig {
     private String dbConfigPath;
+    /** 全局数据库部署形态，所有 Node 必须使用同一拓扑。 */
+    private DbTopology dbTopology = DbTopology.REMOTE_SERVICE;
     private boolean debug;
     private int platformId;
     private int serverId;
@@ -23,6 +25,14 @@ public class NodeConfig {
 
     public void setDbConfigPath(String dbConfigPath) {
         this.dbConfigPath = dbConfigPath;
+    }
+
+    public DbTopology getDbTopology() {
+        return dbTopology;
+    }
+
+    public void setDbTopology(DbTopology dbTopology) {
+        this.dbTopology = dbTopology;
     }
 
     public List<NodeInfo> getNodes() {
@@ -193,11 +203,14 @@ public class NodeConfig {
     }
 
     private void validateDbTopology(DbConfig dbConfig) {
-        for (NodeInfo nodeInfo : nodes) {
-            if (nodeInfo.getDbTopology() != DbTopology.NODE_LOCAL) {
-                continue;
-            }
+        if (dbTopology == null) {
+            throw new SysException("dbTopology is required");
+        }
+        if (dbTopology != DbTopology.NODE_LOCAL) {
+            return;
+        }
 
+        for (NodeInfo nodeInfo : nodes) {
             if (nodeInfo.getSchedule() != null) {
                 for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
                     if (scheduleInfo.getServices() == null) {
@@ -213,11 +226,10 @@ public class NodeConfig {
                 }
             }
 
-            if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
-                throw new SysException(
-                        "NODE_LOCAL mode must disable enableMemoryCache: nodeId={}, name={}",
-                        nodeInfo.getNodeId(), nodeInfo.getName());
-            }
+        }
+
+        if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
+            throw new SysException("NODE_LOCAL mode must disable enableMemoryCache");
         }
     }
 }

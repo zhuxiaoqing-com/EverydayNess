@@ -5,10 +5,6 @@ plugins {
 group = 'org.evd'
 version = '1.0-SNAPSHOT'
 
-def serviceProjectPaths = (rootProject.findProject(':Services')?.childProjects?.values() ?: [])
-        .collect { it.path }
-        .sort()
-
 repositories {
     mavenCentral()
 }
@@ -22,10 +18,6 @@ dependencies {
     implementation project(":core:gencode:apt-annotation")
     implementation project(':core:runtime')
     implementation project(':common')
-    serviceProjectPaths.each { serviceProjectPath ->
-        implementation project(serviceProjectPath)
-    }
-
 }
 
 test {

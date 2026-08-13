@@ -760,6 +760,10 @@ public class Service extends TickCase {
         return timerScheduler.cancel(timerId);
     }
 
+    public final TimerScheduler timerScheduler() {
+        return timerScheduler;
+    }
+
     /**
      * 调试用：打印当前 service 内部所有协程状态、等待点和锁状态。
      */

@@ -1,4 +1,5 @@
 dbConfigPath: db-dev.yml
+dbTopology: REMOTE_SERVICE
 debug: true
 platformId: 0  #平台id
 serverId: 0 #服务器id;
@@ -7,7 +8,6 @@ nodes:
   - nodeId: 0
     name: 游戏服节点
     nodeType: GAME
-    # dbTopology: NODE_LOCAL 时移除本节点的 DB Service，并关闭 db-dev.yml 的 enableMemoryCache。
     addr: 127.0.0.1:15001
     linkLevel: 0
     schedule:

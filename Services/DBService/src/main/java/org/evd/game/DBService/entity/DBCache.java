@@ -24,26 +24,29 @@ import java.util.Map;
 public class DBCache {
     private final Service cacheOwner;
     private final StorageEngine storageEngine;
-    private final long flushIntervalMs;
+    private final long tickTimerId;
     private final Map<String, TableCache> cache = new HashMap<>();
 
     private boolean stopping;
     private boolean flushing;
-    private long nextFlushTime;
 
-    public DBCache(Service cacheOwner, StorageEngine storageEngine) {
+    public DBCache(StorageEngine storageEngine) {
         DbConfig dbConfig = GlobalConfig.requireDbConfig();
-        this.flushIntervalMs = dbConfig.getDb().getStorage().getCacheFlushMs();
+        long flushIntervalMs = dbConfig.getDb().getStorage().getCacheFlushMs();
         if (flushIntervalMs <= 0) {
             throw new IllegalArgumentException("cacheFlushMs must be greater than 0: " + flushIntervalMs);
         }
-        this.cacheOwner = cacheOwner;
+        this.cacheOwner = Service.getCurrent();
+        if (cacheOwner == null) {
+            throw new IllegalStateException("DBCache must be created from a Service");
+        }
         this.storageEngine = storageEngine;
-        this.nextFlushTime = cacheOwner.getTimeCurrent() + flushIntervalMs;
+        this.tickTimerId = cacheOwner.timerScheduler().scheduleRepeated(
+                cacheOwner.getTimeCurrent(), flushIntervalMs, false, this::tick);
     }
 
     public void tick() {
-        if (stopping || flushing || cacheOwner.getTimeCurrent() < nextFlushTime) {
+        if (stopping || flushing) {
             return;
         }
 
@@ -67,10 +70,10 @@ public class DBCache {
         } catch (RuntimeException | Error e) {
             if (!force) {
                 stopping = false;
-                nextFlushTime = cacheOwner.getTimeCurrent() + flushIntervalMs;
             }
             throw e;
         }
+        cacheOwner.timerScheduler().cancel(tickTimerId);
     }
 
     private void flushWithLock() {
@@ -80,9 +83,6 @@ public class DBCache {
             }
         } finally {
             flushing = false;
-            if (!stopping) {
-                nextFlushTime = cacheOwner.getTimeCurrent() + flushIntervalMs;
-            }
         }
     }
 

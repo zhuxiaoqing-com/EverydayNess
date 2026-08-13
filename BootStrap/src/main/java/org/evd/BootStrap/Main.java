@@ -12,11 +12,12 @@ import org.evd.game.runtime.config.ScheduleInfo;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.TupleUtils;
 import org.evd.game.runtime.support.TwoTuple;
 import org.evd.game.runtime.annotation.Module;
-import org.evd.game.DBService.DBProxy;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -55,8 +56,8 @@ public class Main {
 
         NodeInfo nodeInfo = GlobalConfig.requireLocalNodeInfo();
         Node node = new Node(nodeInfo);
-        if (nodeInfo.getDbTopology() == DbTopology.NODE_LOCAL) {
-            node.setNodeDbExecutor(new DBProxy(null));
+        if (config.getDbTopology() == DbTopology.NODE_LOCAL) {
+            node.setNodeDbExecutor(createNodeDbExecutor());
         }
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
             node.createExecutor(scheduleInfo.getName(), scheduleInfo.getNum());
@@ -233,6 +234,22 @@ public class Main {
                 e.printStackTrace();
             }
             node.requestJvmShutdown();
+        }
+    }
+
+    private static NodeDbExecutor createNodeDbExecutor() {
+        String NODE_DB_PROXY_CLASS_NAME = "org.evd.game.DBService.DBProxy";
+        try {
+            Class<?> dbProxyClass = Class.forName(NODE_DB_PROXY_CLASS_NAME);
+            if (!NodeDbExecutor.class.isAssignableFrom(dbProxyClass)) {
+                throw new SysException("NODE_LOCAL 数据库实现未实现 NodeDbExecutor: class={}", NODE_DB_PROXY_CLASS_NAME);
+            }
+            return NodeDbExecutor.class.cast(dbProxyClass.getDeclaredConstructor().newInstance());
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new SysException(cause, "创建 NODE_LOCAL 数据库实现失败: class={}", NODE_DB_PROXY_CLASS_NAME);
+        } catch (ReflectiveOperationException e) {
+            throw new SysException(e, "创建 NODE_LOCAL 数据库实现失败: class={}", NODE_DB_PROXY_CLASS_NAME);
         }
     }
 }

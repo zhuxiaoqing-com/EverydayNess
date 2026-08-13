@@ -28,15 +28,15 @@ public final class DBProxy implements NodeDbExecutor {
     private final DBCache dbCache;
     private volatile boolean closed;
 
-    public DBProxy(Service cacheOwner) {
+    public DBProxy() {
         DbConfig dbConfig = GlobalConfig.requireDbConfig();
         if (!"mysql".equalsIgnoreCase(dbConfig.getDb().getEngine())) {
             throw new IllegalArgumentException("unsupported db engine: " + dbConfig.getDb().getEngine());
         }
         DbMysqlConfig mysqlConfig = dbConfig.getDb().getMysql();
         storageEngine = new StorageMysql(this, new LoggerMysql(mysqlConfig), dbConfig.getDb().getStorage());
-        if (cacheOwner != null && dbConfig.getDb().getStorage().isEnableMemoryCache()) {
-            dbCache = new DBCache(cacheOwner, storageEngine);
+        if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
+            dbCache = new DBCache(storageEngine);
         } else {
             dbCache = null;
         }
@@ -77,12 +77,6 @@ public final class DBProxy implements NodeDbExecutor {
             throw new IllegalStateException("DBProxy must be called from a Service coroutine");
         }
         return service.awaitCompletionStage(mono.toFuture(), timeoutMillis);
-    }
-
-    public void tick() {
-        if (dbCache != null) {
-            dbCache.tick();
-        }
     }
 
     public void stop(boolean force) {

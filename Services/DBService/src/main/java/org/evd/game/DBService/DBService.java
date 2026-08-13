@@ -22,15 +22,7 @@ public class DBService extends Service {
     @Override
     public void init() {
         super.init();
-        dbProxy = new DBProxy(this);
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        if (dbProxy != null) {
-            dbProxy.tick();
-        }
+        dbProxy = new DBProxy();
     }
 
     @Override

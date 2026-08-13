@@ -1,3 +1,8 @@
+我很犹豫gateService 和PlayerService 到底要不要负载均衡，还是直接%就行了;
+以及后面可能工会也拆分多个的话 是不是也直接%呢?;工会也拆的话 肯定不能负载均衡了;
+其实就gateService 和PlayerService 可以先负载均衡，然后后面想的话可以直接改成%,可以写成两种都支持，只需要改一个代码就行;
+
+
 现在有这些服务器
 connService：网关服务器
 lobbyService：大厅服务器一些杂七杂八的玩法
@@ -7,14 +12,31 @@ sdkService：sdk服务器;进行sdk校验;
 
 connService接收到连接以后，等待接收登录协议;
 登录协议收到以后，发送给sdkService进行登录,sdk校验成功以后，发送onlineService,
-查看是否有在线，有的话默认进行将旧的号踢出，给旧的号发送异地登录警告，然后新的号记录下来，记录状态，如果需要排队就进入排队列表，排队功能应该是要等sdk过了以后的吧？
-排队结束以后随机一个gateService;
+查看是否有在线，有的话默认进行将旧的号踢出，由gate触发删除Location;这里要等rpc返回。
+给旧的号发送异地登录警告，然后新的号记录下来，记录状态，如果需要排队就进入排队列表，排队功能应该是要等sdk过了以后的吧？
+排队结束以后随机一个gateService;记录token，有失效时间，如果这个时候又有新的连接上来需要登录,有token的话，就替换旧的token;
+如果没有token已经是登录状态了，就将其踢下线,但是这个可能还获取不到gate，因为还没注册到Location;
 然后随机一个Gateip和端口，还有token发送给客户端，客户端进行重新校验连接，校验的时候带token来，这一步因为换连接了，
 所以有可能登录被拦截，然后让其他的账号登录这个好像没办法，而且其实sdk登录不是也可以这样拦截吗;
-发送校验token协议，连接指定的gate，然后发送角色列表给客户端，客户端收到角色列表，空的话就创建角色(名字,角色id);
+发送校验token协议，连接指定的gate，然后onlineService进行token校验，校验通过，发送消息给网关用来角色登录网关，网关保存一份角色的登录数据，并且有网关发起addLocation,
+如果addLocation失败了，发现已经现有的了，就进行踢玩家下线，说异地登录;说明这里有并发，
+发送角色列表给客户端，客户端收到角色列表，空的话就创建角色(名字,角色id);
     不是空的或者等角色创建完成以后，就进行选择一个角色进入游戏，发送协议给gate，gate转发给online 进行AddLocation ActorType.GATE,然后online查询Location服务器,看玩家是否有绑定的ActorType.PLAYER,
     有的话就还是这个去指定的PlayerService,没有的话就负载均衡一个PlayerService 进行addLocation进行绑定, 然后协议发送给PlayService，玩家进入游戏;到此结束;
 
 addLocation 里面都需要判断该service是不是真的和其相连接，和查询location的时候要检测是否真的和该Service有连接，没有的话，如果之前和该Service有连接的话，就进行
+这个还挺难弄得 不知道怎么办好,需要看下ET,我想到了就直接不检测就好了，由Location服务器自己管理，如果服务器断开了由LocationService自己将其数据删除,其他地方不处理，
+如果不存在就直接不处理 直接报错加打日志就行;
 
-    然后就是离线先GATE触发，调用给online离线，然后发送个PlayerService,由PlayService进行校验，看是否
+    然后就是离线先GATE触发，调用给online离线，然后发送个PlayerService,进行下线;
+
+
+gate->online->检查是否在线或者是否已经有token缓存了->随机token->连接新的gate
+如果在online这一步检测在线或者有token缓存，就执行踢下线或者清理token;踢下线有提示，清理token没有;可以弄个标记，如果token不对就打日志token不对，但是提示也是提示有人登你的号这样;
+然后还要额外检测一下Location是否已经有占用gate了，如果有的话 也要给gate发送让其下线;
+
+还有就是addLocation，我可以online校验token生效以后将其标记为online,但是我可能location还没上线，所以我应该还需要gate上线以后注册到location里面，如果注册失败又怎么弄呢;
+好乱啊
+之前项目的简单是因为直接是在大厅服务器弄的，注册是在大厅，分配是在大厅;现在是分配是在大厅，注册是在各自服务器比如gate;然后删除可能在另外的gate;
+
+问了gpt说最好的办法就是全部在OnlineService里面做好;
