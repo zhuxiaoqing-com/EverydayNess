@@ -5,6 +5,7 @@ import org.evd.game.runtime.config.GlobalConfig;
 import org.evd.game.runtime.config.NodeConfig;
 import org.evd.game.runtime.config.NodeInfo;
 import org.evd.game.runtime.util.id.multiNode.MultiNodeIdLayout;
+import org.evd.game.runtime.util.id.idSegment.IdSegmentLayout;
 import org.evd.game.runtime.util.id.rollingServer.RollingServerIdLayout;
 
 import java.time.LocalDate;
@@ -28,15 +29,16 @@ public final class SnowflakeIdGenerator {
             .toInstant(ZoneOffset.ofHours(8))
             .toEpochMilli();
 
-    private static volatile SnowflakeIdLayout currentLayout;
+    private static volatile IdLayout currentLayout;
 
     private static final Map<SnowflakeIdType, LayoutFactory> LAYOUT_FACTORY_MAP = Map.of(
             SnowflakeIdType.ROLLING_SERVER, RollingServerIdLayout::create,
-            SnowflakeIdType.MULTI_NODE, MultiNodeIdLayout::create);
+            SnowflakeIdType.MULTI_NODE, MultiNodeIdLayout::create,
+            SnowflakeIdType.MYSQL, IdSegmentLayout::create);
 
     @FunctionalInterface
     private interface LayoutFactory {
-        SnowflakeIdLayout create(int version, int platformId, int playerServerId, int nodeId);
+        IdLayout create(int version, int platformId, int playerServerId, int nodeId);
     }
 
     /**
@@ -66,14 +68,20 @@ public final class SnowflakeIdGenerator {
                         + localNode.getNodeId() + ", nodeType=" + localNode.getNodeType());
             }
 
-            SnowflakeIdLayout layoutForValidation = layoutFactory.create(
+            IdLayout layoutForValidation = layoutFactory.create(
                     version, config.getPlatformId(), config.getServerId(), 0);
-            for (NodeInfo nodeInfo : config.getNodes()) {
-                if (nodeInfo.getNodeType() == NodeType.GAME && nodeInfo.getNodeId() > layoutForValidation.maxNodeId()) {
-                    throw new IllegalArgumentException("invalid GAME node for snowflake layout: nodeId="
-                            + nodeInfo.getNodeId() + ", name=" + nodeInfo.getName()
-                            + ", maxNodeId=" + layoutForValidation.maxNodeId()
-                            + ", idType=" + layoutForValidation.type());
+            try {
+                for (NodeInfo nodeInfo : config.getNodes()) {
+                    if (nodeInfo.getNodeType() == NodeType.GAME && nodeInfo.getNodeId() > layoutForValidation.maxNodeId()) {
+                        throw new IllegalArgumentException("invalid GAME node for snowflake layout: nodeId="
+                                + nodeInfo.getNodeId() + ", name=" + nodeInfo.getName()
+                                + ", maxNodeId=" + layoutForValidation.maxNodeId()
+                                + ", idType=" + idType);
+                    }
+                }
+            } finally {
+                if (layoutForValidation instanceof IdSegmentLayout idSegmentLayout) {
+                    idSegmentLayout.close();
                 }
             }
 
@@ -86,7 +94,7 @@ public final class SnowflakeIdGenerator {
      * 创建玩家 ID。
      */
     public static long createPlayerId() {
-        SnowflakeIdLayout layout = currentLayout;
+        IdLayout layout = currentLayout;
         if (layout == null) {
             throw new IllegalStateException("SnowflakeIdGenerator is not initialized");
         }
@@ -113,23 +121,35 @@ public final class SnowflakeIdGenerator {
     }
 
     public static long decodeEpochSecond(long id) {
-        return requireDecoderLayout(id).decodeEpochSecond(id);
+        IdLayout layout = requireDecoderLayout(id);
+        if (!(layout instanceof SnowflakeIdLayout snowflakeLayout)) {
+            throw new IllegalArgumentException("decodeEpochSecond is only supported for snowflake layout: id=" + id);
+        }
+        return snowflakeLayout.decodeEpochSecond(id);
     }
 
     public static long decodeSequence(long id) {
-        return requireDecoderLayout(id).decodeSequence(id);
+        IdLayout layout = requireDecoderLayout(id);
+        if (!(layout instanceof SnowflakeIdLayout snowflakeLayout)) {
+            throw new IllegalArgumentException("decodeSequence is only supported for snowflake layout: id=" + id);
+        }
+        return snowflakeLayout.decodeSequence(id);
     }
 
-    private static SnowflakeIdLayout requireDecoderLayout(long id) {
-        SnowflakeIdLayout layout = requireCurrentLayout().find(id);
+    public static long decodeIncrementId(long id) {
+        return requireDecoderLayout(id).decodeIncrementId(id);
+    }
+
+    private static IdLayout requireDecoderLayout(long id) {
+        IdLayout layout = requireCurrentLayout().find(id);
         if (layout == null) {
             throw new IllegalArgumentException("unsupported snowflake layout: id=" + id);
         }
         return layout;
     }
 
-    private static SnowflakeIdLayout requireCurrentLayout() {
-        SnowflakeIdLayout layout = currentLayout;
+    private static IdLayout requireCurrentLayout() {
+        IdLayout layout = currentLayout;
         if (layout == null) {
             throw new IllegalStateException("SnowflakeIdGenerator is not initialized");
         }

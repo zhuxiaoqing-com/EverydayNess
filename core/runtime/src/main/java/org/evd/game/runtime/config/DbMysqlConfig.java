@@ -44,6 +44,19 @@ public class DbMysqlConfig {
         throw new IllegalArgumentException("unsupported mysql url: " + jdbcUrl);
     }
 
+    public String getResolvedJdbcUrl() {
+        if (jdbcUrl != null && !jdbcUrl.isBlank()) {
+            return jdbcUrl;
+        }
+        if (r2dbcUrl == null || r2dbcUrl.isBlank()) {
+            return null;
+        }
+        if (r2dbcUrl.startsWith("r2dbc:mysql://")) {
+            return "jdbc:mysql://" + r2dbcUrl.substring("r2dbc:mysql://".length());
+        }
+        throw new IllegalArgumentException("unsupported mysql url: " + r2dbcUrl);
+    }
+
     public String getDriverClass() {
         return driverClass;
     }

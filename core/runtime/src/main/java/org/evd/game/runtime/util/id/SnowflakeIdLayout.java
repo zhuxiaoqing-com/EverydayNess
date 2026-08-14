@@ -8,10 +8,10 @@ import java.util.Map;
 /**
  * Snowflake ID 布局公共实现。
  *
- * <p>sign、version 和布局字段的位宽由具体布局声明，本类统一计算 shift/mask，
- * 并完成参数校验、ID 拼接和字段解析。</p>
+ * <p>本类只负责 Snowflake 的时间/序列生成，字段位移、ID 拼接和通用字段解析由
+ * {@link IdLayout} 统一维护。</p>
  */
-public abstract class SnowflakeIdLayout {
+public abstract class SnowflakeIdLayout extends IdLayout {
 
     private static final Map<IDEnum, GenerationState> GENERATION_STATE_MAP = new HashMap<>();
     private static final Object GENERATION_LOCK = new Object();
@@ -21,9 +21,8 @@ public abstract class SnowflakeIdLayout {
             GENERATION_STATE_MAP.putIfAbsent(idEnum, new GenerationState());
         }
     }
-    /**
-     * 每个 ID 类型独立维护生成水位。
-     */
+
+    /** 每个 ID 类型独立维护生成水位。 */
     static final class GenerationState {
         /** 实际写入 ID 的逻辑时间，物理时间落后时继续借秒生成。 */
         long lastEpochSecond = -1;
@@ -45,88 +44,36 @@ public abstract class SnowflakeIdLayout {
         return Math.floorDiv(System.currentTimeMillis() - EPOCH_MILLIS, 1000);
     }
 
-    private static final int SIGN_BITS = 1;
     private final SnowflakeIdType type;
-    private final int version;
-    private final int versionShift;
-    private final long versionMask;
     private final int sequenceBits;
-
     private final int epochSecondShift;
-    private final int nodeShift;
-    private final int playerServerShift;
-    private final int platformShift;
-
-    private final long maxPlatformId;
-    private final long maxPlayerServerId;
-    private final long maxNodeId;
     private final long maxEpochSecond;
     private final long maxSequence;
-
-    private final int platformId;
-    private final int playerServerId;
-    private final int nodeId;
 
     protected SnowflakeIdLayout(SnowflakeIdType type, int version, int versionBits,
                                 int platformBits, int playerServerBits, int nodeBits,
                                 int epochSecondBits, int sequenceBits,
                                 int platformId, int playerServerId, int nodeId) {
-        requireBitCount("versionBits", versionBits);
-        long versionMask = mask(versionBits);
-        requireTotalBits(type + " version " + version,
-                versionBits, platformBits + playerServerBits + nodeBits + epochSecondBits + sequenceBits);
-
+        super(0, version, platformBits, playerServerBits, nodeBits,
+                epochSecondBits + sequenceBits, platformId, playerServerId, nodeId);
+        if (type == null) {
+            throw new IllegalArgumentException("snowflake type is required");
+        }
+        if (versionBits != 1) {
+            throw new IllegalArgumentException("Snowflake versionBits must be 1: " + versionBits);
+        }
+        if (epochSecondBits <= 0 || sequenceBits <= 0) {
+            throw new IllegalArgumentException("epochSecondBits and sequenceBits must be positive");
+        }
         this.type = type;
-        this.version = version;
-        this.versionShift = Long.SIZE - SIGN_BITS - versionBits;
-        this.versionMask = versionMask;
         this.sequenceBits = sequenceBits;
-        requireRange("version", version, versionMask);
-
-        epochSecondShift = sequenceBits;
-        nodeShift = epochSecondShift + epochSecondBits;
-        playerServerShift = nodeShift + nodeBits;
-        platformShift = playerServerShift + playerServerBits;
-
-        maxPlatformId = mask(platformBits);
-        maxPlayerServerId = mask(playerServerBits);
-        maxNodeId = mask(nodeBits);
-        maxEpochSecond = mask(epochSecondBits);
-        maxSequence = mask(sequenceBits);
-
-        requireRange("platformId", platformId, maxPlatformId);
-        requireRange("playerServerId", playerServerId, maxPlayerServerId);
-        requireRange("nodeId", nodeId, maxNodeId);
-        this.platformId = platformId;
-        this.playerServerId = playerServerId;
-        this.nodeId = nodeId;
-    }
-
-    /**
-     * 创建当前已初始化布局的下一个 ID。
-     */
-    final long createId(IDEnum idEnum) {
-        if (idEnum == null) {
-            throw new IllegalArgumentException("idEnum is required");
-        }
-        GenerationState state = GENERATION_STATE_MAP.get(idEnum);
-        if (state == null) {
-            throw new IllegalStateException("snowflake generation state is not initialized: " + idEnum);
-        }
-        return nextIdLocked(state);
-    }
-
-    public int versionOf(long id) {
-        requireSignBit(id);
-        return (int) ((id >>> versionShift) & versionMask);
+        this.epochSecondShift = sequenceBits;
+        this.maxEpochSecond = mask(epochSecondBits);
+        this.maxSequence = mask(sequenceBits);
     }
 
     public final SnowflakeIdType type() {
         return type;
-    }
-
-    public final int version() {
-        return version;
     }
 
     public final int sequenceBits() {
@@ -137,12 +84,17 @@ public abstract class SnowflakeIdLayout {
         return maxSequence;
     }
 
-    public final long maxNodeId() {
-        return maxNodeId;
-    }
-
     public final long maxEpochSecond() {
         return maxEpochSecond;
+    }
+
+    @Override
+    protected long nextIncrementId(IDEnum idEnum) {
+        GenerationState state = GENERATION_STATE_MAP.get(idEnum);
+        if (state == null) {
+            throw new IllegalStateException("snowflake generation state is not initialized: " + idEnum);
+        }
+        return nextIdLocked(state);
     }
 
     private long nextIdLocked(GenerationState state) {
@@ -153,7 +105,6 @@ public abstract class SnowflakeIdLayout {
 
         long time;
         long value;
-
         synchronized (GENERATION_LOCK) {
             if (nowEpochSecond > state.lastEpochSecond) {
                 state.lastEpochSecond = nowEpochSecond;
@@ -170,71 +121,41 @@ public abstract class SnowflakeIdLayout {
         }
 
         if (time > maxEpochSecond) {
-            throw new IllegalStateException("epochSecond overflow for snowflake version "
-                    + version + ": " + time);
+            throw new IllegalStateException("epochSecond overflow for snowflake type "
+                    + type + ": " + time);
         }
+        return (time << epochSecondShift) | value;
+    }
 
-        long id = pack(time, value);
+    /** 按 Snowflake 的两个低位字段拼接 ID。 */
+    public final long pack(long epochSecond, long sequence) {
+        requireRange("epochSecond", epochSecond, maxEpochSecond);
+        requireRange("sequence", sequence, maxSequence);
+        long id = pack((epochSecond << epochSecondShift) | sequence);
         if (id <= 0) {
             throw new IllegalStateException("generated snowflake id must be positive: " + id);
         }
         return id;
     }
 
-    public final long pack(long epochSecond, long sequence) {
-        requireRange("epochSecond", epochSecond, maxEpochSecond);
-        requireRange("sequence", sequence, maxSequence);
-        return encodeVersion(version)
-                | ((long) platformId << platformShift)
-                | ((long) playerServerId << playerServerShift)
-                | ((long) nodeId << nodeShift)
-                | (epochSecond << epochSecondShift)
-                | sequence;
-    }
-
-    public final int decodePlatformId(long id) {
-        requireVersion(id);
-        return (int) ((id >>> platformShift) & maxPlatformId);
-    }
-
-    public final int decodePlayerServerId(long id) {
-        requireVersion(id);
-        return (int) ((id >>> playerServerShift) & maxPlayerServerId);
-    }
-
-    public final int decodeNodeId(long id) {
-        requireVersion(id);
-        return (int) ((id >>> nodeShift) & maxNodeId);
-    }
-
     public final long decodeEpochSecond(long id) {
-        requireVersion(id);
-        return (id >>> epochSecondShift) & maxEpochSecond;
+        requireLayout(id);
+        return decodeIncrementId(id) >>> epochSecondShift;
     }
 
     public final long decodeSequence(long id) {
-        requireVersion(id);
-        return id & maxSequence;
+        requireLayout(id);
+        return decodeIncrementId(id) & maxSequence;
     }
 
+    /** 保留旧 API：Snowflake 的最高位固定为 0。 */
     public static void requireSignBit(long id) {
         if (id < 0) {
             throw new IllegalArgumentException("snowflake sign bit must be 0: " + id);
         }
     }
 
-    private void requireVersion(long id) {
-        requireSignBit(id);
-        int actualVersion = versionOf(id);
-        if (actualVersion != version) {
-            throw new IllegalArgumentException("expected snowflake version " + version
-                    + ", actual: " + actualVersion);
-        }
-    }
-
-    protected long encodeVersion(int version) {
-        return (long) version << versionShift;
-    }
+    public abstract SnowflakeIdLayout find(long id);
 
     private static long mask(int bits) {
         if (bits <= 0 || bits >= Long.SIZE) {
@@ -248,24 +169,4 @@ public abstract class SnowflakeIdLayout {
             throw new IllegalArgumentException(field + " out of range [0, " + maxValue + "]: " + value);
         }
     }
-
-    private static void requireBitCount(String field, int bits) {
-        if (bits <= 0 || bits >= Long.SIZE - SIGN_BITS) {
-            throw new IllegalArgumentException(field + " must be between 1 and 62: " + bits);
-        }
-    }
-
-    private static void requireTotalBits(String layoutName, int versionBits, int layoutBits) {
-        int totalBits = SIGN_BITS + versionBits + layoutBits;
-        if (totalBits > Long.SIZE) {
-            throw new IllegalArgumentException(layoutName + " total bits must be at most "
-                    + Long.SIZE + ", actual: " + totalBits);
-        }
-    }
-
-    public final boolean matches(long id) {
-        return id >= 0 && versionOf(id) == version;
-    }
-
-    public abstract SnowflakeIdLayout find(long id);
 }
