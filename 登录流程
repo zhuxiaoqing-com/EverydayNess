@@ -12,16 +12,17 @@ sdkService：sdk服务器;进行sdk校验;
 
 connService接收到连接以后，等待接收登录协议;
 登录协议收到以后，发送给sdkService进行登录,sdk校验成功以后，发送onlineService,
-查看是否有在线，有的话默认进行将旧的号踢出，由gate触发删除Location;这里要等rpc返回。
+查看是否有在线，有的话默认进行将旧的号踢出，online直接删除Location;
 给旧的号发送异地登录警告，然后新的号记录下来，记录状态，如果需要排队就进入排队列表，排队功能应该是要等sdk过了以后的吧？
 排队结束以后随机一个gateService;记录token，有失效时间，如果这个时候又有新的连接上来需要登录,有token的话，就替换旧的token;
 如果没有token已经是登录状态了，就将其踢下线,但是这个可能还获取不到gate，因为还没注册到Location;
 然后随机一个Gateip和端口，还有token发送给客户端，客户端进行重新校验连接，校验的时候带token来，这一步因为换连接了，
 所以有可能登录被拦截，然后让其他的账号登录这个好像没办法，而且其实sdk登录不是也可以这样拦截吗;
-发送校验token协议，连接指定的gate，然后onlineService进行token校验，校验通过，发送消息给网关用来角色登录网关，网关保存一份角色的登录数据，并且有网关发起addLocation,
-如果addLocation失败了，发现已经现有的了，就进行踢玩家下线，说异地登录;说明这里有并发，
+发送校验token协议，连接指定的gate，然后onlineService进行token校验，校验通过，addLocation，发送消息给网关用来角色登录网关，网关保存一份角色的登录数据，
+如果addLocation失败了，发现已经现有的了，不管addLocation直接顶掉;因为统一由onlineService处理的，不会有问题;
 发送角色列表给客户端，客户端收到角色列表，空的话就创建角色(名字,角色id);
-    不是空的或者等角色创建完成以后，就进行选择一个角色进入游戏，发送协议给gate，gate转发给online 进行AddLocation ActorType.GATE,然后online查询Location服务器,看玩家是否有绑定的ActorType.PLAYER,
+    不是空的或者等角色创建完成以后，就进行选择一个角色进入游戏，发送协议给gate，gate转发给online 进行AddLocation ActorType.GATE,然后online查询Location服务器,
+    看玩家是否有绑定的ActorType.PLAYER,
     有的话就还是这个去指定的PlayerService,没有的话就负载均衡一个PlayerService 进行addLocation进行绑定, 然后协议发送给PlayService，玩家进入游戏;到此结束;
 
 addLocation 里面都需要判断该service是不是真的和其相连接，和查询location的时候要检测是否真的和该Service有连接，没有的话，如果之前和该Service有连接的话，就进行

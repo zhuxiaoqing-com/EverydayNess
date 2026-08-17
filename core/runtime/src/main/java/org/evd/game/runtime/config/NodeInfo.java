@@ -11,8 +11,6 @@ public class NodeInfo {
     private String name;
     private String addr;
     private NodeType nodeType;
-    /** 链路优先级：低层级主动连接高层级；同层级再按 nodeId 比较。 */
-    private int linkLevel;
     private AddressInfo addressInfo;
     private List<ScheduleInfo> schedule;
 
@@ -48,14 +46,6 @@ public class NodeInfo {
         this.nodeType = nodeType;
     }
 
-    public int getLinkLevel() {
-        return linkLevel;
-    }
-
-    public void setLinkLevel(int linkLevel) {
-        this.linkLevel = linkLevel;
-    }
-
     public List<ScheduleInfo> getSchedule() {
         return schedule;
     }
@@ -73,9 +63,14 @@ public class NodeInfo {
     }
 
     public static boolean needConnect(NodeInfo localNode, NodeInfo remoteNode) {
-        if (localNode.getLinkLevel() != remoteNode.getLinkLevel()) {
-            return localNode.getLinkLevel() < remoteNode.getLinkLevel();
+        if (localNode.getNodeType() != NodeType.GAME) {
+            return false;
         }
+
+        if (remoteNode.getNodeType() != NodeType.GAME) {
+            return true;
+        }
+
         return localNode.getNodeId() > remoteNode.getNodeId();
     }
 }

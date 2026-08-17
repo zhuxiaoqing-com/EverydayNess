@@ -34,8 +34,8 @@ public class ServerController {
         long timeoutMill = 120_000; // 两分钟超时
         StringJoiner stopMessages = new StringJoiner(System.lineSeparator() + System.lineSeparator());
         for (RegisteredService registeredService : list) {
-            // 跳过global服务器
-            if(registeredService.getServiceType().isGlobal()) {
+            // 跳过不是game的服务器
+            if(!registeredService.getServiceType().isGame()) {
                 continue;
             }
             RpcResult<CallServiceStopResult> rpcResult = adminService.callRemoteRpcServiceStop(registeredService.getCallPoint(), timeoutMill);

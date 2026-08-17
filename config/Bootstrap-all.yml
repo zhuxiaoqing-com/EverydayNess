@@ -9,7 +9,6 @@ nodes:
     name: 游戏服节点
     nodeType: GAME
     addr: 127.0.0.1:15001
-    linkLevel: 0
     schedule:
       - name: logic  #线程池名
         num: 10
@@ -30,6 +29,8 @@ nodes:
         - serviceType: PLAYER
           name: player
           num: 2
+        - serviceType: ONLINE
+          name: online
         - serviceType: SCENE_MANAGER
           name: sceneManager
         - serviceType: LOBBY
@@ -44,7 +45,6 @@ nodes:
     name: 大跨服节点
     nodeType: GLOBAL
     addr: 127.0.0.1:15002
-    linkLevel: 1
     schedule:
       - name: logic  #线程池
         num: 10

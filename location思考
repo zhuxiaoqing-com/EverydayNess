@@ -1,0 +1,24 @@
+同一 entityId 的 Location 消息需要串行发送。
+  主要是 resolveActorAddress 这里再去远程查询这里不加锁会重复查询，
+  然后还有refreshIfActorNotFound 这里，远程消息发送过去以后，发现actor不在里面;
+  如果不管 refreshIfActorNotFound，那其实在 resolveActorAddress 里加锁就好了;
+
+  这里的迁移主要就是场景，这里的代码适用于，玩家数据在场景里，随着场景迁移; 像现在玩家数据主要保存在PlayerService里面的其实不需要重试;
+  可以先写着，后面修改
+
+  这里有个问题就是低频协议发送没事，高频协议发送的话，像是场景消息，这里的协程锁会使性能大浮动下降;
+  这个时候就需要直接就给目标发ActorAddress而不需要重试;
+  找到解决方案了：给向客户端发的协议的connService注解里加一个参数，说可以不重试的发消息; 然后这个类里再加个不重试的方法;
+  至于其他的不是给客户端发的 其他的send的，可以再看，其实可以统一看ActorType,只有标记了的ActorType，才会进行重试加锁;
+  其他的统一失败就报错，这样就不用加锁了，挺好;下周来了实现
+  最终的解决方案是看发送服务器，有些服务器会自己维护ActorAddress，所以在某些服务器上加是否需要ActorAddress重试就行了;
+
+
+  还有一个问题这里真的需要一直加锁吗，但是不加锁的话，这个removeCachedAddress这里会把之前获取到的新的给删除;
+  而且会有很多次这个;而且也有可能我好的请求回来，就把我刚替换的ActorAddress删除了;这个感觉就需要一个版本号了,感觉确实最简单的就是全部加锁;
+  问了gpt感觉没有完美的解决方案;
+
+
+然后还有org.evd.game.runtime.mailbox.MessageLocationSender.sendClientCmd 这个需要改一下;
+    正常应该不太session吧，或者应该有两个一个是带session的，还有一个是不带的，由location定位的;
+

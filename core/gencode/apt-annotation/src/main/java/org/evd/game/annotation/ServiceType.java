@@ -21,13 +21,15 @@ public enum ServiceType {
     ADMIN(9, ServiceName.ADMIN_SERVICE),
 
     // 新枚举必须追加在已有枚举之后，避免改变已有 ServiceType 的序列化 ordinal。
-    ZLOC(50, ServiceName.LOCATION_SERVICE, NodeType.ZONE),
+    ZLOC(50, ServiceName.LOCATION_SERVICE,true, NodeType.ZONE),
     ZSTAGE(51, ServiceName.STAGE_SERVICE, false, NodeType.ZONE),
-    ZSCENE_MANAGER(52, ServiceName.SCENE_MANAGER_SERVICE, NodeType.ZONE),
+    ZSCENE_MANAGER(52, ServiceName.SCENE_MANAGER_SERVICE, true, NodeType.ZONE),
 
-    GLOC(100, ServiceName.LOCATION_SERVICE, NodeType.GLOBAL),
+    GLOC(100, ServiceName.LOCATION_SERVICE,true, NodeType.GLOBAL),
     GSTAGE(101, ServiceName.STAGE_SERVICE, false, NodeType.GLOBAL),
-    GSCENE_MANAGER(102, ServiceName.SCENE_MANAGER_SERVICE, NodeType.GLOBAL),
+    GSCENE_MANAGER(102, ServiceName.SCENE_MANAGER_SERVICE, true, NodeType.GLOBAL),
+
+    ONLINE(10, ServiceName.ONLINE_SERVICE),
 
     ;
     final int type;
@@ -62,8 +64,20 @@ public enum ServiceType {
         return 999;
     }
 
-    public static boolean isGlobal(ServiceType serviceType) {
-        return serviceType.getType() >= 100;
+    /**
+     * 自己管理actorAddress 不走自动重试查找最新的这一套;
+     * 目前只有CONN, PLAYER, STAGE 这三种需要location定位;
+     */
+    public boolean selfManageActorAddress() {
+        return switch (this) {
+            case STAGE, ZSTAGE, GSTAGE, PLAYER, ONLINE, CONN -> true;
+            default -> false;
+        };
+
+    }
+
+    public static boolean isGame(ServiceType serviceType) {
+        return serviceType.getNodeType() == NodeType.GAME;
     }
 
 
@@ -73,10 +87,6 @@ public enum ServiceType {
 
     ServiceType(int type, String name, boolean single) {
         this(type, name, single, NodeType.GAME);
-    }
-
-    ServiceType(int type, String name, NodeType nodeType) {
-        this(type, name, true, nodeType);
     }
 
     ServiceType(int type, String name, boolean single, NodeType nodeType) {
@@ -110,8 +120,8 @@ public enum ServiceType {
         return this.nodeType == nodeType;
     }
 
-    public boolean isGlobal() {
-        return ServiceType.isGlobal(this);
+    public boolean isGame() {
+        return ServiceType.isGame(this);
     }
 
     public boolean isSupportFlush() {

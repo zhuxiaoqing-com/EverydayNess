@@ -8,7 +8,10 @@ public enum LockType {
     MAILBOX(2),
     LOCATION(3),
     TABLE_RECORD(4),
-    DB_CACHE(5);
+    DB_CACHE(5),
+    LOCATION_CALL(6), // location_call锁
+
+    ;
 
     private final int code;
 

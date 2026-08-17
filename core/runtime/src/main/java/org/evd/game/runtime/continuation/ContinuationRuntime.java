@@ -211,6 +211,15 @@ public final class ContinuationRuntime implements ContinuationHost {
         return continuation;
     }
 
+
+    /**
+     * 是否在协程中
+     * @return
+     */
+    public  boolean isContinuation() {
+        return runningContinuation != null;
+    }
+
     void requireServiceThread() {
         if (Service.getCurrent() != service) {
             throw new SysException(
