@@ -605,9 +605,13 @@ public class Service extends TickCase {
         if (!coroutineLockManager.owns(continuation)) {
             return;
         }
-        LogCore.core.error("协程锁未显式释放，走运行时保底释放: service={}, conId={}, actorId={}",
-                id, continuation.getConId(), continuation.getActorId());
-        coroutineLockManager.release(continuation);
+        LogCore.core.error(
+                "协程锁未显式释放，走运行时保底释放: service={}, conId={}, actorId={}, locks={}",
+                id,
+                continuation.getConId(),
+                continuation.getActorId(),
+                coroutineLockManager.buildOwnedLockDebugInfo(continuation));
+        coroutineLockManager.releaseAll(continuation);
     }
 
     /**
@@ -741,11 +745,7 @@ public class Service extends TickCase {
     }
 
     public final ContinuationLockScope awaitCoroutineLockScope(LockType type, Object key, int timeoutMillis) {
-        if (key == null) {
-            return new ContinuationLockScope(coroutineLockManager, null);
-        }
-        coroutineLockManager.await(type, key, timeoutMillis);
-        return new ContinuationLockScope(coroutineLockManager, currentContinuation());
+        return coroutineLockManager.await(type, key, timeoutMillis);
     }
 
     protected final long newOnceTimer(long delayMillis, Runnable callback) {
