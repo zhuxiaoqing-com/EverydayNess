@@ -46,18 +46,10 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
     <#if method.generateResultMethod>
     <#if method.isVoid>
     /**
-    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
     public static RpcResult<Void> ${method.resultMethodName}(${method.resultFormalParams}){
-        return RpcResult.run(() -> {
-            <#if method.routeService>
-            Service service = Service.getCurrent();
-            service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
-            <#else>
-            ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
-            Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
-            </#if>
-        });
+        return RpcResult.run(() -> inst().${method.methodName}(${method.resultCallArgs}));
     }
     <#else>
     /**

@@ -40,7 +40,7 @@ public final class RpcMethodInvoker {
         this.service = service;
     }
 
-    void dispatchClientCmd(int msgId, Object[] params) throws Exception {
+    public void dispatchClientCmd(int msgId, Object[] params) throws Exception {
         if (params == null || params.length != 2) {
             throw new IllegalArgumentException("client cmd params must be [ClientSessionRef, Chunk]: service="
                     + service.getId() + ", msgId=" + msgId);

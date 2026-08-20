@@ -17,14 +17,15 @@ public class SdkService extends Service {
 
     @Rpc
     public SdkValidateResult requestValidate(String userId, String sdkToken) {
-        boolean success = LOCAL_STUB_ENABLED && userId != null && !userId.isBlank();
+        boolean success = LOCAL_STUB_ENABLED && userId != null && !userId.isBlank()
+                && sdkToken != null && !sdkToken.isBlank();
         String message;
         if (!LOCAL_STUB_ENABLED) {
             message = "sdk stub disabled";
         } else if (success) {
             message = "ok";
         } else {
-            message = "userId 不能为空";
+            message = userId == null || userId.isBlank() ? "userId 不能为空" : "sdkToken 不能为空";
         }
 
         LogCore.core.info("SdkService 校验请求: service={}, userId={}, success={}",

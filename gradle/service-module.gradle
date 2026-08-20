@@ -45,6 +45,15 @@ sourceSets {
     }
 }
 
+// 自定义 dbDef 源集的 APT 产物需要显式加入 IDEA 模块，否则新导入项目时类型无法解析。
+if (hasDbDef) {
+    idea {
+        module {
+            sourceDirs += file("$buildDir/generated/sources/annotationProcessor/java/dbDef")
+        }
+    }
+}
+
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'

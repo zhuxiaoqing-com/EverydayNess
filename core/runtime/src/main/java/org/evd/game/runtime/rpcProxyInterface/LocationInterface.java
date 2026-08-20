@@ -6,20 +6,18 @@ import org.evd.game.runtime.call.CallPoint;
 
 /**
  * @author zhuxiaoqing
- * @Description: LocationInterface
- * @Date 2026/6/18 20:02
  **/
 public interface LocationInterface {
 
-    public void add(CallPoint remote, ActorId actorId, ActorAddress actorAddress);
+    void add(CallPoint remote, ActorId actorId, ActorAddress actorAddress);
 
-    public ActorAddress get(CallPoint remote, ActorId actorId);
+    ActorAddress get(CallPoint remote, ActorId actorId);
 
 //    public ActorAddress get(CallPoint remote, ActorId actorId, long timeoutMillis);
 
-    public void remove(CallPoint remote, ActorId actorId);
+    void remove(CallPoint remote, ActorId actorId, ActorAddress expectedActorAddress);
 
-    public void lock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, int timeMillis);
+    void lock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, int timeMillis);
 
-    public void unlock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress);
+    void unlock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress);
 }

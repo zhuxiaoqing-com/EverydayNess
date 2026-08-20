@@ -7,14 +7,18 @@ import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proto.C2S_ConnPing;
+import org.evd.game.common.proto.C2S_CreateRole;
+import org.evd.game.common.proto.C2S_SelectRoleEnter;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_ConnPing;
-import org.evd.game.common.proxy.LobbyService.LobbyOfflineActorProxy;
+import org.evd.game.common.proxy.LobbyService.LobbyRoleActorProxy;
+import org.evd.game.common.proxy.OnlineService.OnlinePlayerLoginActorProxy;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -25,7 +29,6 @@ import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.ChannelManager;
 import org.evd.game.runtime.netty.NetAcceptor;
 import org.evd.game.runtime.netty.NetChannel;
-import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 
 public class ConnService extends Service {
@@ -35,6 +38,9 @@ public class ConnService extends Service {
     private final ConnServiceClientCmdRouter clientCmdRouter;
     private final ChannelManager clientChannelManager;
     private final ConnServiceHeartbeatScanner heartbeatScanner;
+    private final ConnSessionRegistry sessionRegistry;
+    private final ConnLoginManager loginManager;
+    private final ConnLogoutManager logoutManager;
 
     private volatile NetAcceptor clientAcceptor;
 
@@ -43,6 +49,9 @@ public class ConnService extends Service {
         this.clientCmdRouter = new ConnServiceClientCmdRouter(this);
         this.clientChannelManager = new ChannelManager();
         this.heartbeatScanner = new ConnServiceHeartbeatScanner(this, clientChannelManager);
+        this.sessionRegistry = new ConnSessionRegistry();
+        this.loginManager = new ConnLoginManager(this, sessionRegistry);
+        this.logoutManager = new ConnLogoutManager(this, sessionRegistry);
     }
 
     @Override
@@ -65,8 +74,69 @@ public class ConnService extends Service {
         clientCmdRouter.forward(session, cmd, body);
     }
 
+    /** Conn 从真实连接补充用户 ID，再交给 LobbyService 创建角色。 */
+    @ClientCmd(MsgId.C2S_CREATE_ROLE_VALUE)
+    public void createRole(ClientSessionRef session, C2S_CreateRole request) {
+        NetChannel channel = requireClientChannel(session.getSessionId());
+        String userId = channel.getUserId();
+        if (userId.isBlank()) {
+            throw new IllegalStateException("ConnService 创角请求没有已登录用户: sessionId="
+                    + session.getSessionId());
+        }
+        CallPoint lobby = getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        if (lobby == null) {
+            throw new IllegalStateException("找不到客户端协议目标服务: service=LobbyService, msgId="
+                    + MsgId.C2S_CREATE_ROLE_VALUE);
+        }
+        C2S_CreateRole forwarded = request.toBuilder().setUserId(userId).build();
+        LobbyRoleActorProxy.sendCreateRole(lobby, session, forwarded);
+    }
+
+    /** Conn 从真实连接补充用户 ID，再交给 OnlineService 选角登录。 */
+    @ClientCmd(MsgId.C2S_SELECT_ROLE_ENTER_VALUE)
+    public void selectRoleEnter(ClientSessionRef session, C2S_SelectRoleEnter request) {
+        NetChannel channel = requireClientChannel(session.getSessionId());
+        String userId = channel.getUserId();
+        if (userId.isBlank()) {
+            throw new IllegalStateException("ConnService 选角请求没有已登录用户: sessionId="
+                    + session.getSessionId());
+        }
+        CallPoint online = getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        if (online == null) {
+            throw new IllegalStateException("找不到客户端协议目标服务: service=OnlineService, msgId="
+                    + MsgId.C2S_SELECT_ROLE_ENTER_VALUE);
+        }
+        C2S_SelectRoleEnter forwarded = request.toBuilder().setUserId(userId).build();
+        OnlinePlayerLoginActorProxy.sendSelectRoleEnter(online, session, forwarded);
+    }
+
     @Rpc
     public void pushToClient(long sessionId, ClientFrameChunk packet) {
+        writeClientPacket(sessionId, packet, false);
+    }
+
+    @Rpc
+    public void pushToUserId(String userId, ClientFrameChunk packet) {
+        Long sessionId = sessionRegistry.findUserSessionId(userId);
+        if (sessionId != null) {
+            pushToClient(sessionId, packet);
+        }
+    }
+
+    @Rpc
+    public void pushToPlayerId(long playerId, ClientFrameChunk packet) {
+        Long sessionId = sessionRegistry.findPlayerSessionId(playerId);
+        if (sessionId != null) {
+            pushToClient(sessionId, packet);
+        }
+    }
+
+    @Rpc
+    public void redirectClient(long sessionId, ClientFrameChunk packet) {
+        writeClientPacket(sessionId, packet, true);
+    }
+
+    void writeClientPacket(long sessionId, ClientFrameChunk packet, boolean closeAfterWrite) {
         NetChannel channel = requireClientChannel(sessionId);
         byte[] bodyBytes;
         try {
@@ -82,12 +152,16 @@ public class ConnService extends Service {
         CompositeByteBuf frame = channel.getChannel().alloc().compositeBuffer(2);
         frame.addComponents(true, head, body);
         DebugPrint.printSendClientCmd(channel, packet.getMsgId(), bodyBytes);
-        if (!channel.write(frame)) {
+        if (closeAfterWrite) {
+            channel.setSessionState(NetChannel.SessionState.CLOSING);
+        }
+        boolean accepted = closeAfterWrite ? channel.writeAndClose(frame) : channel.write(frame);
+        if (!accepted) {
             throw new IllegalStateException("ConnService client channel backpressured: service="
                     + id + ", sessionId=" + sessionId + ", bytes=" + bodyLength);
         }
-        LogCore.core.info("ConnService 回客户端: gate={}, sessionId={}, bytes={}",
-                id, sessionId, bodyLength);
+        LogCore.core.debug("ConnService 回客户端: gate={}, sessionId={}, msgId={}, bytes={}, closeAfterWrite={}",
+                id, sessionId, packet.getMsgId(), bodyLength, closeAfterWrite);
     }
 
     @Rpc
@@ -95,48 +169,68 @@ public class ConnService extends Service {
         return serviceInfo == null ? "" : serviceInfo.getPublicAddr();
     }
 
+    /** 返回当前已授权登录会话数量，供 OnlineService 进行负载选择。 */
     @Rpc
     public int getLoginSessionCount() {
         return countAuthorizedSessions();
     }
 
+    /** Online 已提交正式状态后一次性登记用户并完成 GW 上线。 */
     @Rpc
-    public boolean confirmLogin(long sessionId, String userId, long playerId) {
-        NetChannel session = findClientChannel(sessionId);
-        if (session == null) {
-            LogCore.core.warn("ConnService 登录确认失败，session 不存在: service={}, sessionId={}", id, sessionId);
-            return false;
-        }
-        session.setAuthorized(true);
-        session.setUserId(userId);
-        session.setPlayerId(playerId);
-        session.setSessionState(playerId > 0L
-                ? NetChannel.SessionState.LOGIN_READY
-                : NetChannel.SessionState.SELECT_ROLE_READY);
-        session.setLastPingTime(getTimeCurrent());
-        session.setBrokenType(BrokenType.NONE);
-        LogCore.core.info("ConnService 登录确认成功: service={}, sessionId={}, userId={}, playerId={}, state={}",
-                id, sessionId, userId, playerId, session.getSessionState());
-        return true;
+    public boolean registerLogin(long sessionId, String userId) {
+        return loginManager.registerLogin(sessionId, userId);
     }
 
+    /** 绑定当前授权会话的玩家，并返回 GW 玩家 ActorAddress。 */
     @Rpc
-    public boolean updatePlayerBinding(long sessionId, long playerId) {
-        NetChannel session = findClientChannel(sessionId);
-        if (session == null) {
-            return false;
-        }
-        session.setPlayerId(playerId);
-        session.setSessionState(playerId > 0L
-                ? NetChannel.SessionState.LOGIN_READY
-                : NetChannel.SessionState.SELECT_ROLE_READY);
-        return true;
+    public ActorAddress bindPlayer(long sessionId, long playerId,
+                                   ActorAddress playerActorAddress) {
+        return loginManager.bindPlayer(sessionId, playerId, playerActorAddress);
     }
 
+    /** 在 GW 注册玩家 mailbox，并将其 ActorAddress 发布到全局 LocationService。 */
+    ActorAddress registerPlayerMailbox(long playerId) {
+        if (playerId <= 0L) {
+            return null;
+        }
+        ActorId actorId = ActorId.gate(playerId);
+        if (!hasActor(actorId)) {
+            registerActor(actorId, MailBoxType.UNORDERED);
+            LogCore.core.info("ConnService 玩家 GW mailbox 注册成功: service={}, playerId={}, actorAddress={}",
+                    id, playerId, getActorAddress(actorId));
+        }
+        return getActorAddress(actorId);
+    }
+
+    void removePlayerActorAddress(long playerId) {
+        if (playerId > 0L) {
+            ActorId playerActorId = ActorId.player(playerId);
+            getMessageLocationSender().remove(playerActorId);
+            LogCore.core.info("ConnService 删除 PlayerActorAddress 缓存: playerId={}, playerActorId={}",
+                    playerId, playerActorId);
+            ActorId actorId = ActorId.gate(playerId);
+            if (hasActor(actorId)) {
+                ActorAddress actorAddress = getActorAddress(actorId);
+                unregisterActor(actorId);
+                LogCore.core.info("ConnService 删除玩家 GW ActorAddress: service={}, playerId={}, actorAddress={}",
+                        id, playerId, actorAddress);
+            }
+        }
+    }
+
+    /** 按断开类型关闭指定网关会话，并触发离线通知。 */
     @Rpc
-    public boolean kickSession(long sessionId, int brokenTypeCode, String reason) {
-        BrokenType brokenType = BrokenType.fromCode(brokenTypeCode);
-        return closeSession(sessionId, brokenType, reason);
+    public void kickSession(long sessionId, int brokenTypeCode, String reason) {
+        logoutManager.kickSession(sessionId, brokenTypeCode, reason);
+    }
+
+    /** 向待登录客户端发送失败响应，并按原因结束预登录连接。 */
+    @Rpc
+    public boolean rejectPendingLogin(long sessionId, String userId, String token,
+                                      ClientFrameChunk packet, int brokenTypeCode, String reason) {
+        return loginManager.rejectPendingLogin(
+                findClientChannel(sessionId), sessionId, userId, token, packet,
+                BrokenType.fromCode(brokenTypeCode), reason);
     }
 
     @ClientCmd(MsgId.C2S_CONN_PING_VALUE)
@@ -153,13 +247,10 @@ public class ConnService extends Service {
         pushToClient(session.getSessionId(), ClientFrameChunk.wrap(MsgId.S2C_CONN_PING_VALUE, resp));
     }
 
-    ClientSessionRef buildClientSessionRef(NetChannel session) {
-        registerClientSessionActor(session);
-        ClientSessionRef sessionRef = session.getSessionRef();
-        if (sessionRef.getGate() == null) {
-            sessionRef.setGate(new CallPoint(node.getId(), id));
+    void prepareClientSession(NetChannel session) {
+        if (session.getGate() == null) {
+            session.setGate(getCallPoint());
         }
-        return sessionRef;
     }
 
     @Override
@@ -175,75 +266,24 @@ public class ConnService extends Service {
 
     void onClientChannelActive(NetChannel session) {
         long sessionId = session.getChannelId();
-        session.setAuthorized(false);
-        session.setUserId("");
-        session.setPlayerId(0L);
-        session.setSessionState(NetChannel.SessionState.CONNECTED);
-        session.setLastPingTime(getTimeCurrent());
-        registerClientSessionActor(session);
+        loginManager.initialize(session, getTimeCurrent());
         LogCore.core.info("ConnService 客户端连接: service={}, sessionId={}, remote={},  loginCount={}",
                 id, sessionId, session.getRemoteAddress(), countAuthorizedSessions());
-    }
-
-    void onClientChannelInactive(NetChannel session) {
-        long sessionId = session.getChannelId();
-        ClientSessionRef sessionRef = session.getSessionRef();
-        unregisterClientSessionActor(sessionId);
-        LogCore.core.info("ConnService 客户端断开: service={}, sessionId={}, remote={}, brokenType={},  loginCount={}",
-                id, sessionId, session.getRemoteAddress(), session.getBrokenType(),
-                countAuthorizedSessions());
-        if (!sessionRef.isAuthorized() || sessionRef.getUserId().isBlank()) {
-            return;
-        }
-        CallPoint lobbyRemote = getLobbyRemote();
-        if (lobbyRemote == null) {
-            LogCore.core.warn("ConnService 未找到 LobbyService，跳过离线流程: service={}, sessionId={}", id, sessionId);
-            return;
-        }
-        RpcResult<Void> offlineResult = LobbyOfflineActorProxy.callOnSessionOffline(
-                lobbyRemote,
-                sessionRef.getUserId(),
-                sessionRef.getPlayerId(),
-                getCallPoint(),
-                sessionId,
-                session.getBrokenTypeCode()
-        );
-        if (!offlineResult.isSuccess()) {
-            LogCore.core.warn("ConnService 通知 Lobby 离线失败: service={}, sessionId={}, errorCode={}, message={}",
-                    id, sessionId, offlineResult.getErrorCode(), offlineResult.getErrorMessage());
-        }
-    }
-
-
-    void registerClientSessionActor(NetChannel session) {
-        ActorId actorId = ActorId.gate(session.getChannelId());
-        if (!hasActor(actorId)) {
-            registerActor(actorId, MailBoxType.UNORDERED);
-        }
-    }
-
-    void unregisterClientSessionActor(long sessionId) {
-        unregisterActor(ActorId.gate(sessionId));
-    }
-
-    private CallPoint getLobbyRemote() {
-        return node.getAnyCallPointByType(ServiceType.LOBBY);
     }
 
     private void scanHeartbeatTimeouts() {
         heartbeatScanner.scanTimeoutSessions(HEARTBEAT_TIMEOUT_MILLIS);
     }
 
-    boolean closeSession(long sessionId, BrokenType brokenType, String reason) {
-        NetChannel session = findClientChannel(sessionId);
-        if (session == null) {
-            return false;
-        }
-        session.setBrokenType(brokenType);
-        LogCore.core.info("ConnService 关闭连接: service={}, sessionId={}, brokenType={}, reason={}",
-                id, sessionId, brokenType, reason);
-        session.close();
-        return true;
+    /** 统一执行网关连接关闭、离线通知和资源清理。 */
+    @Rpc
+    public void closeSession(long sessionId, int brokenTypeCode, String reason) {
+        logoutManager.closeSession(sessionId, brokenTypeCode, reason);
+    }
+
+    /** 在 ConnService 协程上下文中统一处理指定连接的关闭清理。 */
+    void closeSession(NetChannel session, int brokenTypeCode, String reason) {
+        logoutManager.closeSession(session, brokenTypeCode, reason);
     }
 
     void postClientChannelActive(NetChannel session) {
@@ -252,10 +292,6 @@ public class ConnService extends Service {
 
     void postClientPacket(NetChannel session, int msgId, Chunk body) {
         postCoroutine(() -> dispatchClientCmd(session, msgId, body));
-    }
-
-    void postClientChannelInactive(NetChannel session) {
-        postCoroutine(() -> onClientChannelInactive(session));
     }
 
     private NetChannel requireClientChannel(long sessionId) {
@@ -267,14 +303,15 @@ public class ConnService extends Service {
         return channel;
     }
 
-    private NetChannel findClientChannel(long sessionId) {
+    NetChannel findClientChannel(long sessionId) {
         return clientChannelManager.getChannel(sessionId);
     }
 
+    /** 遍历网关连接并统计已完成授权的会话数量。 */
     private int countAuthorizedSessions() {
         int count = 0;
         for (NetChannel channel : clientChannelManager.snapshotChannels()) {
-            if (channel.getSessionState() == NetChannel.SessionState.LOGIN_READY) {
+            if (channel.isAuthorized()) {
                 count++;
             }
         }

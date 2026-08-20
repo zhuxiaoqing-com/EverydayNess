@@ -11,7 +11,6 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.RpcErrorCodes;
@@ -192,14 +191,16 @@ public class MessageLocationSender {
         });
     }
 
-    public void sendClientCmd(ActorId actorId, ClientSessionRef session, int msgId, Chunk body) {
+    public void sendClientCmd(ActorId actorId, org.evd.game.runtime.client.ClientSessionRef session,
+                              int msgId, Chunk body) {
         if (ownerService.continuationRuntime().isContinuation()) {
             _sendClientCmd(actorId, session, msgId, body);
         } else {
             ownerService.launchCoroutine(() -> _sendClientCmd(actorId, session, msgId, body));
         }
     }
-    public void _sendClientCmd(ActorId actorId, ClientSessionRef session, int msgId, Chunk body) {
+    public void _sendClientCmd(ActorId actorId, org.evd.game.runtime.client.ClientSessionRef session,
+                               int msgId, Chunk body) {
         callWithRetry(actorId, (actorAddress, logicalActorId) -> {
             Service current = requireOwnerService();
             current.sendOutboundCall(CallFactory.buildActorClientCmd(
@@ -207,8 +208,8 @@ public class MessageLocationSender {
                     actorAddress,
                     logicalActorId,
                     msgId,
-                    session,
-                    body));
+                     session,
+                     body));
             return null;
         });
     }
@@ -325,6 +326,9 @@ public class MessageLocationSender {
 
     public void cleanupIdle() {
         if (cachedAddresses.isEmpty()) {
+            return;
+        }
+        if (ownerService.getServiceType().selfManageActorAddress()) {
             return;
         }
         long expireBefore = now() - IDLE_MILLIS;

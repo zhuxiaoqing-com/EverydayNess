@@ -42,6 +42,10 @@ public final class ClientCmdRouteTable {
 
             switch (actorType) {
                 case NONE -> {
+                    if (sender.getClass().getSimpleName().equals(serviceClassName)) {
+                        sender.dispatchLocalClientCmd(session, msgId, body);
+                        return;
+                    }
                     CallPoint callPoint = sender.getNode().getAnyCallPointByType(ServiceType.byName(serviceClassName));
                     if(callPoint == null) {
                         throw new IllegalStateException("找不到客户端协议目标服务: msgId=" + msgId
@@ -50,8 +54,8 @@ public final class ClientCmdRouteTable {
                     sender.sendClientCmd(callPoint, session, msgId, body);
                 }
                 case PLAYER,MAP_PLAYER ->
-                        sender.getMessageLocationSender()
-                                .sendClientCmd(new ActorId(actorType, session.getPlayerId()), session, msgId, body);
+                        sender.getMessageLocationSender().sendClientCmd(
+                                new ActorId(actorType, session.getPlayerId()), session, msgId, body);
                 case MAP, GATE -> throw new IllegalStateException("不能有 "+actorType +  " 类型: msgId=" + msgId
                         + ", service=" + serviceClassName);
 

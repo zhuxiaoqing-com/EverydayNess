@@ -34,6 +34,11 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 public class Node extends TickCase{
+    /** 离线 Service 状态巡检间隔。 */
+    private static final long OFFLINE_SERVICE_CHECK_INTERVAL = 10_000L;
+    /** 离线 Service 保留时间。 */
+    private static final long OFFLINE_SERVICE_RETENTION_TIME = 5 * 60 * 1000L;
+
     /** 远程节点 */
     protected final ConcurrentMap<String, RemoteNode> remoteNodes = new ConcurrentHashMap<>();
     /** 非 Node 线程投递的 Node 事件，例如入站 Call 与连接断开后的状态清理。 */
@@ -48,6 +53,8 @@ public class Node extends TickCase{
     private final ConcurrentHashMap<Object, Service> pendServices = new ConcurrentHashMap<>();
     /** 远程node -> services镜像 */
     private final ConcurrentHashMap<String, List<RegisteredService>> remoteNodeServices = new ConcurrentHashMap<>();
+    /** 已从服务索引中移除、但仍需保留一段时间的离线 Service。仅由 Node 线程访问。 */
+    private final ConcurrentMap<CallPoint, RegisteredService> offlineServices = new ConcurrentHashMap<>();
     /** serviceType -> services缓存 */
     private volatile Map<ServiceType, List<RegisteredService>> type2ServiceMap = new HashMap<>();
     private volatile Map<CallPoint, RegisteredService> callPoint2ServiceMap = new HashMap<>();
@@ -69,6 +76,8 @@ public class Node extends TickCase{
 
     /** 远程Node调用定时器 */
     private final TickTimer remoteNodePulseTimer = new TickTimer(RemoteNode.INTERVAL_PING, true);
+    /** 离线 Service 巡检定时器 */
+    private final TickTimer offlineServiceTimer = new TickTimer(OFFLINE_SERVICE_CHECK_INTERVAL, true);
     /** 本地服务注册版本 */
     private volatile AtomicLong localServiceVersion = new AtomicLong();
     /** 关服已经开始；关闭新的 Service 注册入口。 */
@@ -135,6 +144,8 @@ public class Node extends TickCase{
         pulseRemoteNodes_nt();
         // 本地服务注册变化后，广播给已连接节点
         pulseServiceRegistry_nt();
+        // 定期清理已经重新上线或离线超过保留时间的 Service
+        pulseOfflineServices_nt();
     }
 
     private void pulseServiceLifecycle_nt() {
@@ -434,6 +445,25 @@ public class Node extends TickCase{
         }
     }
 
+    private void pulseOfflineServices_nt() {
+        long now = currentTickTime_nt();
+        if (!offlineServiceTimer.isPeriod(now)) {
+            return;
+        }
+
+        for (Map.Entry<CallPoint, RegisteredService> entry : offlineServices.entrySet()) {
+            RegisteredService offlineService = entry.getValue();
+            boolean online = callPoint2ServiceMap.containsKey(entry.getKey());
+            boolean expired = now - offlineService.getOfflineMill() >= OFFLINE_SERVICE_RETENTION_TIME;
+            if (online || expired) {
+                LogCore.core.info("清理离线Service: node={}, callPoint={}, offlineMill={}, elapsedMill={}, reason={}",
+                        id, entry.getKey(), offlineService.getOfflineMill(),
+                        now - offlineService.getOfflineMill(), online ? "重新上线" : "离线超时");
+                offlineServices.remove(entry.getKey(), offlineService);
+            }
+        }
+    }
+
     @Override
     protected void onClose() {
         nodeExecutor.shutdown();
@@ -448,6 +478,8 @@ public class Node extends TickCase{
         pendServices.clear();
         remoteNodes.clear();
         remoteNodeServices.clear();
+        offlineServiceTimer.stop();
+        offlineServices.clear();
         type2ServiceMap = Map.of();
         callPoint2ServiceMap = Map.of();
         type2CallMap = Map.of();
@@ -1061,6 +1093,7 @@ public class Node extends TickCase{
         eachKey.addAll(oldMap.keySet());
         eachKey.addAll(tempCallPoint2ServiceMap.keySet());
 
+        long offlineTime = currentTickTime_nt();
         for (CallPoint callPoint : eachKey) {
             boolean oldContain = oldMap.containsKey(callPoint);
             boolean newContain = tempCallPoint2ServiceMap.containsKey(callPoint);
@@ -1068,10 +1101,19 @@ public class Node extends TickCase{
                 continue;
             }
             if (newContain) {
-                addList.add(tempCallPoint2ServiceMap.get(callPoint));
+                RegisteredService onlineService = tempCallPoint2ServiceMap.get(callPoint);
+                addList.add(onlineService);
+                LogCore.core.info("Service上线: node={}, callPoint={}, service={}",
+                        id, callPoint, onlineService);
             }
             if (oldContain) {
-                removeList.add(oldMap.get(callPoint));
+                RegisteredService oldService = oldMap.get(callPoint);
+                removeList.add(oldService);
+                LogCore.core.info("Service下线: node={}, callPoint={}, service={}",
+                        id, callPoint, oldService);
+                RegisteredService offlineService = new RegisteredService(oldService);
+                offlineService.setOfflineMill(offlineTime);
+                offlineServices.put(callPoint, offlineService);
             }
         }
 
@@ -1112,6 +1154,10 @@ public class Node extends TickCase{
         return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
     }
 
+    public RegisteredService getOfflineService(CallPoint callPoint) {
+        return callPoint == null ? null : offlineServices.get(callPoint);
+    }
+
     public ConcurrentHashMap<Object, Service> getServices() {
         return services;
     }
@@ -1119,6 +1165,7 @@ public class Node extends TickCase{
     public ConcurrentHashMap<String, List<RegisteredService>> getRemoteNodeServices() {
         return remoteNodeServices;
     }
+
 }
 
 

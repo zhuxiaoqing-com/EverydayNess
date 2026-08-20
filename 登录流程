@@ -41,3 +41,91 @@ gate->online->检查是否在线或者是否已经有token缓存了->随机token
 之前项目的简单是因为直接是在大厅服务器弄的，注册是在大厅，分配是在大厅;现在是分配是在大厅，注册是在各自服务器比如gate;然后删除可能在另外的gate;
 
 问了gpt说最好的办法就是全部在OnlineService里面做好;
+其实不行，因为gate里有自增邮箱id，这个邮箱id 需要保存到Location;
+
+登录，GW->SDK校验通过->进行排队->Online注册token加入预进入队列->随机GW返回客户端->客户端连接GW使用token->Online校验通过预进入队列状态修改->
+发送消息到GW注册到GW->Online将其注册到Location;
+
+登录，GW->SDK校验通过->Online进行排队 有上线或者预上线就将其删除，有上线的找到gw发送过去;预上线的默认就是还没有登录完成,如果GW上线了，就等GW回调回来再将其踢下线;
+->Online注册token加入预进入队列->随机GW返回客户端 断开当前连接->客户端连接GW使用token->Online校验通过预进入队列状态修改->
+发送消息到GW注册到GW->Online将其注册到Location; 这里要判断预上线的token对不对，不对就直接将GW踢下线;
+上面的每一步都要进行token判断, 也可以将token修改为version,就是客户端和服务器之间还是用token，但是同时加一个version字段，服务器之间传输判断有效用;
+
+
+我Online保存玩家登录数据 这个是单点所以能保存，至于这个Location，如果Online第一个先上线，发送消息到GW1, 然后online第二个上线，发送消息到GW2，结果GW2先到了， GW1才到，
+这个时候location就错乱了，虽然消息发送到Online会判断该gw上线不合法，但是location已经被人顶掉了，
+还有一种就是不能顶，不能顶又会有新的问题，GW1老的先到了，GW2发起了 不能顶，又有问题了 除非这个流程是串行的;但是我将这个放到Online里这些问题就都没有了;
+
+前提条件;我有个userId绑定
+
+登录，GW->SDK校验通过
+有个方法检测玩家是否在线，方法里检测玩家在线或者在登录中;是得话进行下线;然后运行下面的逻辑;
+    -> 检查是否有在线的有的话踢人;等gw返回,gw给客户端发送被踢,设置链接为Close,旧的连接开始拒绝新消息;
+    -> 检测看是否在预登录状态,是的话就进行删除预登录状态，
+    -> 查看是否在排队中，在的话就退出排队;
+—>注册新的预登录; 上面这些不需要加锁;
+进行排队->
+Online注册token加入预进入队列->
+随机GW返回客户端->
+客户端连接GW使用token->
+Online校验通过预进入队列状态修改->
+发送消息到GW注册到GW->
+Online将其注册到Location;最后一步判断version对不对，不对就将gw踢下线;
+
+假设我这边刚登录，player还在加载，这个时候顶号了，可能上一个号还没结束，下一个号又进来了怎么办;
+假设有公共仓库，上一个号的公共仓库的数据还没过来，下一个号又读取了怎么办;
+理想状态下，必须得等上一个号离线全部处理完成才行吧，但是这个东西 正常也不会让等这么久啊：
+
+
+
+
+GW->SDK->进行预登陆，如果已经有预登陆状态就不管替换新的;在登录中，直接替换预登陆状态;
+在排队中就将其踢出排队->然后进行排队->负载均衡新GW
+
+NGW->ONLINE,检测预登陆状态;不对，直接下线;->直接走lobby的离线(本来要等gw，现在提前调用);
+->删除预先登录状态,然后user自己上线，弄成一个方法userLogin这样;里面先不注册Location，等选完playerId再进行注册;
+->然后踢旧的gw(call)，回调回来以后判断登录是否过期,可以判断缓存的sessionId和gwCallPoint是否一样;不一样直接return;
+->然后给新的gw(call)，上线;->回来判断登录是否过期，过期return，没过期，检测其GW是否登录成功，登录失败就进行lobby下线return,登录成功就进行发送玩家列表等数据;
+
+location和playerService一样，其实是线性的，如果我先上线,然后再addLocation和playerService;并且不等回调的话，那后续让其离线肯定也是线性的;
+将gw的数据注册回去，也是线性的不用管;gw发现不在线了，就直接调用下线逻辑，走下线就行;可以用sessionId和gw地址来判断，online在线的是不是当前gw的下线;
+如果不是的话就不管;
+按照正常线性的话，新号顶号，老gw下线，下线方法中肯定会调用旧的方法下线，这个时候这个默认就线性的了
+
+GW里收到离线以后，不等channelInactive回调，而是直接将session 设置为close;并且直接发起通知online的离线调用(走send不阻塞);
+
+上面这里其实还有一点问题；就是我通知gw1离线，有可能gw1还会发送旧的协议过来;但是这个时候gw2也存在了;会有竞态;
+这个其实怎么都没办法;
+    我可以最后gw离线用call，等call结束以后再返回ngw上线登录;
+    这样oldGw等标记close，以后newGw才会真的上线;
+    callOldGw;回来以后检测登录状态是否还对;用方法最前面的gw和sessionId;还对就进行callNewGw,不对就return;
+    callNewGW,回来继续检测登录状态;不对了就NGW下线(这里要下线，因为可能登录的时候NGW已经离线了，但是其userId还没登录到GW上，这个时候有可能lobby永远离线不了了), 还对就角色数据和玩家登录返回;
+    如果再来一个新登录，NGW这里也没问题;因为在线玩家里已经保存了我的gw，也会先走oldGW离线;
+    如果是粘性gw的话，直接两个send就好了，因为肯定是线性的;但是gw挂了，在粘性期间应该就不能进了;
+    还是不选粘性gw;最后两个call判断也不复杂;
+
+location和邮箱唯一id在哪里生成的问题，假设都在gw有没有问题;
+    GWPlayerId上线以后再注册Location和邮箱;gw连接端口closeSession的时候开始删除location注册和邮箱;好像没什么问题;
+    就这么弄吧
+
+这里需要做gw和online状态一致保底： gw将所有的玩家发送给online检测状态是否一致，有不一致的进行kick下线，但是正常的登录流程，等回去的时候session肯定已经不在线了，
+            如果kick这个时候还在那就说明这个session 真的有问题;
+
+ user登录以后，就是创建角色或者选择账号登录;
+ 如果是创建角色的话就创建角色成功返回，返回以后还是要选择要登录哪个playerId；
+ 选了以后，发送到online->检测session是否过期，过期打warn日志 return;
+ —>如果玩家已经选择了player了，打日志 return;
+ ->然后去Lobby加载玩家数据—>回来加载失败,打日志踢玩家下线, session是否过期，player是否已经选择了; 打日志return;
+ ->先检测是否有历史玩家上线PlayerService,有的话用这个，没有的话就负载均衡PlayerService;
+ ->online进行将playerId上线OnlinePlayer，并且将player映射在user上;
+ ->然后发送到PlayerService将其上线返回ActorAddress;检测session是否过期，过期打warn日志 return 这里是将PlayerService上线; // 这里以后再gw或者player上线失败被替换了，就不用处理别的了，因为OnlinePlayer已经上线了,被顶了啥的,会在离线这里线性调用;
+ ->Online里将ActorAddress注册到OnlinePlayer上;
+ ->然后将PlayerActorAddress注册到GW，
+ ->GW检测session是否过期一样，不一样就return false;注册GWActorAdress，注册PlayerActorAddress到GW,然后将GWActorAddress返回给ONline一样;
+ ->回到Online 检测session是否过期，过期打日志return;
+ ->然后将GW返回的GWActorAddress注册到OnlinePlayer里，
+ ->然后发送给PlayerService,将GWActorAddress注册到PlayerService里;
+ ->然后返回Online,检测session是否过期，过期打warn日志 return;
+ ->没有过期就给OnlineService PlayerService 和LobbyService发送正式上线，可以发送一些玩家数据给客户端饿了;
+
+

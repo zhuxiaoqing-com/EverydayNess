@@ -22,7 +22,8 @@ final class ConnServiceClientCmdRouter {
     }
 
     void forward(NetChannel session, int cmd, Chunk body) {
-        ClientSessionRef sessionRef = owner.buildClientSessionRef(session);
+        owner.prepareClientSession(session);
+        ClientSessionRef sessionRef = session.getSessionRef();
         routeTable.forward(owner, sessionRef, cmd, body);
     }
 
@@ -38,7 +39,7 @@ final class ConnServiceClientCmdRouter {
             Class<?> registryClass = Class.forName(registryClassName);
             Method registerMethod = registryClass.getMethod(REGISTER_METHOD_NAME, ClientCmdRouteTable.class);
             registerMethod.invoke(null, routeTable);
-        } catch (ClassNotFoundException ignored) {
+        } catch (ClassNotFoundException ignored) {// 找不到就是没有需要处理的客户端协议;
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("初始化客户端协议路由失败: serviceClass=" + serviceClassName,
                     unwrapReflectiveException(e));

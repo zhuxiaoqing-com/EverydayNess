@@ -13,6 +13,10 @@ public class RegisteredService implements ISerializable {
     private String serviceId;
     private String nodeId;
 
+    /** 本地记录的离线时间，不参与服务注册信息序列化。 */
+    @SerializeIgnore
+    private long offlineMill;
+
     @SerializeIgnore
     private CallPoint callPoint;
 
@@ -60,6 +64,14 @@ public class RegisteredService implements ISerializable {
 
     public void setNodeId(String nodeId) {
         this.nodeId = nodeId;
+    }
+
+    public long getOfflineMill() {
+        return offlineMill;
+    }
+
+    public void setOfflineMill(long offlineMill) {
+        this.offlineMill = offlineMill;
     }
 
     public CallPoint getCallPoint() {

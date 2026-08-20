@@ -143,7 +143,7 @@ public class ClientCmdProcessor extends ProcessorBase {
         for (ClientCmdMethod method : methods) {
             source.append("            case ").append(method.cmdExpr).append(":\n");
             source.append("                ").append(method.dispatchTargetExpr()).append(".").append(method.methodName)
-                    .append("(session, ").append(method.requestClassName).append(".parseFrom(body));\n");
+                     .append("(session, ").append(method.requestClassName).append(".parseFrom(body));\n");
             source.append("                return;\n");
         }
         source.append("            default:\n");
@@ -171,7 +171,7 @@ public class ClientCmdProcessor extends ProcessorBase {
             source.append("        routeTable.register(")
                     .append(method.cmdExpr)
                     .append(", \"")
-                    .append(method.serviceOwnerFullClassName)
+                     .append(method.serviceOwnerClassName)
                     .append("\", ActorType.")
                     .append(method.actorType.name())
                     .append(");\n");

@@ -10,6 +10,7 @@ public enum LockType {
     TABLE_RECORD(4),
     DB_CACHE(5),
     LOCATION_CALL(6), // location_call锁
+    LOGIN(7),
 
     ;
 

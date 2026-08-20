@@ -6,7 +6,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.util.Attribute;
 import io.netty.util.ReferenceCountUtil;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.support.LogCore;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -14,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class NetChannel {
@@ -47,12 +50,11 @@ public class NetChannel {
     // 正常的计数, 用于清除异常次数
     private int normalPingCount;
 
-    private long playerId;
-
-    private String userId;
-
     private final ClientSessionRef sessionRef;
-    private SessionState sessionState = SessionState.CONNECTED;
+    private String pendingLoginToken = "";
+    private String userId = "";
+    private volatile SessionState sessionState = SessionState.CONNECTED;
+    private final AtomicBoolean closeCleanupStarted = new AtomicBoolean();
 
 
     private InetSocketAddress playerEnterAddress;
@@ -79,7 +81,6 @@ public class NetChannel {
         this.sessionRef = new ClientSessionRef();
         this.sessionRef.setSessionId(this.channelId);
         this.lastPingTime = System.currentTimeMillis();
-        setBrokenType(BrokenType.NONE);
     }
 
 
@@ -87,8 +88,24 @@ public class NetChannel {
         return sessionRef.getPlayerId();
     }
 
+    public String getPendingLoginToken() {
+        return pendingLoginToken;
+    }
+
+    public void setPendingLoginToken(String pendingLoginToken) {
+        this.pendingLoginToken = pendingLoginToken == null ? "" : pendingLoginToken;
+    }
+
     public void setPlayerId(long playerId) {
         sessionRef.setPlayerId(playerId);
+    }
+
+    public CallPoint getGate() {
+        return sessionRef.getGate();
+    }
+
+    public void setGate(CallPoint gate) {
+        sessionRef.setGate(gate);
     }
 
     public SessionState getSessionState() {
@@ -148,6 +165,11 @@ public class NetChannel {
         this.channel.close();
     }
 
+    /** 保证连接关闭后的离线清理只执行一次；CLOSING 可能已由关闭前响应提前设置。 */
+    public boolean beginCloseCleanup() {
+        return closeCleanupStarted.compareAndSet(false, true);
+    }
+
     public void close(BrokenType brokenType) {
         setBrokenType(brokenType);
         close();
@@ -200,11 +222,11 @@ public class NetChannel {
     }
 
     public String getUserId() {
-        return sessionRef.getUserId();
+        return userId;
     }
 
     public void setUserId(String userId) {
-        sessionRef.setUserId(userId);
+        this.userId = userId == null ? "" : userId;
     }
 
     public long getLastMessageTime() {
@@ -253,11 +275,8 @@ public class NetChannel {
     }
 
     public boolean isAuthorized() {
-        return sessionRef.isAuthorized();
-    }
-
-    public void setAuthorized(boolean authorized) {
-        sessionRef.setAuthorized(authorized);
+        return sessionState == SessionState.USER_LOGIN_READY
+                || sessionState == SessionState.PLAYER_LOGIN_READY;
     }
 
     public ClientSessionRef getSessionRef() {
@@ -285,8 +304,19 @@ public class NetChannel {
     }
 
     public void setBrokenType(BrokenType brokenType) {
-        channel.attr(ServerAttributeKey.brokenType).set(
-                (brokenType == null ? BrokenType.NONE : brokenType).getCode());
+        Attribute<Integer> attribute = channel.attr(ServerAttributeKey.brokenType);
+        Integer oldCode;
+        boolean success;
+        if (brokenType == null || brokenType == BrokenType.NONE) {
+            oldCode = attribute.get();
+            success = false;
+        } else {
+            oldCode = attribute.setIfAbsent(brokenType.getCode());
+            success = oldCode == null;
+        }
+        BrokenType current = BrokenType.fromCode(attribute.get());
+        LogCore.core.info("NetChannel 设置断开原因: sessionId={}, success={}, requested={}, old={}, current={}",
+                channelId, success, brokenType, BrokenType.fromCode(oldCode), current);
     }
 
     public Set<Integer> getMergedIds() {
@@ -298,28 +328,50 @@ public class NetChannel {
     }
 
     public enum SessionState {
+        /** TCP 已建立，等待首段登录或二段登录协议。 */
         CONNECTED(Set.of(
                 CMD_LOGIN,
-                CMD_LOGIN2
+                CMD_LOGIN2,
+                CMD_CONN_PING
         )),
-        SELECT_ROLE_READY(Set.of(
+        /** user 已完成正式登录，客户端等待选择 playerId。 */
+        USER_LOGIN_READY(Set.of(
                 CMD_CREATE_ROLE,
                 CMD_SELECT_ROLE_ENTER,
                 CMD_CONN_PING
         )),
-        LOGIN_READY(Set.of(
-                CMD_LOGIN3,
-                CMD_CONN_PING
-        ));
+        /** playerId 已完成登录，允许全部客户端协议进入业务路由，但禁止重复登录流程协议。 */
+        PLAYER_LOGIN_READY(null, Set.of(
+                CMD_LOGIN,
+                CMD_LOGIN2,
+                CMD_CREATE_ROLE,
+                CMD_SELECT_ROLE_ENTER
+        )),
+        /** 连接正在关闭，拒绝后续客户端协议。 */
+        CLOSING(Set.of()),
 
+        ;
         private final Set<Integer> allowedCmds;
+        private final Set<Integer> disallowedCmds;
 
         SessionState(Set<Integer> allowedCmds) {
+            this(allowedCmds, Set.of());
+        }
+
+        SessionState(Set<Integer> allowedCmds, Set<Integer> disallowedCmds) {
             this.allowedCmds = allowedCmds;
+            this.disallowedCmds = disallowedCmds;
         }
 
         boolean canProcess(int msgId) {
-            return allowedCmds.contains(msgId);
+            if (disallowedCmds != null && disallowedCmds.contains(msgId)) {
+                return false;
+            }
+
+            if(allowedCmds!= null && !allowedCmds.contains(msgId)) {
+                return false;
+            }
+            return true;
         }
     }
 }

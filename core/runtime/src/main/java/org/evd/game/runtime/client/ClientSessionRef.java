@@ -5,16 +5,13 @@ import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
 /**
- * 客户端会话的跨服务引用。
- * 这里只保留可序列化的路由信息，不能直接复用持有 Netty 连接对象的 runtime.netty.Message。
+ * 客户端请求的连接上下文，由 ConnService 创建并在服务间透传。
  */
 @SerializeClass
 public class ClientSessionRef implements ISerializable {
     private CallPoint gate;
     private long sessionId;
-    private boolean authorized;
     private long playerId;
-    private String userId;
 
     public ClientSessionRef() {
     }
@@ -40,14 +37,6 @@ public class ClientSessionRef implements ISerializable {
         this.sessionId = sessionId;
     }
 
-    public boolean isAuthorized() {
-        return authorized;
-    }
-
-    public void setAuthorized(boolean authorized) {
-        this.authorized = authorized;
-    }
-
     public long getPlayerId() {
         return playerId;
     }
@@ -56,11 +45,4 @@ public class ClientSessionRef implements ISerializable {
         this.playerId = playerId;
     }
 
-    public String getUserId() {
-        return userId == null ? "" : userId;
-    }
-
-    public void setUserId(String userId) {
-        this.userId = userId;
-    }
 }

@@ -10,6 +10,8 @@ public enum BrokenType {
     TOKEN_EXPIRE(6),
     HEARTBEAT_TIMEOUT(7);
 
+    private static final BrokenType[] cacheValues = values();
+
     private final int code;
 
     BrokenType(int code) {
@@ -21,14 +23,11 @@ public enum BrokenType {
     }
 
     public static BrokenType fromCode(Integer code) {
-        if (code == null) {
+        if (code == null || code < 0 || code >= cacheValues.length) {
             return NONE;
         }
-        for (BrokenType value : values()) {
-            if (value.code == code) {
-                return value;
-            }
-        }
-        return NONE;
+        BrokenType value = cacheValues[code];
+        return value == null ? NONE : value;
     }
+
 }

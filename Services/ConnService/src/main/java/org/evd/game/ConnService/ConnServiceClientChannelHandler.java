@@ -22,7 +22,7 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
     @Override
     protected void onChannelActive(ChannelHandlerContext ctx) {
         NetChannel netChannel = ctx.channel().attr(ServerAttributeKey.netChannel).get();
-        netChannel.getSessionRef().setGate(new CallPoint(connService.getNode().getId(), connService.getId()));
+        netChannel.setGate(new CallPoint(connService.getNode().getId(), connService.getId()));
         connService.postClientChannelActive(netChannel);
     }
 
@@ -44,10 +44,7 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
     protected void onChannelInactive(ChannelHandlerContext ctx) {
         NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).getAndSet(null);
         if (session != null) {
-            if (session.getBrokenType() == BrokenType.NONE) {
-                session.setBrokenType(BrokenType.CLIENT_CLOSE);
-            }
-            connService.postClientChannelInactive(session);
+            connService.postCoroutine(() -> connService.closeSession(session, BrokenType.CLIENT_CLOSE.getCode(), "client channel inactive"));
         }
     }
 
@@ -58,7 +55,7 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
             session.setBrokenType(BrokenType.NETTY_EXCEPTION);
         }
         long sessionId = session == null ? -1L : session.getChannelId();
-        LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", sessionId, sessionId, cause);
+        LogCore.core.error("ConnService Netty 异常: service={}, sessionId={}", connService.getId(), sessionId, cause);
     }
 
     private boolean checkMsgFlowRate(ChannelHandlerContext ctx, NetChannel session, int msgId) {

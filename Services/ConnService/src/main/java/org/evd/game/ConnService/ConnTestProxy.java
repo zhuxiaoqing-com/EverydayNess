@@ -13,14 +13,24 @@ import org.evd.game.annotation.ActorType;
 @Actor
 public class ConnTestProxy {
     @Rpc(actorType = ActorType.GATE)
-    public void connTest3() {
+    public void connTest1() {
 
     }
 
 
     @Rpc(actorType = ActorType.GATE)
-    public void connTest2(int a, Object b, ConnInfo connInfo) {
+    public boolean connTest2(int a, Object b, ConnInfo connInfo) {
+        return true;
+    }
+
+    @Rpc()
+    public void connTest3() {
 
     }
 
+
+    @Rpc()
+    public boolean connTest4(int a, Object b, ConnInfo connInfo) {
+        return true;
+    }
 }

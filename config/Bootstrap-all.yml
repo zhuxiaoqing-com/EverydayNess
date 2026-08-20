@@ -4,6 +4,11 @@ debug: true
 platformId: 0  #平台id
 serverId: 0 #服务器id;
 
+login:
+  maxOnline: 1000
+  admissionsPerSecond: 20
+  maxQueueSize: 10000
+
 nodes:
   - nodeId: 0
     name: 游戏服节点

@@ -11,6 +11,7 @@ message C2S_Login {
 
 message C2S_Login2 {
   string token = 1;
+  string user_id = 2;
 }
 
 message S2C_Login {
@@ -25,6 +26,7 @@ message RoleData {
   int64 player_id = 1;
   string name = 2;
   int32 level = 3;
+  int32 character_id = 4;
 }
 
 message S2C_Login2 {
@@ -33,8 +35,16 @@ message S2C_Login2 {
   repeated RoleData roles = 3;
 }
 
+message S2C_RoleList {
+  bool success = 1;
+  string message = 2;
+  repeated RoleData roles = 3;
+}
+
 message C2S_CreateRole {
   string name = 1;
+  string user_id = 2;
+  int32 character_id = 3;
 }
 
 message S2C_CreateRole {
@@ -45,6 +55,7 @@ message S2C_CreateRole {
 
 message C2S_SelectRoleEnter {
   int64 player_id = 1;
+  string user_id = 2;
 }
 
 message S2C_SelectRoleEnter {

@@ -1,0 +1,52 @@
+package org.evd.game.OnlineService.session;
+
+import org.evd.game.OnlineService.OnlineService;
+import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.Rpc;
+import org.evd.game.common.serializeBean.OnlineService.OnlineUserState;
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.LockType;
+import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.support.exception.CoroutineLockTimeoutException;
+
+/** OnlineService 在线会话与离线清理的 RPC 入口。 */
+@Actor
+public final class OnlineSessionActor {
+    /** 查询用户正式上线后的会话状态。 */
+    @Rpc
+    public OnlineUserState getUserState(String userId) {
+        return owner().sessionCoordinator().getUserState(userId);
+    }
+
+    /** 判断用户当前是否不存在正式在线会话。 */
+    @Rpc
+    public boolean isPlayerOffline(String userId) {
+        return owner().sessionCoordinator().isPlayerOffline(userId);
+    }
+
+    /** 清理匹配的正式在线会话，并返回其 PlayerService。 */
+    @Rpc
+    public CallPoint clearSession(String userId, CallPoint gate, long sessionId) {
+        return owner().sessionCoordinator().clearSession(userId, gate, sessionId);
+    }
+
+    /** 按网关会话和目标服务校验并清理 PlayerService 绑定。 */
+    @Rpc
+    public boolean clearPlayerService(String userId, CallPoint gate, long gateSessionId,
+                                      CallPoint expectedPlayerService) {
+        try (ContinuationLockScope ignored = owner().awaitCoroutineLockScope(LockType.LOGIN, userId)) {
+            return owner().sessionCoordinator().clearPlayerService(
+                    userId, gate, gateSessionId, expectedPlayerService);
+        } catch (CoroutineLockTimeoutException e) {
+            LogCore.core.warn("OnlineService 玩家解绑协程锁等待超时: userId={}, gateSessionId={}, timeoutMillis={}",
+                    userId, gateSessionId, e.getTimeoutMillis());
+            return false;
+        }
+    }
+
+    private OnlineService owner() {
+        return Service.getCurrent(OnlineService.class);
+    }
+}

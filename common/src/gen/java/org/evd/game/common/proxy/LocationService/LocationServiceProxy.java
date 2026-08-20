@@ -30,13 +30,10 @@ public final class LocationServiceProxy implements LocationInterface {
     }
 
     /**
-    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> callAdd(CallPoint remote, ActorId actorId, ActorAddress actorAddress){
-        return RpcResult.run(() -> {
-            Service service = Service.getCurrent();
-            service.callWait(remote, EnumCall.ENUM_LOCATIONSERVICE_ADD_0, new Object[]{actorId, actorAddress});
-        });
+    public static RpcResult<Void> sendAdd(CallPoint remote, ActorId actorId, ActorAddress actorAddress){
+        return RpcResult.run(() -> inst().add(remote, actorId, actorAddress));
     }
 
     /**
@@ -48,33 +45,24 @@ public final class LocationServiceProxy implements LocationInterface {
 
 
     /**
-    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> callLock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, int timeMillis){
-        return RpcResult.run(() -> {
-            Service service = Service.getCurrent();
-            service.callWait(remote, EnumCall.ENUM_LOCATIONSERVICE_LOCK_2, new Object[]{actorId, oldActorAddress, timeMillis});
-        });
+    public static RpcResult<Void> sendLock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, int timeMillis){
+        return RpcResult.run(() -> inst().lock(remote, actorId, oldActorAddress, timeMillis));
     }
 
     /**
-    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> callRemove(CallPoint remote, ActorId actorId){
-        return RpcResult.run(() -> {
-            Service service = Service.getCurrent();
-            service.callWait(remote, EnumCall.ENUM_LOCATIONSERVICE_REMOVE_3, new Object[]{actorId});
-        });
+    public static RpcResult<Void> sendRemove(CallPoint remote, ActorId actorId, ActorAddress expectedActorAddress){
+        return RpcResult.run(() -> inst().remove(remote, actorId, expectedActorAddress));
     }
 
     /**
-    * 对应 void RPC 的结果版本；等待远端响应，远端错误、断链和超时均通过 RpcResult 返回。
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> callUnlock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress){
-        return RpcResult.run(() -> {
-            Service service = Service.getCurrent();
-            service.callWait(remote, EnumCall.ENUM_LOCATIONSERVICE_UNLOCK_4, new Object[]{actorId, oldActorAddress, newActorAddress});
-        });
+    public static RpcResult<Void> sendUnlock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress){
+        return RpcResult.run(() -> inst().unlock(remote, actorId, oldActorAddress, newActorAddress));
     }
 
 
@@ -108,9 +96,9 @@ public final class LocationServiceProxy implements LocationInterface {
     /**
     * 对应源方法: org.evd.game.LocationService.LocationService#remove()
     */
-    public void remove(CallPoint remote, ActorId actorId){
+    public void remove(CallPoint remote, ActorId actorId, ActorAddress expectedActorAddress){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_LOCATIONSERVICE_REMOVE_3, new Object[]{actorId});
+        service.call(remote, EnumCall.ENUM_LOCATIONSERVICE_REMOVE_3, new Object[]{actorId, expectedActorAddress});
     }
 
 

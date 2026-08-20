@@ -28,6 +28,9 @@ public class ActorMailBoxRegistry {
 
     public void register(ActorId actorId, MailBoxType boxType) {
         ActorId key = new ActorId(actorId);
+        if (actors.containsKey(key)) {
+            throw new IllegalStateException("ActorMailBoxRegistry actor already exists: " + actorId);
+        }
         MailBoxBean mailBoxBean = new MailBoxBean(
                 key,
                 nextMailBoxEpoch++,
@@ -47,7 +50,7 @@ public class ActorMailBoxRegistry {
         }
         CallPoint callPoint = service.getCallPoint();
         ActorAddress actorAddress = new ActorAddress(callPoint, remove.getEpoch());
-        locationInterface.remove(callPoint, actorId);
+        locationInterface.remove(callPoint, actorId, actorAddress);
     }
 
     public boolean contains(ActorId actorId) {

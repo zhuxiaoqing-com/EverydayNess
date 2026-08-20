@@ -3,7 +3,6 @@ package org.evd.game.runtime.rpcProxyInterface;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
-import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.exception.SysException;
@@ -42,7 +41,8 @@ public final class RpcOutboundGateway {
                         service.getId(), timeoutWaitId, timeoutMillis, call.getTo(), call.getMethodKey()));
     }
 
-    public void sendClientCmd(CallPoint toCallPoint, ClientSessionRef session, int msgId, Chunk body) {
+    public void sendClientCmd(CallPoint toCallPoint, org.evd.game.runtime.client.ClientSessionRef session,
+                              int msgId, Chunk body) {
         send(CallFactory.buildServiceClientCmd(service, toCallPoint, session, msgId, body));
     }
 

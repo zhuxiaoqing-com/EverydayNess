@@ -31,9 +31,7 @@ public final class NodeChannelHandler extends  BaseChannelHandler<ByteBuf>  {
     protected void onChannelInactive(ChannelHandlerContext ctx) {
         NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).getAndSet(null);
         if (session != null) {
-            if (session.getBrokenType() == BrokenType.NONE) {
-                session.setBrokenType(BrokenType.CLIENT_CLOSE);
-            }
+            session.setBrokenType(BrokenType.CLIENT_CLOSE);
             node.onChannelInactive_nt(session);
         }
         long sessionId = session == null ? -1L : session.getChannelId();

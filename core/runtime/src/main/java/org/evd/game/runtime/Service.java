@@ -16,7 +16,6 @@ import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.call.RpcCallBase;
-import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.RegisteredService;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.continuation.*;
@@ -663,8 +662,18 @@ public class Service extends TickCase {
         thisContinuation.waitResult();
     }
 
-    public void sendClientCmd(CallPoint toCallPoint, ClientSessionRef session, int msgId, Chunk body) {
+    public void sendClientCmd(CallPoint toCallPoint, org.evd.game.runtime.client.ClientSessionRef session,
+                              int msgId, Chunk body) {
         rpcOutboundGateway.sendClientCmd(toCallPoint, session, msgId, body);
+    }
+
+    public void dispatchLocalClientCmd(org.evd.game.runtime.client.ClientSessionRef session,
+                                       int msgId, Chunk body) {
+        try {
+            rpcMethodInvoker.dispatchClientCmd(msgId, new Object[]{session, body});
+        } catch (Exception e) {
+            throw new IllegalStateException("本地客户端协议分发失败: service=" + id + ", msgId=" + msgId, e);
+        }
     }
 
     public Task.ContinuationWrapper requireRunningContinuation() {

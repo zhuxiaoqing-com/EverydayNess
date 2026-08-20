@@ -30,7 +30,7 @@ final class ConnServiceHeartbeatScanner {
             timeoutChannels.add(channel);
         }
         for (NetChannel channel : timeoutChannels) {
-            owner.closeSession(channel.getChannelId(), BrokenType.HEARTBEAT_TIMEOUT,
+            owner.closeSession(channel.getChannelId(), BrokenType.HEARTBEAT_TIMEOUT.getCode(),
                     "heartbeat timeout after " + timeoutMillis + "ms");
         }
     }

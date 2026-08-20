@@ -17,6 +17,7 @@ public class NodeConfig {
     private boolean debug;
     private int platformId;
     private int serverId;
+    private LoginConfig login = new LoginConfig();
     private List<NodeInfo> nodes = new ArrayList<>();
 
     public String getDbConfigPath() {
@@ -67,10 +68,22 @@ public class NodeConfig {
         this.serverId = serverId;
     }
 
+    public LoginConfig getLogin() {
+        return login;
+    }
+
+    public void setLogin(LoginConfig login) {
+        this.login = login;
+    }
+
     /**
      * 校验 Bootstrap 中完整的 Node 和 Service 配置。
      */
     public void validate(DbConfig dbConfig) {
+        if (login == null) {
+            throw new SysException("login config is required");
+        }
+        login.validate();
         validateNodes();
         validateNodeServiceTypes();
         validateServiceNames();

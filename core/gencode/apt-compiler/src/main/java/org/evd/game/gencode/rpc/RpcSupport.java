@@ -169,7 +169,7 @@ final class RpcSupport {
             methodModel.put("enumCall", buildEnumCallName(method));
             methodModel.put("methodKey", method.methodKey);
             methodModel.put("methodName", method.methodName);
-            methodModel.put("resultMethodName", buildCallMethodName(method.methodName));
+            methodModel.put("resultMethodName", buildResultMethodName(method, routeService));
             methodModel.put("returnType", method.getDisplayReturnType());
             boolean isVoid = "void".equals(method.returnType);
             methodModel.put("returnTypeWrapper", isVoid ? "Void" : AptUtils.shortTypeName(method.returnTypeWrapper));
@@ -237,6 +237,9 @@ final class RpcSupport {
 
         for (MethodStruct<Rpc> method : methods) {
             collectMethodImports(importPackages, generatedPackageName, method);
+            if (!method.fullClassName.equals(method.ownerFullClassName)) {
+                importPackages.add(method.fullClassName);
+            }
             boolean routeService = isServiceRoute(method);
             boolean routeLocation = isLocationRoute(method);
             String targetPrefix;
@@ -552,7 +555,7 @@ final class RpcSupport {
             }
         }
         for (MethodStruct<Rpc> method : methods) {
-            String resultMethodName = buildCallMethodName(method.methodName);
+            String resultMethodName = buildResultMethodName(method, isServiceRoute(method));
             if (regularMethods.contains(buildGeneratedMethodKey(resultMethodName, method, false))) {
                 throw new IllegalStateException("RPC 结果代理方法命名冲突: " + resultMethodName);
             }
@@ -566,6 +569,14 @@ final class RpcSupport {
     private String buildCallMethodName(String methodName) {
         return "call" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1);
     }
+
+    private String buildResultMethodName(MethodStruct<Rpc> method, boolean routeService) {
+        if ("void".equals(method.returnType) && routeService) {
+            return "send" + Character.toUpperCase(method.methodName.charAt(0)) + method.methodName.substring(1);
+        }
+        return buildCallMethodName(method.methodName);
+    }
+
 
     private String buildGeneratedMethodKey(String methodName,
                                            MethodStruct<Rpc> method,

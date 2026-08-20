@@ -67,13 +67,13 @@ public enum ServiceType {
     /**
      * 自己管理actorAddress 不走自动重试查找最新的这一套;
      * 目前只有CONN, PLAYER, STAGE 这三种需要location定位;
+     * actorAddress 过期也由对应的Service自己管理，MessageLocationSender不负责清理;
      */
     public boolean selfManageActorAddress() {
         return switch (this) {
             case STAGE, ZSTAGE, GSTAGE, PLAYER, ONLINE, CONN -> true;
             default -> false;
         };
-
     }
 
     public static boolean isGame(ServiceType serviceType) {
