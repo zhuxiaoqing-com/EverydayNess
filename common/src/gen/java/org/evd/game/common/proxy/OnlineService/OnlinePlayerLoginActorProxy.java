@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
 
@@ -37,6 +38,9 @@ public final class OnlinePlayerLoginActorProxy {
     */
     public void selectRoleEnter(CallPoint remote, ClientSessionRef session, C2S_SelectRoleEnter request){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         service.call(remote, EnumCall.ENUM_ONLINEPLAYERLOGINACTOR_SELECTROLEENTER_3, new Object[]{session, request});
     }
 

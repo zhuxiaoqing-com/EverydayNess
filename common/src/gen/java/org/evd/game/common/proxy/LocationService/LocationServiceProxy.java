@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.LocationService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -71,6 +72,9 @@ public final class LocationServiceProxy implements LocationInterface {
     */
     public void add(CallPoint remote, ActorId actorId, ActorAddress actorAddress){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+        }
         service.call(remote, EnumCall.ENUM_LOCATIONSERVICE_ADD_0, new Object[]{actorId, actorAddress});
     }
 
@@ -80,6 +84,9 @@ public final class LocationServiceProxy implements LocationInterface {
     */
     public ActorAddress get(CallPoint remote, ActorId actorId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+        }
         return (ActorAddress)service.callWait(remote, EnumCall.ENUM_LOCATIONSERVICE_GET_1, new Object[]{actorId});
     }
 
@@ -89,6 +96,9 @@ public final class LocationServiceProxy implements LocationInterface {
     */
     public void lock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, int timeMillis){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+        }
         service.call(remote, EnumCall.ENUM_LOCATIONSERVICE_LOCK_2, new Object[]{actorId, oldActorAddress, timeMillis});
     }
 
@@ -98,6 +108,9 @@ public final class LocationServiceProxy implements LocationInterface {
     */
     public void remove(CallPoint remote, ActorId actorId, ActorAddress expectedActorAddress){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+        }
         service.call(remote, EnumCall.ENUM_LOCATIONSERVICE_REMOVE_3, new Object[]{actorId, expectedActorAddress});
     }
 
@@ -107,6 +120,9 @@ public final class LocationServiceProxy implements LocationInterface {
     */
     public void unlock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+        }
         service.call(remote, EnumCall.ENUM_LOCATIONSERVICE_UNLOCK_4, new Object[]{actorId, oldActorAddress, newActorAddress});
     }
 

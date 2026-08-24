@@ -622,7 +622,7 @@ public class Service extends TickCase {
      * @param params
      */
     public void call(CallPoint toCallPoint, int methodKey, Object[] params) {
-        rpcOutboundGateway.call(toCallPoint, methodKey, params);
+        rpcOutboundGateway.call(requireCallPoint(toCallPoint, methodKey), methodKey, params);
     }
 
     /**
@@ -634,11 +634,19 @@ public class Service extends TickCase {
      * @param params
      */
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
-        return rpcOutboundGateway.callWait(toCallPoint, methodKey, params, getCallWaitTimeoutInternal());
+        return rpcOutboundGateway.callWait(
+                requireCallPoint(toCallPoint, methodKey), methodKey, params, getCallWaitTimeoutInternal());
     }
 
     public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
-        return rpcOutboundGateway.callWait(toCallPoint, methodKey, params, timeoutMillis);
+        return rpcOutboundGateway.callWait(requireCallPoint(toCallPoint, methodKey), methodKey, params, timeoutMillis);
+    }
+
+    private CallPoint requireCallPoint(CallPoint callPoint, int methodKey) {
+        if (callPoint == null) {
+            throw new SysException("rpc target call point is null: service={}, methodKey={}", id, methodKey);
+        }
+        return callPoint;
     }
 
 

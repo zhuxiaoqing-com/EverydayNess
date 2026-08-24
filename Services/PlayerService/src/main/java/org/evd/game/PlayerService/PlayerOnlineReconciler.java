@@ -3,10 +3,8 @@ package org.evd.game.PlayerService;
 import org.evd.game.PlayerService.offline.PlayerOfflineManager;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
-import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileActorProxy;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
-import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
@@ -32,12 +30,6 @@ public final class PlayerOnlineReconciler {
 
     /** 将 PlayerService 当前运行态交给 Online 校验，并按原会话精确清理失效玩家。 */
     public void reconcile() {
-        CallPoint onlineRemote = owner.getNode().getAnyCallPointByType(ServiceType.ONLINE);
-        if (onlineRemote == null) {
-            LogCore.core.warn("PlayerService 对账跳过，OnlineService 不可用: service={}", owner.getId());
-            return;
-        }
-
         List<PlayerStateCheck> entries = new ArrayList<>();
         for (Map.Entry<Long, PPlayerOnline> bindingEntry
                 : sessionManager.snapshotBindings().entrySet()) {
@@ -52,10 +44,10 @@ public final class PlayerOnlineReconciler {
 
         RpcResult<PlayerStateCheck[]> result =
                 OnlineStateReconcileActorProxy.callReconcilePlayerSessions(
-                        onlineRemote, owner.getCallPoint(), entries);
+                        null, owner.getCallPoint(), entries);
         if (!result.isSuccess()) {
-            LogCore.core.warn("PlayerService 对账请求失败: service={}, online={}, count={}, errorCode={}, message={}",
-                    owner.getId(), onlineRemote, entries.size(),
+            LogCore.core.warn("PlayerService 对账请求失败: service={}, target=OnlineService, count={}, errorCode={}, message={}",
+                    owner.getId(), entries.size(),
                     result.getErrorCode(), result.getErrorMessage());
             return;
         }

@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.LobbyService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.runtime.call.CallPoint;
@@ -46,6 +47,9 @@ public final class LobbyRoleActorProxy {
     */
     public void createRole(CallPoint remote, ClientSessionRef session, C2S_CreateRole req){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        }
         service.call(remote, EnumCall.ENUM_LOBBYROLEACTOR_CREATEROLE_3, new Object[]{session, req});
     }
 
@@ -55,6 +59,9 @@ public final class LobbyRoleActorProxy {
     */
     public void roleList(CallPoint remote, CallPoint gate, long gateSessionId, String userId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        }
         service.call(remote, EnumCall.ENUM_LOBBYROLEACTOR_ROLELIST_4, new Object[]{gate, gateSessionId, userId});
     }
 

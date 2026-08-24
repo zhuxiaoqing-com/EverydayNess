@@ -4,7 +4,6 @@ import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
 import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proto.C2S_Login2;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login2;
@@ -154,16 +153,8 @@ public final class OnlineLoginActor {
             return;
         }
 
-        CallPoint lobbyRemote = owner.getNode().getAnyCallPointByType(ServiceType.LOBBY);
-        if (lobbyRemote == null) {
-            LogCore.core.warn("OnlineService 用户上线后 LobbyService 不可用: userId={}, gateSessionId={}, version={}",
-                    userId, gateSessionId, version);
-            redirectLoginFailure(gate, gateSessionId);
-            return;
-        }
-
         RpcResult<Void> roleListResult = LobbyRoleActorProxy.sendRoleList(
-                lobbyRemote, gate, gateSessionId, userId);
+                null, gate, gateSessionId, userId);
         if (!roleListResult.isSuccess()) {
             LogCore.core.warn("OnlineService 请求 LobbyService 发送角色列表失败: userId={}, gateSessionId={}, version={}, errorCode={}, message={}",
                     userId, gateSessionId, version,

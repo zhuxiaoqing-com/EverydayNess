@@ -2,9 +2,7 @@ package org.evd.game.ConnService.offline;
 
 import org.evd.game.ConnService.ConnService;
 import org.evd.game.ConnService.session.ConnSessionRegistry;
-import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proxy.OnlineService.OnlineOfflineActorProxy;
-import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -65,14 +63,8 @@ public final class ConnOfflineManager {
         if (session.getUserId().isBlank()) {
             return;
         }
-        CallPoint onlineRemote = owner.getNode().getAnyCallPointByType(ServiceType.ONLINE);
-        if (onlineRemote == null) {
-            LogCore.core.warn("ConnService 未找到 OnlineService，离线通知未发送: service={}, sessionId={}",
-                    owner.getId(), session.getChannelId());
-            return;
-        }
         RpcResult<Void> result = OnlineOfflineActorProxy.sendOnSessionOffline(
-                onlineRemote, session.getUserId(), session.getPlayerId(), owner.getCallPoint(),
+                null, session.getUserId(), session.getPlayerId(), owner.getCallPoint(),
                 session.getChannelId(), session.getBrokenTypeCode());
         if (!result.isSuccess()) {
             LogCore.core.warn("ConnService 离线通知发送失败: service={}, sessionId={}, userId={}, errorCode={}, message={}",

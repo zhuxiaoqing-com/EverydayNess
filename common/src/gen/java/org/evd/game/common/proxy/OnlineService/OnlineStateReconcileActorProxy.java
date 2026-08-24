@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
 import org.evd.game.runtime.call.CallPoint;
 import java.util.List;
@@ -49,6 +50,9 @@ public final class OnlineStateReconcileActorProxy {
     */
     public ConnStateCheck[] reconcileConnSessions(CallPoint remote, CallPoint connService, List<ConnStateCheck> entries){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (ConnStateCheck[])service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILEACTOR_RECONCILECONNSESSIONS_5, new Object[]{connService, entries});
     }
 
@@ -58,6 +62,9 @@ public final class OnlineStateReconcileActorProxy {
     */
     public PlayerStateCheck[] reconcilePlayerSessions(CallPoint remote, CallPoint playerService, List<PlayerStateCheck> entries){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (PlayerStateCheck[])service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILEACTOR_RECONCILEPLAYERSESSIONS_6, new Object[]{playerService, entries});
     }
 

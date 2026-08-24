@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.CallPoint;
 
 /**
@@ -36,6 +37,9 @@ public final class OnlineOfflineActorProxy {
     */
     public void onSessionOffline(CallPoint remote, String userId, long playerId, CallPoint gate, long gateSessionId, int brokenTypeCode){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         service.call(remote, EnumCall.ENUM_ONLINEOFFLINEACTOR_ONSESSIONOFFLINE_4, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
     }
 

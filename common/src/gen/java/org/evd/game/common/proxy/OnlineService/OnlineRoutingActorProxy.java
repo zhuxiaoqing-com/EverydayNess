@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 
@@ -47,6 +48,9 @@ public final class OnlineRoutingActorProxy {
     */
     public OnlineConnCandidate selectLeastLoadedConn(CallPoint remote){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (OnlineConnCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDCONN_7, new Object[]{});
     }
 
@@ -56,6 +60,9 @@ public final class OnlineRoutingActorProxy {
     */
     public OnlinePlayerCandidate selectLeastLoadedPlayer(CallPoint remote){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (OnlinePlayerCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDPLAYER_8, new Object[]{});
     }
 

@@ -9,6 +9,9 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 <#if needsCallPointImport>
 import org.evd.game.runtime.call.CallPoint;
 </#if>
+<#if needsServiceTypeImport>
+import org.evd.game.annotation.ServiceType;
+</#if>
 <#if needsActorIdImport>
 import org.evd.game.runtime.actor.ActorId;
 </#if>
@@ -78,6 +81,11 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         <#if method.returnType == "void">
         <#if method.routeService>
         Service service = Service.getCurrent();
+        <#if method.autoResolveServiceRoute>
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.${method.serviceTypeName});
+        }
+        </#if>
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
@@ -86,6 +94,11 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         <#else>
         <#if method.routeService>
         Service service = Service.getCurrent();
+        <#if method.autoResolveServiceRoute>
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.${method.serviceTypeName});
+        }
+        </#if>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
         <#else>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);
@@ -98,6 +111,11 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
     public ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
         <#if method.routeService>
         Service service = Service.getCurrent();
+        <#if method.autoResolveServiceRoute>
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.${method.serviceTypeName});
+        }
+        </#if>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);
         <#else>
         ActorId actorId = new ActorId(ActorType.${method.actorTypeName}, actorUniqueId);

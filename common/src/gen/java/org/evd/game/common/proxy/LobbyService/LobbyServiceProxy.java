@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.LobbyService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.serializeBean.LobbyService.role.LobbyRoleSnapshot;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.common.serializeBean.LobbyService.login.LobbyUserAccessResult;
@@ -56,6 +57,9 @@ public final class LobbyServiceProxy {
     */
     public LobbyRoleSnapshot getRole(CallPoint remote, String userId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        }
         return (LobbyRoleSnapshot)service.callWait(remote, EnumCall.ENUM_LOBBYSERVICE_GETROLE_0, new Object[]{userId});
     }
 
@@ -65,6 +69,9 @@ public final class LobbyServiceProxy {
     */
     public void playerOnline(CallPoint remote, String userId, long playerId, CallPoint gate, long gateSessionId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        }
         service.call(remote, EnumCall.ENUM_LOBBYSERVICE_PLAYERONLINE_1, new Object[]{userId, playerId, gate, gateSessionId});
     }
 
@@ -74,6 +81,9 @@ public final class LobbyServiceProxy {
     */
     public LobbyUserAccessResult validateOrCreateUser(CallPoint remote, String userId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        }
         return (LobbyUserAccessResult)service.callWait(remote, EnumCall.ENUM_LOBBYSERVICE_VALIDATEORCREATEUSER_2, new Object[]{userId});
     }
 

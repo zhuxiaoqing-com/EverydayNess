@@ -2,8 +2,6 @@ package org.evd.game.ConnService;
 
 import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileActorProxy;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
-import org.evd.game.annotation.ServiceType;
-import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -24,12 +22,6 @@ public final class ConnOnlineReconciler {
 
     /** 将 GW 当前玩家连接交给 Online 校验，并只关闭返回快照对应的原 Session。 */
     public void reconcile() {
-        CallPoint onlineRemote = owner.getNode().getAnyCallPointByType(ServiceType.ONLINE);
-        if (onlineRemote == null) {
-            LogCore.core.warn("ConnService 对账跳过，OnlineService 不可用: service={}", owner.getId());
-            return;
-        }
-
         List<ConnStateCheck> entries = new ArrayList<>();
         for (NetChannel channel : owner.clientChannelManager().snapshotChannels()) {
             if (channel.getPlayerId() <= 0L || channel.getUserId().isBlank()) {
@@ -44,10 +36,10 @@ public final class ConnOnlineReconciler {
 
         RpcResult<ConnStateCheck[]> result =
                 OnlineStateReconcileActorProxy.callReconcileConnSessions(
-                        onlineRemote, owner.getCallPoint(), entries);
+                        null, owner.getCallPoint(), entries);
         if (!result.isSuccess()) {
-            LogCore.core.warn("ConnService 对账请求失败: service={}, online={}, count={}, errorCode={}, message={}",
-                    owner.getId(), onlineRemote, entries.size(),
+            LogCore.core.warn("ConnService 对账请求失败: service={}, target=OnlineService, count={}, errorCode={}, message={}",
+                    owner.getId(), entries.size(),
                     result.getErrorCode(), result.getErrorMessage());
             return;
         }

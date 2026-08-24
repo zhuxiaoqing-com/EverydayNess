@@ -17,7 +17,6 @@ import org.evd.game.common.proxy.PlayerService.PlayerLoginRpcActorProxy;
 import org.evd.game.common.serializeBean.LobbyService.role.LobbyRoleSnapshot;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
-import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
@@ -167,9 +166,8 @@ public final class OnlinePlayerLoginActor {
         onlinePlayer.markOnline();
 
         //  通知 LobbyService 当前角色已进入游戏。
-        CallPoint lobby = owner.getNode().getAnyCallPointByType(ServiceType.LOBBY);
         RpcResult<Void> lobbyOnline = LobbyServiceProxy.sendPlayerOnline(
-                lobby, userId, playerId, session.getGate(), session.getSessionId());
+                null, userId, playerId, session.getGate(), session.getSessionId());
         if (!lobbyOnline.isSuccess()) {
             LogCore.core.warn("OnlineService 发送 LobbyService 正式上线失败: userId={}, playerId={}, errorCode={}, message={}",
                     userId, playerId, lobbyOnline.getErrorCode(), lobbyOnline.getErrorMessage());
@@ -194,11 +192,7 @@ public final class OnlinePlayerLoginActor {
     }
 
     private LobbyRoleSnapshot loadRole(OnlineService owner, String userId) {
-        CallPoint lobby = owner.getNode().getAnyCallPointByType(ServiceType.LOBBY);
-        if (lobby == null) {
-            return null;
-        }
-        RpcResult<LobbyRoleSnapshot> result = LobbyServiceProxy.callGetRole(lobby, userId);
+        RpcResult<LobbyRoleSnapshot> result = LobbyServiceProxy.callGetRole(null, userId);
         if (!result.isSuccess()) {
             LogCore.core.warn("OnlineService 查询角色失败: userId={}, errorCode={}, message={} ",
                     userId, result.getErrorCode(), result.getErrorMessage());

@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 
@@ -65,6 +66,9 @@ public final class OnlineSessionActorProxy {
     */
     public boolean clearPlayerService(CallPoint remote, String userId, CallPoint gate, long gateSessionId, CallPoint expectedPlayerService){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_CLEARPLAYERSERVICE_9, new Object[]{userId, gate, gateSessionId, expectedPlayerService});
     }
 
@@ -74,6 +78,9 @@ public final class OnlineSessionActorProxy {
     */
     public CallPoint clearSession(CallPoint remote, String userId, CallPoint gate, long sessionId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (CallPoint)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_CLEARSESSION_10, new Object[]{userId, gate, sessionId});
     }
 
@@ -83,6 +90,9 @@ public final class OnlineSessionActorProxy {
     */
     public OnlineUserState getUserState(CallPoint remote, String userId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (OnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_GETUSERSTATE_11, new Object[]{userId});
     }
 
@@ -92,6 +102,9 @@ public final class OnlineSessionActorProxy {
     */
     public boolean isPlayerOffline(CallPoint remote, String userId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_ISPLAYEROFFLINE_12, new Object[]{userId});
     }
 

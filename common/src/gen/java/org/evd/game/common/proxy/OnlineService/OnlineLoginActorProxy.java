@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -55,6 +56,9 @@ public final class OnlineLoginActorProxy {
     */
     public OnlineLoginAdmission admitLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (OnlineLoginAdmission)service.callWait(remote, EnumCall.ENUM_ONLINELOGINACTOR_ADMITLOGIN_0, new Object[]{userId, requestGate, requestSessionId});
     }
 
@@ -64,6 +68,9 @@ public final class OnlineLoginActorProxy {
     */
     public boolean cancelPendingSession(CallPoint remote, String userId, String token){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINELOGINACTOR_CANCELPENDINGSESSION_1, new Object[]{userId, token});
     }
 
@@ -73,6 +80,9 @@ public final class OnlineLoginActorProxy {
     */
     public void cancelQueuedLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
         service.call(remote, EnumCall.ENUM_ONLINELOGINACTOR_CANCELQUEUEDLOGIN_2, new Object[]{userId, requestGate, requestSessionId});
     }
 

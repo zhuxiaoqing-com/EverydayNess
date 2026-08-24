@@ -5,6 +5,7 @@ import freemarker.template.Template;
 import freemarker.core.ParseException;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.ServiceOwnerResolver;
@@ -119,6 +120,7 @@ final class RpcSupport {
         List<Map<String, Object>> methodsModel = new ArrayList<>();
         boolean needsCallPointImport = false;
         boolean needsServiceImport = false;
+        boolean needsServiceTypeImport = false;
         boolean needsLocationImport = false;
         boolean needsActorIdImport = false;
         boolean needsActorTypeImport = false;
@@ -136,6 +138,15 @@ final class RpcSupport {
                 proxyInterfaceMetadata == null ? "" : proxyInterfaceMetadata.simpleName);
         dataModel.put("generateResultMethods", generateResultMethods);
         dataModel.put("generateTimeoutOverloads", generateTimeoutOverloads);
+
+        ServiceType targetServiceType = null;
+        boolean hasServiceRoute = methods.stream().anyMatch(this::isServiceRoute);
+        if (hasServiceRoute) {
+            targetServiceType = resolveServiceType(struct.ownerClassName);
+            if (targetServiceType.isSingle()) {
+                needsServiceTypeImport = true;
+            }
+        }
 
         if (proxyInterfaceMetadata != null) {
             validateProxyInterface(proxyInterfaceMetadata.typeElement, methods);
@@ -190,10 +201,15 @@ final class RpcSupport {
             methodModel.put("routeLocation", routeLocation);
             methodModel.put("usesFixedActorType", routeLocation);
             methodModel.put("actorTypeName", method.rpcActorType.name());
+            methodModel.put("autoResolveServiceRoute", routeService
+                    && targetServiceType != null
+                    && targetServiceType.isSingle());
+            methodModel.put("serviceTypeName", targetServiceType == null ? "" : targetServiceType.name());
         }
 
         dataModel.put("needsServiceImport", needsServiceImport);
         dataModel.put("needsCallPointImport", needsCallPointImport);
+        dataModel.put("needsServiceTypeImport", needsServiceTypeImport);
         dataModel.put("needsLocationImport", needsLocationImport);
         dataModel.put("needsActorIdImport", needsActorIdImport);
         dataModel.put("needsActorTypeImport", needsActorTypeImport);
@@ -203,6 +219,14 @@ final class RpcSupport {
 
     private String buildProxyClassFullName(String ownerServiceClassName, String targetClassName) {
         return COMMON_PROXY_PACKAGE + "." + ownerServiceClassName + "." + targetClassName + "Proxy";
+    }
+
+    private ServiceType resolveServiceType(String serviceClassName) {
+        ServiceType serviceType = ServiceType.byName(serviceClassName);
+        if (serviceType == null) {
+            throw new IllegalStateException("找不到 RPC 宿主 Service 对应的 ServiceType: " + serviceClassName);
+        }
+        return serviceType;
     }
 
     Map<String, Object> buildRootMap(List<MethodStruct<Rpc>> methods, String generatedClassFullName) {

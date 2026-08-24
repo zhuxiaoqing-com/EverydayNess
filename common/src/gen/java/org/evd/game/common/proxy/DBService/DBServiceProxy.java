@@ -3,6 +3,7 @@ package org.evd.game.common.proxy.DBService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DBReq;
@@ -39,6 +40,9 @@ public final class DBServiceProxy implements DBExecInterface {
     */
     public DBRsp dbExec(CallPoint remote, DBReq dbReq){
         Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.DB);
+        }
         return (DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICE_DBEXEC_0, new Object[]{dbReq});
     }
 

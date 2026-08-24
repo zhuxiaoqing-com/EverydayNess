@@ -81,13 +81,8 @@ public final class ConnLoginActor {
             reject(owner, session, userId, message, false);
             return;
         }
-        CallPoint lobbyRemote = owner.getNode().getAnyCallPointByType(ServiceType.LOBBY);
-        if (lobbyRemote == null) {
-            reject(owner, session, userId, "LobbyService 不可用", true);
-            return;
-        }
         RpcResult<LobbyUserAccessResult> userResult = LobbyServiceProxy.callValidateOrCreateUser(
-                lobbyRemote, userId);
+                null, userId);
         if (!userResult.isSuccess()) {
             LogCore.core.warn("ConnService Lobby 用户校验 RPC 失败: service={}, sessionId={}, userId={}, errorCode={}, message={}",
                     owner.getId(), session.getSessionId(), userId,
@@ -103,13 +98,8 @@ public final class ConnLoginActor {
             return;
         }
 
-        CallPoint onlineRemote = owner.getNode().getAnyCallPointByType(ServiceType.ONLINE);
-        if (onlineRemote == null) {
-            reject(owner, session, userId, "OnlineService 不可用", true);
-            return;
-        }
         RpcResult<OnlineLoginAdmission> admissionResult = OnlineLoginActorProxy.callAdmitLogin(
-                onlineRemote, userId, session.getGate(), session.getSessionId());
+                null, userId, session.getGate(), session.getSessionId());
         if (!admissionResult.isSuccess()) {
             LogCore.core.warn("ConnService 登录准入 RPC 失败: service={}, sessionId={}, userId={}, errorCode={}, message={}",
                     owner.getId(), session.getSessionId(), userId,
