@@ -6,21 +6,21 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallPoint;
 
 /**
-* 根据OnlineLogoutActorService生成的代理类
+* 根据OnlineOfflineActorService生成的代理类
 */
-public final class OnlineLogoutActorProxy {
+public final class OnlineOfflineActorProxy {
 
-    private static final OnlineLogoutActorProxy INSTANCE = new OnlineLogoutActorProxy();
+    private static final OnlineOfflineActorProxy INSTANCE = new OnlineOfflineActorProxy();
 
-    private OnlineLogoutActorProxy() {
+    private OnlineOfflineActorProxy() {
     }
 
-    public static OnlineLogoutActorProxy inst() {
+    public static OnlineOfflineActorProxy inst() {
         return INSTANCE;
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINELOGOUTACTOR_ONSESSIONOFFLINE_3 = 3;
+        public final static int ENUM_ONLINEOFFLINEACTOR_ONSESSIONOFFLINE_4 = 4;
     }
 
     /**
@@ -32,11 +32,11 @@ public final class OnlineLogoutActorProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.OnlineService.logout.OnlineLogoutActor#onSessionOffline()
+    * 对应源方法: org.evd.game.OnlineService.offline.OnlineOfflineActor#onSessionOffline()
     */
     public void onSessionOffline(CallPoint remote, String userId, long playerId, CallPoint gate, long gateSessionId, int brokenTypeCode){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_ONLINELOGOUTACTOR_ONSESSIONOFFLINE_3, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
+        service.call(remote, EnumCall.ENUM_ONLINEOFFLINEACTOR_ONSESSIONOFFLINE_4, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
     }
 
 

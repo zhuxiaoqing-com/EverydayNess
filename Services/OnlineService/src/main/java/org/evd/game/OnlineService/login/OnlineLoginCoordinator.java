@@ -7,6 +7,7 @@ import org.evd.game.common.serializeBean.OnlineService.OnlineConnCandidate;
 import org.evd.game.common.serializeBean.OnlineService.OnlineLoginAdmission;
 import org.evd.game.common.serializeBean.OnlineService.OnlineTokenState;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
+import org.evd.game.common.proxy.ConnService.ConnOfflineActorProxy;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
 import org.evd.game.runtime.call.CallPoint;
@@ -117,7 +118,7 @@ public final class OnlineLoginCoordinator {
 
     /** 处理同一用户的新排队请求替换旧请求。 */
     public void onReplaced(OnlineLoginQueue.QueuedLogin request) {
-        RpcResult<Void> result = ConnServiceProxy.sendKickSession(
+        RpcResult<Void> result = ConnOfflineActorProxy.sendKickSession(
                 request.gate(), request.sessionId(),
                 BrokenType.LOGIN_REPLACE.getCode(), "duplicate login queued");
         if (!result.isSuccess()) {

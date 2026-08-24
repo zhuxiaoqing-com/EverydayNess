@@ -1,7 +1,9 @@
-package org.evd.game.ConnService;
+package org.evd.game.ConnService.offline;
 
+import org.evd.game.ConnService.ConnService;
+import org.evd.game.ConnService.session.ConnSessionRegistry;
 import org.evd.game.annotation.ServiceType;
-import org.evd.game.common.proxy.OnlineService.OnlineLogoutActorProxy;
+import org.evd.game.common.proxy.OnlineService.OnlineOfflineActorProxy;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
@@ -9,16 +11,16 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 
 /** ConnService 的物理连接关闭、离线通知和会话索引释放。 */
-final class ConnLogoutManager {
+public final class ConnOfflineManager {
     private final ConnService owner;
     private final ConnSessionRegistry sessionRegistry;
 
-    ConnLogoutManager(ConnService owner, ConnSessionRegistry sessionRegistry) {
+    public ConnOfflineManager(ConnService owner, ConnSessionRegistry sessionRegistry) {
         this.owner = owner;
         this.sessionRegistry = sessionRegistry;
     }
 
-    void kickSession(long sessionId, int brokenTypeCode, String reason) {
+    public void kickSession(long sessionId, int brokenTypeCode, String reason) {
         NetChannel session = owner.findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.info("ConnService 踢出连接时目标已不存在: service={}, sessionId={}, brokenType={}, reason={}",
@@ -28,7 +30,7 @@ final class ConnLogoutManager {
         closeSession(session, brokenTypeCode, reason);
     }
 
-    void closeSession(long sessionId, int brokenTypeCode, String reason) {
+    public void closeSession(long sessionId, int brokenTypeCode, String reason) {
         NetChannel session = owner.findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.info("ConnService 关闭连接时目标不存在: service={}, sessionId={}, brokenType={}, reason={}",
@@ -38,7 +40,7 @@ final class ConnLogoutManager {
         closeSession(session, brokenTypeCode, reason);
     }
 
-    void closeSession(NetChannel session, int brokenTypeCode, String reason) {
+    public void closeSession(NetChannel session, int brokenTypeCode, String reason) {
         if (!session.beginCloseCleanup()) {
             LogCore.core.info("ConnService 连接已处于关闭状态: service={}, sessionId={}, reason={}",
                     owner.getId(), session.getChannelId(), reason);
@@ -69,7 +71,7 @@ final class ConnLogoutManager {
                     owner.getId(), session.getChannelId());
             return;
         }
-        RpcResult<Void> result = OnlineLogoutActorProxy.sendOnSessionOffline(
+        RpcResult<Void> result = OnlineOfflineActorProxy.sendOnSessionOffline(
                 onlineRemote, session.getUserId(), session.getPlayerId(), owner.getCallPoint(),
                 session.getChannelId(), session.getBrokenTypeCode());
         if (!result.isSuccess()) {

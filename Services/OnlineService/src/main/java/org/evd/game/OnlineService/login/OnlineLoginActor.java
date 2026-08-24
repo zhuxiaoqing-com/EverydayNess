@@ -8,6 +8,8 @@ import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proto.C2S_Login2;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login2;
+import org.evd.game.common.proxy.ConnService.ConnLoginActorProxy;
+import org.evd.game.common.proxy.ConnService.ConnOfflineActorProxy;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
 import org.evd.game.common.proxy.LobbyService.LobbyRoleActorProxy;
 import org.evd.game.common.serializeBean.OnlineService.OnlineLoginAdmission;
@@ -106,12 +108,8 @@ public final class OnlineLoginActor {
         // 先清理旧会话的下游状态，但不在这里等待/踢旧 GW；旧 GW 要在新状态登记后再 call。
         CallPoint oldGate = oldUserState == null ? null : oldUserState.getActiveGate();
         long oldGateSessionId = oldUserState == null ? 0L : oldUserState.getActiveGateSessionId();
-        if (!owner.logoutActor().offlineSession(
-                userId, oldGate, oldGateSessionId, BrokenType.LOGIN_REPLACE)) {
-            owner.loginCoordinator().cancelPendingSession(userId, token);
-            rejectLoginSession(gate, gateSessionId, userId, token, "旧登录会话清理失败");
-            return;
-        }
+        owner.offlineCoordinator().offlineSession(userId, oldGate, oldGateSessionId,
+                BrokenType.LOGIN_REPLACE);
 
         userLogin(owner, gate, gateSessionId, userId, token, expectedVersion, oldUserState);
     }
@@ -138,20 +136,19 @@ public final class OnlineLoginActor {
             return;
         }
 
-        RpcResult<Boolean> registerGateResult = ConnServiceProxy.callRegisterLogin(
+        RpcResult<Boolean> registerGateResult = ConnLoginActorProxy.callRegisterLogin(
                 gate, gateSessionId, userId);
         if (!registerGateResult.isSuccess() || !Boolean.TRUE.equals(registerGateResult.getValue())) {
             LogCore.core.warn("OnlineService GW 用户登记失败: userId={}, gate={}, gateSessionId={}, version={}, errorCode={}, message={}, value={}",
                     userId, gate, gateSessionId, version,
                     registerGateResult.getErrorCode(), registerGateResult.getErrorMessage(),
                     registerGateResult.getValue());
-            owner.logoutActor().onSessionOffline(
+            owner.offlineCoordinator().onSessionOffline(
                     userId, 0L, gate, gateSessionId, BrokenType.SERVER_KICK.getCode());
             closeLoginGateway(gate, gateSessionId, "新 GW 用户登记失败");
             return;
         }
 
-        currentUserState = owner.sessionCoordinator().getUserState(userId);
         if (!owner.sessionCoordinator().matchesSession(userId, gate, gateSessionId)) {
             closeLoginGateway(gate, gateSessionId, "新 GW 登录状态已被替换");
             return;
@@ -184,7 +181,7 @@ public final class OnlineLoginActor {
                 || oldUserState.getActiveGateSessionId() <= 0L) {
             return;
         }
-        RpcResult<Void> result = ConnServiceProxy.sendCloseSession(
+        RpcResult<Void> result = ConnOfflineActorProxy.sendCloseSession(
                 oldUserState.getActiveGate(), oldUserState.getActiveGateSessionId(),
                 BrokenType.LOGIN_REPLACE.getCode(), "duplicate login");
         if (!result.isSuccess()) {
@@ -196,7 +193,7 @@ public final class OnlineLoginActor {
 
     /** 登录提交期间发现新 GW 已不是当前会话时，关闭本次 GW 连接。 */
     private void closeLoginGateway(CallPoint gate, long gateSessionId, String reason) {
-        RpcResult<Void> result = ConnServiceProxy.sendCloseSession(
+        RpcResult<Void> result = ConnOfflineActorProxy.sendCloseSession(
                 gate, gateSessionId, BrokenType.SERVER_KICK.getCode(), reason);
         if (!result.isSuccess()) {
             LogCore.core.warn("OnlineService 关闭失效新 GW 失败: gate={}, gateSessionId={}, reason={}, errorCode={}, message={}, value={}",
@@ -212,7 +209,7 @@ public final class OnlineLoginActor {
                 .setSuccess(false)
                 .setMessage(reason)
                 .build();
-        RpcResult<Boolean> result = ConnServiceProxy.callRejectPendingLogin(
+        RpcResult<Boolean> result = ConnLoginActorProxy.callRejectPendingLogin(
                 gate, gateSessionId, userId, token,
                 ClientFrameChunk.wrap(MsgId.S2C_LOGIN2_VALUE, response),
                 BrokenType.TOKEN_EXPIRE.getCode(), reason);

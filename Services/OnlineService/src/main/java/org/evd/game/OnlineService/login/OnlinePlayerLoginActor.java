@@ -1,4 +1,4 @@
-package org.evd.game.OnlineService.playerlogin;
+package org.evd.game.OnlineService.login;
 
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.session.OnlinePlayer;
@@ -9,9 +9,11 @@ import org.evd.game.common.proto.C2S_SelectRoleEnter;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.RoleData;
 import org.evd.game.common.proto.S2C_SelectRoleEnter;
+import org.evd.game.common.proxy.ConnService.ConnLoginActorProxy;
+import org.evd.game.common.proxy.ConnService.ConnOfflineActorProxy;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
 import org.evd.game.common.proxy.LobbyService.LobbyServiceProxy;
-import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
+import org.evd.game.common.proxy.PlayerService.PlayerLoginRpcActorProxy;
 import org.evd.game.common.serializeBean.LobbyService.LobbyRoleSnapshot;
 import org.evd.game.common.serializeBean.OnlineService.OnlinePlayerCandidate;
 import org.evd.game.common.serializeBean.OnlineService.OnlineUserState;
@@ -101,7 +103,7 @@ public final class OnlinePlayerLoginActor {
                 .setLevel(role.getLevel())
                 .setCharacterId(role.getCharacterId())
                 .build();
-        RpcResult<ActorAddress> playerLogin = PlayerServiceProxy.callLoginPlayer(
+        RpcResult<ActorAddress> playerLogin = PlayerLoginRpcActorProxy.callLoginPlayer(
                 playerService, userId, roleData, session);
         ActorAddress playerActorAddress = playerLogin.getValue();
         if (!playerLogin.isSuccess() || playerActorAddress == null) {
@@ -123,7 +125,7 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
-        RpcResult<ActorAddress> gateBound = ConnServiceProxy.callBindPlayer(
+        RpcResult<ActorAddress> gateBound = ConnLoginActorProxy.callBindPlayer(
                 session.getGate(), session.getSessionId(), playerId, playerActorAddress);
         ActorAddress gateActorAddress = gateBound.getValue();
         if (!gateBound.isSuccess() || gateActorAddress == null) {
@@ -146,7 +148,7 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
-        RpcResult<Void> playerOnline = PlayerServiceProxy.sendOnlinePlayer(
+        RpcResult<Void> playerOnline = PlayerLoginRpcActorProxy.sendOnlinePlayer(
                 playerService, userId, playerId, session, gateActorAddress);
         if (!playerOnline.isSuccess()) {
             LogCore.core.warn("OnlineService 发送 PlayerService 正式上线失败: userId={}, playerId={}, playerService={}, errorCode={}, message={}",
@@ -206,7 +208,7 @@ public final class OnlinePlayerLoginActor {
     }
 
     private void kickSession(ClientSessionRef session, String reason) {
-        RpcResult<Void> result = ConnServiceProxy.sendCloseSession(
+        RpcResult<Void> result = ConnOfflineActorProxy.sendCloseSession(
                 session.getGate(), session.getSessionId(),
                 BrokenType.SERVER_KICK.getCode(), reason);
         if (!result.isSuccess()) {

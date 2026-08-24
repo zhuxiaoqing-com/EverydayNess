@@ -1,7 +1,7 @@
 package org.evd.game.OnlineService;
 
 import org.evd.game.OnlineService.login.OnlineLoginCoordinator;
-import org.evd.game.OnlineService.logout.OnlineLogoutActor;
+import org.evd.game.OnlineService.offline.OnlineOfflineCoordinator;
 import org.evd.game.OnlineService.routing.OnlineServiceSelector;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.runtime.Node;
@@ -14,12 +14,14 @@ public class OnlineService extends Service {
     private final OnlineServiceSelector serviceSelector;
     private final OnlineSessionCoordinator sessionCoordinator;
     private final OnlineLoginCoordinator loginCoordinator;
+    private final OnlineOfflineCoordinator offlineCoordinator;
 
     /** 创建 OnlineService，并初始化负载选择、登录准入和会话状态协调器。 */
     public OnlineService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
         this.serviceSelector = new OnlineServiceSelector(this);
         this.sessionCoordinator = new OnlineSessionCoordinator();
+        this.offlineCoordinator = new OnlineOfflineCoordinator(this);
         this.loginCoordinator = new OnlineLoginCoordinator(
                 this, serviceSelector, sessionCoordinator, GlobalConfig.requireNodeConfig().getLogin());
     }
@@ -56,9 +58,9 @@ public class OnlineService extends Service {
         return loginCoordinator;
     }
 
-    /** 返回登出事件 Actor。 */
-    public OnlineLogoutActor logoutActor() {
-        return getActor(OnlineLogoutActor.class);
+    /** 返回离线流程协调器，登录替换旧会话也通过此入口清理旧状态。 */
+    public OnlineOfflineCoordinator offlineCoordinator() {
+        return offlineCoordinator;
     }
 
     /** 清理已经超过有效期的预登录 token。 */

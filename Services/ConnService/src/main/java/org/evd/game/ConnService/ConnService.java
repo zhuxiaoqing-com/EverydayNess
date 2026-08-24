@@ -13,6 +13,9 @@ import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_ConnPing;
 import org.evd.game.common.proxy.LobbyService.LobbyRoleActorProxy;
 import org.evd.game.common.proxy.OnlineService.OnlinePlayerLoginActorProxy;
+import org.evd.game.ConnService.login.ConnLoginManager;
+import org.evd.game.ConnService.offline.ConnOfflineManager;
+import org.evd.game.ConnService.session.ConnSessionRegistry;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.Node;
@@ -25,7 +28,6 @@ import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.netty.BaseChannelInitializer;
-import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.ChannelManager;
 import org.evd.game.runtime.netty.NetAcceptor;
 import org.evd.game.runtime.netty.NetChannel;
@@ -40,7 +42,7 @@ public class ConnService extends Service {
     private final ConnServiceHeartbeatScanner heartbeatScanner;
     private final ConnSessionRegistry sessionRegistry;
     private final ConnLoginManager loginManager;
-    private final ConnLogoutManager logoutManager;
+    private final ConnOfflineManager offlineManager;
 
     private volatile NetAcceptor clientAcceptor;
 
@@ -51,7 +53,7 @@ public class ConnService extends Service {
         this.heartbeatScanner = new ConnServiceHeartbeatScanner(this, clientChannelManager);
         this.sessionRegistry = new ConnSessionRegistry();
         this.loginManager = new ConnLoginManager(this, sessionRegistry);
-        this.logoutManager = new ConnLogoutManager(this, sessionRegistry);
+        this.offlineManager = new ConnOfflineManager(this, sessionRegistry);
     }
 
     @Override
@@ -136,7 +138,7 @@ public class ConnService extends Service {
         writeClientPacket(sessionId, packet, true);
     }
 
-    void writeClientPacket(long sessionId, ClientFrameChunk packet, boolean closeAfterWrite) {
+    public void writeClientPacket(long sessionId, ClientFrameChunk packet, boolean closeAfterWrite) {
         NetChannel channel = requireClientChannel(sessionId);
         byte[] bodyBytes;
         try {
@@ -175,21 +177,8 @@ public class ConnService extends Service {
         return countAuthorizedSessions();
     }
 
-    /** Online 已提交正式状态后一次性登记用户并完成 GW 上线。 */
-    @Rpc
-    public boolean registerLogin(long sessionId, String userId) {
-        return loginManager.registerLogin(sessionId, userId);
-    }
-
-    /** 绑定当前授权会话的玩家，并返回 GW 玩家 ActorAddress。 */
-    @Rpc
-    public ActorAddress bindPlayer(long sessionId, long playerId,
-                                   ActorAddress playerActorAddress) {
-        return loginManager.bindPlayer(sessionId, playerId, playerActorAddress);
-    }
-
     /** 在 GW 注册玩家 mailbox，并将其 ActorAddress 发布到全局 LocationService。 */
-    ActorAddress registerPlayerMailbox(long playerId) {
+    public ActorAddress registerPlayerMailbox(long playerId) {
         if (playerId <= 0L) {
             return null;
         }
@@ -202,7 +191,7 @@ public class ConnService extends Service {
         return getActorAddress(actorId);
     }
 
-    void removePlayerActorAddress(long playerId) {
+    public void removePlayerActorAddress(long playerId) {
         if (playerId > 0L) {
             ActorId playerActorId = ActorId.player(playerId);
             getMessageLocationSender().remove(playerActorId);
@@ -216,21 +205,6 @@ public class ConnService extends Service {
                         id, playerId, actorAddress);
             }
         }
-    }
-
-    /** 按断开类型关闭指定网关会话，并触发离线通知。 */
-    @Rpc
-    public void kickSession(long sessionId, int brokenTypeCode, String reason) {
-        logoutManager.kickSession(sessionId, brokenTypeCode, reason);
-    }
-
-    /** 向待登录客户端发送失败响应，并按原因结束预登录连接。 */
-    @Rpc
-    public boolean rejectPendingLogin(long sessionId, String userId, String token,
-                                      ClientFrameChunk packet, int brokenTypeCode, String reason) {
-        return loginManager.rejectPendingLogin(
-                findClientChannel(sessionId), sessionId, userId, token, packet,
-                BrokenType.fromCode(brokenTypeCode), reason);
     }
 
     @ClientCmd(MsgId.C2S_CONN_PING_VALUE)
@@ -276,14 +250,23 @@ public class ConnService extends Service {
     }
 
     /** 统一执行网关连接关闭、离线通知和资源清理。 */
-    @Rpc
     public void closeSession(long sessionId, int brokenTypeCode, String reason) {
-        logoutManager.closeSession(sessionId, brokenTypeCode, reason);
+        offlineManager.closeSession(sessionId, brokenTypeCode, reason);
+    }
+
+    /** 返回登录流程管理器，供 Conn 登录 Actor 委托业务处理。 */
+    public ConnLoginManager loginManager() {
+        return loginManager;
+    }
+
+    /** 返回离线流程管理器，供 Conn 离线 Actor 委托业务处理。 */
+    public ConnOfflineManager offlineManager() {
+        return offlineManager;
     }
 
     /** 在 ConnService 协程上下文中统一处理指定连接的关闭清理。 */
-    void closeSession(NetChannel session, int brokenTypeCode, String reason) {
-        logoutManager.closeSession(session, brokenTypeCode, reason);
+    public void closeSession(NetChannel session, int brokenTypeCode, String reason) {
+        offlineManager.closeSession(session, brokenTypeCode, reason);
     }
 
     void postClientChannelActive(NetChannel session) {
@@ -303,7 +286,7 @@ public class ConnService extends Service {
         return channel;
     }
 
-    NetChannel findClientChannel(long sessionId) {
+    public NetChannel findClientChannel(long sessionId) {
         return clientChannelManager.getChannel(sessionId);
     }
 

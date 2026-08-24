@@ -1,5 +1,7 @@
-package org.evd.game.ConnService;
+package org.evd.game.ConnService.login;
 
+import org.evd.game.ConnService.ConnService;
+import org.evd.game.ConnService.session.ConnSessionRegistry;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
@@ -8,18 +10,18 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
 
 /** ConnService 的登录登记、角色绑定和待登录失败处理。 */
-final class ConnLoginManager {
+public final class ConnLoginManager {
     private final ConnService owner;
     private final ConnSessionRegistry sessionRegistry;
 
     /** 创建 ConnService 登录状态管理器。 */
-    ConnLoginManager(ConnService owner, ConnSessionRegistry sessionRegistry) {
+    public ConnLoginManager(ConnService owner, ConnSessionRegistry sessionRegistry) {
         this.owner = owner;
         this.sessionRegistry = sessionRegistry;
     }
 
     /** 初始化新连接的待登录状态和心跳时间。 */
-    void initialize(NetChannel session, long now) {
+    public void initialize(NetChannel session, long now) {
         session.setUserId("");
         session.setPlayerId(0L);
         session.setPendingLoginToken("");
@@ -28,7 +30,7 @@ final class ConnLoginManager {
     }
 
     /** 校验网关会话并登记 OnlineService 已确认登录的用户。 */
-    boolean registerLogin(long sessionId, String userId) {
+    public boolean registerLogin(long sessionId, String userId) {
         NetChannel session = owner.findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.info("ConnService GW 登录失败，session 不存在: service={}, sessionId={}, userId={}",
@@ -65,7 +67,7 @@ final class ConnLoginManager {
     }
 
     /** 校验当前用户会话并绑定玩家。 */
-    ActorAddress bindPlayer(long sessionId, long playerId, ActorAddress playerActorAddress) {
+    public ActorAddress bindPlayer(long sessionId, long playerId, ActorAddress playerActorAddress) {
         NetChannel session = owner.findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.warn("ConnService 玩家绑定失败，session 不存在: service={}, sessionId={}, playerId={}",
@@ -112,7 +114,7 @@ final class ConnLoginManager {
     }
 
     /** 向待登录连接发送失败响应并结束该预登录连接。 */
-    boolean rejectPendingLogin(NetChannel session, long sessionId, String userId, String token,
+    public boolean rejectPendingLogin(NetChannel session, long sessionId, String userId, String token,
                                ClientFrameChunk packet, BrokenType brokenType, String reason) {
         boolean userMatched = session != null && (session.getUserId().isBlank()
                 || userId != null && userId.equals(session.getUserId()));

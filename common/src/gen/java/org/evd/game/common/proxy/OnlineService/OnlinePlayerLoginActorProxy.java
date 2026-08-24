@@ -21,7 +21,7 @@ public final class OnlinePlayerLoginActorProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINEPLAYERLOGINACTOR_SELECTROLEENTER_4 = 4;
+        public final static int ENUM_ONLINEPLAYERLOGINACTOR_SELECTROLEENTER_3 = 3;
     }
 
     /**
@@ -33,11 +33,11 @@ public final class OnlinePlayerLoginActorProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.OnlineService.playerlogin.OnlinePlayerLoginActor#selectRoleEnter()
+    * 对应源方法: org.evd.game.OnlineService.login.OnlinePlayerLoginActor#selectRoleEnter()
     */
     public void selectRoleEnter(CallPoint remote, ClientSessionRef session, C2S_SelectRoleEnter request){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_ONLINEPLAYERLOGINACTOR_SELECTROLEENTER_4, new Object[]{session, request});
+        service.call(remote, EnumCall.ENUM_ONLINEPLAYERLOGINACTOR_SELECTROLEENTER_3, new Object[]{session, request});
     }
 
 
