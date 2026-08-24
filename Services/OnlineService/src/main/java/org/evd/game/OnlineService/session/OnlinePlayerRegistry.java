@@ -37,14 +37,6 @@ public final class OnlinePlayerRegistry {
         return playersById.get(onlinePlayer.getPlayerId()) == onlinePlayer;
     }
 
-    public boolean markOnline(OnlinePlayer onlinePlayer) {
-        if (!isCurrent(onlinePlayer)) {
-            return false;
-        }
-        onlinePlayer.markOnline();
-        return true;
-    }
-
     /** 移除当前玩家对象；会话匹配由 OnlineSessionCoordinator 负责。 */
     public OnlinePlayer remove(long playerId) {
         OnlinePlayer onlinePlayer = get(playerId);

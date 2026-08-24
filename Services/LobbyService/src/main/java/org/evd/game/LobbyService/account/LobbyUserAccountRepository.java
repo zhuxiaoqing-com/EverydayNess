@@ -4,7 +4,7 @@ import org.evd.game.LobbyService.dbDef.db.bean.LBRole;
 import org.evd.game.LobbyService.dbDef.db.bean.LBUserAccount;
 import org.evd.game.LobbyService.dbDef.db.table.LBRoleTable;
 import org.evd.game.LobbyService.dbDef.db.table.LBUserAccountTable;
-import org.evd.game.common.serializeBean.LobbyService.LobbyUserAccessResult;
+import org.evd.game.common.serializeBean.LobbyService.login.LobbyUserAccessResult;
 import org.evd.game.runtime.support.LogCore;
 
 /** Lobby 用户账号仓库，负责账号、角色数据和封禁状态。 */

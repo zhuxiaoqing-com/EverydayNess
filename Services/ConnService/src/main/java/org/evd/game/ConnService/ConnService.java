@@ -43,6 +43,7 @@ public class ConnService extends Service {
     private final ConnSessionRegistry sessionRegistry;
     private final ConnLoginManager loginManager;
     private final ConnOfflineManager offlineManager;
+    private final ConnOnlineReconciler onlineReconciler;
 
     private volatile NetAcceptor clientAcceptor;
 
@@ -54,6 +55,7 @@ public class ConnService extends Service {
         this.sessionRegistry = new ConnSessionRegistry();
         this.loginManager = new ConnLoginManager(this, sessionRegistry);
         this.offlineManager = new ConnOfflineManager(this, sessionRegistry);
+        this.onlineReconciler = new ConnOnlineReconciler(this);
     }
 
     @Override
@@ -65,6 +67,7 @@ public class ConnService extends Service {
                 new BaseChannelInitializer(() -> new ConnServiceClientChannelHandler(clientChannelManager, this), true));
         LogCore.core.info("ConnService Netty 启动完成: service={}, port={}", id, port);
         newRepeatedTimer(HEARTBEAT_SCAN_INTERVAL_MILLIS, false, this::scanHeartbeatTimeouts);
+        newRepeatedTimer(ConnOnlineReconciler.INTERVAL_MILLIS, false, onlineReconciler::reconcile);
     }
 
     public void dispatchClientCmd(NetChannel session, int cmd, Chunk body) {
@@ -249,6 +252,9 @@ public class ConnService extends Service {
         heartbeatScanner.scanTimeoutSessions(HEARTBEAT_TIMEOUT_MILLIS);
     }
 
+    /**
+     * 将 GW 当前持有的玩家连接交给 Online 校验；返回结果只允许关闭原 session 代次。
+     */
     /** 统一执行网关连接关闭、离线通知和资源清理。 */
     public void closeSession(long sessionId, int brokenTypeCode, String reason) {
         offlineManager.closeSession(sessionId, brokenTypeCode, reason);
@@ -288,6 +294,10 @@ public class ConnService extends Service {
 
     public NetChannel findClientChannel(long sessionId) {
         return clientChannelManager.getChannel(sessionId);
+    }
+
+    ChannelManager clientChannelManager() {
+        return clientChannelManager;
     }
 
     /** 遍历网关连接并统计已完成授权的会话数量。 */

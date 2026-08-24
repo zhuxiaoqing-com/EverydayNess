@@ -3,6 +3,7 @@ package org.evd.game.OnlineService;
 import org.evd.game.OnlineService.login.OnlineLoginCoordinator;
 import org.evd.game.OnlineService.offline.OnlineOfflineCoordinator;
 import org.evd.game.OnlineService.routing.OnlineServiceSelector;
+import org.evd.game.OnlineService.reconcile.OnlineStateReconcileManager;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
@@ -15,12 +16,14 @@ public class OnlineService extends Service {
     private final OnlineSessionCoordinator sessionCoordinator;
     private final OnlineLoginCoordinator loginCoordinator;
     private final OnlineOfflineCoordinator offlineCoordinator;
+    private final OnlineStateReconcileManager stateReconcileManager;
 
     /** 创建 OnlineService，并初始化负载选择、登录准入和会话状态协调器。 */
     public OnlineService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
         this.serviceSelector = new OnlineServiceSelector(this);
         this.sessionCoordinator = new OnlineSessionCoordinator();
+        this.stateReconcileManager = new OnlineStateReconcileManager(sessionCoordinator);
         this.offlineCoordinator = new OnlineOfflineCoordinator(this);
         this.loginCoordinator = new OnlineLoginCoordinator(
                 this, serviceSelector, sessionCoordinator, GlobalConfig.requireNodeConfig().getLogin());
@@ -61,6 +64,11 @@ public class OnlineService extends Service {
     /** 返回离线流程协调器，登录替换旧会话也通过此入口清理旧状态。 */
     public OnlineOfflineCoordinator offlineCoordinator() {
         return offlineCoordinator;
+    }
+
+    /** 返回状态对账校验器，供 OnlineStateReconcileActor 委托处理。 */
+    public OnlineStateReconcileManager stateReconcileManager() {
+        return stateReconcileManager;
     }
 
     /** 清理已经超过有效期的预登录 token。 */

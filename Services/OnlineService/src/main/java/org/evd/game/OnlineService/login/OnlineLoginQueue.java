@@ -1,6 +1,6 @@
 package org.evd.game.OnlineService.login;
 
-import org.evd.game.common.serializeBean.OnlineService.OnlineLoginAdmission;
+import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
 import org.evd.game.runtime.call.CallPoint;
 
 import java.util.ArrayDeque;

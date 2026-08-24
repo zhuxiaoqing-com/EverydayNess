@@ -3,7 +3,7 @@ package org.evd.game.OnlineService.offline;
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.common.proxy.PlayerService.PlayerOfflineActorProxy;
-import org.evd.game.common.serializeBean.OnlineService.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;

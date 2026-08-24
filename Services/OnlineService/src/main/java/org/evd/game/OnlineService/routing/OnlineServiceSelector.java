@@ -1,8 +1,8 @@
 package org.evd.game.OnlineService.routing;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.common.serializeBean.OnlineService.OnlineConnCandidate;
-import org.evd.game.common.serializeBean.OnlineService.OnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 
 /** OnlineService 统一负责的可负载服务选择。 */
 public final class OnlineServiceSelector {

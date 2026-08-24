@@ -3,9 +3,9 @@ package org.evd.game.common.proxy.LobbyService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.common.serializeBean.LobbyService.LobbyRoleSnapshot;
+import org.evd.game.common.serializeBean.LobbyService.role.LobbyRoleSnapshot;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.common.serializeBean.LobbyService.LobbyUserAccessResult;
+import org.evd.game.common.serializeBean.LobbyService.login.LobbyUserAccessResult;
 
 /**
 * 根据LobbyServiceService生成的代理类

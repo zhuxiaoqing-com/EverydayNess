@@ -3,7 +3,7 @@ package org.evd.game.common.proxy.SdkService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.common.serializeBean.SdkService.SdkValidateResult;
+import org.evd.game.common.serializeBean.SdkService.login.SdkValidateResult;
 
 /**
 * 根据SdkServiceService生成的代理类

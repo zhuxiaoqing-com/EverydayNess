@@ -4,7 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.common.serializeBean.OnlineService.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 
 /**
 * 根据OnlineSessionActorService生成的代理类
@@ -21,10 +21,10 @@ public final class OnlineSessionActorProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINESESSIONACTOR_CLEARPLAYERSERVICE_7 = 7;
-        public final static int ENUM_ONLINESESSIONACTOR_CLEARSESSION_8 = 8;
-        public final static int ENUM_ONLINESESSIONACTOR_GETUSERSTATE_9 = 9;
-        public final static int ENUM_ONLINESESSIONACTOR_ISPLAYEROFFLINE_10 = 10;
+        public final static int ENUM_ONLINESESSIONACTOR_CLEARPLAYERSERVICE_9 = 9;
+        public final static int ENUM_ONLINESESSIONACTOR_CLEARSESSION_10 = 10;
+        public final static int ENUM_ONLINESESSIONACTOR_GETUSERSTATE_11 = 11;
+        public final static int ENUM_ONLINESESSIONACTOR_ISPLAYEROFFLINE_12 = 12;
     }
 
     /**
@@ -65,7 +65,7 @@ public final class OnlineSessionActorProxy {
     */
     public boolean clearPlayerService(CallPoint remote, String userId, CallPoint gate, long gateSessionId, CallPoint expectedPlayerService){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_CLEARPLAYERSERVICE_7, new Object[]{userId, gate, gateSessionId, expectedPlayerService});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_CLEARPLAYERSERVICE_9, new Object[]{userId, gate, gateSessionId, expectedPlayerService});
     }
 
 
@@ -74,7 +74,7 @@ public final class OnlineSessionActorProxy {
     */
     public CallPoint clearSession(CallPoint remote, String userId, CallPoint gate, long sessionId){
         Service service = Service.getCurrent();
-        return (CallPoint)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_CLEARSESSION_8, new Object[]{userId, gate, sessionId});
+        return (CallPoint)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_CLEARSESSION_10, new Object[]{userId, gate, sessionId});
     }
 
 
@@ -83,7 +83,7 @@ public final class OnlineSessionActorProxy {
     */
     public OnlineUserState getUserState(CallPoint remote, String userId){
         Service service = Service.getCurrent();
-        return (OnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_GETUSERSTATE_9, new Object[]{userId});
+        return (OnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_GETUSERSTATE_11, new Object[]{userId});
     }
 
 
@@ -92,7 +92,7 @@ public final class OnlineSessionActorProxy {
     */
     public boolean isPlayerOffline(CallPoint remote, String userId){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_ISPLAYEROFFLINE_10, new Object[]{userId});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONACTOR_ISPLAYEROFFLINE_12, new Object[]{userId});
     }
 
 

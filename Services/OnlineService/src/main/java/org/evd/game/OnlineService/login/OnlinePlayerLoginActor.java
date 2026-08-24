@@ -14,9 +14,9 @@ import org.evd.game.common.proxy.ConnService.ConnOfflineActorProxy;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
 import org.evd.game.common.proxy.LobbyService.LobbyServiceProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerLoginRpcActorProxy;
-import org.evd.game.common.serializeBean.LobbyService.LobbyRoleSnapshot;
-import org.evd.game.common.serializeBean.OnlineService.OnlinePlayerCandidate;
-import org.evd.game.common.serializeBean.OnlineService.OnlineUserState;
+import org.evd.game.common.serializeBean.LobbyService.role.LobbyRoleSnapshot;
+import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -41,6 +41,7 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
+        // 1. 先确认当前连接仍是 Online 记录的有效会话，并拒绝重复选角。
         OnlineSessionCoordinator sessionCoordinator = owner.sessionCoordinator();
         OnlineUserState userState = sessionCoordinator.getUserState(userId);
         if (!sessionCoordinator.matchesSession(userId, session.getGate(), session.getSessionId())) {
@@ -54,6 +55,7 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
+        // 2. 从 LobbyService 查询并校验当前账号要进入的角色。
         LobbyRoleSnapshot role = loadRole(owner, userId);
         if (!isCurrentSession(owner, userId, session)) {
             LogCore.core.warn("OnlineService Lobby 返回后 Session 已失效: userId={}, playerId={}, gateSessionId={}",
@@ -76,6 +78,7 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
+        // 3. 选择承载该玩家的 PlayerService，优先使用当前负载较低的服务。
         OnlinePlayerCandidate candidate = owner.serviceSelector()
                 .selectLeastLoadedPlayer(userId);
         CallPoint playerService = candidate == null ? null : candidate.getCallPoint();
@@ -88,7 +91,7 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
-        // 先登记 OnlinePlayer，再调用 PlayerService；断线时 Online 可以直接找到并回滚它。
+        // 4. 先登记 OnlinePlayer，再调用 PlayerService；断线时 Online 可以直接找到并回滚它。
         OnlinePlayer onlinePlayer = sessionCoordinator.beginOnlinePlayer(
                 userId, session.getGate(), session.getSessionId(), playerId, playerService);
         if (onlinePlayer == null) {
@@ -97,6 +100,7 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
+        // 5. 请求 PlayerService 创建玩家 Actor、加载玩家数据并返回 Player ActorAddress。
         RoleData roleData = RoleData.newBuilder()
                 .setPlayerId(role.getPlayerId())
                 .setName(role.getName())
@@ -119,12 +123,19 @@ public final class OnlinePlayerLoginActor {
             return;
         }
 
+        // 异步 RPC 返回后再次确认 Session，旧登录流程不能继续写入新会话状态。
+        if (!isCurrentSession(owner, userId, session)) {
+            LogCore.core.warn("OnlineService PlayerService 玩家登录返回后 Session 已失效: userId={}, playerId={}, gateSessionId={}",
+                    userId, playerId, session.getSessionId());
+            return;
+        }
         if (!sessionCoordinator.bindPlayerActorAddress(onlinePlayer, playerActorAddress)) {
             LogCore.core.warn("OnlineService PlayerService 返回后 OnlinePlayer 已由离线流程清理: userId={}, playerId={}, gateSessionId={}",
                     userId, playerId, session.getSessionId());
             return;
         }
 
+        // 6. 将 Player Actor 绑定到当前 GW，建立客户端消息到玩家 Actor 的路由。
         RpcResult<ActorAddress> gateBound = ConnLoginActorProxy.callBindPlayer(
                 session.getGate(), session.getSessionId(), playerId, playerActorAddress);
         ActorAddress gateActorAddress = gateBound.getValue();
@@ -135,40 +146,47 @@ public final class OnlinePlayerLoginActor {
             kickSession(session, "网关绑定玩家失败");
             return;
         }
-        if (!sessionCoordinator.bindGateActorAddress(onlinePlayer, gateActorAddress)) {
-            LogCore.core.warn("OnlineService GW 返回后绑定 GWActorAddress 失败，踢出当前 Session: userId={}, playerId={}, gate={}, gateSessionId={}",
-                    userId, playerId, session.getGate(), session.getSessionId());
-            kickSession(session, "网关玩家地址绑定失败");
-            return;
-        }
-
-        if (!sessionCoordinator.markPlayerOnline(onlinePlayer)) {
-            LogCore.core.warn("OnlineService 标记玩家正式在线失败: userId={}, playerId={}, gateSessionId={}",
+        if (!isCurrentSession(owner, userId, session)) {
+            LogCore.core.warn("OnlineService Conn 绑定玩家返回后 Session 已失效: userId={}, playerId={}, gateSessionId={}",
                     userId, playerId, session.getSessionId());
             return;
         }
 
+        // 下面都是send 没有让出协程，所以不需要继续判断isCurrentSession;
+        // 7. 将 GW ActorAddress 同步到 Online 和 PlayerService 两侧。
+        sessionCoordinator.bindGateActorAddress(onlinePlayer, gateActorAddress);
+        RpcResult<Void> gatePlayerBound = PlayerLoginRpcActorProxy.sendBindGateActorAddress(
+                playerService, playerId, gateActorAddress);
+        if (!gatePlayerBound.isSuccess()) {
+            LogCore.core.warn("OnlineService 发送 PlayerService 绑定 GW 玩家地址通知失败: userId={}, playerId={}, playerService={}, errorCode={}, message={}",
+                    userId, playerId, playerService,
+                    gatePlayerBound.getErrorCode(), gatePlayerBound.getErrorMessage());
+        }
+
+        //  PlayerService 通知已发出后，直接标记 OnlinePlayer 正式在线。
+        onlinePlayer.markOnline();
+
+        //  通知 LobbyService 当前角色已进入游戏。
+        CallPoint lobby = owner.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        RpcResult<Void> lobbyOnline = LobbyServiceProxy.sendPlayerOnline(
+                lobby, userId, playerId, session.getGate(), session.getSessionId());
+        if (!lobbyOnline.isSuccess()) {
+            LogCore.core.warn("OnlineService 发送 LobbyService 正式上线失败: userId={}, playerId={}, errorCode={}, message={}",
+                    userId, playerId, lobbyOnline.getErrorCode(), lobbyOnline.getErrorMessage());
+        }
+
+
+        //  通知 PlayerService 执行进入地图和本地正式上线处理。
         RpcResult<Void> playerOnline = PlayerLoginRpcActorProxy.sendOnlinePlayer(
-                playerService, userId, playerId, session, gateActorAddress);
+                playerService, userId, playerId, session);
         if (!playerOnline.isSuccess()) {
-            LogCore.core.warn("OnlineService 发送 PlayerService 正式上线失败: userId={}, playerId={}, playerService={}, errorCode={}, message={}",
+            LogCore.core.warn("OnlineService 发送 PlayerService 正式上线通知失败: userId={}, playerId={}, playerService={}, errorCode={}, message={}",
                     userId, playerId, playerService,
                     playerOnline.getErrorCode(), playerOnline.getErrorMessage());
         }
 
-        CallPoint lobby = owner.getNode().getAnyCallPointByType(ServiceType.LOBBY);
-        if (lobby == null) {
-            LogCore.core.warn("OnlineService 发送 LobbyService 正式上线失败，服务不存在: userId={}, playerId={}",
-                    userId, playerId);
-        } else {
-            RpcResult<Void> lobbyOnline = LobbyServiceProxy.sendPlayerOnline(
-                    lobby, userId, playerId, session.getGate(), session.getSessionId());
-            if (!lobbyOnline.isSuccess()) {
-                LogCore.core.warn("OnlineService 发送 LobbyService 正式上线失败: userId={}, playerId={}, errorCode={}, message={}",
-                        userId, playerId, lobbyOnline.getErrorCode(), lobbyOnline.getErrorMessage());
-            }
-        }
 
+        //  所有上线步骤完成后，向客户端返回选角进入成功。
         LogCore.core.info("OnlineService 玩家登录成功: userId={}, playerId={}, gate={}, gateSessionId={}, playerService={}, status={}",
                 userId, playerId, session.getGate(), session.getSessionId(),
                 playerService, onlinePlayer.getStatus());

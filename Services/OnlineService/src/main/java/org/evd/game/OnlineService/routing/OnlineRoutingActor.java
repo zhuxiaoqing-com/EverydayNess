@@ -3,8 +3,8 @@ package org.evd.game.OnlineService.routing;
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.Rpc;
-import org.evd.game.common.serializeBean.OnlineService.OnlineConnCandidate;
-import org.evd.game.common.serializeBean.OnlineService.OnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 import org.evd.game.runtime.Service;
 
 /** OnlineService 负载选择相关的 RPC 入口。 */

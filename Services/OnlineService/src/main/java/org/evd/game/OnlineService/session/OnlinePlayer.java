@@ -1,6 +1,5 @@
 package org.evd.game.OnlineService.session;
 
-
 /**
  * OnlineService 持有的玩家上线状态。
  *
@@ -10,13 +9,15 @@ package org.evd.game.OnlineService.session;
  */
 public final class OnlinePlayer {
     public enum Status {
-        STARTING,
+        LOADING_PLAYER,
+        PLAYER_READY,
+        GATE_BOUND,
         ONLINE
     }
 
     private final String userId;
     private final long playerId;
-    private Status status = Status.STARTING;
+    private Status status = Status.LOADING_PLAYER;
 
     OnlinePlayer(String userId, long playerId) {
         this.userId = userId;
@@ -35,8 +36,24 @@ public final class OnlinePlayer {
         return status;
     }
 
-    void markOnline() {
-        status = Status.ONLINE;
+    /** Player Actor 绑定完成，玩家数据已准备好。 */
+    void markPlayerReady() {
+        transition(Status.PLAYER_READY);
+    }
+
+    /** GW Actor 绑定完成。 */
+    void markGateBound() {
+        transition(Status.GATE_BOUND);
+    }
+
+    /** PlayerService 正式上线通知发出后标记为 ONLINE。 */
+    public void markOnline() {
+        transition(Status.ONLINE);
+    }
+
+    /** 记录当前玩家上线阶段；状态仅用于观测，不参与流程判断。 */
+    private void transition(Status next) {
+        status = next;
     }
 
     @Override

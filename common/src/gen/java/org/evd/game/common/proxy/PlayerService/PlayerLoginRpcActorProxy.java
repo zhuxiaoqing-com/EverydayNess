@@ -22,8 +22,16 @@ public final class PlayerLoginRpcActorProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_PLAYERLOGINRPCACTOR_LOGINPLAYER_1 = 1;
-        public final static int ENUM_PLAYERLOGINRPCACTOR_ONLINEPLAYER_2 = 2;
+        public final static int ENUM_PLAYERLOGINRPCACTOR_BINDGATEACTORADDRESS_1 = 1;
+        public final static int ENUM_PLAYERLOGINRPCACTOR_LOGINPLAYER_2 = 2;
+        public final static int ENUM_PLAYERLOGINRPCACTOR_ONLINEPLAYER_3 = 3;
+    }
+
+    /**
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    */
+    public static RpcResult<Void> sendBindGateActorAddress(CallPoint remote, long playerId, ActorAddress gateActorAddress){
+        return RpcResult.run(() -> inst().bindGateActorAddress(remote, playerId, gateActorAddress));
     }
 
     /**
@@ -37,8 +45,17 @@ public final class PlayerLoginRpcActorProxy {
     /**
     * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> sendOnlinePlayer(CallPoint remote, String userId, long playerId, ClientSessionRef session, ActorAddress gateActorAddress){
-        return RpcResult.run(() -> inst().onlinePlayer(remote, userId, playerId, session, gateActorAddress));
+    public static RpcResult<Void> sendOnlinePlayer(CallPoint remote, String userId, long playerId, ClientSessionRef session){
+        return RpcResult.run(() -> inst().onlinePlayer(remote, userId, playerId, session));
+    }
+
+
+    /**
+    * 对应源方法: org.evd.game.PlayerService.login.PlayerLoginRpcActor#bindGateActorAddress()
+    */
+    public void bindGateActorAddress(CallPoint remote, long playerId, ActorAddress gateActorAddress){
+        Service service = Service.getCurrent();
+        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPCACTOR_BINDGATEACTORADDRESS_1, new Object[]{playerId, gateActorAddress});
     }
 
 
@@ -47,16 +64,16 @@ public final class PlayerLoginRpcActorProxy {
     */
     public ActorAddress loginPlayer(CallPoint remote, String userId, RoleData role, ClientSessionRef session){
         Service service = Service.getCurrent();
-        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_PLAYERLOGINRPCACTOR_LOGINPLAYER_1, new Object[]{userId, role, session});
+        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_PLAYERLOGINRPCACTOR_LOGINPLAYER_2, new Object[]{userId, role, session});
     }
 
 
     /**
     * 对应源方法: org.evd.game.PlayerService.login.PlayerLoginRpcActor#onlinePlayer()
     */
-    public void onlinePlayer(CallPoint remote, String userId, long playerId, ClientSessionRef session, ActorAddress gateActorAddress){
+    public void onlinePlayer(CallPoint remote, String userId, long playerId, ClientSessionRef session){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPCACTOR_ONLINEPLAYER_2, new Object[]{userId, playerId, session, gateActorAddress});
+        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPCACTOR_ONLINEPLAYER_3, new Object[]{userId, playerId, session});
     }
 
 

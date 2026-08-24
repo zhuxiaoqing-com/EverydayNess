@@ -5,7 +5,7 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.annotation.ActorType;
-import org.evd.game.common.serializeBean.ConnService.ConnInfo;
+import org.evd.game.common.serializeBean.ConnService.test.ConnInfo;
 
 /**
 * 根据ConnTestProxyService生成的代理类

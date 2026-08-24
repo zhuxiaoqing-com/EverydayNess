@@ -1,7 +1,6 @@
 package org.evd.game.OnlineService.session;
 
-import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.common.serializeBean.OnlineService.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -116,6 +115,7 @@ public final class OnlineSessionCoordinator {
         if (userState == null || getOnlinePlayer(onlinePlayer.getUserId()) != onlinePlayer) {
             return false;
         }
+        onlinePlayer.markPlayerReady();
         userState.setActivePlayerActorAddress(actorAddress);
         historicalPlayerServiceMap.bind(onlinePlayer.getUserId(), userState.getActivePlayerService());
         Service.getCurrent().getMessageLocationSender().cache(
@@ -127,36 +127,15 @@ public final class OnlineSessionCoordinator {
     }
 
     /** 将 GW 返回的玩家 ActorAddress 登记到 OnlineUserState。 */
-    public boolean bindGateActorAddress(OnlinePlayer onlinePlayer, ActorAddress actorAddress) {
-        if (actorAddress == null || !onlinePlayerRegistry.isCurrent(onlinePlayer)) {
-            return false;
-        }
+    public void bindGateActorAddress(OnlinePlayer onlinePlayer, ActorAddress actorAddress) {
         OnlineUserState userState = userStates.get(onlinePlayer.getUserId());
-        if (userState == null || getOnlinePlayer(onlinePlayer.getUserId()) != onlinePlayer) {
-            return false;
-        }
+        onlinePlayer.markGateBound();
         userState.setActiveGateActorAddress(actorAddress);
         Service.getCurrent().getMessageLocationSender().cache(
                 ActorId.gate(onlinePlayer.getPlayerId()), actorAddress);
         LogCore.core.info("OnlineService 缓存 GWActorAddress: userId={}, playerId={}, actorId={}, actorAddress={}",
                 onlinePlayer.getUserId(), onlinePlayer.getPlayerId(),
                 ActorId.gate(onlinePlayer.getPlayerId()), actorAddress);
-        return true;
-    }
-
-    /** 标记玩家完成所有上线注册。 */
-    public boolean markPlayerOnline(OnlinePlayer onlinePlayer) {
-        if (!onlinePlayerRegistry.isCurrent(onlinePlayer)) {
-            return false;
-        }
-        OnlineUserState userState = userStates.get(onlinePlayer.getUserId());
-        if (userState == null
-                || getOnlinePlayer(onlinePlayer.getUserId()) != onlinePlayer
-                || userState.getActivePlayerActorAddress() == null
-                || userState.getActiveGateActorAddress() == null) {
-            return false;
-        }
-        return onlinePlayerRegistry.markOnline(onlinePlayer);
     }
 
     /** 仅在网关会话匹配时清理在线状态，并返回已绑定的 PlayerService。 */

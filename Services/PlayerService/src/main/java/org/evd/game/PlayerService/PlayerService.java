@@ -1,6 +1,5 @@
 package org.evd.game.PlayerService;
 
-import org.evd.game.PlayerService.login.PlayerLoginManager;
 import org.evd.game.PlayerService.offline.PlayerOfflineManager;
 import org.evd.game.PlayerService.player.PlayerDataRepository;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
@@ -14,16 +13,24 @@ import org.evd.game.runtime.config.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 
 public class PlayerService extends Service {
-    private final PlayerLoginManager loginManager;
+    private final PlayerSessionManager sessionManager;
+    private final PlayerDataRepository playerDataRepository;
     private final PlayerOfflineManager offlineManager;
+    private final PlayerOnlineReconciler onlineReconciler;
 
     /** 创建 PlayerService，并初始化玩家会话绑定管理器。 */
     public PlayerService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
-        PlayerSessionManager sessionManager = new PlayerSessionManager();
-        PlayerDataRepository playerDataRepository = new PlayerDataRepository();
-        this.loginManager = new PlayerLoginManager(this, sessionManager, playerDataRepository);
+        this.sessionManager = new PlayerSessionManager();
+        this.playerDataRepository = new PlayerDataRepository();
         this.offlineManager = new PlayerOfflineManager(this, sessionManager);
+        this.onlineReconciler = new PlayerOnlineReconciler(this, sessionManager, this.offlineManager);
+    }
+
+    @Override
+    public void init() {
+        super.init();
+        newRepeatedTimer(PlayerOnlineReconciler.INTERVAL_MILLIS, false, onlineReconciler::reconcile);
     }
 
     /** 执行 PlayerService 的周期性服务任务。 */
@@ -32,9 +39,14 @@ public class PlayerService extends Service {
         super.tick();
     }
 
-    /** 返回玩家登录流程管理器，供登录 Actor 委托业务处理。 */
-    public PlayerLoginManager loginManager() {
-        return loginManager;
+    /** 返回玩家会话状态，供登录 RPC Actor 和离线管理器共同使用。 */
+    public PlayerSessionManager sessionManager() {
+        return sessionManager;
+    }
+
+    /** 返回玩家数据仓库，供登录 RPC Actor 加载玩家数据。 */
+    public PlayerDataRepository playerDataRepository() {
+        return playerDataRepository;
     }
 
     /** 返回玩家离线流程管理器，供离线 Actor 委托业务处理。 */
@@ -79,7 +91,7 @@ public class PlayerService extends Service {
     /** 返回当前 PlayerService 已绑定的在线玩家数量。 */
     @Rpc
     public int getOnlineCount() {
-        return loginManager.getOnlineCount();
+        return sessionManager.getOnlineCount();
     }
 
     /** 声明 PlayerService 支持 MDB 消息分发。 */

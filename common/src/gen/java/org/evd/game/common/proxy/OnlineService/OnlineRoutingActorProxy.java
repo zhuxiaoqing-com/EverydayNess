@@ -3,8 +3,8 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.common.serializeBean.OnlineService.OnlineConnCandidate;
-import org.evd.game.common.serializeBean.OnlineService.OnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 
 /**
 * 根据OnlineRoutingActorService生成的代理类
@@ -21,8 +21,8 @@ public final class OnlineRoutingActorProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDCONN_5 = 5;
-        public final static int ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDPLAYER_6 = 6;
+        public final static int ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDCONN_7 = 7;
+        public final static int ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDPLAYER_8 = 8;
     }
 
     /**
@@ -47,7 +47,7 @@ public final class OnlineRoutingActorProxy {
     */
     public OnlineConnCandidate selectLeastLoadedConn(CallPoint remote){
         Service service = Service.getCurrent();
-        return (OnlineConnCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDCONN_5, new Object[]{});
+        return (OnlineConnCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDCONN_7, new Object[]{});
     }
 
 
@@ -56,7 +56,7 @@ public final class OnlineRoutingActorProxy {
     */
     public OnlinePlayerCandidate selectLeastLoadedPlayer(CallPoint remote){
         Service service = Service.getCurrent();
-        return (OnlinePlayerCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDPLAYER_6, new Object[]{});
+        return (OnlinePlayerCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGACTOR_SELECTLEASTLOADEDPLAYER_8, new Object[]{});
     }
 
 
