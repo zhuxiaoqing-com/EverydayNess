@@ -108,8 +108,6 @@ location和邮箱唯一id在哪里生成的问题，假设都在gw有没有问�
     GWPlayerId上线以后再注册Location和邮箱;gw连接端口closeSession的时候开始删除location注册和邮箱;好像没什么问题;
     就这么弄吧
 
-这里需要做gw和online状态一致保底： gw将所有的玩家发送给online检测状态是否一致，有不一致的进行kick下线，但是正常的登录流程，等回去的时候session肯定已经不在线了，
-            如果kick这个时候还在那就说明这个session 真的有问题;
 
  user登录以后，就是创建角色或者选择账号登录;
  如果是创建角色的话就创建角色成功返回，返回以后还是要选择要登录哪个playerId；
@@ -129,3 +127,27 @@ location和邮箱唯一id在哪里生成的问题，假设都在gw有没有问�
  ->没有过期就给OnlineService PlayerService 和LobbyService发送正式上线，可以发送一些玩家数据给客户端饿了;
 
 
+这里需要做gw和online状态一致保底： gw将所有的玩家发送给online检测状态是否一致，有不一致的进行kick下线，但是正常的登录流程，等回去的时候session肯定已经不在线了，
+            如果kick这个时候还在那就说明这个session 真的有问题;
+
+    对账gw和Online，
+        判断Online这里如果是不完全登录的情况下，就判断user对应的callPoint是否一致;不一致回去就踢人;
+        完全登录的情况下，判断user对应的GWcallPoint，还要判断playerId是否一样;
+
+    对账gw和player，
+        只判断gw在完全登录的情况下的数据;判断GWCallPoint的是否一样;
+
+    player和online
+       只判断完全登录的情况下;playerCallPoint和online里的是否一样;
+
+    应该是比如gw和online，同gwcallpoint, gw里有的Online里没有，就将gw里的踢下线， online里有的,gw没有，就在online这里下线;
+           这里暂且先都只处理完全上线的;只上线一半的这种先不管;可以后期加没有完全上线的，30分钟以后将其踢出这样;
+    gw和player还有player和online的话就有点复杂了;
+    gw和player gw有player没有，gw这边下线,player有,gw没有,直接player这里自己下线;
+    player和Online online有player没有，online这里自己下线,player有online没有，直接player这里自己下线;
+
+    好像很完美，但是有没有可能比如player有online没有，是因为Online正好下线？找一个什么时机才能正确对账呢
+    GW、Player、Online 三方里，Online 是共同基准。
+    只要分别做 GW→Online 和 Player→Online 对账，GW 与 Player 的不一致必然会在其中一条链路暴露，不需要再维护独立的 GW→Player 对账链路。
+
+    最后想出了一个2次异常踢出的实现，就第一次异常不踢出，而是给有的那边记录一个异常，然后等两次异常以后再踢出;

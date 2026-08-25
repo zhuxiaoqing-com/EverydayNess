@@ -7,6 +7,8 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -62,6 +64,11 @@ public final class OnlineSessionCoordinator {
         }
         OnlinePlayer onlinePlayer = onlinePlayerRegistry.get(userState.getActivePlayerId());
         return onlinePlayer != null && userId.equals(onlinePlayer.getUserId()) ? onlinePlayer : null;
+    }
+
+    /** 返回当前在线状态的只读集合视图，不复制集合；调用方不能修改集合结构。 */
+    public Collection<OnlineUserState> getUserStates() {
+        return Collections.unmodifiableCollection(userStates.values());
     }
 
     /** 返回用户历史绑定的 PlayerService，用于同一玩家优先回到原服务。 */

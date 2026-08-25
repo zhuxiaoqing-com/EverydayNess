@@ -1,92 +1,34 @@
 package org.evd.game.OnlineService.reconcile;
 
+import org.evd.game.OnlineService.offline.OnlineOfflineCoordinator;
+import org.evd.game.OnlineService.reconcile.gwonline.GwOnlineReconcileR;
+import org.evd.game.OnlineService.reconcile.playeronline.PlayerOnlineReconcileR;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.support.LogCore;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-/** OnlineService 的状态对账校验器，OnlineSessionCoordinator 仍是状态源。 */
+/** 三类对账器的薄门面；具体规则按对账方向分包维护。 */
 public final class OnlineStateReconcileManager {
-    private final OnlineSessionCoordinator sessionCoordinator;
+    private final GwOnlineReconcileR gwOnlineReconcileR;
+    private final PlayerOnlineReconcileR playerOnlineReconcileR;
 
-    public OnlineStateReconcileManager(OnlineSessionCoordinator sessionCoordinator) {
-        this.sessionCoordinator = sessionCoordinator;
+    public OnlineStateReconcileManager(OnlineSessionCoordinator sessionCoordinator,
+                                       OnlineOfflineCoordinator offlineCoordinator) {
+        this.gwOnlineReconcileR = new GwOnlineReconcileR(sessionCoordinator, offlineCoordinator);
+        this.playerOnlineReconcileR = new PlayerOnlineReconcileR(sessionCoordinator, offlineCoordinator);
     }
 
-    /** 校验 ConnService 上报的玩家连接快照。 */
-    public ConnStateCheck[] reconcileConnSessions(
-            CallPoint connService, List<ConnStateCheck> entries) {
-        List<ConnStateCheck> invalidEntries = new ArrayList<>();
-        if (entries == null || entries.isEmpty()) {
-            return new ConnStateCheck[0];
-        }
-        for (ConnStateCheck entry : entries) {
-            if (entry == null || entry.getUserId() == null || entry.getUserId().isBlank()
-                    || entry.getPlayerId() <= 0L || entry.getGateSessionId() <= 0L) {
-                continue;
-            }
-            if (!isValidConnSession(connService, entry)) {
-                invalidEntries.add(entry);
-            }
-        }
-        if (!invalidEntries.isEmpty()) {
-            LogCore.core.warn("OnlineService GW 对账发现不一致: source={}, invalidCount={}, totalCount={}",
-                    connService, invalidEntries.size(), entries.size());
-        }
-        return invalidEntries.toArray(ConnStateCheck[]::new);
+    public List<ConnStateCheck> reconcileConnSessions(
+            CallPoint connService, Map<String, ConnStateCheck> entries) {
+        return gwOnlineReconcileR.reconcile(connService, entries);
     }
 
-    /** 校验 PlayerService 上报的玩家运行态快照。 */
     public PlayerStateCheck[] reconcilePlayerSessions(
             CallPoint playerService, List<PlayerStateCheck> entries) {
-        List<PlayerStateCheck> invalidEntries = new ArrayList<>();
-        if (entries == null || entries.isEmpty()) {
-            return new PlayerStateCheck[0];
-        }
-        for (PlayerStateCheck entry : entries) {
-            if (entry == null || entry.getUserId() == null || entry.getUserId().isBlank()
-                    || entry.getPlayerId() <= 0L || entry.getGateSessionId() <= 0L) {
-                continue;
-            }
-            if (!isValidPlayerSession(playerService, entry)) {
-                invalidEntries.add(entry);
-            }
-        }
-        if (!invalidEntries.isEmpty()) {
-            LogCore.core.warn("OnlineService PlayerService 对账发现不一致: source={}, invalidCount={}, totalCount={}",
-                    playerService, invalidEntries.size(), entries.size());
-        }
-        return invalidEntries.toArray(PlayerStateCheck[]::new);
-    }
-
-    private boolean isValidConnSession(CallPoint connService, ConnStateCheck entry) {
-        OnlineUserState userState = sessionCoordinator.getUserState(entry.getUserId());
-        return connService != null
-                && matchesSession(userState, connService, entry.getGateSessionId())
-                && userState.getActivePlayerId() == entry.getPlayerId()
-                && userState.getActivePlayerService() != null
-                && sessionCoordinator.getOnlinePlayer(entry.getUserId()) != null;
-    }
-
-    private boolean isValidPlayerSession(CallPoint playerService, PlayerStateCheck entry) {
-        OnlineUserState userState = sessionCoordinator.getUserState(entry.getUserId());
-        return playerService != null
-                && matchesSession(userState, entry.getGate(), entry.getGateSessionId())
-                && userState.getActivePlayerId() == entry.getPlayerId()
-                && playerService.equals(userState.getActivePlayerService())
-                && sessionCoordinator.getOnlinePlayer(entry.getUserId()) != null;
-    }
-
-    private boolean matchesSession(OnlineUserState userState, CallPoint gate,
-                                   long gateSessionId) {
-        return userState != null
-                && gate != null
-                && gate.equals(userState.getActiveGate())
-                && gateSessionId == userState.getActiveGateSessionId();
+        return playerOnlineReconcileR.reconcile(playerService, entries);
     }
 }

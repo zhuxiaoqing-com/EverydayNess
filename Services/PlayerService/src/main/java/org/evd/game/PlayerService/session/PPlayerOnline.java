@@ -13,15 +13,19 @@ public final class PPlayerOnline {
     }
 
     private final String userId;
+    private final long playerId;
     private final CallPoint gate;
     private final long gateSessionId;
     private final ActorAddress actorAddress;
     private ActorAddress gateActorAddress;
     private Status status;
+    /** 对账异常计数属于当前玩家绑定；新 Session 会创建新的 PPlayerOnline。 */
+    private int onlineMissingCount;
 
-    public PPlayerOnline(String userId, CallPoint gate, long gateSessionId,
+    public PPlayerOnline(String userId, long playerId, CallPoint gate, long gateSessionId,
                          ActorAddress actorAddress, Status status) {
         this.userId = userId;
+        this.playerId = playerId;
         this.gate = gate;
         this.gateSessionId = gateSessionId;
         this.actorAddress = actorAddress;
@@ -30,6 +34,10 @@ public final class PPlayerOnline {
 
     public String getUserId() {
         return userId;
+    }
+
+    public long getPlayerId() {
+        return playerId;
     }
 
     public CallPoint getGate() {
@@ -52,6 +60,15 @@ public final class PPlayerOnline {
         return status;
     }
 
+    /** 记录当前玩家与 Online 的连续对账异常；返回值表示已连续发现两轮。 */
+    public boolean observeOnlineReconcileMismatch() {
+        return ++onlineMissingCount >= 2;
+    }
+
+    public void clearOnlineReconcileMismatch() {
+        onlineMissingCount = 0;
+    }
+
     /** 玩家数据加载完成，进入可上线状态。 */
     void markReady() {
         transition(Status.READY);
@@ -71,5 +88,12 @@ public final class PPlayerOnline {
     /** 记录当前玩家上线阶段；状态仅用于观测，不参与流程判断。 */
     private void transition(Status next) {
         status = next;
+    }
+
+    private int nextReconcileCount(String previousKey, String currentKey, int previousCount) {
+        if (currentKey == null || !currentKey.equals(previousKey)) {
+            return 1;
+        }
+        return previousCount + 1;
     }
 }

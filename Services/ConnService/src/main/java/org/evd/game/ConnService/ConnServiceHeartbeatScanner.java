@@ -20,7 +20,7 @@ final class ConnServiceHeartbeatScanner {
     void scanTimeoutSessions(long timeoutMillis) {
         long nowMillis = System.currentTimeMillis();
         List<NetChannel> timeoutChannels = new ArrayList<>();
-        for (NetChannel channel : channelManager.snapshotChannels()) {
+        for (NetChannel channel : channelManager.getChannelMap().values()) {
             long idleMillis = nowMillis - channel.getLastPingTime();
             if (idleMillis < timeoutMillis) {
                 continue;

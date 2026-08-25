@@ -9,14 +9,15 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 
 import java.util.List;
+import java.util.Map;
 
 /** OnlineService 的状态对账 RPC 门面。 */
 @Actor
 public final class OnlineStateReconcileActor {
     /** 校验 ConnService 上报的玩家连接快照。 */
     @Rpc
-    public ConnStateCheck[] reconcileConnSessions(
-            CallPoint connService, List<ConnStateCheck> entries) {
+    public List<ConnStateCheck> reconcileConnSessions(
+            CallPoint connService, Map<String, ConnStateCheck> entries) {
         return owner().stateReconcileManager().reconcileConnSessions(connService, entries);
     }
 

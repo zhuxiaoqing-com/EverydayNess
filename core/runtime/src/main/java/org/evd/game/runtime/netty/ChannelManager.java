@@ -3,8 +3,6 @@ package org.evd.game.runtime.netty;
 import io.netty.channel.Channel;
 import io.netty.util.Attribute;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -38,7 +36,7 @@ public class ChannelManager {
         channelMap.clear();
     }
 
-    public List<NetChannel> snapshotChannels() {
-        return new ArrayList<>(channelMap.values());
+    public Map<Long, NetChannel> getChannelMap() {
+        return channelMap;
     }
 }

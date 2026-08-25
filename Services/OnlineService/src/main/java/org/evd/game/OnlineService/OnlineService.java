@@ -23,8 +23,9 @@ public class OnlineService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
         this.serviceSelector = new OnlineServiceSelector(this);
         this.sessionCoordinator = new OnlineSessionCoordinator();
-        this.stateReconcileManager = new OnlineStateReconcileManager(sessionCoordinator);
         this.offlineCoordinator = new OnlineOfflineCoordinator(this);
+        this.stateReconcileManager = new OnlineStateReconcileManager(
+                sessionCoordinator, offlineCoordinator);
         this.loginCoordinator = new OnlineLoginCoordinator(
                 this, serviceSelector, sessionCoordinator, GlobalConfig.requireNodeConfig().getLogin());
     }

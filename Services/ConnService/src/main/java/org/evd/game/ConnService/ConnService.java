@@ -15,6 +15,7 @@ import org.evd.game.common.proxy.LobbyService.LobbyRoleActorProxy;
 import org.evd.game.common.proxy.OnlineService.OnlinePlayerLoginActorProxy;
 import org.evd.game.ConnService.login.ConnLoginManager;
 import org.evd.game.ConnService.offline.ConnOfflineManager;
+import org.evd.game.ConnService.reconcile.GwOnlineReconcileS;
 import org.evd.game.ConnService.session.ConnSessionRegistry;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.serializeBean.Chunk;
@@ -43,7 +44,7 @@ public class ConnService extends Service {
     private final ConnSessionRegistry sessionRegistry;
     private final ConnLoginManager loginManager;
     private final ConnOfflineManager offlineManager;
-    private final ConnOnlineReconciler onlineReconciler;
+    private final GwOnlineReconcileS gwOnlineReconcileS;
 
     private volatile NetAcceptor clientAcceptor;
 
@@ -55,7 +56,7 @@ public class ConnService extends Service {
         this.sessionRegistry = new ConnSessionRegistry();
         this.loginManager = new ConnLoginManager(this, sessionRegistry);
         this.offlineManager = new ConnOfflineManager(this, sessionRegistry);
-        this.onlineReconciler = new ConnOnlineReconciler(this);
+        this.gwOnlineReconcileS = new GwOnlineReconcileS(this);
     }
 
     @Override
@@ -67,7 +68,7 @@ public class ConnService extends Service {
                 new BaseChannelInitializer(() -> new ConnServiceClientChannelHandler(clientChannelManager, this), true));
         LogCore.core.info("ConnService Netty 启动完成: service={}, port={}", id, port);
         newRepeatedTimer(HEARTBEAT_SCAN_INTERVAL_MILLIS, false, this::scanHeartbeatTimeouts);
-        newRepeatedTimer(ConnOnlineReconciler.INTERVAL_MILLIS, false, onlineReconciler::reconcile);
+        newRepeatedTimer(GwOnlineReconcileS.INTERVAL_MILLIS, false, gwOnlineReconcileS::reconcile);
     }
 
     public void dispatchClientCmd(NetChannel session, int cmd, Chunk body) {
@@ -296,14 +297,14 @@ public class ConnService extends Service {
         return clientChannelManager.getChannel(sessionId);
     }
 
-    ChannelManager clientChannelManager() {
+    public ChannelManager clientChannelManager() {
         return clientChannelManager;
     }
 
     /** 遍历网关连接并统计已完成授权的会话数量。 */
     private int countAuthorizedSessions() {
         int count = 0;
-        for (NetChannel channel : clientChannelManager.snapshotChannels()) {
+        for (NetChannel channel : clientChannelManager.getChannelMap().values()) {
             if (channel.isAuthorized()) {
                 count++;
             }

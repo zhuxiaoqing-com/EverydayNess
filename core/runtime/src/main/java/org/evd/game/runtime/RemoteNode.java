@@ -393,7 +393,7 @@ public class RemoteNode {
 
 
     private void checkOutboundChannelTimeout(long timeCurr) {
-        for (NetChannel netChannel : channelManager.snapshotChannels()) {
+        for (NetChannel netChannel : channelManager.getChannelMap().values()) {
             long lastActivityTime = netChannel.getLastPingTime();
             if (lastActivityTime <= 0L || (timeCurr - lastActivityTime) <= INTERVAL_LOST) {
                 continue;

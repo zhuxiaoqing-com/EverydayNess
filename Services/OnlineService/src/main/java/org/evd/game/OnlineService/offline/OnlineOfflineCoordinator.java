@@ -2,6 +2,7 @@ package org.evd.game.OnlineService.offline;
 
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
+import org.evd.game.common.proxy.ConnService.ConnOfflineActorProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerOfflineActorProxy;
 import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 import org.evd.game.runtime.call.CallPoint;
@@ -15,6 +16,17 @@ public final class OnlineOfflineCoordinator {
 
     public OnlineOfflineCoordinator(OnlineService owner) {
         this.owner = owner;
+    }
+
+    /** 统一向当前 GW 发送带 sessionId 的踢下线命令。 */
+    public void kickGateway(CallPoint gate, long gateSessionId,
+                            BrokenType brokenType, String reason) {
+        RpcResult<Void> result = ConnOfflineActorProxy.sendKickSession(
+                gate, gateSessionId, brokenType.getCode(), reason);
+        if (!result.isSuccess()) {
+            LogCore.core.warn("OnlineService 踢出 GW 失败: gate={}, sessionId={}, brokenType={}, errorCode={}, message={}",
+                    gate, gateSessionId, brokenType, result.getErrorCode(), result.getErrorMessage());
+        }
     }
 
     /** 处理网关下线通知，并释放当前用户和玩家状态。 */

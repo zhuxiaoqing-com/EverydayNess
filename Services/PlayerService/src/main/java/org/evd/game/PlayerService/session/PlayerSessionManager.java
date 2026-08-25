@@ -4,6 +4,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.actor.ActorAddress;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,12 +21,16 @@ public final class PlayerSessionManager {
         return onlinePlayers.containsKey(playerId);
     }
 
+    public PPlayerOnline get(long playerId) {
+        return onlinePlayers.get(playerId);
+    }
+
     /** 建立已完成参数和重复上线检查的玩家在线绑定。 */
     public void bindPlayerSession(String userId, long playerId, ClientSessionRef session,
                                   ActorAddress actorAddress) {
         CallPoint gate = session.getGate();
         long gateSessionId = session.getSessionId();
-        PPlayerOnline binding = new PPlayerOnline(userId, gate, gateSessionId, actorAddress,
+        PPlayerOnline binding = new PPlayerOnline(userId, playerId, gate, gateSessionId, actorAddress,
                 PPlayerOnline.Status.LOADING_DATA);
         onlinePlayers.put(playerId, binding);
     }
@@ -78,8 +83,8 @@ public final class PlayerSessionManager {
         return onlinePlayers.size();
     }
 
-    /** 返回当前玩家绑定快照，调用方不能通过该副本修改内部绑定。 */
-    public Map<Long, PPlayerOnline> snapshotBindings() {
-        return Map.copyOf(onlinePlayers);
+    /** 返回当前在线玩家视图，调用方只遍历，不修改集合结构。 */
+    public Collection<PPlayerOnline> onlinePlayers() {
+        return onlinePlayers.values();
     }
 }

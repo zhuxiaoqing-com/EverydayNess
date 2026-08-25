@@ -14,6 +14,9 @@ public class OnlineUserState implements ISerializable {
     private CallPoint activePlayerService;
     private ActorAddress activePlayerActorAddress;
     private ActorAddress activeGateActorAddress;
+    /** 对账异常计数属于当前正式在线对象；用户新 Session 会创建新的状态对象。 */
+    private int gwMissingCount;
+    private int playerMissingCount;
 
     public OnlineUserState() {
     }
@@ -42,6 +45,8 @@ public class OnlineUserState implements ISerializable {
                 ? null : new ActorAddress(other.activePlayerActorAddress);
         this.activeGateActorAddress = other.activeGateActorAddress == null
                 ? null : new ActorAddress(other.activeGateActorAddress);
+        this.gwMissingCount = other.gwMissingCount;
+        this.playerMissingCount = other.playerMissingCount;
     }
 
     public String getUserId() {
@@ -98,5 +103,28 @@ public class OnlineUserState implements ISerializable {
 
     public void setActiveGateActorAddress(ActorAddress activeGateActorAddress) {
         this.activeGateActorAddress = activeGateActorAddress == null ? null : new ActorAddress(activeGateActorAddress);
+    }
+
+    public int getGwMissingCount() { return gwMissingCount; }
+    public void setGwMissingCount(int gwMissingCount) { this.gwMissingCount = gwMissingCount; }
+    public int getPlayerMissingCount() { return playerMissingCount; }
+    public void setPlayerMissingCount(int playerMissingCount) { this.playerMissingCount = playerMissingCount; }
+
+    /** 记录当前用户与 GW 的连续对账异常；返回值表示已连续发现两轮。 */
+    public boolean observeGwReconcileMismatch() {
+        return ++gwMissingCount >= 2;
+    }
+
+    /** 记录当前用户与 PlayerService 的连续对账异常；返回值表示已连续发现两轮。 */
+    public boolean observePlayerReconcileMismatch() {
+        return ++playerMissingCount >= 2;
+    }
+
+    public void clearGwReconcileMismatch() {
+        gwMissingCount = 0;
+    }
+
+    public void clearPlayerReconcileMismatch() {
+        playerMissingCount = 0;
     }
 }

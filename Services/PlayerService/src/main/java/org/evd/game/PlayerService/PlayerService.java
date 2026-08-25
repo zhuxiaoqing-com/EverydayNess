@@ -2,6 +2,7 @@ package org.evd.game.PlayerService;
 
 import org.evd.game.PlayerService.offline.PlayerOfflineManager;
 import org.evd.game.PlayerService.player.PlayerDataRepository;
+import org.evd.game.PlayerService.reconcile.PlayerOnlineReconcileS;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.annotation.Rpc;
 import org.evd.game.runtime.Node;
@@ -16,7 +17,7 @@ public class PlayerService extends Service {
     private final PlayerSessionManager sessionManager;
     private final PlayerDataRepository playerDataRepository;
     private final PlayerOfflineManager offlineManager;
-    private final PlayerOnlineReconciler onlineReconciler;
+    private final PlayerOnlineReconcileS playerOnlineReconcileS;
 
     /** 创建 PlayerService，并初始化玩家会话绑定管理器。 */
     public PlayerService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
@@ -24,13 +25,13 @@ public class PlayerService extends Service {
         this.sessionManager = new PlayerSessionManager();
         this.playerDataRepository = new PlayerDataRepository();
         this.offlineManager = new PlayerOfflineManager(this, sessionManager);
-        this.onlineReconciler = new PlayerOnlineReconciler(this, sessionManager, this.offlineManager);
+        this.playerOnlineReconcileS = new PlayerOnlineReconcileS(this, sessionManager, this.offlineManager);
     }
 
     @Override
     public void init() {
         super.init();
-        newRepeatedTimer(PlayerOnlineReconciler.INTERVAL_MILLIS, false, onlineReconciler::reconcile);
+        newRepeatedTimer(PlayerOnlineReconcileS.INTERVAL_MILLIS, false, playerOnlineReconcileS::reconcile);
     }
 
     /** 执行 PlayerService 的周期性服务任务。 */
@@ -53,6 +54,11 @@ public class PlayerService extends Service {
     public PlayerOfflineManager offlineManager() {
         return offlineManager;
     }
+
+    public PlayerOnlineReconcileS playerOnlineReconcileS() {
+        return playerOnlineReconcileS;
+    }
+
 
     /** 判断玩家 Actor 是否已经注册。 */
     public boolean hasPlayerActor(long playerId) {

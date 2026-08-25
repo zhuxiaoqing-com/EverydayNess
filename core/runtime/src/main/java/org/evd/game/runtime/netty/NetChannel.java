@@ -56,6 +56,9 @@ public class NetChannel {
     private volatile SessionState sessionState = SessionState.CONNECTED;
     private final AtomicBoolean closeCleanupStarted = new AtomicBoolean();
 
+    /** 对账异常计数属于当前 GW Session；Session 被替换时随 NetChannel 一起消失。 */
+    private int onlineMissingCount;
+
 
     private InetSocketAddress playerEnterAddress;
 
@@ -278,6 +281,16 @@ public class NetChannel {
         return sessionState == SessionState.USER_LOGIN_READY
                 || sessionState == SessionState.PLAYER_LOGIN_READY;
     }
+
+    /** 记录当前 Session 与 Online 的连续对账异常；返回值表示已连续发现两轮。 */
+    public boolean observeOnlineReconcileMismatch() {
+        return ++onlineMissingCount >= 2;
+    }
+
+    public void clearOnlineReconcileMismatch() {
+        onlineMissingCount = 0;
+    }
+
 
     public ClientSessionRef getSessionRef() {
         return sessionRef;

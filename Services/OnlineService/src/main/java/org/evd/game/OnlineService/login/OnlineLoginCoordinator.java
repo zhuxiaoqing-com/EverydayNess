@@ -7,7 +7,6 @@ import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandida
 import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
 import org.evd.game.common.serializeBean.OnlineService.login.OnlineTokenState;
 import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
-import org.evd.game.common.proxy.ConnService.ConnOfflineActorProxy;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
 import org.evd.game.runtime.call.CallPoint;
@@ -118,14 +117,8 @@ public final class OnlineLoginCoordinator {
 
     /** 处理同一用户的新排队请求替换旧请求。 */
     public void onReplaced(OnlineLoginQueue.QueuedLogin request) {
-        RpcResult<Void> result = ConnOfflineActorProxy.sendKickSession(
-                request.gate(), request.sessionId(),
-                BrokenType.LOGIN_REPLACE.getCode(), "duplicate login queued");
-        if (!result.isSuccess()) {
-            LogCore.core.warn("OnlineService 踢出旧排队连接失败: userId={}, gate={}, sessionId={}, errorCode={}, message={}",
-                    request.userId(), request.gate(), request.sessionId(),
-                    result.getErrorCode(), result.getErrorMessage());
-        }
+        owner.offlineCoordinator().kickGateway(request.gate(), request.sessionId(),
+                BrokenType.LOGIN_REPLACE, "duplicate login queued");
     }
 
     /** 向已经获得名额的排队请求发送准入结果。 */

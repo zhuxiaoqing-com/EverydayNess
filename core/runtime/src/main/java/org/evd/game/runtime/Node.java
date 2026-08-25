@@ -976,7 +976,7 @@ public class Node extends TickCase{
 
     private void pulseInboundRemoteChannelsTimeout_nt() {
         long timeCurr = currentTickTime_nt();
-        for (NetChannel netChannel : channelManager.snapshotChannels()) {
+        for (NetChannel netChannel : channelManager.getChannelMap().values()) {
             String remoteNodeId = netChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
 
             long lastActivityTime = netChannel.getLastPingTime();

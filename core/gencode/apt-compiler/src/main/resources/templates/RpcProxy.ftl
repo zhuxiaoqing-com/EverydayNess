@@ -77,6 +77,9 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
     /**
     * 对应源方法: ${fullClassName}#${method.methodName}()
     */
+    <#if method.returnType?starts_with("List<")>
+    @SuppressWarnings("unchecked")
+    </#if>
     public ${method.returnType} ${method.methodName}(${method.targetPrefix}<#if method.formalParams?has_content>, </#if>${method.formalParams}){
         <#if method.returnType == "void">
         <#if method.routeService>
@@ -108,6 +111,9 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
     }
 
     <#if generateTimeoutOverloads && method.hasResult>
+    <#if method.returnType?starts_with("List<")>
+    @SuppressWarnings("unchecked")
+    </#if>
     public ${method.returnType} ${method.methodName}(${method.targetPrefix}, <#if method.formalParams?has_content>${method.formalParams}, </#if>long timeoutMillis){
         <#if method.routeService>
         Service service = Service.getCurrent();
