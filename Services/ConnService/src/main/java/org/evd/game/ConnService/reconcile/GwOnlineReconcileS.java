@@ -1,7 +1,7 @@
 package org.evd.game.ConnService.reconcile;
 
 import org.evd.game.ConnService.ConnService;
-import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileActorProxy;
+import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileRpcProxy;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
@@ -32,7 +32,7 @@ public final class GwOnlineReconcileS {
             entries.put(channel.getUserId(), new ConnStateCheck(
                     channel.getUserId(), channel.getPlayerId(), channel.getChannelId()));
         }
-        RpcResult<List<ConnStateCheck>> result = OnlineStateReconcileActorProxy.callReconcileConnSessions(
+        RpcResult<List<ConnStateCheck>> result = OnlineStateReconcileRpcProxy.callReconcileConnSessions(
                 null, owner.getCallPoint(), entries);
         if (!result.isSuccess()) {
             LogCore.core.warn("ConnService GW-Online 对账请求失败: service={}, count={}, errorCode={}, message={}",

@@ -3,16 +3,14 @@ package org.evd.game.ConnService;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import org.evd.game.annotation.ClientCmd;
-import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.proto.C2S_ConnPing;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_ConnPing;
-import org.evd.game.common.proxy.LobbyService.LobbyRoleActorProxy;
-import org.evd.game.common.proxy.OnlineService.OnlinePlayerLoginActorProxy;
+import org.evd.game.common.proxy.LobbyService.LobbyRoleRpcProxy;
+import org.evd.game.common.proxy.OnlineService.OnlinePlayerLoginRpcProxy;
 import org.evd.game.ConnService.login.ConnLoginManager;
 import org.evd.game.ConnService.offline.ConnOfflineManager;
 import org.evd.game.ConnService.reconcile.GwOnlineReconcileS;
@@ -81,7 +79,6 @@ public class ConnService extends Service {
     }
 
     /** Conn 从真实连接补充用户 ID，再交给 LobbyService 创建角色。 */
-    @ClientCmd(MsgId.C2S_CREATE_ROLE_VALUE)
     public void createRole(ClientSessionRef session, C2S_CreateRole request) {
         NetChannel channel = requireClientChannel(session.getSessionId());
         String userId = channel.getUserId();
@@ -95,11 +92,10 @@ public class ConnService extends Service {
                     + MsgId.C2S_CREATE_ROLE_VALUE);
         }
         C2S_CreateRole forwarded = request.toBuilder().setUserId(userId).build();
-        LobbyRoleActorProxy.sendCreateRole(lobby, session, forwarded);
+        LobbyRoleRpcProxy.sendCreateRole(lobby, session, forwarded);
     }
 
     /** Conn 从真实连接补充用户 ID，再交给 OnlineService 选角登录。 */
-    @ClientCmd(MsgId.C2S_SELECT_ROLE_ENTER_VALUE)
     public void selectRoleEnter(ClientSessionRef session, C2S_SelectRoleEnter request) {
         NetChannel channel = requireClientChannel(session.getSessionId());
         String userId = channel.getUserId();
@@ -113,15 +109,13 @@ public class ConnService extends Service {
                     + MsgId.C2S_SELECT_ROLE_ENTER_VALUE);
         }
         C2S_SelectRoleEnter forwarded = request.toBuilder().setUserId(userId).build();
-        OnlinePlayerLoginActorProxy.sendSelectRoleEnter(online, session, forwarded);
+        OnlinePlayerLoginRpcProxy.sendSelectRoleEnter(online, session, forwarded);
     }
 
-    @Rpc
     public void pushToClient(long sessionId, ClientFrameChunk packet) {
         writeClientPacket(sessionId, packet, false);
     }
 
-    @Rpc
     public void pushToUserId(String userId, ClientFrameChunk packet) {
         Long sessionId = sessionRegistry.findUserSessionId(userId);
         if (sessionId != null) {
@@ -129,7 +123,6 @@ public class ConnService extends Service {
         }
     }
 
-    @Rpc
     public void pushToPlayerId(long playerId, ClientFrameChunk packet) {
         Long sessionId = sessionRegistry.findPlayerSessionId(playerId);
         if (sessionId != null) {
@@ -137,7 +130,6 @@ public class ConnService extends Service {
         }
     }
 
-    @Rpc
     public void redirectClient(long sessionId, ClientFrameChunk packet) {
         writeClientPacket(sessionId, packet, true);
     }
@@ -170,13 +162,11 @@ public class ConnService extends Service {
                 id, sessionId, packet.getMsgId(), bodyLength, closeAfterWrite);
     }
 
-    @Rpc
     public String getPublicAddr() {
         return serviceInfo == null ? "" : serviceInfo.getPublicAddr();
     }
 
     /** 返回当前已授权登录会话数量，供 OnlineService 进行负载选择。 */
-    @Rpc
     public int getLoginSessionCount() {
         return countAuthorizedSessions();
     }
@@ -211,7 +201,6 @@ public class ConnService extends Service {
         }
     }
 
-    @ClientCmd(MsgId.C2S_CONN_PING_VALUE)
     public void onConnPing(ClientSessionRef session, C2S_ConnPing req) {
         NetChannel channel = findClientChannel(session.getSessionId());
         if (channel != null) {

@@ -2,8 +2,8 @@ package org.evd.game.OnlineService.offline;
 
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
-import org.evd.game.common.proxy.ConnService.ConnOfflineActorProxy;
-import org.evd.game.common.proxy.PlayerService.PlayerOfflineActorProxy;
+import org.evd.game.common.proxy.ConnService.ConnOfflineRpcProxy;
+import org.evd.game.common.proxy.PlayerService.PlayerOfflineRpcProxy;
 import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
@@ -21,7 +21,7 @@ public final class OnlineOfflineCoordinator {
     /** 统一向当前 GW 发送带 sessionId 的踢下线命令。 */
     public void kickGateway(CallPoint gate, long gateSessionId,
                             BrokenType brokenType, String reason) {
-        RpcResult<Void> result = ConnOfflineActorProxy.sendKickSession(
+        RpcResult<Void> result = ConnOfflineRpcProxy.sendKickSession(
                 gate, gateSessionId, brokenType.getCode(), reason);
         if (!result.isSuccess()) {
             LogCore.core.warn("OnlineService 踢出 GW 失败: gate={}, sessionId={}, brokenType={}, errorCode={}, message={}",
@@ -57,7 +57,7 @@ public final class OnlineOfflineCoordinator {
             LogCore.core.info("OnlineService 处理无玩家绑定的离线: userId={}, gateSessionId={}, brokenType={}",
                     userState.getUserId(), gateSessionId, brokenType);
         } else {
-            RpcResult<Void> result = PlayerOfflineActorProxy.sendOnPlayerOffline(
+            RpcResult<Void> result = PlayerOfflineRpcProxy.sendOnPlayerOffline(
                     playerService, userState.getUserId(), actualPlayerId,
                     userState.getActiveGate(), userState.getActiveGateSessionId(),
                     brokenType.getCode());

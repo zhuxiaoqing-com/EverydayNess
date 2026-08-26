@@ -334,3 +334,13 @@ DBService 收到消息以后缓存，然后直接返回 内部异步存储，还
     然后内置了version;可为后续扩展做使用，然后是不是
     滚服玩法和非滚服玩法的version都应该为0,然后后面发现不行再迭代?
     还有version是不是应该放在最下面，而不是最上面，防止迭代以后影响按照id排序？这个感觉无所谓;
+
+
+    加类限制注解，比如
+    标注了@RpcHandler的Actor类 才可以进行调用RPC  单独标识了RPC的叫RPC后缀
+    标注了@ClientCmdHandler的类才可以进行调用ClientCmd 单独标识饿了ClientCmd的叫ClientCmd后缀
+    标注了@EventHandler 的类才可以进行事件继承; 单独标记了Event的叫Listener后缀;
+    没有标识的叫XxxLogic后缀
+    如果标识了多个的可以统一叫Handler
+    这个要在APT里完成;
+    当然这些类都得标识Actor注解

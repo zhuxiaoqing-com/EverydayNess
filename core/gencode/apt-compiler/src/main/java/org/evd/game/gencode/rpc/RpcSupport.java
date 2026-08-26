@@ -4,6 +4,8 @@ import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.core.ParseException;
 import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.RpcHandler;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.gencode.AptUtils;
@@ -75,6 +77,14 @@ final class RpcSupport {
 
         List<MethodStruct<Rpc>> structList = StructFactory.convertMethod(elementUtils, elements, Rpc.class);
         for (MethodStruct<Rpc> method : structList) {
+            if (method.getTypeElement().getAnnotation(RpcHandler.class) == null) {
+                throw new IllegalStateException(method.fullClassName
+                        + " 声明了 @Rpc，但未标注 @RpcHandler");
+            }
+            if (method.getTypeElement().getAnnotation(Actor.class) == null) {
+                throw new IllegalStateException(method.fullClassName
+                        + " 声明了 @Rpc，但未标注 @Actor");
+            }
             TypeElement ownerType = resolveServiceOwner(method);
             initRpcMetadata(method, ownerType);
             bindMethodOwner(method, ownerType);
@@ -481,9 +491,6 @@ final class RpcSupport {
     }
 
     private ProxyInterfaceMetadata resolveProxyInterface(MethodStruct<Rpc> struct) {
-        if (!struct.fullClassName.equals(struct.ownerFullClassName)) {
-            return null;
-        }
         TypeElement ownerType = elementUtils.getTypeElement(struct.ownerFullClassName);
         if (ownerType == null) {
             return null;

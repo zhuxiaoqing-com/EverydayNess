@@ -1,7 +1,9 @@
 package org.evd.game.gencode.client;
 
 import com.google.auto.service.AutoService;
+import org.evd.game.annotation.Actor;
 import org.evd.game.annotation.ClientCmd;
+import org.evd.game.annotation.ClientCmdHandler;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.ServiceOwnerResolver;
 import org.evd.game.annotation.ActorType;
@@ -210,6 +212,14 @@ public class ClientCmdProcessor extends ProcessorBase {
                                         TypeElement sessionType,
                                         TypeElement protoMessageType) {
         TypeElement ownerType = (TypeElement) method.getEnclosingElement();
+        if (ownerType.getAnnotation(ClientCmdHandler.class) == null) {
+            throw new IllegalStateException(ownerType.getQualifiedName()
+                    + " 声明了 @ClientCmd，但未标注 @ClientCmdHandler");
+        }
+        if (ownerType.getAnnotation(Actor.class) == null) {
+            throw new IllegalStateException(ownerType.getQualifiedName()
+                    + " 声明了 @ClientCmd，但未标注 @Actor");
+        }
         TypeElement serviceOwner = resolveServiceOwner(ownerType);
         ClientCmd clientCmd = method.getAnnotation(ClientCmd.class);
         if (clientCmd == null) {

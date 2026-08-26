@@ -2,8 +2,7 @@ package org.evd.game.LobbyService;
 
 import org.evd.game.LobbyService.account.LobbyUserAccountRepository;
 import org.evd.game.LobbyService.dbDef.db.bean.LBRole;
-import org.evd.game.LobbyService.routing.LobbyLoadBalancerActor;
-import org.evd.game.annotation.Rpc;
+import org.evd.game.LobbyService.routing.LobbyLoadBalancerLogic;
 import org.evd.game.common.serializeBean.LobbyService.role.LobbyRoleSnapshot;
 import org.evd.game.common.serializeBean.LobbyService.login.LobbyUserAccessResult;
 import org.evd.game.runtime.Node;
@@ -27,16 +26,14 @@ public class LobbyService extends Service {
     }
 
     /** 校验用户账号；首登用户创建账号，封禁账号不得进入 OnlineService。 */
-    @Rpc
     public LobbyUserAccessResult validateOrCreateUser(String userId) {
         return userAccountRepository.validateOrCreate(userId, getTimeCurrent());
     }
 
-    public LobbyLoadBalancerActor loadBalancerActor() {
-        return getActor(LobbyLoadBalancerActor.class);
+    public LobbyLoadBalancerLogic loadBalancerLogic() {
+        return getActor(LobbyLoadBalancerLogic.class);
     }
 
-    @Rpc
     public LobbyRoleSnapshot getRole(String userId) {
         if (userId == null || userId.isBlank()) {
             return null;
@@ -49,7 +46,6 @@ public class LobbyService extends Service {
     }
 
     /** 接收角色正式上线通知，确认上线角色仍属于当前账号。 */
-    @Rpc
     public void playerOnline(String userId, long playerId, CallPoint gate, long gateSessionId) {
         LobbyRoleSnapshot role = getRole(userId);
         if (role == null || role.getPlayerId() != playerId) {

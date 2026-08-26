@@ -4,7 +4,6 @@ import org.evd.game.PlayerService.offline.PlayerOfflineManager;
 import org.evd.game.PlayerService.player.PlayerDataRepository;
 import org.evd.game.PlayerService.reconcile.PlayerOnlineReconcileS;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
-import org.evd.game.annotation.Rpc;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
@@ -95,7 +94,6 @@ public class PlayerService extends Service {
     }
 
     /** 返回当前 PlayerService 已绑定的在线玩家数量。 */
-    @Rpc
     public int getOnlineCount() {
         return sessionManager.getOnlineCount();
     }

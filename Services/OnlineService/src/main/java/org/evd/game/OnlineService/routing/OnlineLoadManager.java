@@ -2,8 +2,8 @@ package org.evd.game.OnlineService.routing;
 
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.ServiceType;
-import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
-import org.evd.game.common.proxy.PlayerService.PlayerServiceProxy;
+import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
+import org.evd.game.common.proxy.PlayerService.PlayerServiceRpcProxy;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 import org.evd.game.runtime.call.CallPoint;
@@ -102,8 +102,8 @@ public final class OnlineLoadManager {
         Map<CallPoint, ConnLoad> latest = new HashMap<>();
         for (RegisteredService service : owner.getNode().getServicesByType(ServiceType.CONN)) {
             CallPoint callPoint = service.getCallPoint();
-            RpcResult<String> publicAddrResult = ConnServiceProxy.callGetPublicAddr(callPoint);
-            RpcResult<Integer> loginCountResult = ConnServiceProxy.callGetLoginSessionCount(callPoint);
+            RpcResult<String> publicAddrResult = ConnServiceRpcProxy.callGetPublicAddr(callPoint);
+            RpcResult<Integer> loginCountResult = ConnServiceRpcProxy.callGetLoginSessionCount(callPoint);
             if (!publicAddrResult.isSuccess() || !loginCountResult.isSuccess()) {
                 LogCore.core.warn("OnlineService 刷新 ConnService 负载失败: callPoint={}, publicAddrError={}, loginCountError={}",
                         callPoint, publicAddrResult.getErrorMessage(), loginCountResult.getErrorMessage());
@@ -125,7 +125,7 @@ public final class OnlineLoadManager {
         Map<CallPoint, Integer> latest = new HashMap<>();
         for (RegisteredService service : owner.getNode().getServicesByType(ServiceType.PLAYER)) {
             CallPoint callPoint = service.getCallPoint();
-            RpcResult<Integer> onlineCountResult = PlayerServiceProxy.callGetOnlineCount(callPoint);
+            RpcResult<Integer> onlineCountResult = PlayerServiceRpcProxy.callGetOnlineCount(callPoint);
             if (!onlineCountResult.isSuccess()) {
                 LogCore.core.warn("OnlineService 刷新 PlayerService 负载失败: callPoint={}, errorCode={}, message={}",
                         callPoint, onlineCountResult.getErrorCode(), onlineCountResult.getErrorMessage());

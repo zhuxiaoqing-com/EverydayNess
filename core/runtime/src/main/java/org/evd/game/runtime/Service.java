@@ -32,6 +32,7 @@ import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.DeadlineTimerWheelScheduler;
 import org.evd.game.runtime.util.TimerScheduler;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -443,10 +444,8 @@ public class Service extends TickCase {
         return actorManager;
     }
 
+    @NotNull
     public final <T> T getActor(Class<T> actorType) {
-        if (actorType == null) {
-            throw new SysException("actorType is null: service={}", id);
-        }
         return actorManager().getActor(actorType);
     }
 

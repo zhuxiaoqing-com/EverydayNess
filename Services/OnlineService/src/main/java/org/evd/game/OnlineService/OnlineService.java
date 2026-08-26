@@ -67,7 +67,7 @@ public class OnlineService extends Service {
         return offlineCoordinator;
     }
 
-    /** 返回状态对账校验器，供 OnlineStateReconcileActor 委托处理。 */
+    /** 返回状态对账校验器，供 OnlineStateReconcileRpc 委托处理。 */
     public OnlineStateReconcileManager stateReconcileManager() {
         return stateReconcileManager;
     }

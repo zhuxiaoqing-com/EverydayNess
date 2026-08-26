@@ -1,6 +1,5 @@
 package org.evd.game.SdkService;
 
-import org.evd.game.annotation.Rpc;
 import org.evd.game.common.serializeBean.SdkService.login.SdkValidateResult;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
@@ -15,7 +14,6 @@ public class SdkService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
     }
 
-    @Rpc
     public SdkValidateResult requestValidate(String userId, String sdkToken) {
         boolean success = LOCAL_STUB_ENABLED && userId != null && !userId.isBlank()
                 && sdkToken != null && !sdkToken.isBlank();

@@ -2,7 +2,7 @@ package org.evd.game.ConnService.offline;
 
 import org.evd.game.ConnService.ConnService;
 import org.evd.game.ConnService.session.ConnSessionRegistry;
-import org.evd.game.common.proxy.OnlineService.OnlineOfflineActorProxy;
+import org.evd.game.common.proxy.OnlineService.OnlineOfflineRpcProxy;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -63,7 +63,7 @@ public final class ConnOfflineManager {
         if (session.getUserId().isBlank()) {
             return;
         }
-        RpcResult<Void> result = OnlineOfflineActorProxy.sendOnSessionOffline(
+        RpcResult<Void> result = OnlineOfflineRpcProxy.sendOnSessionOffline(
                 null, session.getUserId(), session.getPlayerId(), owner.getCallPoint(),
                 session.getChannelId(), session.getBrokenTypeCode());
         if (!result.isSuccess()) {

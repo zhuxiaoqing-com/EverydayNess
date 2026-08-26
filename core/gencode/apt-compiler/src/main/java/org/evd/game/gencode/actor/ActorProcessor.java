@@ -2,6 +2,11 @@ package org.evd.game.gencode.actor;
 
 import com.google.auto.service.AutoService;
 import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.ClientCmdHandler;
+import org.evd.game.annotation.ClientCmd;
+import org.evd.game.annotation.EventHandler;
+import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.RpcHandler;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.ServiceOwnerResolver;
 
@@ -17,7 +22,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -38,13 +42,20 @@ public class ActorProcessor extends ProcessorBase {
             Character.class.getCanonicalName(),
             String.class.getCanonicalName()
     );
+    private static final String EVENT_LISTENER_CLASS_NAME =
+            "org.evd.game.runtime.annotation.EventListener";
 
     private final Set<String> generatedClasses = new LinkedHashSet<>();
     private ServiceOwnerResolver serviceOwnerResolver;
 
     @Override
     protected Set<String> supportAnnotation() {
-        return Collections.singleton(Actor.class.getCanonicalName());
+        return Set.of(
+                Actor.class.getCanonicalName(),
+                RpcHandler.class.getCanonicalName(),
+                ClientCmdHandler.class.getCanonicalName(),
+                EventHandler.class.getCanonicalName()
+        );
     }
 
     @Override
@@ -58,6 +69,8 @@ public class ActorProcessor extends ProcessorBase {
         println("开始执行Actor Processor");
 
         Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(Actor.class);
+        validateHandlerAnnotations(roundEnv);
+        TypeElement eventListenerType = elementUtils.getTypeElement(EVENT_LISTENER_CLASS_NAME);
         if (elements == null || elements.isEmpty()) {
             return;
         }
@@ -69,6 +82,7 @@ public class ActorProcessor extends ProcessorBase {
                 throw new IllegalStateException("@Actor 只能标记在类上: " + element);
             }
             validateActorType(typeElement);
+            validateActorNaming(typeElement, eventListenerType);
             if (serviceOwnerResolver.isServiceType(typeElement)) {
                 serviceOwners.put(typeElement.getQualifiedName().toString(), typeElement);
                 continue;
@@ -86,6 +100,106 @@ public class ActorProcessor extends ProcessorBase {
             actorTargets.sort(Comparator.comparing(target -> target.fullClassName));
             generateActorManager(serviceOwner, actorTargets);
         }
+    }
+
+    private void validateHandlerAnnotations(RoundEnvironment roundEnv) {
+        validateClassAnnotations(roundEnv.getElementsAnnotatedWith(RpcHandler.class), "@RpcHandler");
+        validateClassAnnotations(roundEnv.getElementsAnnotatedWith(ClientCmdHandler.class), "@ClientCmdHandler");
+
+        TypeElement eventListenerType = elementUtils.getTypeElement(EVENT_LISTENER_CLASS_NAME);
+        for (Element element : roundEnv.getElementsAnnotatedWith(EventHandler.class)) {
+            if (!(element instanceof TypeElement typeElement)) {
+                throw new IllegalStateException("@EventHandler 只能标记在类上: " + element);
+            }
+            if (typeElement.getAnnotation(Actor.class) == null) {
+                throw new IllegalStateException(typeElement.getQualifiedName()
+                        + " 标注了 @EventHandler，但未标注 @Actor");
+            }
+            if (eventListenerType == null || !implementsEventListener(typeElement, eventListenerType)) {
+                throw new IllegalStateException(typeElement.getQualifiedName()
+                        + " 标注了 @EventHandler，但未实现 EventListener 接口");
+            }
+        }
+
+        if (eventListenerType == null) {
+            return;
+        }
+        for (Element element : roundEnv.getElementsAnnotatedWith(Actor.class)) {
+            if (!(element instanceof TypeElement typeElement)
+                    || !implementsEventListener(typeElement, eventListenerType)) {
+                continue;
+            }
+            if (typeElement.getAnnotation(EventHandler.class) == null) {
+                throw new IllegalStateException(typeElement.getQualifiedName()
+                        + " 实现了 EventListener，但未标注 @EventHandler");
+            }
+        }
+    }
+
+    private void validateClassAnnotations(Set<? extends Element> elements, String annotationName) {
+        for (Element element : elements) {
+            if (!(element instanceof TypeElement typeElement)
+                    || typeElement.getKind() != ElementKind.CLASS) {
+                throw new IllegalStateException(annotationName + " 只能标记在具体 class 上: " + element);
+            }
+            if (typeElement.getAnnotation(Actor.class) == null) {
+                throw new IllegalStateException(typeElement.getQualifiedName()
+                        + " 标注了 " + annotationName + "，但未标注 @Actor");
+            }
+        }
+    }
+
+    private void validateActorNaming(TypeElement typeElement, TypeElement eventListenerType) {
+        boolean rpcHandler = typeElement.getAnnotation(RpcHandler.class) != null;
+        boolean clientCmdHandler = typeElement.getAnnotation(ClientCmdHandler.class) != null;
+        boolean eventHandler = typeElement.getAnnotation(EventHandler.class) != null;
+        int handlerCount = (rpcHandler ? 1 : 0) + (clientCmdHandler ? 1 : 0) + (eventHandler ? 1 : 0);
+        boolean hasRpcMethod = hasMethodAnnotation(typeElement, Rpc.class);
+        boolean hasClientCmdMethod = hasMethodAnnotation(typeElement, ClientCmd.class);
+        boolean hasEventListener = eventListenerType != null && implementsEventListener(typeElement, eventListenerType);
+        if (rpcHandler != hasRpcMethod || clientCmdHandler != hasClientCmdMethod || eventHandler != hasEventListener) {
+            throw new IllegalStateException(typeElement.getQualifiedName()
+                    + " 的 Handler 标识与实际入口不匹配: rpc=" + hasRpcMethod
+                    + ", clientCmd=" + hasClientCmdMethod
+                    + ", event=" + hasEventListener);
+        }
+        String suffix;
+        if (handlerCount == 0) {
+            suffix = "Logic";
+        } else if (handlerCount > 1) {
+            suffix = "Handler";
+        } else if (rpcHandler) {
+            suffix = "Rpc";
+        } else if (clientCmdHandler) {
+            suffix = "ClientCmd";
+        } else {
+            suffix = "Listener";
+        }
+        String className = typeElement.getSimpleName().toString();
+        if (!className.endsWith(suffix)) {
+            throw new IllegalStateException(typeElement.getQualifiedName()
+                    + " 的命名不符合 Handler 标识规则，应使用 " + suffix + " 后缀");
+        }
+    }
+
+    private boolean implementsEventListener(TypeElement typeElement, TypeElement eventListenerType) {
+        for (TypeMirror interfaceType : typeElement.getInterfaces()) {
+            if (typeUtils.isSubtype(interfaceType, eventListenerType.asType())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasMethodAnnotation(TypeElement typeElement,
+                                        Class<? extends java.lang.annotation.Annotation> annotationType) {
+        for (Element enclosedElement : typeElement.getEnclosedElements()) {
+            if (enclosedElement instanceof ExecutableElement executableElement
+                    && executableElement.getAnnotation(annotationType) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void validateActorType(TypeElement typeElement) {

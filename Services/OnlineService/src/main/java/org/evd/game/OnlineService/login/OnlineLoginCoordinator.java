@@ -6,7 +6,7 @@ import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
 import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
 import org.evd.game.common.serializeBean.OnlineService.login.OnlineTokenState;
-import org.evd.game.common.proxy.ConnService.ConnServiceProxy;
+import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
 import org.evd.game.runtime.call.CallPoint;
@@ -141,7 +141,7 @@ public final class OnlineLoginCoordinator {
                 .setToken(admission.getTokenState().getToken())
                 .setTokenExpireAt(admission.getTokenState().getExpireAt())
                 .build();
-        RpcResult<Void> result = ConnServiceProxy.sendRedirectClient(
+        RpcResult<Void> result = ConnServiceRpcProxy.sendRedirectClient(
                 gate, sessionId,
                 ClientFrameChunk.wrap(MsgId.S2C_LOGIN_VALUE, response));
         if (!result.isSuccess()) {

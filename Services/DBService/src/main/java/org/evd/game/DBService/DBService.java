@@ -1,6 +1,5 @@
 package org.evd.game.DBService;
 
-import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
@@ -50,7 +49,6 @@ public class DBService extends Service {
      * 这里mysql必须传sql,因为mysql配置表形式需要知道配置表名字，
      */
 
-    @Rpc
     public DBRsp dbExec(DBReq dbReq) {
         if (isStopping()) {
             throw new ServiceStoppingException("dbExec service is stopping");

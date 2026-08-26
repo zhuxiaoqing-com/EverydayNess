@@ -1,6 +1,5 @@
 package org.evd.game.LocationService;
 
-import org.evd.game.annotation.Rpc;
 import org.evd.game.annotation.RpcService;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
@@ -53,17 +52,14 @@ public class LocationService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
     }
 
-    @Rpc
     public void add(ActorId actorId, ActorAddress actorAddress) {
         addNow(actorId, actorAddress);
     }
 
-    @Rpc
     public void remove(ActorId actorId, ActorAddress expectedActorAddress) {
         removeNow(actorId, expectedActorAddress);
     }
 
-    @Rpc
     public void lock(ActorId actorId, ActorAddress oldActorAddress, int timeMillis) {
         if (actorId == null || oldActorAddress == null) {
             return;
@@ -73,7 +69,6 @@ public class LocationService extends Service {
         }
     }
 
-    @Rpc
     public void unlock(ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress) {
         if (actorId == null) {
             return;
@@ -107,7 +102,6 @@ public class LocationService extends Service {
         resumeContinuation(lockInfo.lockContinuation, null);
     }
 
-    @Rpc
     public ActorAddress get(ActorId actorId) {
         try (ContinuationLockScope ignored = awaitLocationLockScope(actorId)) {
             return getNow(actorId);

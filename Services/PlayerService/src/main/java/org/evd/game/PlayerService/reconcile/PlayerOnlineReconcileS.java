@@ -4,7 +4,7 @@ import org.evd.game.PlayerService.PlayerService;
 import org.evd.game.PlayerService.offline.PlayerOfflineManager;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
-import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileActorProxy;
+import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileRpcProxy;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -41,7 +41,7 @@ public final class PlayerOnlineReconcileS {
                     binding.getGateSessionId()));
         }
         RpcResult<PlayerStateCheck[]> result =
-                OnlineStateReconcileActorProxy.callReconcilePlayerSessions(
+                OnlineStateReconcileRpcProxy.callReconcilePlayerSessions(
                         null, owner.getCallPoint(), entries);
         if (!result.isSuccess()) {
             LogCore.core.warn("PlayerService 对账请求失败: service={}, target=OnlineService, count={}, errorCode={}, message={}",
