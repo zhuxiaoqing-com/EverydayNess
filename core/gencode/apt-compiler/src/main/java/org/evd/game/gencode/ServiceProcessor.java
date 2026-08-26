@@ -1,7 +1,7 @@
 package org.evd.game.gencode;
 
 import com.google.auto.service.AutoService;
-import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.actor.Rpc;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;

@@ -1,4 +1,4 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.serialize;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -16,3 +16,4 @@ public @interface SerializeClass {
     /** 是否使用自定义序列化 */
     boolean customized() default false;
 }
+

@@ -1,4 +1,4 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.serialize;
 
 public enum DBserialize {
     JSON,
@@ -6,3 +6,4 @@ public enum DBserialize {
     MYSQL,
 
 }
+

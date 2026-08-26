@@ -1,6 +1,6 @@
 package org.evd.game.runtime.call;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 
 @SerializeClass
 public class CallResult extends CallBase {

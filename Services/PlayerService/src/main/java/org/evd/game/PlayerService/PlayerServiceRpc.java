@@ -1,8 +1,8 @@
 package org.evd.game.PlayerService;
 
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.Service;
 
 /** PlayerService 负载查询 RPC 入口。 */

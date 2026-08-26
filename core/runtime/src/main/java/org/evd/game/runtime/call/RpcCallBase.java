@@ -1,6 +1,6 @@
 package org.evd.game.runtime.call;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 
 /**
  * 可执行 RPC 请求的公共负载。

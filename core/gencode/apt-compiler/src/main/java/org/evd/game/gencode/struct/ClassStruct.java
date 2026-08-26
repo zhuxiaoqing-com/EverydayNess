@@ -1,7 +1,7 @@
 package org.evd.game.gencode.struct;
 
-import org.evd.game.annotation.SerializeClass;
-import org.evd.game.annotation.SerializeIgnore;
+import org.evd.game.annotation.serialize.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeIgnore;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;

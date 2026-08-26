@@ -1,6 +1,6 @@
 package org.evd.game.runtime.util.id;
 
-import org.evd.game.annotation.NodeType;
+import org.evd.game.annotation.node.NodeType;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.ymlconfig.NodeYml;
 import org.evd.game.runtime.ymlconfig.NodeInfo;

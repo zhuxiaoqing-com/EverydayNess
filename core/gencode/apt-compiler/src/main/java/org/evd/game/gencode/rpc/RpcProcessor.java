@@ -1,7 +1,7 @@
 package org.evd.game.gencode.rpc;
 
 import com.google.auto.service.AutoService;
-import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.struct.MethodStruct;
 

@@ -3,7 +3,7 @@ package org.evd.game.ConnService;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proto.C2S_ConnPing;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;

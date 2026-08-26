@@ -1,8 +1,8 @@
 package org.evd.game.LobbyService;
 
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;

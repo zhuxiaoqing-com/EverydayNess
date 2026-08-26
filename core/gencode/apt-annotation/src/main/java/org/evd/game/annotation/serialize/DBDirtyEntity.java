@@ -1,4 +1,4 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.serialize;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -11,8 +11,12 @@ import java.lang.annotation.Target;
  * @date 2020/02/09 16:59
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD})
-public @interface DBDirtyTag {
-    int value();
-    boolean primaryKey() default false; // 只能是基础类型+String;如果DBDirtyEntity(table=true)的类没有标识primaryKey就报错;
+@Target({ElementType.TYPE})
+public @interface DBDirtyEntity {
+    /**
+     * 是否是数据库表
+     */
+    boolean table() default false;
+    DBserialize value();
 }
+

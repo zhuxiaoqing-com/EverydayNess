@@ -4,7 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.annotation.ActorType;
+import org.evd.game.annotation.actor.ActorType;
 
 /**
 * 根据HaHaHaRpcService生成的代理类

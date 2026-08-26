@@ -1,9 +1,9 @@
 package org.evd.game.OnlineService.login;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.ClientCmd;
-import org.evd.game.annotation.ClientCmdHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.ClientCmd;
+import org.evd.game.annotation.actor.ClientCmdHandler;
 import org.evd.game.common.proto.C2S_Login2;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.runtime.Service;

@@ -1,4 +1,6 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.actor;
+
+import org.evd.game.annotation.service.ServiceName;
 
 public enum ActorType {
     NONE(0, null),
@@ -36,3 +38,4 @@ public enum ActorType {
         throw new IllegalArgumentException("未知的 ActorType code: " + code);
     }
 }
+

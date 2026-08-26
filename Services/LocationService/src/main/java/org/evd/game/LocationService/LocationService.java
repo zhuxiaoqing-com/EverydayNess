@@ -1,6 +1,6 @@
 package org.evd.game.LocationService;
 
-import org.evd.game.annotation.RpcService;
+import org.evd.game.annotation.actor.RpcService;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.continuation.ContinuationLockScope;

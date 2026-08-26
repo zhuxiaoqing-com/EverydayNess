@@ -1,6 +1,6 @@
 package org.evd.game.common;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 
 @SerializeClass

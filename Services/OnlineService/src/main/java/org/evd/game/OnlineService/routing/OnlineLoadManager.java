@@ -1,7 +1,7 @@
 package org.evd.game.OnlineService.routing;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerServiceRpcProxy;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;

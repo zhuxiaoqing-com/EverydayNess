@@ -1,7 +1,7 @@
 package org.evd.game.gencode.struct;
 
 import org.evd.game.gencode.AptUtils;
-import org.evd.game.annotation.ActorType;
+import org.evd.game.annotation.actor.ActorType;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;

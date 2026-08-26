@@ -1,6 +1,6 @@
 package org.evd.game.DBService;
 
-import org.evd.game.annotation.RpcService;
+import org.evd.game.annotation.actor.RpcService;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Node;

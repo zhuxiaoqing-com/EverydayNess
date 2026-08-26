@@ -1,8 +1,8 @@
 package org.evd.game.DBService;
 
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Service;

@@ -1,6 +1,6 @@
 package org.evd.game.gencode.rpc;
 
-import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.gencode.GenConst;
 import org.evd.game.gencode.struct.MethodStruct;
 

@@ -1,6 +1,6 @@
 package org.evd.game.gencode.db;
 
-import org.evd.game.annotation.DBserialize;
+import org.evd.game.annotation.serialize.DBserialize;
 
 final class DbDirtyBeanRenderer {
     private final DbDirtyFieldTagRenderer jsonTagRenderer = new DbDirtyJsonFieldTagRenderer();

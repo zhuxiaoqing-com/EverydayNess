@@ -1,9 +1,9 @@
 package org.evd.game.OnlineService.login;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.client.ClientSessionRef;

@@ -1,8 +1,8 @@
 package org.evd.game.LobbyService.dbDef;
 
-import org.evd.game.annotation.DBDirtyEntity;
-import org.evd.game.annotation.DBDirtyTag;
-import org.evd.game.annotation.DBserialize;
+import org.evd.game.annotation.serialize.DBDirtyEntity;
+import org.evd.game.annotation.serialize.DBDirtyTag;
+import org.evd.game.annotation.serialize.DBserialize;
 
 /** Lobby 角色持久化数据；登录会话和角色运行时状态由其他服务管理。 */
 @DBDirtyEntity(value = DBserialize.PB, table = true)

@@ -3,7 +3,7 @@ package org.evd.game.common.proxy.OnlineService;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import java.util.List;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
 import org.evd.game.runtime.call.CallPoint;

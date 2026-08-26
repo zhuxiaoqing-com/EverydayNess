@@ -2,7 +2,7 @@ package org.evd.game.runtime.serializeBean;
 
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 import org.evd.game.base.InputStreamBase;
 import org.evd.game.base.OutputStreamBase;

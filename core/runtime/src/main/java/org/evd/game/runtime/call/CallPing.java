@@ -1,6 +1,6 @@
 package org.evd.game.runtime.call;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 
 import java.util.ArrayList;
 import java.util.List;

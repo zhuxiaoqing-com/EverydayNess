@@ -1,7 +1,7 @@
 package org.evd.game.LobbyService.routing;
 
 import org.evd.game.LobbyService.LobbyService;
-import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proxy.OnlineService.OnlineRoutingRpcProxy;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;

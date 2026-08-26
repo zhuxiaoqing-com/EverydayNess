@@ -2,8 +2,8 @@ package org.evd.game.PlayerService.system;
 
 import org.evd.game.PlayerService.event.RoleMidnightEvent;
 import org.evd.game.PlayerService.event.RoleMinuteEvent;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.EventHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.EventHandler;
 
 /**
  * @author zhuxiaoqing

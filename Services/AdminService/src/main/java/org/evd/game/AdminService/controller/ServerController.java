@@ -3,7 +3,7 @@ package org.evd.game.AdminService.controller;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.AdminService.AdminService;
 import org.evd.game.AdminService.http.*;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.call.CallServiceStopResult;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;

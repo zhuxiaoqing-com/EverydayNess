@@ -1,10 +1,10 @@
 package org.evd.game.runtime.client;
 
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.annotation.ActorType;
+import org.evd.game.annotation.actor.ActorType;
 import org.evd.game.runtime.call.CallPoint;
 
 import java.util.LinkedHashMap;

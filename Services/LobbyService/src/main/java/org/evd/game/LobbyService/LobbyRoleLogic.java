@@ -3,7 +3,7 @@ package org.evd.game.LobbyService;
 import org.evd.game.LobbyService.account.LobbyUserAccountRepository;
 import org.evd.game.LobbyService.dbDef.db.bean.LBRole;
 import org.evd.game.LobbyService.dbDef.db.bean.LBUserAccount;
-import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.RoleData;

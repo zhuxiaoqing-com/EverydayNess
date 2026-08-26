@@ -1,7 +1,7 @@
 package org.evd.BootStrap;
 
 import lombok.extern.slf4j.Slf4j;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.ClassFinder;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.ymlconfig.DbTopology;

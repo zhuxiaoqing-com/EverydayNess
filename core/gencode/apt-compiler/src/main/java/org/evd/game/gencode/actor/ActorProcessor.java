@@ -1,12 +1,12 @@
 package org.evd.game.gencode.actor;
 
 import com.google.auto.service.AutoService;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.ClientCmdHandler;
-import org.evd.game.annotation.ClientCmd;
-import org.evd.game.annotation.EventHandler;
-import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.ClientCmdHandler;
+import org.evd.game.annotation.actor.ClientCmd;
+import org.evd.game.annotation.actor.EventHandler;
+import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.ServiceOwnerResolver;
 

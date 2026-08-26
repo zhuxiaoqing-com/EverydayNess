@@ -1,6 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 
 /**
  * DB 请求操作类型。

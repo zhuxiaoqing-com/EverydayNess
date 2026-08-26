@@ -1,12 +1,12 @@
 package org.evd.game.gencode.client;
 
 import com.google.auto.service.AutoService;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.ClientCmd;
-import org.evd.game.annotation.ClientCmdHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.ClientCmd;
+import org.evd.game.annotation.actor.ClientCmdHandler;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.ServiceOwnerResolver;
-import org.evd.game.annotation.ActorType;
+import org.evd.game.annotation.actor.ActorType;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -36,7 +36,7 @@ public class ClientCmdProcessor extends ProcessorBase {
     private static final String CLIENT_CMD_REGISTRY_BASE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRegistryBase";
     private static final String CLIENT_CMD_ROUTE_TABLE_CLASS_NAME = "org.evd.game.runtime.client.ClientCmdRouteTable";
     private static final String PROTO_MESSAGE_CLASS_NAME = "com.google.protobuf.MessageLite";
-    private static final String ACTOR_TYPE_CLASS_NAME = "org.evd.game.annotation.ActorType";
+    private static final String ACTOR_TYPE_CLASS_NAME = "org.evd.game.annotation.actor.ActorType";
 
     private final Set<String> generatedClasses = new HashSet<>();
     private ServiceOwnerResolver serviceOwnerResolver;

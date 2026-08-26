@@ -1,9 +1,9 @@
 package org.evd.game.runtime;
 
 import jdk.internal.vm.ContinuationScope;
-import org.evd.game.annotation.ServiceName;
+import org.evd.game.annotation.service.ServiceName;
 import org.apache.logging.log4j.ThreadContext;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.Db.table.Mdb;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.MailBoxType;

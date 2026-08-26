@@ -1,8 +1,8 @@
 package org.evd.game.gencode.db;
 
-import org.evd.game.annotation.DBDirtyEntity;
-import org.evd.game.annotation.DBDirtyTag;
-import org.evd.game.annotation.DBserialize;
+import org.evd.game.annotation.serialize.DBDirtyEntity;
+import org.evd.game.annotation.serialize.DBDirtyTag;
+import org.evd.game.annotation.serialize.DBserialize;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;

@@ -1,8 +1,8 @@
 package org.evd.game.runtime;
 
-import org.evd.game.annotation.ActorType;
-import org.evd.game.annotation.DBserialize;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.actor.ActorType;
+import org.evd.game.annotation.serialize.DBserialize;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.annotation.Module;
 import org.evd.game.runtime.serialize.InputStream;
 

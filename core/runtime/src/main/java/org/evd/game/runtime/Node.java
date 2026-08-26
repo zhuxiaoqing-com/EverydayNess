@@ -2,8 +2,8 @@ package org.evd.game.runtime;
 
 import io.netty.buffer.ByteBuf;
 import lombok.extern.slf4j.Slf4j;
-import org.evd.game.annotation.NodeType;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.node.NodeType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.ymlconfig.NodeInfo;
 import org.evd.game.runtime.ymlconfig.RegisteredService;

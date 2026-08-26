@@ -1,6 +1,6 @@
 package org.evd.game.runtime.serializeBean;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.runtime.Service;
 
 /**

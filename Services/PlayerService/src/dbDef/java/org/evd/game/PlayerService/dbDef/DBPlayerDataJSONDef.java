@@ -1,8 +1,8 @@
 package org.evd.game.PlayerService.dbDef;
 
-import org.evd.game.annotation.DBDirtyEntity;
-import org.evd.game.annotation.DBDirtyTag;
-import org.evd.game.annotation.DBserialize;
+import org.evd.game.annotation.serialize.DBDirtyEntity;
+import org.evd.game.annotation.serialize.DBDirtyTag;
+import org.evd.game.annotation.serialize.DBserialize;
 import org.evd.game.common.dbDef.DBItemDataJSONDef;
 
 import java.util.List;

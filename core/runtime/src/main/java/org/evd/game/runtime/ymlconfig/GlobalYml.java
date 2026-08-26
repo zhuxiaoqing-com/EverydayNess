@@ -1,7 +1,7 @@
 package org.evd.game.runtime.ymlconfig;
 
 
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.exception.SysException;
 import org.yaml.snakeyaml.Yaml;

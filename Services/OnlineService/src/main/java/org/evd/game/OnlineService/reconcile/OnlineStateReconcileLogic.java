@@ -1,7 +1,7 @@
 package org.evd.game.OnlineService.reconcile;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
 import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
 import org.evd.game.runtime.Service;

@@ -1,7 +1,7 @@
 package org.evd.game.runtime.ymlconfig;
 
 import io.netty.util.internal.StringUtil;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.netty.AddressInfo;
 
 public class ServiceInfo {

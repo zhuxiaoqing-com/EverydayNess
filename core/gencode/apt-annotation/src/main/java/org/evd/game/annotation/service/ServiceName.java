@@ -1,4 +1,4 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.service;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -58,3 +58,4 @@ public final class ServiceName {
     }
 
 }
+

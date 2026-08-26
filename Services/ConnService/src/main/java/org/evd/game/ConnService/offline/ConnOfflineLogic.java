@@ -1,7 +1,7 @@
 package org.evd.game.ConnService.offline;
 
 import org.evd.game.ConnService.ConnService;
-import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.actor.Actor;
 import org.evd.game.runtime.Service;
 
 /** ConnService 的离线业务逻辑。 */

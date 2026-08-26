@@ -1,6 +1,6 @@
 package org.evd.game.common.serializeBean.ConnService.test;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 
 import java.util.*;
 

@@ -1,6 +1,6 @@
 package org.evd.game.runtime.Db.table;
 
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;

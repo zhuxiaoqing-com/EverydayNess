@@ -1,4 +1,6 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.service;
+
+import org.evd.game.annotation.node.NodeType;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -168,3 +170,4 @@ public enum ServiceType {
         return null;
     }
 }
+

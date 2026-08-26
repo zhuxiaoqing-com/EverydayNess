@@ -1,9 +1,9 @@
 package org.evd.game.OnlineService.routing;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 import org.evd.game.runtime.Service;

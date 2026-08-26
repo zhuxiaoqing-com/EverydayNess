@@ -1,6 +1,6 @@
 package org.evd.game.runtime.actor;
 
-import org.evd.game.annotation.ServiceName;
+import org.evd.game.annotation.service.ServiceName;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.mailbox.MailBoxBean;

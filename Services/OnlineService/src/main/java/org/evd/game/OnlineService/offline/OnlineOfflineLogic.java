@@ -1,7 +1,7 @@
 package org.evd.game.OnlineService.offline;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.actor.Actor;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 

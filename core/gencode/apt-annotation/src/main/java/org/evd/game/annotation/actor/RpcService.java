@@ -1,4 +1,4 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.actor;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,6 +7,7 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.CLASS)
-public @interface Actor {
-    boolean single() default false;
+public @interface RpcService {
+    Class<?> value() default void.class;
 }
+

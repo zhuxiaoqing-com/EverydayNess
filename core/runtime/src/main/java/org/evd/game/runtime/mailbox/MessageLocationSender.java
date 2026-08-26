@@ -1,7 +1,7 @@
 package org.evd.game.runtime.mailbox;
 
-import org.evd.game.annotation.ServiceName;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceName;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.serializeBean.Chunk;

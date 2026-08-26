@@ -1,7 +1,7 @@
 package org.evd.game.gencode.serialize;
 
 import com.google.auto.service.AutoService;
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.struct.ClassStruct;
 

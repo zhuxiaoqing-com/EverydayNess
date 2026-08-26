@@ -1,10 +1,10 @@
 package org.evd.game.ConnService;
 
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.RpcHandler;
-import org.evd.game.annotation.Rpc;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.RpcHandler;
+import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.common.serializeBean.ConnService.test.ConnInfo;
-import org.evd.game.annotation.ActorType;
+import org.evd.game.annotation.actor.ActorType;
 
 /**
  * @author zhuxiaoqing

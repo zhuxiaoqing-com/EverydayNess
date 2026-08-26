@@ -1,7 +1,7 @@
 package org.evd.game.gencode.db;
 
 import com.google.auto.service.AutoService;
-import org.evd.game.annotation.DBDirtyEntity;
+import org.evd.game.annotation.serialize.DBDirtyEntity;
 import org.evd.game.gencode.ProcessorBase;
 
 import javax.annotation.processing.Processor;

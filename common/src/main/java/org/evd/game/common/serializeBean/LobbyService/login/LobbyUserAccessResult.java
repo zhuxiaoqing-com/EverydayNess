@@ -1,6 +1,6 @@
 package org.evd.game.common.serializeBean.LobbyService.login;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 
 /** Lobby 对用户登录资格的校验结果。 */

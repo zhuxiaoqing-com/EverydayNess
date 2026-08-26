@@ -3,7 +3,7 @@ package org.evd.game.OnlineService.login;
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.session.OnlinePlayer;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
-import org.evd.game.annotation.Actor;
+import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.RoleData;

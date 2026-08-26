@@ -1,6 +1,6 @@
 package org.evd.game.ConnService;
 
-import org.evd.game.annotation.ServiceName;
+import org.evd.game.annotation.service.ServiceName;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.client.ClientCmdRouteTable;
 import org.evd.game.runtime.client.ClientSessionRef;

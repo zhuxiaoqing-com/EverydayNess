@@ -1,6 +1,6 @@
 package org.evd.game.common.serializeBean.OnlineService.session;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;

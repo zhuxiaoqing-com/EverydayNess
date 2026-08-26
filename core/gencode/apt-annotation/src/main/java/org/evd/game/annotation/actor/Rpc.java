@@ -1,14 +1,14 @@
-package org.evd.game.annotation;
+package org.evd.game.annotation.actor;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- * 标记允许声明 {@link Rpc} 方法的处理类。
- */
-@Target(ElementType.TYPE)
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.CLASS)
-public @interface RpcHandler {
+public @interface Rpc {
+    boolean http() default false;
+    ActorType actorType() default ActorType.NONE;
 }
+

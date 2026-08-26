@@ -1,6 +1,6 @@
 package org.evd.game.runtime.Db.serialize;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 
 /**
  * 通用字段值类型。

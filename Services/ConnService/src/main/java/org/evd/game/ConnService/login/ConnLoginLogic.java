@@ -1,8 +1,8 @@
 package org.evd.game.ConnService.login;
 
 import org.evd.game.ConnService.ConnService;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proto.C2S_Login;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;

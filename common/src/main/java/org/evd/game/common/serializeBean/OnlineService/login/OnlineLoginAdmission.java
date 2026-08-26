@@ -1,6 +1,6 @@
 package org.evd.game.common.serializeBean.OnlineService.login;
 
-import org.evd.game.annotation.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 
 /** Online 返回给 GW 的登录准入结果；queued=true 时表示请求仍在 Online 排队。 */

@@ -1,7 +1,7 @@
 package org.evd.game.runtime.ymlconfig;
 
 import io.netty.util.internal.StringUtil;
-import org.evd.game.annotation.NodeType;
+import org.evd.game.annotation.node.NodeType;
 import org.evd.game.runtime.netty.AddressInfo;
 
 import java.util.List;

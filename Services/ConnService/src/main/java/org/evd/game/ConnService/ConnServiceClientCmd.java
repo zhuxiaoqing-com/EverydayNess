@@ -1,8 +1,8 @@
 package org.evd.game.ConnService;
 
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.ClientCmd;
-import org.evd.game.annotation.ClientCmdHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.ClientCmd;
+import org.evd.game.annotation.actor.ClientCmdHandler;
 import org.evd.game.common.proto.C2S_ConnPing;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;

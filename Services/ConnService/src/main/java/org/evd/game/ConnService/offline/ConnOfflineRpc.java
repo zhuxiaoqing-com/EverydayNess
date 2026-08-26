@@ -1,9 +1,9 @@
 package org.evd.game.ConnService.offline;
 
 import org.evd.game.ConnService.ConnService;
-import org.evd.game.annotation.Actor;
-import org.evd.game.annotation.Rpc;
-import org.evd.game.annotation.RpcHandler;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.Service;
 
 /** ConnService 离线 RPC 入口。 */
