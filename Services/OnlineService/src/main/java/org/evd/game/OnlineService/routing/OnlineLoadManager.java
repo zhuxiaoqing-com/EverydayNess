@@ -7,7 +7,7 @@ import org.evd.game.common.proxy.PlayerService.PlayerServiceRpcProxy;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
 import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 

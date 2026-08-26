@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.runtime.call.CallBase;
-import org.evd.game.runtime.config.GlobalConfig;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.netty.NetChannel;
 
 /**
@@ -16,7 +16,7 @@ public final class DebugPrint {
     }
 
     private static boolean isDebugEnabled() {
-        return GlobalConfig.requireNodeConfig().isDebug();
+        return GlobalYml.requireNodeConfig().isDebug();
     }
 
     public static void printReceiveRpc(CallBase call) {

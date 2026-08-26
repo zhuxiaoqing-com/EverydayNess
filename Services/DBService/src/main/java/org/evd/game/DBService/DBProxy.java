@@ -9,9 +9,9 @@ import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.DbConfig;
-import org.evd.game.runtime.config.DbMysqlConfig;
-import org.evd.game.runtime.config.GlobalConfig;
+import org.evd.game.runtime.ymlconfig.DbYml;
+import org.evd.game.runtime.ymlconfig.DbMysqlYml;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
 import reactor.core.publisher.Mono;
@@ -29,11 +29,11 @@ public final class DBProxy implements NodeDbExecutor {
     private volatile boolean closed;
 
     public DBProxy() {
-        DbConfig dbConfig = GlobalConfig.requireDbConfig();
+        DbYml dbConfig = GlobalYml.requireDbConfig();
         if (!"mysql".equalsIgnoreCase(dbConfig.getDb().getEngine())) {
             throw new IllegalArgumentException("unsupported db engine: " + dbConfig.getDb().getEngine());
         }
-        DbMysqlConfig mysqlConfig = dbConfig.getDb().getMysql();
+        DbMysqlYml mysqlConfig = dbConfig.getDb().getMysql();
         storageEngine = new StorageMysql(this, new LoggerMysql(mysqlConfig), dbConfig.getDb().getStorage());
         if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
             dbCache = new DBCache(storageEngine);

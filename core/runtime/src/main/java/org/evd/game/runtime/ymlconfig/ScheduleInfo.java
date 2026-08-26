@@ -1,4 +1,4 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,6 +1,6 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
-public class DbMysqlConfig {
+public class DbMysqlYml {
     private String jdbcUrl;
     private String r2dbcUrl;
     private String driverClass = "com.mysql.cj.jdbc.Driver";

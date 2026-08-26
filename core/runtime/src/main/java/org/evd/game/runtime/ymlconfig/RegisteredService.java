@@ -1,4 +1,4 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.annotation.SerializeClass;

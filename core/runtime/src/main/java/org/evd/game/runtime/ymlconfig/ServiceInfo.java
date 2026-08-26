@@ -1,4 +1,4 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
 import io.netty.util.internal.StringUtil;
 import org.evd.game.annotation.ServiceType;

@@ -1,6 +1,6 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
-public class DbStorageConfig {
+public class DbStorageYml {
     private int batchThreshold = 30;
     private int batchPerCount = 500;
     private int costMsWarn = 100;

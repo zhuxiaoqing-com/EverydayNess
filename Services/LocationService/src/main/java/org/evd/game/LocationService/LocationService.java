@@ -9,7 +9,7 @@ import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
 

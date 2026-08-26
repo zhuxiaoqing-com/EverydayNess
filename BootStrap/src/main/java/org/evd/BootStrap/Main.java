@@ -3,13 +3,13 @@ package org.evd.BootStrap;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.common.ClassFinder;
-import org.evd.game.runtime.config.GlobalConfig;
-import org.evd.game.runtime.config.DbTopology;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
+import org.evd.game.runtime.ymlconfig.DbTopology;
 import org.evd.game.runtime.util.TimeUtils;
-import org.evd.game.runtime.config.NodeConfig;
-import org.evd.game.runtime.config.NodeInfo;
-import org.evd.game.runtime.config.ScheduleInfo;
-import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.NodeYml;
+import org.evd.game.runtime.ymlconfig.NodeInfo;
+import org.evd.game.runtime.ymlconfig.ScheduleInfo;
+import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.Db.NodeDbExecutor;
@@ -51,10 +51,10 @@ public class Main {
         }
 
         log.info("start  node {} ", nodeId);
-        GlobalConfig.init(bootStrapName, nodeId);
-        NodeConfig config = GlobalConfig.requireNodeConfig();
+        GlobalYml.init(bootStrapName, nodeId);
+        NodeYml config = GlobalYml.requireNodeConfig();
 
-        NodeInfo nodeInfo = GlobalConfig.requireLocalNodeInfo();
+        NodeInfo nodeInfo = GlobalYml.requireLocalNodeInfo();
         Node node = new Node(nodeInfo);
         if (config.getDbTopology() == DbTopology.NODE_LOCAL) {
             node.setNodeDbExecutor(createNodeDbExecutor());
@@ -111,7 +111,7 @@ public class Main {
                 int num = serviceInfo.getNum();
                 num = Math.max(1, num);
                 for (int i = 1; i<= num; ++i){
-                    String serviceName = GlobalConfig.getServiceName(serviceInfo, i);
+                    String serviceName = GlobalYml.getServiceName(serviceInfo, i);
                     Service service = (Service)con.newInstance(node, serviceName, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
                     node.addService(service);
                 }

@@ -10,7 +10,7 @@ import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.LoginConfig;
+import org.evd.game.runtime.ymlconfig.LoginYml;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -36,7 +36,7 @@ public final class OnlineLoginCoordinator {
     /** 根据登录配置初始化登录准入协调器。 */
     public OnlineLoginCoordinator(OnlineService owner, OnlineServiceSelector selector,
                                   OnlineSessionCoordinator sessionCoordinator,
-                                  LoginConfig loginConfig) {
+                                  LoginYml loginConfig) {
         this.owner = owner;
         this.selector = selector;
         this.sessionCoordinator = sessionCoordinator;

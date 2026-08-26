@@ -7,8 +7,8 @@ import org.evd.game.OnlineService.reconcile.OnlineStateReconcileManager;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.config.GlobalConfig;
-import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
+import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 
 public class OnlineService extends Service {
@@ -27,7 +27,7 @@ public class OnlineService extends Service {
         this.stateReconcileManager = new OnlineStateReconcileManager(
                 sessionCoordinator, offlineCoordinator);
         this.loginCoordinator = new OnlineLoginCoordinator(
-                this, serviceSelector, sessionCoordinator, GlobalConfig.requireNodeConfig().getLogin());
+                this, serviceSelector, sessionCoordinator, GlobalYml.requireNodeConfig().getLogin());
     }
 
     /** 注册 token 清理、服务负载刷新和登录排队定时任务。 */

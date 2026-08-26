@@ -7,7 +7,7 @@ import org.evd.game.runtime.Db.table.util.TimeCostPrint;
 import org.evd.game.runtime.util.RuntimeUtils;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

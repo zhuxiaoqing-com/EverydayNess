@@ -1,8 +1,8 @@
 package org.evd.game.runtime.util.id.idSegment;
 
-import org.evd.game.runtime.config.DbConfig;
-import org.evd.game.runtime.config.DbMysqlConfig;
-import org.evd.game.runtime.config.GlobalConfig;
+import org.evd.game.runtime.ymlconfig.DbYml;
+import org.evd.game.runtime.ymlconfig.DbMysqlYml;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.util.id.IDEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,12 +101,12 @@ final class MysqlIdSegmentAllocator extends IdSegmentAllocator {
             invalidateConnection(actualConnection, "连接已关闭或健康检查失败");
         }
 
-        DbConfig dbConfig = GlobalConfig.requireDbConfig();
+        DbYml dbConfig = GlobalYml.requireDbConfig();
         if (!"mysql".equalsIgnoreCase(dbConfig.getDb().getEngine())) {
             throw new IllegalStateException("mysql id layout requires mysql db engine: "
                     + dbConfig.getDb().getEngine());
         }
-        DbMysqlConfig mysqlConfig = dbConfig.getDb().getMysql();
+        DbMysqlYml mysqlConfig = dbConfig.getDb().getMysql();
         String url = mysqlConfig.getResolvedJdbcUrl();
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("mysql id layout requires db.mysql.jdbcUrl or r2dbcUrl");

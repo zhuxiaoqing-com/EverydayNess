@@ -5,7 +5,7 @@ import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
 

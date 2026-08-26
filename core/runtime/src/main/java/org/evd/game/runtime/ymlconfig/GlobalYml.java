@@ -1,4 +1,4 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
 
 import org.evd.game.annotation.ServiceType;
@@ -13,12 +13,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public final class GlobalConfig {
-    private static NodeConfig nodeConfig;
-    private static DbConfig dbConfig;
+public final class GlobalYml {
+    private static NodeYml nodeConfig;
+    private static DbYml dbConfig;
     private static NodeInfo localNodeInfo;
 
-    private GlobalConfig() {
+    private GlobalYml() {
     }
 
     public static synchronized void init(String bootStrapName, int localNodeId) {
@@ -27,7 +27,7 @@ public final class GlobalConfig {
         }
 
         String configPath = ConstPath.CONFIGURATION_PATH + bootStrapName;
-        nodeConfig = loadYaml(configPath, NodeConfig.class);
+        nodeConfig = loadYaml(configPath, NodeYml.class);
         if (nodeConfig == null) {
             throw new SysException("bootstrap config is empty: {}", configPath);
         }
@@ -35,7 +35,7 @@ public final class GlobalConfig {
             throw new SysException("bootstrap dbConfig is empty: {}", configPath);
         }
         String dbPath = ConstPath.CONFIGURATION_PATH + nodeConfig.getDbConfigPath();
-        dbConfig = loadYaml(dbPath, DbConfig.class);
+        dbConfig = loadYaml(dbPath, DbYml.class);
         if (dbConfig == null) {
             throw new SysException("db config is empty: {}", dbPath);
         }
@@ -43,16 +43,16 @@ public final class GlobalConfig {
         localNodeInfo = requireNodeInfo(localNodeId);
     }
 
-    public static NodeConfig requireNodeConfig() {
+    public static NodeYml requireNodeConfig() {
         if (nodeConfig == null) {
-            throw new SysException("GlobalConfig nodeConfig not initialized");
+            throw new SysException("GlobalYml nodeConfig not initialized");
         }
         return nodeConfig;
     }
 
-    public static DbConfig requireDbConfig() {
+    public static DbYml requireDbConfig() {
         if (dbConfig == null) {
-            throw new SysException("GlobalConfig dbConfig not initialized");
+            throw new SysException("GlobalYml dbConfig not initialized");
         }
         return dbConfig;
     }
@@ -68,7 +68,7 @@ public final class GlobalConfig {
 
     public static NodeInfo requireLocalNodeInfo() {
         if (localNodeInfo == null) {
-            throw new SysException("GlobalConfig localNodeInfo not initialized");
+            throw new SysException("GlobalYml localNodeInfo not initialized");
         }
         return localNodeInfo;
     }

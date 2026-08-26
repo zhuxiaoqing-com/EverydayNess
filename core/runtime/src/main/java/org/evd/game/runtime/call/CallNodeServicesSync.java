@@ -1,7 +1,7 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.SerializeClass;
-import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 import java.util.ArrayList;
 import java.util.List;

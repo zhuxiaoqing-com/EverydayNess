@@ -6,7 +6,7 @@ import io.r2dbc.spi.Connection;
 import io.r2dbc.spi.ConnectionFactories;
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
-import org.evd.game.runtime.config.DbMysqlConfig;
+import org.evd.game.runtime.ymlconfig.DbMysqlYml;
 import org.evd.game.runtime.support.exception.SysException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +37,7 @@ public class LoggerMysql implements LoggerEngine {
     private final ConnectionFactory bootstrapConnectionFactory;
     private final ConnectionPool connectionPool;
 
-    public LoggerMysql(DbMysqlConfig config) {
+    public LoggerMysql(DbMysqlYml config) {
         try {
             this.autoCreate = config.isAutoCreate();
             this.database = config.getDatabase();

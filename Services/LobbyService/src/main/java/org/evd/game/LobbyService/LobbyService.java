@@ -9,7 +9,7 @@ import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.serializeBean.TickTimer;
-import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 
 public class LobbyService extends Service {

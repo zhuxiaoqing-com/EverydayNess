@@ -1,4 +1,4 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
 /** 数据库部署形态。 */
 public enum DbTopology {

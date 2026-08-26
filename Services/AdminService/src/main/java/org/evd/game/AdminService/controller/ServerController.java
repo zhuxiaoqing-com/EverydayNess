@@ -5,7 +5,7 @@ import org.evd.game.AdminService.AdminService;
 import org.evd.game.AdminService.http.*;
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.call.CallServiceStopResult;
-import org.evd.game.runtime.config.RegisteredService;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
 import java.util.Collection;

@@ -3,7 +3,7 @@ package org.evd.game.DBService.storage.mysql;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
-import org.evd.game.runtime.config.DbMongoConfig;
+import org.evd.game.runtime.ymlconfig.DbMongoYml;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.evd.game.runtime.support.exception.SysException;
@@ -22,7 +22,7 @@ public class LoggerMongo implements LoggerEngine {
 
 	private String dataBase;
 
-	public LoggerMongo(DbMongoConfig config) {
+	public LoggerMongo(DbMongoYml config) {
         if (!config.isEnabled()) {
             throw new SysException("mongo is disabled");
         }

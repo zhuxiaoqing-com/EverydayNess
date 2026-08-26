@@ -1,6 +1,6 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
-public class DbMongoConfig {
+public class DbMongoYml {
     private boolean enabled;
     private String uri;
     private String database;

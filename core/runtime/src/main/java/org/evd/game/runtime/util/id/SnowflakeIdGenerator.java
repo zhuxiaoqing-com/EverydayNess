@@ -1,9 +1,9 @@
 package org.evd.game.runtime.util.id;
 
 import org.evd.game.annotation.NodeType;
-import org.evd.game.runtime.config.GlobalConfig;
-import org.evd.game.runtime.config.NodeConfig;
-import org.evd.game.runtime.config.NodeInfo;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
+import org.evd.game.runtime.ymlconfig.NodeYml;
+import org.evd.game.runtime.ymlconfig.NodeInfo;
 import org.evd.game.runtime.util.id.multiNode.MultiNodeIdLayout;
 import org.evd.game.runtime.util.id.idSegment.IdSegmentLayout;
 import org.evd.game.runtime.util.id.rollingServer.RollingServerIdLayout;
@@ -61,8 +61,8 @@ public final class SnowflakeIdGenerator {
             throw new IllegalArgumentException("unsupported snowflake idType: " + idType);
         }
         synchronized (SnowflakeIdLayout.class) {
-            NodeConfig config = GlobalConfig.requireNodeConfig();
-            NodeInfo localNode = GlobalConfig.requireLocalNodeInfo();
+            NodeYml config = GlobalYml.requireNodeConfig();
+            NodeInfo localNode = GlobalYml.requireLocalNodeInfo();
             if (localNode.getNodeType() != NodeType.GAME) {
                 throw new IllegalArgumentException("snowflake generator can only initialize on GAME node: nodeId="
                         + localNode.getNodeId() + ", nodeType=" + localNode.getNodeType());

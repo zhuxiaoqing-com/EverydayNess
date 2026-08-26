@@ -1,4 +1,4 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
 import org.evd.game.annotation.ServiceType;
 import org.evd.game.runtime.support.exception.SysException;
@@ -10,14 +10,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class NodeConfig {
+public class NodeYml {
     private String dbConfigPath;
     /** 全局数据库部署形态，所有 Node 必须使用同一拓扑。 */
     private DbTopology dbTopology = DbTopology.REMOTE_SERVICE;
     private boolean debug;
     private int platformId;
     private int serverId;
-    private LoginConfig login = new LoginConfig();
+    private LoginYml login = new LoginYml();
     private List<NodeInfo> nodes = new ArrayList<>();
 
     public String getDbConfigPath() {
@@ -68,18 +68,18 @@ public class NodeConfig {
         this.serverId = serverId;
     }
 
-    public LoginConfig getLogin() {
+    public LoginYml getLogin() {
         return login;
     }
 
-    public void setLogin(LoginConfig login) {
+    public void setLogin(LoginYml login) {
         this.login = login;
     }
 
     /**
      * 校验 Bootstrap 中完整的 Node 和 Service 配置。
      */
-    public void validate(DbConfig dbConfig) {
+    public void validate(DbYml dbConfig) {
         if (login == null) {
             throw new SysException("login config is required");
         }
@@ -215,7 +215,7 @@ public class NodeConfig {
         }
     }
 
-    private void validateDbTopology(DbConfig dbConfig) {
+    private void validateDbTopology(DbYml dbConfig) {
         if (dbTopology == null) {
             throw new SysException("dbTopology is required");
         }

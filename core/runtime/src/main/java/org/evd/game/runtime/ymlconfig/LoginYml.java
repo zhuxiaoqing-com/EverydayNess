@@ -1,9 +1,9 @@
-package org.evd.game.runtime.config;
+package org.evd.game.runtime.ymlconfig;
 
 import org.evd.game.runtime.support.exception.SysException;
 
 /** 登录准入和排队配置。 */
-public final class LoginConfig {
+public final class LoginYml {
     private int maxOnline = 1_000;
     private int admissionsPerSecond = 20;
     private int maxQueueSize = 10_000;

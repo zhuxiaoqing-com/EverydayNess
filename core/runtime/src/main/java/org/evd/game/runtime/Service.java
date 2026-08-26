@@ -16,8 +16,8 @@ import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.call.RpcCallBase;
-import org.evd.game.runtime.config.RegisteredService;
-import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
+import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.continuation.*;
 import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.mailbox.MessageLocationSender;
@@ -32,7 +32,6 @@ import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.DeadlineTimerWheelScheduler;
 import org.evd.game.runtime.util.TimerScheduler;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -444,7 +443,7 @@ public class Service extends TickCase {
         return actorManager;
     }
 
-    @NotNull
+
     public final <T> T getActor(Class<T> actorType) {
         return actorManager().getActor(actorType);
     }

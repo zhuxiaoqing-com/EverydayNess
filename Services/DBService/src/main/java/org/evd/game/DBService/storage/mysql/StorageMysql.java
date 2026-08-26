@@ -16,7 +16,7 @@ import org.evd.game.runtime.Db.serialize.DbValue;
 import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.Db.serialize.MysqlRsp;
 import org.evd.game.runtime.Db.serialize.MysqlTableMeta;
-import org.evd.game.runtime.config.DbStorageConfig;
+import org.evd.game.runtime.ymlconfig.DbStorageYml;
 import org.evd.game.runtime.support.exception.SysException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +45,7 @@ public class StorageMysql implements StorageEngine {
     /** 建表后把表结构注册下来，后续 CRUD 在这里统一拼 SQL。 */
     private final Map<String, TableMeta> tableMetaCache = new ConcurrentHashMap<>();
 
-    public StorageMysql(DBProxy dbProxy, LoggerMysql logger, DbStorageConfig storageConfig) {
+    public StorageMysql(DBProxy dbProxy, LoggerMysql logger, DbStorageYml storageConfig) {
         this.dbProxy = dbProxy;
         this.logger = logger;
         this.batchPerCount = storageConfig.getBatchPerCount();

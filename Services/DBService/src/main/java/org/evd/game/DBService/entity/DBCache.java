@@ -3,12 +3,12 @@ package org.evd.game.DBService.entity;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.DBService.storage.mysql.StorageEngine;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.config.GlobalConfig;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.LockType;
-import org.evd.game.runtime.config.DbConfig;
+import org.evd.game.runtime.ymlconfig.DbYml;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ public class DBCache {
     private boolean flushing;
 
     public DBCache(StorageEngine storageEngine) {
-        DbConfig dbConfig = GlobalConfig.requireDbConfig();
+        DbYml dbConfig = GlobalYml.requireDbConfig();
         long flushIntervalMs = dbConfig.getDb().getStorage().getCacheFlushMs();
         if (flushIntervalMs <= 0) {
             throw new IllegalArgumentException("cacheFlushMs must be greater than 0: " + flushIntervalMs);

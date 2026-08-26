@@ -9,7 +9,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.MailBoxType;
-import org.evd.game.runtime.config.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
 
 public class PlayerService extends Service {

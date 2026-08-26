@@ -23,7 +23,9 @@
 
 17.MDB里get是异步等数据库查询返回，但是这个会造成所有写数据库的地方都要异步等返回，然后判断之前的状态是否正确，会让逻辑很难写;所以考虑这里同步等待;
 
-18.需要做gw和online状态一致保底： gw将所有的玩家发送给online检测状态是否一致，有不一致的进行kick下线，但是正常的登录流程，等回去的时候session肯定已经不在线了，
-   如果kick这个时候还在那就说明这个session 真的有问题; player和场景也要做;
+18.配置文件实现;配置文件 感觉还是直接自己手写字段吧; 默认List<Integer>按#分割，默认Map<Integer,Integer>按#&分割，比如1#2&2#2,key=1 value2;这样;
+    然后还有自定义方式;在表头弄#Config(file="xxx.csv", key="id"， 或者key也可以="{id,lv}"这样的话 默认就是用new String{id,lv}); 然后可以在字段上标识@convertor(clazz="xxxx")
+        或者转换器只给某个具体的类注册，然后这些类只要写在配置文件里默认对应的就是这个解释方式 但是这样的话像是map就没法一个map弄不同的泛型了;
+        我还想可以默认写自定义类 然后自动找解析，如果Converter 注解覆盖的话，那就用Converter 里的class解析;
 
-19.需要确认写逻辑的规范，比如ClientCmd和RPC还有逻辑类要不要分类写;Actor注解是不是不合适，是不是应该叫@Logic?,然后业务类的后缀应该怎么写;
+19.CallPoint 需要加上serverId + 平台id
