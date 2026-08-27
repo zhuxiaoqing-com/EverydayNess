@@ -31,6 +31,7 @@ public class LoggerMysql implements LoggerEngine {
     private final String validationQuery;
     private final Duration connectionTimeout;
     private final Duration operationTimeout;
+    private final Duration batchOperationTimeout;
     private final int poolInitialSize;
     private final int poolMaxSize;
     private final Duration poolMaxIdleTime;
@@ -46,6 +47,7 @@ public class LoggerMysql implements LoggerEngine {
             this.validationQuery = config.getTestQuery();
             this.connectionTimeout = Duration.ofMillis(config.getConnectionTimeoutMs());
             this.operationTimeout = Duration.ofMillis(config.getOperationTimeoutMs());
+            this.batchOperationTimeout = Duration.ofMillis(config.getBatchOperationTimeoutMs());
             this.poolInitialSize = config.getPoolInitialSize();
             this.poolMaxSize = config.getPoolMaxSize();
             this.poolMaxIdleTime = Duration.ofMillis(config.getPoolMaxIdleTimeMs());
@@ -68,6 +70,10 @@ public class LoggerMysql implements LoggerEngine {
 
     public Duration getOperationTimeout() {
         return operationTimeout;
+    }
+
+    public Duration getBatchOperationTimeout() {
+        return batchOperationTimeout;
     }
 
     public Mono<Connection> openReadConnection() {

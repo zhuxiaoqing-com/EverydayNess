@@ -8,6 +8,7 @@ db:
     autoCreate: true
     connectionTimeoutMs: 4000
     operationTimeoutMs: 10000
+    batchOperationTimeoutMs: 300000
     poolInitialSize: 4
     poolMaxSize: 16
     poolMaxIdleTimeMs: 300000
@@ -23,5 +24,5 @@ db:
     batchPerCount: 500
     costMsWarn: 100
     batchCostMsWarn: 30000
-    enableMemoryCache: true
+    enableMemoryCache: false
     cacheFlushMs: 300000

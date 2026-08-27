@@ -39,7 +39,9 @@ public class StorageMysql implements StorageEngine {
     private final int costMsWarn;
     private final int batchCostMsWarn;
     private final Duration operationTimeout;
+    private final Duration batchOperationTimeout;
     private final long dbOperationTimeoutMillis;
+    private final long batchOperationTimeoutMillis;
     private final DBProxy dbProxy;
     private final LoggerMysql logger;
     /** 建表后把表结构注册下来，后续 CRUD 在这里统一拼 SQL。 */
@@ -55,7 +57,9 @@ public class StorageMysql implements StorageEngine {
         this.costMsWarn = storageConfig.getCostMsWarn();
         this.batchCostMsWarn = storageConfig.getBatchCostMsWarn();
         this.operationTimeout = logger.getOperationTimeout();
+        this.batchOperationTimeout = logger.getBatchOperationTimeout();
         this.dbOperationTimeoutMillis = logger.getOperationTimeout().toMillis();
+        this.batchOperationTimeoutMillis = logger.getBatchOperationTimeout().toMillis();
     }
 
     /**
@@ -152,7 +156,7 @@ public class StorageMysql implements StorageEngine {
         String batchKeys = getBatchKeys(mysqlReq);
         String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
-        await(Mono.usingWhen(
+        awaitBatch(Mono.usingWhen(
                         logger.openWriteConnection(),
                         connection -> {
                             List<DbTableField> tableFieldList1 = mysqlReq.getTablFieldList();
@@ -167,7 +171,7 @@ public class StorageMysql implements StorageEngine {
                             return Flux.concat(operations).then();
                         },
                         Connection::close
-                ).timeout(operationTimeout)
+                ).timeout(batchOperationTimeout)
                 .doOnError(e -> log.error("replace batch error, table={}, keys={}, num={}",
                         tableName, batchKeys, tableFieldList.size(), e))
                 .onErrorMap(SysException::new)
@@ -191,7 +195,7 @@ public class StorageMysql implements StorageEngine {
         String batchKeys = getBatchKeys(mysqlReq);
         String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
-        await(Mono.usingWhen(
+        awaitBatch(Mono.usingWhen(
                         logger.openWriteConnection(),
                         connection -> {
                             List<DbTableField> tableFieldList1 = mysqlReq.getTablFieldList();
@@ -207,7 +211,7 @@ public class StorageMysql implements StorageEngine {
                                     .then();
                         },
                         Connection::close
-                ).timeout(operationTimeout)
+                ).timeout(batchOperationTimeout)
                 .doOnError(e -> log.error("remove batch error, table={}, keys={}, num={}",
                         tableName, batchKeys, tableFieldList.size(), e))
                 .onErrorMap(SysException::new)
@@ -365,7 +369,7 @@ public class StorageMysql implements StorageEngine {
                 },
                 Connection::close
         );
-        return await(operation.timeout(operationTimeout)
+        return awaitBatch(operation.timeout(batchOperationTimeout)
                 .doOnError(e -> log.error("find batch error, table={}, keys={}", tableName, batchKeys, e))
                 .onErrorMap(SysException::new)
                 .doFinally(signalType -> {
@@ -519,6 +523,10 @@ public class StorageMysql implements StorageEngine {
 
     private <T> T await(Mono<T> operation) {
         return dbProxy.awaitDb(operation, dbOperationTimeoutMillis);
+    }
+
+    private <T> T awaitBatch(Mono<T> operation) {
+        return dbProxy.awaitDb(operation, batchOperationTimeoutMillis);
     }
 
 

@@ -55,32 +55,6 @@ public final class PlayerLoginLogic {
         return actorAddress;
     }
 
-    /** 完成进入地图并推进 PlayerService 正式上线。 */
-    public void onlinePlayer(String userId, long playerId, ClientSessionRef session) {
-        PlayerService owner = owner();
-        PlayerSessionManager sessionManager = owner.sessionManager();
-        try (ContinuationLockScope ignored = owner.awaitCoroutineLockScope(
-                LockType.ACTOR, ActorId.player(playerId))) {
-            if (!sessionManager.hasOnlinePlayer(playerId)) {
-                LogCore.core.warn("PlayerService 玩家绑定不存在，跳过进入地图: service={}, userId={}, playerId={}",
-                        owner.getId(), userId, playerId);
-                return;
-            }
-            try {
-                owner.enterMap(playerId);
-            } catch (RuntimeException e) {
-                LogCore.core.warn("PlayerService 玩家进入地图失败: service={}, userId={}, playerId={}, message={}",
-                        owner.getId(), userId, playerId, e.getMessage());
-                return;
-            }
-            sessionManager.markOnline(playerId);
-            LogCore.core.info("PlayerService 玩家正式上线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
-                    owner.getId(), userId, playerId, session.getGate(), session.getSessionId());
-        } catch (CoroutineLockTimeoutException e) {
-            LogCore.core.warn("PlayerService 玩家正式上线协程锁等待超时: service={}, userId={}, playerId={}, timeoutMillis={}",
-                    owner.getId(), userId, playerId, e.getTimeoutMillis());
-        }
-    }
 
     /** 登记 GW 玩家 ActorAddress；玩家不存在时直接跳过。 */
     public void bindGateActorAddress(long playerId, ActorAddress gateActorAddress) {
@@ -94,6 +68,34 @@ public final class PlayerLoginLogic {
         LogCore.core.info("PlayerService 缓存 GWActorAddress: service={}, playerId={}, actorId={}, actorAddress={}",
                 owner.getId(), playerId, ActorId.gate(playerId), gateActorAddress);
     }
+
+    /** 完成进入地图并推进 PlayerService 正式上线。 */
+    public void onlinePlayer(String userId, long playerId, ClientSessionRef session) {
+        PlayerService owner = owner();
+        PlayerSessionManager sessionManager = owner.sessionManager();
+        if (!sessionManager.hasOnlinePlayer(playerId)) {
+            LogCore.core.warn("PlayerService 玩家绑定不存在，跳过进入地图: service={}, userId={}, playerId={}",
+                    owner.getId(), userId, playerId);
+            return;
+        }
+
+        Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
+
+        // 调用玩家上线数据，还有每分钟事件啥的
+
+        try {
+            owner.enterMap(playerId);
+        } catch (RuntimeException e) {
+            LogCore.core.warn("PlayerService 玩家进入地图失败: service={}, userId={}, playerId={}, message={}",
+                    owner.getId(), userId, playerId, e.getMessage());
+            return;
+        }
+        sessionManager.markOnline(playerId);
+        LogCore.core.info("PlayerService 玩家正式上线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
+                owner.getId(), userId, playerId, session.getGate(), session.getSessionId());
+
+    }
+
 
     private PlayerService owner() {
         return Service.getCurrent(PlayerService.class);

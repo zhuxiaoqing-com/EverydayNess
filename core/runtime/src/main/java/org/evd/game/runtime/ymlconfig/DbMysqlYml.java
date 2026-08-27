@@ -10,6 +10,7 @@ public class DbMysqlYml {
     private boolean autoCreate = true;
     private int connectionTimeoutMs = 4000;
     private int operationTimeoutMs = 10000;
+    private int batchOperationTimeoutMs = 300000;
     private int poolInitialSize = 4;
     private int poolMaxSize = 16;
     private int poolMaxIdleTimeMs = 300000;
@@ -111,6 +112,14 @@ public class DbMysqlYml {
 
     public void setOperationTimeoutMs(int operationTimeoutMs) {
         this.operationTimeoutMs = operationTimeoutMs;
+    }
+
+    public int getBatchOperationTimeoutMs() {
+        return batchOperationTimeoutMs;
+    }
+
+    public void setBatchOperationTimeoutMs(int batchOperationTimeoutMs) {
+        this.batchOperationTimeoutMs = batchOperationTimeoutMs;
     }
 
     public int getPoolInitialSize() {

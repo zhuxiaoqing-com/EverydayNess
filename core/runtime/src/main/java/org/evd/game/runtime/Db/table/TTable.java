@@ -7,6 +7,7 @@ import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
+import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
@@ -46,7 +47,20 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
 
+    private boolean isSync() {
+        return getMdb().isLocal();
+    }
+
     public V get(K key) {
+        return get(key, isSync());
+    }
+
+    /** 固定使用异步数据库查询，供批量预加载等场景使用。 */
+    public V getAsync(K key) {
+        return get(key, false);
+    }
+
+    private V get(K key, boolean sync) {
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
             if (tRecord.isRemoveState()) {
@@ -55,8 +69,6 @@ public abstract class TTable<K, V extends DirtyObject> {
             return tRecord.get();
         }
 
-
-        // 不存在在数据库找个新的 然后返回
         if (findFailCache.getIfPresent(key) != null) {
             return null;
         }
@@ -64,34 +76,41 @@ public abstract class TTable<K, V extends DirtyObject> {
         if (callPoint == null) {
             throw new DBException("DBService未连接: table=" + getName() + ", key=" + key);
         }
-        // 加协程锁
-        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
-            tRecord = cache.get(key);
-            if (tRecord != null) {
-                if (tRecord.isRemoveState()) {
-                    return null;
-                }
-                return tRecord.get();
-            }
 
-            if (findFailCache.getIfPresent(key) != null) {
+        if (!sync) {
+            try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+                    LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+                return getFromDb(key, callPoint, false);
+            }
+        }
+        return getFromDb(key, callPoint, true);
+    }
+
+    private V getFromDb(K key, CallPoint callPoint, boolean sync) {
+        TRecord<K, V> tRecord = cache.get(key);
+        if (tRecord != null) {
+            if (tRecord.isRemoveState()) {
                 return null;
             }
+            return tRecord.get();
+        }
 
-            V v = getExec(createGetDBReq(key), callPoint);
-
-            if (v != null) {
-                tRecord = new TRecord<>(this, key, v, TRecord.GET, callPoint);
-                cache.put(key, tRecord);
-                return tRecord.getValue();
-            }
-
-            findFailCache.put(key, defaultValue);
-            // getMiss
-            countGetMiss.incrementAndGet();
+        if (findFailCache.getIfPresent(key) != null) {
             return null;
         }
 
+        V v = sync
+                ? getExecSync(createGetDBReq(key))
+                : getExec(createGetDBReq(key), callPoint);
+        if (v != null) {
+            tRecord = new TRecord<>(this, key, v, TRecord.GET, callPoint);
+            cache.put(key, tRecord);
+            return tRecord.getValue();
+        }
+
+        findFailCache.put(key, defaultValue);
+        countGetMiss.incrementAndGet();
+        return null;
     }
 
     public boolean add(K key, V value) {
@@ -106,6 +125,13 @@ public abstract class TTable<K, V extends DirtyObject> {
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
             tRecord.add(value);
+            return true;
+        }
+
+        if (isSync()) {
+            tRecord = new TRecord<>(this, key, value, TRecord.ADD, findDBServiceCallPoint(key));
+            cache.put(key, tRecord);
+            findFailCache.invalidate(key);
             return true;
         }
 
@@ -128,6 +154,13 @@ public abstract class TTable<K, V extends DirtyObject> {
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
             tRecord.remove();
+            return true;
+        }
+
+        if (isSync()) {
+            tRecord = new TRecord<>(this, key, newValue(), TRecord.REMOVE, findDBServiceCallPoint(key));
+            cache.put(key, tRecord);
+            findFailCache.invalidate(key);
             return true;
         }
 
@@ -460,6 +493,14 @@ public abstract class TTable<K, V extends DirtyObject> {
         DBRsp dbRsp = getMdb().getDbExecInterface().dbExec(callPoint, dbReq);
         //todo 这里进行报错之类的
         return parseGetDBRsp(dbRsp);
+    }
+
+    public V getExecSync(DBReq dbReq) {
+        NodeDbExecutor nodeDbExecutor = getMdb().service.getNode().getNodeDbExecutor();
+        if (nodeDbExecutor == null) {
+            throw new DBException("同步数据库访问只支持 NODE_LOCAL: table=" + getName());
+        }
+        return parseGetDBRsp(nodeDbExecutor.doExecSync(dbReq));
     }
 
     public boolean dbExec(DBReq dbReq, CallPoint callPoint) {

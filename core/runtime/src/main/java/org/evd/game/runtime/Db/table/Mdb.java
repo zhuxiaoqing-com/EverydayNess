@@ -119,11 +119,7 @@ public class Mdb {
     }
 
 
-    /**
-     * 直接玩家线程加载,然后抛到db线程get,然后再回调回来;不管失败;当然如果报错了 就算失败不让进;
-     * 不 这个的直接加载,不然就要吧get方法拆开了;这里要么就直接加载吧;get拆开其cache就有问题;
-     * 感觉不要这个方法算了;
-     */
+    /** 在当前 Service continuation 中异步加载玩家需要的全部 MDB 表。 */
     @SuppressWarnings("unchecked")
     public void loadPlayerAllTableToMemory(Object key) {
         logger.info("loadPlayerAllTableToMemory key {}", key);
@@ -133,7 +129,7 @@ public class Mdb {
                 if (!table.isSupportFlush()) {
                     continue;
                 }
-                table.get(key);
+                table.getAsync(key);
             }
             timeCostPrint.print();
         } catch (Exception e) {
@@ -351,6 +347,9 @@ public class Mdb {
         return dbExecInterface;
     }
 
+    public boolean isLocal() {
+        return service.getNode().hasNodeDbExecutor();
+    }
 
     public void disconnectService(Collection<RegisteredService> collection) {
         if (lifecycleState != LifecycleState.RUNNING) {
