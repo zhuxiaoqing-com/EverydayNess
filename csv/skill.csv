@@ -1,0 +1,3 @@
+# 技能配置
+skillId,level,name,damage,cooldownMs,consumeMp,effectIds
+# 数据行从这里开始

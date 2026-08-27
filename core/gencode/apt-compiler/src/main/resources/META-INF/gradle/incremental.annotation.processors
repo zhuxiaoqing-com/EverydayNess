@@ -6,3 +6,4 @@ org.evd.game.gencode.rpc.RpcProcessor,isolating
 org.evd.game.gencode.rpc.RpcImplProcessor,aggregating
 org.evd.game.gencode.serialize.SerializeIoProcessor,isolating
 org.evd.game.gencode.serialize.SerializeProcessor,aggregating
+org.evd.game.gencode.config.ConfigProcessor,aggregating

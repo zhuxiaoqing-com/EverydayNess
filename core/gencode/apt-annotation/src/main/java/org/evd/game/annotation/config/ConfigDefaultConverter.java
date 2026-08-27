@@ -6,8 +6,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /** 为指定的配置字段类型注册默认转换器。 */
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-public @interface ConfigConverterFor {
+public @interface ConfigDefaultConverter {
     Class<?> value();
 }

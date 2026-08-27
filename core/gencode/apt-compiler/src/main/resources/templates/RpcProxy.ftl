@@ -10,13 +10,13 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 </#if>
 <#if needsServiceTypeImport>
-import org.evd.game.annotation.ServiceType;
+import org.evd.game.annotation.service.ServiceType;
 </#if>
 <#if needsActorIdImport>
 import org.evd.game.runtime.actor.ActorId;
 </#if>
 <#if needsActorTypeImport>
-import org.evd.game.annotation.ActorType;
+import org.evd.game.annotation.actor.ActorType;
 </#if>
 <#if importPackages??>
 <#list importPackages as package>

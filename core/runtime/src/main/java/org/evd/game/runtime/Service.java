@@ -16,6 +16,8 @@ import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.call.RpcCallBase;
+import org.evd.game.runtime.config.ConfigTableInitializer;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.continuation.*;
@@ -254,6 +256,10 @@ public class Service extends TickCase {
                     ? node.getNodeDbExecutor()
                     : (DBExecInterface) ServiceName.getRpcProxyObj(ServiceName.DB_SERVICE);
             mdb.start(getClass(), dbExecutor, this);
+        }
+
+        if (supportTable()) {
+            ConfigTableInitializer.init(GlobalYml.requireTableDir());
         }
 
         init();
@@ -895,6 +901,11 @@ public class Service extends TickCase {
 
     protected boolean supportMdb() {
         return false;
+    }
+
+    /** 是否在本 Service 初始化阶段触发公共配置表加载。 */
+    protected boolean supportTable() {
+        return true;
     }
 
     protected boolean supportLocation() {

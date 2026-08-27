@@ -1,0 +1,8 @@
+# 配置解析器覆盖表
+id,byteValue,shortValue,intValue,longValue,floatValue,doubleValue,booleanValue,charDefault,boxedInt,boxedBoolean,plainText,csv_name,grade,item,intList,textSet,intMap,intArray,itemList,convertedText
+# 第 1 行覆盖非空解析；Set 的重复值应被去重
+1, 7 , -8 , 123 , 4567890123 , 1.25 , 2.5 , TRUE, , 42, true, hello,  aliased , BASIC, 100&2, 1#2#3, a#b#a, 1&10#2&20, 4#5, 100&1#200&2,  converted  
+# 第 2 行覆盖基本类型默认值、包装类型 null、空对象和空容器
+2, , , , , , , , , , , , , , , , , , , , 
+# 第 3 行覆盖带引号字符串保留空格，以及普通字段 trim
+3, 9 , 10 , 11 , 12 , 3.5 , 4.5 , false, , , ,"  plain text  ","  alias text  ", ADVANCED, 300&4, 6#7, x#y, 8&9#10&11, 12#13, 500&1#600&2,"  explicit converter  "

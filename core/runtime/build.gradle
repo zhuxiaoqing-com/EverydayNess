@@ -28,6 +28,8 @@ dependencies {
     implementation group: 'org.quartz-scheduler', name: 'quartz', version: '2.3.2'
     implementation 'org.agrona:agrona:2.5.0'
     implementation 'com.mysql:mysql-connector-j:8.4.0'
+    implementation 'com.github.nbbrd.picocsv:picocsv:2.6.0'
+    implementation 'it.unimi.dsi:fastutil:8.5.16'
 
     implementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')

@@ -53,10 +53,10 @@ protobuf {
 
 tasks.named('compileJava', JavaCompile) {
     dependsOn tasks.named('generateProto')
-        options.compilerArgs += [
+    options.compilerArgs += [
             '-processor',
-            'org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor,org.evd.game.gencode.config.ConfigProcessor'
-        ]
+            'lombok.launch.AnnotationProcessorHider$AnnotationProcessor,org.evd.game.gencode.serialize.SerializeIoProcessor,org.evd.game.gencode.serialize.SerializeProcessor,org.evd.game.gencode.config.ConfigProcessor'
+    ]
 }
 
 tasks.named('processResources') {

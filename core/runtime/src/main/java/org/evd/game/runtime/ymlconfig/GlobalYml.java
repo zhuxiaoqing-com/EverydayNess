@@ -9,6 +9,7 @@ import org.yaml.snakeyaml.Yaml;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -71,6 +72,14 @@ public final class GlobalYml {
             throw new SysException("GlobalYml localNodeInfo not initialized");
         }
         return localNodeInfo;
+    }
+
+    public static Path requireTableDir() {
+        String directory = requireNodeConfig().getTableDir();
+        if (directory == null || directory.isBlank()) {
+            throw new SysException("bootstrap tableDir is empty");
+        }
+        return Path.of(directory).normalize();
     }
 
   /*  public static List<CallPoint> getCallLocalPoint(ServiceType serviceType) {

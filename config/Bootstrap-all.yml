@@ -1,4 +1,5 @@
 dbConfigPath: db-dev.yml
+tableDir: ./csv
 dbTopology: REMOTE_SERVICE
 debug: true
 platformId: 0  #平台id
