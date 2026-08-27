@@ -88,7 +88,7 @@ final class DbDirtyBeanRenderer {
         for (DbDirtyFieldMeta field : entity.fields) {
             appendCopyField(sb, field, "        ", "_o_." + field.name, false);
         }
-        sb.append("        this.dirty = false;\n");
+        sb.append("        makeModify();\n");
         sb.append("    }\n");
     }
 

@@ -184,7 +184,7 @@ final class DbDirtyJsonTableRenderer {
         sb.append("        String payload = (String) valueList.get(1).getV();\n");
         sb.append("        ").append(entity.beanClassName).append(" value = decodeJsonPayload(payload);\n");
         sb.append("        value.set").append(entity.primaryKeyField.methodSuffix).append("(key);\n");
-        sb.append("        value.dirty = false;\n");
+        sb.append("        value.makeModify();\n");
         sb.append("        return value;\n");
         sb.append("    }\n\n");
         sb.append("    private String encodeJsonPayload(").append(entity.beanClassName).append(" value) {\n");

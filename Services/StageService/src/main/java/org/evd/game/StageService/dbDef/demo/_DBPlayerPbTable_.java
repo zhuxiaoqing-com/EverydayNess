@@ -159,7 +159,7 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 		}
 		long key = ((Number) valueList.get(0).getV()).longValue();
 		DBPlayer player = decodePlayer(key, (byte[]) valueList.get(1).getV());
-		player.dirty = false;
+		player.makeModify();
 		return player;
 	}
 
@@ -187,7 +187,7 @@ public class _DBPlayerPbTable_ extends TTable<Long, DBPlayer> {
 			ProtostuffIOUtil.mergeFrom(bytes, player, SCHEMA);
 		}
 		player.setId(key);
-		player.dirty = false;
+		player.makeModify();
 		return player;
 	}
 

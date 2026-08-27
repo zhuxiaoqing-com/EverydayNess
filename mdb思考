@@ -1,0 +1,13 @@
+get 可能有协程
+add 没有协程 get有协程， 可能会出现，get去查询了，还没返回，但是add又添加了;也没事，可以get返回以后发现有数据就直接不set了，而是用内存里的;
+remove 没有协程， 可能会出现 get去查询了，还没返回，remove又添加了;也没事，可以get返回以后发现有数据就直接不set了，而是用内存里的;
+
+checkpoint 表锁 每次先遍历cache 然后不进行删除，所以这个 应该是和 get add remove 没有冲突的;
+clearCache 会有删除操作，可能和get有冲突;其实也没有 因为get 只有cache里没有数据的时候才会去协程加载，但是clearCache是要有数据去删除;
+loadMemory 应该不需要加锁 直接get 就行了;
+flush
+        checkpoint 回滚的时候可以先判断 数据是否还有 没有了就不进行回滚了;回滚只是重新标识脏，所以无所谓;
+        clearCache 和flush是互斥的， 和checkPoint的话，就加一个没有了就不进行回滚就行;
+
+        还是不行呀 可能checkpoint过去了，但是flush一下，但是可能checkpoint还没返回,flush先返回了，这个时候应该别的service get就会有脏数据;
+            这可以通过比如 10分钟以后进行flush，20分钟以内玩家绑定在该playerService，就可以避免这个情况;

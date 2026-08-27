@@ -241,7 +241,7 @@ final class DbDirtyMysqlTableRenderer {
                         .append(").getV(), value));\n");
             }
         }
-        sb.append("        value.dirty = false;\n");
+        sb.append("        value.makeModify();\n");
         sb.append("        return value;\n");
         sb.append("    }\n\n");
         for (DbDirtyFieldMeta field : tableFields) {

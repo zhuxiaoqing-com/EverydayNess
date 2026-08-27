@@ -223,7 +223,7 @@ public class _DBPlayerTable_ extends TTable<Long, DBPlayer> {
         player.setIntDBItemMap(toItemMap(player, JSON.parseObject((String) valueList.get(6).getV(),
                 new TypeReference<Map<Integer, DBItem>>() {
                 })));
-        player.dirty = false;
+        player.makeModify();
         return player;
     }
 

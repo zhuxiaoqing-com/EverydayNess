@@ -77,40 +77,19 @@ public abstract class TTable<K, V extends DirtyObject> {
             throw new DBException("DBService未连接: table=" + getName() + ", key=" + key);
         }
 
-        if (!sync) {
-            try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
-                    LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
-                return getFromDb(key, callPoint, false);
-            }
-        }
-        return getFromDb(key, callPoint, true);
-    }
-
-    private V getFromDb(K key, CallPoint callPoint, boolean sync) {
-        TRecord<K, V> tRecord = cache.get(key);
-        if (tRecord != null) {
-            if (tRecord.isRemoveState()) {
-                return null;
-            }
-            return tRecord.get();
-        }
-
-        if (findFailCache.getIfPresent(key) != null) {
+        V value = sync
+                ? getExecSync(createGetDBReq(key))
+                : getExec(createGetDBReq(key), callPoint);
+        if (value == null) {
+            findFailCache.put(key, defaultValue);
+            countGetMiss.incrementAndGet();
             return null;
         }
 
-        V v = sync
-                ? getExecSync(createGetDBReq(key))
-                : getExec(createGetDBReq(key), callPoint);
-        if (v != null) {
-            tRecord = new TRecord<>(this, key, v, TRecord.GET, callPoint);
-            cache.put(key, tRecord);
+        tRecord = new TRecord<>(this, key, value, TRecord.GET, callPoint);
+        cache.put(key, tRecord);
             return tRecord.getValue();
-        }
 
-        findFailCache.put(key, defaultValue);
-        countGetMiss.incrementAndGet();
-        return null;
     }
 
     public boolean add(K key, V value) {
@@ -128,26 +107,11 @@ public abstract class TTable<K, V extends DirtyObject> {
             return true;
         }
 
-        if (isSync()) {
-            tRecord = new TRecord<>(this, key, value, TRecord.ADD, findDBServiceCallPoint(key));
-            cache.put(key, tRecord);
-            findFailCache.invalidate(key);
-            return true;
-        }
+        tRecord = new TRecord<>(this, key, value, TRecord.ADD, findDBServiceCallPoint(key));
+        cache.put(key, tRecord);
+        findFailCache.invalidate(key);
+        return true;
 
-        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
-                LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
-            tRecord = cache.get(key);
-            if (tRecord != null) {
-                tRecord.add(value);
-                return true;
-            }
-
-            tRecord = new TRecord<>(this, key, value, TRecord.ADD, findDBServiceCallPoint(key));
-            cache.put(key, tRecord);
-            findFailCache.invalidate(key);
-            return true;
-        }
     }
 
     public boolean remove(K key) {
@@ -157,27 +121,12 @@ public abstract class TTable<K, V extends DirtyObject> {
             return true;
         }
 
-        if (isSync()) {
-            tRecord = new TRecord<>(this, key, newValue(), TRecord.REMOVE, findDBServiceCallPoint(key));
-            cache.put(key, tRecord);
-            findFailCache.invalidate(key);
-            return true;
-        }
+        // 没有找到就直接新建一个删除标记。
+        tRecord = new TRecord<K, V>(this, key, newValue(), TRecord.REMOVE, findDBServiceCallPoint(key));
+        cache.put(key, tRecord);
+        findFailCache.invalidate(key);
+        return true;
 
-        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
-                LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
-            tRecord = cache.get(key);
-            if (tRecord != null) {
-                tRecord.remove();
-                return true;
-            }
-
-            // 没有找到就直接新建一个删除标记。
-            tRecord = new TRecord<K, V>(this, key, newValue(), TRecord.REMOVE, findDBServiceCallPoint(key));
-            cache.put(key, tRecord);
-            findFailCache.invalidate(key);
-            return true;
-        }
     }
 
 
@@ -206,6 +155,8 @@ public abstract class TTable<K, V extends DirtyObject> {
         List<TRecord<K, V>> modifyTRecordCache = new ArrayList<>();
         List<TRecord<K, V>> removeTRecordCache = new ArrayList<>();
 
+        Map<K, Long> key2DirtyMap = new HashMap<>();
+
 
         for (TRecord<K, V> kvtRecord : getCacheList()) {
             if (!kvtRecord.checkCallPoint(callPoint)) {
@@ -230,8 +181,7 @@ public abstract class TTable<K, V extends DirtyObject> {
                     break;
             }
 
-            // 将add状态刷新成get状态
-            kvtRecord.checkpointRefreshState(state);
+            key2DirtyMap.put(key, kvtRecord.getValue().getDirty());
         }
 
         if (addTRecordCache.isEmpty() &&
@@ -284,8 +234,29 @@ public abstract class TTable<K, V extends DirtyObject> {
             }
         }
 
+        if (addSuccess) {
+            for (TRecord<K, V> tRecord : addTRecordCache) {
+                Long oldDirty = key2DirtyMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(oldDirty);
+            }
+        }
+
+        if (modifySuccess) {
+            for (TRecord<K, V> tRecord : modifyTRecordCache) {
+                Long oldDirty = key2DirtyMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(oldDirty);
+            }
+        }
+
+        if (removeSuccess) {
+            for (TRecord<K, V> tRecord : removeTRecordCache) {
+                Long oldDirty = key2DirtyMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(oldDirty);
+            }
+        }
+
         // 全部成功了
-        if (addSuccess && modifySuccess && removeSuccess) {
+      /*  if (addSuccess && modifySuccess && removeSuccess) {
             return;
         }
 
@@ -306,7 +277,7 @@ public abstract class TTable<K, V extends DirtyObject> {
             for (TRecord<K, V> tRecord : removeTRecordCache) {
                 tRecord.checkPointFail();
             }
-        }
+        }*/
 
     }
 
@@ -368,7 +339,6 @@ public abstract class TTable<K, V extends DirtyObject> {
         logger.info("tickClearCache tickClearCacheLogicThread start tableName {}  ", this.getName());
 
         List<TRecord<K, V>> expireList = new ArrayList<>();
-        List<TRecord<K, V>> deleteList = new ArrayList<>();
         for (TRecord<K, V> kvtRecord : cache.values()) {
             // 30分钟没访问删除
             if (curNano - kvtRecord.getLastAccessTime() < expairNano) {
@@ -379,19 +349,7 @@ public abstract class TTable<K, V extends DirtyObject> {
                 continue;
             }
 
-            if (!kvtRecord.isModified()) {
-                // 遍历结束后统一删除，避免修改正在遍历的HashMap。
-                deleteList.add(kvtRecord);
-                continue;
-            }
-            // 这里先将其设置为没修改过，然后等存好数据库数据以后,再返回，如果还是没修改过，那就进行删除cache，如果修改过了，就不动;
-            int flushState = kvtRecord.getState();
-            kvtRecord.checkpointRefreshState(flushState);
             expireList.add(kvtRecord);
-        }
-
-        for (TRecord<K, V> record : deleteList) {
-            cache.remove(record.getKey(), record);
         }
 
         if (expireList.isEmpty()) {
@@ -400,38 +358,62 @@ public abstract class TTable<K, V extends DirtyObject> {
 
         logger.info("tickClearCache tickClearCacheMdbSaveDB start tableName {} expireListSize {} ", this.getName(), expireList.size());
 
-        List<TRecord<K, V>> successRecord = new ArrayList<>();
+        int successRecordSize = 0;
         for (TRecord<K, V> one : expireList) {
-            boolean flush = one.flush("tickClearCache");
-            if (flush) {
-                successRecord.add(one);
-            } else {
-                one.checkPointFail();
+            TRecord<K, V> currentRecord = cache.get(one.getKey());
+            if (currentRecord != one
+                    || curNano - one.getLastAccessTime() < expairNano) {
+                continue;
+            }
+
+            if (!one.isModified()) {
+                cache.remove(one.getKey(), one);
+                continue;
+            }
+                long oldDirty = one.getValue().getDirty();
+
+            if (one.flush("tickClearCache")) {
+                TRecord<K, V> currentRecord2 = cache.get(one.getKey());
+                if (currentRecord2 == one && oldDirty == currentRecord2.getValue().getDirty()) {
+                    cache.remove(one.getKey());
+                    successRecordSize++;
+                }
             }
         }
 
         logger.info("tickClearCache tickClearCacheMdbSaveDB summary tableName {}   expireListSize {}  successRecordSize {}",
-                this.getName(), expireList.size(), successRecord.size());
+                this.getName(), expireList.size(), successRecordSize);
+    }
 
-        if (successRecord.isEmpty()) {
-            return;
+
+    /** 在表锁范围内持有行锁，将单个 key 写库并从缓存删除。 */
+    public boolean flush(K key) {
+        if (getMdb().isClosing()) {
+            logger.error("flush mdb is closing table {} key {}", getName(), key);
+            return false;
         }
 
-        // 这里先将其设置为没修改过，然后等存好数据库数据以后,再返回，如果还是没修改过，那就进行删除cache，如果修改过了，就不动;
-        for (TRecord<K, V> savedRecord : successRecord) {
-            TRecord<K, V> currRecord = cache.get(savedRecord.getKey());
-            if (currRecord != savedRecord) {
-                //logger.error("tickClearCacheMdbSaveDB currRecord!= savedRecord 请查找问题！！！ table {} currRecord {} savedRecord {} ", getName(), currRecord, savedRecord);
-                continue;
-            }
-
-            // 修改过
-            if (savedRecord.isModified()) {
-                continue;
-            }
-            // 删除数据
-            cache.remove(savedRecord.getKey());
+        findFailCache.invalidate(key);
+        TRecord<K, V> record = cache.get(key);
+        if (record == null) {
+            return true;
         }
+
+        if (!record.isModified()) {
+            cache.remove(key);
+        }
+            long oldDirty = record.getValue().getDirty();
+
+        if (record.flush("flush")) {
+            TRecord<K, V> currentRecord2 = cache.get(record.getKey());
+            if (currentRecord2 == record
+                    && oldDirty == currentRecord2.getValue().getDirty()) {
+                cache.remove(key);
+            }
+            return true;
+        }
+
+        return false;
     }
 
 

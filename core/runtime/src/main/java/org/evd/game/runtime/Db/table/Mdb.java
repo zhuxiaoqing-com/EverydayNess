@@ -155,95 +155,29 @@ public class Mdb {
      */
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private void flush(Object key) {
+    private boolean flush(Object key) {
         logger.info("flush flushLogicThread start key {}", key);
 
         TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "flush: " + key);
-
-        List<TRecord> jsonList = new ArrayList<>();
-
+        boolean allSuccess = true;
+        int tableCount = 0;
         for (TTable table : tableList) {
             if (!table.isSupportFlush()) {
                 continue;
             }
-
-            TRecord tRecord = table.getTRecordByCache(key);
-            if (tRecord == null) {
-                continue;
-            }
-
-            // 没有修改过
-            if (!tRecord.isModified()) {
-                table.deleteCache(key);
-                continue;
-            }
-            // 修改过了
-            jsonList.add(tRecord);
-        }
-
-
-        if (jsonList.isEmpty()) {
-            return;
-        }
-
-        logger.info("flush flushMdbSaveDB start key {} jsonListSize {} ", key, jsonList.size());
-
-        boolean allSuccess = true;
-        ArrayList<TRecord> successTRecord = new ArrayList<>();
-        for (TRecord entry : jsonList) {
-
-            boolean flush = entry.flush("flush");
-            if (!flush) {
+            tableCount++;
+            if (!table.flush(key)) {
                 allSuccess = false;
-                continue;
             }
-            successTRecord.add(entry);
         }
-
-        logger.info("flush flushMdbSaveDB summary key {} jsonListSize {} successTRecordSize {} ", key, jsonList.size(), successTRecord.size());
-
-        boolean success = allSuccess;
-        // 将保存到mysql成功的进行删除cache;
-        for (TRecord record : successTRecord) {
-            TRecord currTRecord = record.getTable().getTRecordByCache(record.getKey());
-            // cache里的不是当前的record了;
-            if (currTRecord != record) {
-                success = false;
-                continue;
-            }
-            // 修改过了
-            if (record.isModified()) {
-                success = false;
-                continue;
-            }
-
-            record.getTable().deleteCache(record.getKey());
-        }
-
-         /*   if (success) {
-                // 这里再检查一遍;
-                for (TTable table : tableList) {
-                    TTable tt = table;
-                    if (!tt.isSupportFlush()) {
-                        continue;
-                    }
-
-                    TRecord t = tt.getTRecordByCache(key);
-                    if (t == null) {
-                        continue;
-                    }
-                    // 还有没删除的！！！
-                    success = false;
-                    break;
-                }
-
-            }*/
-
+        logger.info("flush flushMdbSaveDB summary key {} tableCount {} success {} ", key, tableCount, allSuccess);
         timeCostPrint.print();
+        return allSuccess;
     }
 
     public static final int TICK_INTERVAL = 1000 * 10;
     public long nextTickTime;
+    public boolean tickCoroutineRunning = false;
     @SuppressWarnings({"rawtypes"})
     public void tick(long currTime) {
         if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
@@ -254,10 +188,23 @@ public class Mdb {
         }
         nextTickTime = currTime + TICK_INTERVAL;
 
-       Service.getCurrent().launchCoroutine(()-> tickCoroutine(Service.getTime()));
+        Service.getCurrent().launchCoroutine(this::tickCoroutine);
     }
 
-    public void tickCoroutine(long currTime) {
+    public void tickCoroutine() {
+        // 上一个tick还没结束 不进行该次tick
+        if (tickCoroutineRunning) {
+            return;
+        }
+        try {
+            tickCoroutineRunning = true;
+            _tickCoroutine(Service.getTime());
+        } finally {
+            tickCoroutineRunning = false;
+        }
+    }
+
+    public void _tickCoroutine(long currTime) {
         if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
             return;
         }

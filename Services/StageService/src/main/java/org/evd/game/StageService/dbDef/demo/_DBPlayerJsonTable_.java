@@ -159,7 +159,7 @@ public class _DBPlayerJsonTable_ extends TTable<Long, DBPlayer> {
 			player = new DBPlayer();
 		}
 		player.setId(key);
-		player.dirty = false;
+		player.makeModify();
 		return player;
 	}
 

@@ -41,6 +41,7 @@ public class TRecord<K, V extends DirtyObject> {
         this.value = value;
         this.state = state;
         this.ownerCallPoint = ownerCallPoint;
+        value.makeModify();
         access();
     }
 
@@ -50,8 +51,11 @@ public class TRecord<K, V extends DirtyObject> {
      */
     public void add(V newValue) {
         access();
+        long oldDirty = value == null ? 0 : value.getDirty();
         state = ADD;
         value = newValue;
+        // add 让其默认就是脏的 add也算一次变化 所以需要加一
+        value.setDirty(oldDirty + 1);
     }
 
     /**
@@ -59,8 +63,11 @@ public class TRecord<K, V extends DirtyObject> {
      */
     public void remove() {
         access();
+        long oldDirty = value == null ? 0 : value.getDirty();
         state = REMOVE;
         value = table.newValue();
+        // remove 让其默认就是脏的 remove也算一次变化 所以需要加一
+        value.setDirty(oldDirty + 1);
     }
 
     public V get() {
@@ -142,22 +149,27 @@ public class TRecord<K, V extends DirtyObject> {
      *          clearCache;
      */
     public boolean isModified() {
-        // 这里不用单独在判断 add remove; 因为在new对象的时候已经将version自增了
-        switch (getState()) {
+        // 下面这个不能有 特别是remove状态，因为checkpoint同步过以后，remove状态没法切到别的状态;
+        // 如果通过REMOVE判断是否修改过，会导致每次checkpoint都会将其标记为脏，每次都同步，用checkModify()就没事了;
+       /* switch (getState()) {
             case ADD:
                 return true;
             case REMOVE:
                 return true;
-        }
-        return ((DirtyObject) value).checkModify();
+        }*/
+        return value.checkModify();
     }
 
 
-    public void checkpointRefreshState(int _state) {
+    public void checkpointRefreshState(Long oldDirty) {
+        // 不一样，说明checkpoint协程让开期间，值又变过了;
+        if (value.getDirty() != oldDirty) {
+            return;
+        }
         // 设置为没变化
         value.clearModify();
 
-        switch (_state) {
+        switch (getState()) {
             case ADD:
                 state = GET;
                 break;

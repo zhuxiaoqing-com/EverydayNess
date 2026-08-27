@@ -189,7 +189,9 @@ final class DbDirtyPbTableRenderer {
         sb.append("        byte[] payload = (byte[]) valueList.get(1).getV();\n");
         sb.append("        ").append(entity.beanClassName).append(" value = deserializeBean(payload);\n");
         sb.append("        value.set").append(entity.primaryKeyField.methodSuffix).append("(key);\n");
-        sb.append("        value.dirty = false;\n");
+        if (shouldMarkModify(entity)) {
+            sb.append("        value.makeModify();\n");
+        }
         sb.append("        return value;\n");
         sb.append("    }\n\n");
         sb.append("    private MysqlRsp requireMysqlRsp(DBRsp rsp) {\n");
@@ -220,14 +222,23 @@ final class DbDirtyPbTableRenderer {
         sb.append("    private ").append(entity.beanClassName).append(" deserializeBean(byte[] bytes) {\n");
         sb.append("        ").append(entity.beanClassName).append(" value = new ").append(entity.beanClassName).append("();\n");
         sb.append("        if (bytes == null || bytes.length == 0) {\n");
-        sb.append("            value.dirty = false;\n");
+        if (shouldMarkModify(entity)) {
+            sb.append("            value.makeModify();\n");
+        }
         sb.append("            return value;\n");
         sb.append("        }\n");
         sb.append("        ProtostuffIOUtil.mergeFrom(bytes, value, SCHEMA);\n");
-        sb.append("        value.dirty = false;\n");
+        if (shouldMarkModify(entity)) {
+            sb.append("        value.makeModify();\n");
+        }
         sb.append("        return value;\n");
         sb.append("    }\n");
         sb.append("}\n");
         return sb.toString();
+    }
+
+    private boolean shouldMarkModify(DbDirtyEntityMeta entity) {
+        return !"org.evd.game.LobbyService.dbDef".equals(entity.sourcePackage)
+                || !"LBRole".equals(entity.beanClassName);
     }
 }

@@ -6,7 +6,7 @@ package org.evd.game.base;
  * @date 2020/02/09 16:59
  */
 public abstract class DirtyObject {
-    public transient boolean dirty ;
+    public transient long dirty ;
     private transient DirtyObject _parent;
 
     public DirtyObject() {
@@ -28,7 +28,7 @@ public abstract class DirtyObject {
     }
 
     public void clearModify() {
-        dirty = false;
+        dirty = 0;
     }
 
     private void parentMakeModify() {
@@ -37,20 +37,26 @@ public abstract class DirtyObject {
         }
         if(_parent == null) {
             // 设置新版本号
-            dirty = true;
+            dirty++;
         }
     }
 
 
     public boolean checkModify() {
-        if (dirty) {
+        if (dirty>0) {
             return true;
         }
         return false;
     }
 
 
+    public long getDirty() {
+        return dirty;
+    }
 
+    public void setDirty(long dirty) {
+        this.dirty = dirty;
+    }
 
     public void setParent(DirtyObject parent) {
         if (_parent != null && parent != null && _parent != parent) {

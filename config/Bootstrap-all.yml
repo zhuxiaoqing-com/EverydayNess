@@ -1,6 +1,6 @@
 dbConfigPath: db-dev.yml
 tableDir: ./csv
-dbTopology: REMOTE_SERVICE
+dbTopology: NODE_LOCAL
 debug: true
 platformId: 0  #平台id
 serverId: 0 #服务器id;
