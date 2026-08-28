@@ -66,7 +66,7 @@ public class ConnService extends Service {
                 new BaseChannelInitializer(() -> new ConnServiceClientChannelHandler(clientChannelManager, this), true));
         LogCore.core.info("ConnService Netty 启动完成: service={}, port={}", id, port);
         newRepeatedTimer(HEARTBEAT_SCAN_INTERVAL_MILLIS, false, this::scanHeartbeatTimeouts);
-        newRepeatedTimer(GwOnlineReconcileS.INTERVAL_MILLIS, false, gwOnlineReconcileS::reconcile);
+        newRepeatedTimerCoroutine(GwOnlineReconcileS.INTERVAL_MILLIS, false, gwOnlineReconcileS::reconcile);
     }
 
     public void dispatchClientCmd(NetChannel session, int cmd, Chunk body) {

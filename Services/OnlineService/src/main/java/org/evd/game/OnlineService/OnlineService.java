@@ -34,9 +34,9 @@ public class OnlineService extends Service {
     @Override
     public void init() {
         super.init();
-        newRepeatedTimer(60_000L, false, this::cleanupExpiredTokens);
-        newRepeatedTimer(5_000L, true, serviceSelector::refresh);
-        newRepeatedTimer(1_000L, true, loginCoordinator::pumpAdmissionQueue);
+        newRepeatedTimerCoroutine(60_000L, false, this::cleanupExpiredTokens);
+        newRepeatedTimerCoroutine(5_000L, true, serviceSelector::refresh);
+        newRepeatedTimerCoroutine(1_000L, true, loginCoordinator::pumpAdmissionQueue);
         LogCore.core.info("OnlineService 初始化完成: service={}", id);
     }
 

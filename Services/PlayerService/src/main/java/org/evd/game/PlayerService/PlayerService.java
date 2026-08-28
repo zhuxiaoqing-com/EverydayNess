@@ -30,7 +30,7 @@ public class PlayerService extends Service {
     @Override
     public void init() {
         super.init();
-        newRepeatedTimer(PlayerOnlineReconcileS.INTERVAL_MILLIS, false, playerOnlineReconcileS::reconcile);
+        newRepeatedTimerCoroutine(PlayerOnlineReconcileS.INTERVAL_MILLIS, false, playerOnlineReconcileS::reconcile);
     }
 
     /** 执行 PlayerService 的周期性服务任务。 */

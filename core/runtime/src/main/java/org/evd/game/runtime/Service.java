@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -775,6 +776,26 @@ public class Service extends TickCase {
 
     protected final long newRepeatedTimer(long intervalMillis, boolean immediate, Runnable callback) {
         return timerScheduler.scheduleRepeated(getWaitBaseTime(), intervalMillis, immediate, callback);
+    }
+
+    /**
+     * 创建一个到期后在独立业务协程中执行的单次定时器。
+     * 适合回调中可能调用 callWait、sleep 或其他协程等待 API 的业务逻辑。
+     */
+    protected final long newOnceTimerCoroutine(long delayMillis, Runnable callback) {
+        Objects.requireNonNull(callback, "callback");
+        return newOnceTimer(delayMillis, () -> launchCoroutine(callback));
+    }
+
+    /**
+     * 创建一个每次到期后都在独立业务协程中执行的重复定时器。
+     * 每次触发都会创建新的协程，不会等待上一次回调完成。
+     */
+    protected final long newRepeatedTimerCoroutine(long intervalMillis,
+                                                    boolean immediate,
+                                                    Runnable callback) {
+        Objects.requireNonNull(callback, "callback");
+        return newRepeatedTimer(intervalMillis, immediate, () -> launchCoroutine(callback));
     }
 
     protected final boolean removeTimer(long timerId) {

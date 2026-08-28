@@ -52,8 +52,15 @@ state{
 
 loadPlayerAllTableToMemory 结束标识加载完成;  调用的时候标识正在加载中
 flush 表示结束; 调用的时候表示正在结束;
+首先get只有在状态是load_finish的时候才可以，然后get传一个参数是否是load,如果是load的话，那在load_ing也可以;
+然后get在load的时候是异步的，也没事 统一在数据库查询回来以后在判断一次就行了; 应该在get之前判断，和数据库回来以后判断;
+add和remove的话 直接在方法开头判断就行;add remove没有load字段，所以只要判断是否是load_finish就行;
 
-loadPlayerAllTableToMemory
+
+
+loadPlayerAllTableToMemory 目前看不需要加锁，反正get里面每次都会重复判断状态的，状态不对直接后续的加载直接失败;
+然后再最终全部load结束的时候 会再判断一次，如果状态已经不对了就直接不管return;
+
     load_wait = 1; // 等待load
     load_ing = 2; // load中
     load_finish = 3; // load完成

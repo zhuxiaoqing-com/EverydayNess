@@ -124,3 +124,7 @@
   然后id 一般都是只有一个Int的吧，如果是int 那对象是不是一个按什么IntObjectXXX来缓存呢;这个怎么设置下 怎么和多key的和不是int的key兼容呢
 
 19.CallPoint 需要加上serverId + 平台id
+
+20.TimerScheduler 现在很乱，我看里面实现默认是没有调用协程的;但是有些回调里默认会直接去调用RPC，而RPC是需要开启协程的，怎么办;但是有很多又是不需要开启协程的
+           加两个方法 默认会给callback里嵌套上一层callback，然后在里面抛协程;然后再让codex帮我检查下 哪些需要改成调用这个方法的; 这可以抛协程的延迟事件，放在Service这一层
+           org.evd.game.runtime.Service#newOnceTimer   org.evd.game.runtime.Service#newRepeatedTimer 这两个加一个可以抛协程的
