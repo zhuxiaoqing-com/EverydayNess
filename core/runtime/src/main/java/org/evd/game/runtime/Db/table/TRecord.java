@@ -190,7 +190,8 @@ public class TRecord<K, V extends DirtyObject> {
                 case REMOVE:
                     return table.dbExec(table.createRemoveDBReq(key), ownerCallPoint);
                 case GET:
-                    return table.dbExec(table.createSaveDBReq(key, value), ownerCallPoint);
+                    // 对于GET状态，需要检查version条件
+                    return table.dbExecWithVersionCheck(table.createSaveDBReq(key, value), ownerCallPoint, value.getDirty());
             }
         } catch (Exception e) {
             // 如果flush时候报错，则清除标识，下次会继续同步

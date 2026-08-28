@@ -11,3 +11,79 @@ flush
 
         还是不行呀 可能checkpoint过去了，但是flush一下，但是可能checkpoint还没返回,flush先返回了，这个时候应该别的service get就会有脏数据;
             这可以通过比如 10分钟以后进行flush，20分钟以内玩家绑定在该playerService，就可以避免这个情况;
+
+
+
+
+给数据库都加一个version字段，pb变成三个字段，json变成三个字段，数据库传统表模式的，就给加一个字段，名字就是叫version，
+然后每次add update remove 运行sql的时候 你都给加上version>数据库当前的version数据的才行执行，
+那这个时候version就映射成 org.evd.game.base.DirtyObject#dirty，字段，
+还需要字段，应该叫syncDirty字段是个内存字段，标识你当前已经同步到数据库里的dirty是多少，dirty<=syncDirty说明内存里的数据不是脏的，
+
+version 只能解决“旧 UPDATE/SAVE 覆盖新数据”，但解决不了物理 DELETE 后的乱序问题。
+例如：     SAVE v10  REMOVE v12   SAVE v11
+
+如果 REMOVE v12 先执行并物理删除，后到的 SAVE v11 会因为数据库里已经没有记录而重新 INSERT，导致旧数据复活。
+所以有两种方案：
+逻辑控制/墓碑：数据库保留 version + deleted，永远以最大 version 的操作为准，能彻底解决 SAVE/REMOVE/INSERT 乱序。
+强制同 key 串行：所有同 table + key 的数据库操作严格按顺序执行，可以继续物理 DELETE，但更依赖调度链路绝对正确。
+如果允许数据库写乱序，逻辑删除/墓碑方案更稳。
+
+
+状态应该是;
+状态单独弄一个管理类吧;
+默认可以放Mdb基础写一起;
+XXXXMananger
+里面有Map key 是玩家id value就叫MdbPlayerInfo把
+MdbPlayerInfo {
+ long playerId;
+ state;
+}
+state{
+   load_wait = 1; // 等待load
+   load_ing = 2; // load中
+   load_finish = 3; // load完成
+   flush_wait = 4; // 等待flush
+   flush_ing = 5; // flush中
+   flush_finish = 6; // flush完成
+}
+
+
+
+loadPlayerAllTableToMemory 结束标识加载完成;  调用的时候标识正在加载中
+flush 表示结束; 调用的时候表示正在结束;
+
+loadPlayerAllTableToMemory
+    load_wait = 1; // 等待load
+    load_ing = 2; // load中
+    load_finish = 3; // load完成
+    flush_wait = 4; // 等待flush
+    flush_ing = 5; // flush中
+    flush_finish = 6; // flush完成
+
+
+
+所以我还是需要加锁
+
+然后你把 **加载状态机需要调整**
+    你设想的门禁应当放在 TTable.get/add/remove 方法入口、读取 cache 之前，而不只是“准备查数据库时”。
+    否则：
+    LOADING 阶段已经部分加载的 cache 可以被普通 get 读取。
+    EVICTED 后 add/remove 不需要查 DB，也能重新创建脏 cache。
+    flush 后仍可能读取负缓存。
+    建议由 PlayerService 持有独立于 Session 的驻留状态：
+    UNLOADED
+      → LOADING(epoch)
+      → LOADED(epoch)
+      → FLUSH_PENDING(epoch)
+      → FLUSHING(epoch)
+      → EVICTED(epoch)
+    规则是：
+    只有 LOADED 允许普通 get/add/remove。
+    LOADING 只允许唯一的内部 loadMemory token 绕过门禁。
+    FLUSH_PENDING 开始后，业务入口和 checkpoint 都不能再收集该玩家。
+    等当前 checkpoint 真正返回后才能进入 FLUSHING。
+    同一玩家、同一 generation 只能有一个 flush。
+    不同玩家可以并发 flush。
+    EVICTED 只有新 owner/generation 能重新推进到 LOADING。
+    状态不能放在 PPlayerOnline 中，因为当前离线首先删除 Session binding，flush 状态也会一起消失。   按这 改完 我应该不需要DBService了 也不需要org.evd.game.DBService.entity.DBCache了，只需要本地直接访问Mysql 了;

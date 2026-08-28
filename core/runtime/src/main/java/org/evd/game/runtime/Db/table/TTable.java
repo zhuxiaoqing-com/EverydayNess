@@ -129,7 +129,6 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     }
 
-
     public void checkpoint(boolean close) {
         logger.info("checkpoint table Start table {} ", getName());
         if (!close && getMdb().isClosing()) {
@@ -282,24 +281,15 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
 
-    public static final int TICK_INTERVAL = 1000 * 60;
-    public long nextTickTime;
+
 
     public void tick(long currTime) {
-        if (nextTickTime <= 0) {
-            nextTickTime = currTime + TICK_INTERVAL;
-            return;
-        }
-        if (currTime < nextTickTime) {
-            return;
-        }
-        nextTickTime = currTime + TICK_INTERVAL;
         long count = countGetMiss.getAndSet(0);
         if (count > 0) {
             allCountGetMiss += count;
             //Set<Object> failKeySet = findFailCache.asMap().keySet();
             logger.info(" tableName {}  allCountGetMiss {} countGetMiss {} TICK_INTERVAL {}",
-                    getName(), allCountGetMiss, count, TICK_INTERVAL);
+                    getName(), allCountGetMiss, count, Mdb.TICK_INTERVAL);
         }
 
         for (TRecord<K, V> kvtRecord : getCacheList()) {
@@ -415,7 +405,6 @@ public abstract class TTable<K, V extends DirtyObject> {
 
         return false;
     }
-
 
     public void close() {
         close(true);

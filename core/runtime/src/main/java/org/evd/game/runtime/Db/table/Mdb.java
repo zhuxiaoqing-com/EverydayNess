@@ -27,11 +27,11 @@ public class Mdb {
     }
 
     public Mdb() {
+        // TimerState已经在构造函数中初始化了，不需要再次初始化
     }
 
     private final Map<Class<?>, TTable<?, ?>> class2TableMap = new HashMap<>();
     private final List<TTable<?, ?>> tableList = new ArrayList<>();
-
 
     DBExecInterface dbExecInterface;
     Service service;
@@ -175,53 +175,106 @@ public class Mdb {
         return allSuccess;
     }
 
-    public static final int TICK_INTERVAL = 1000 * 10;
-    public long nextTickTime;
-    public boolean tickCoroutineRunning = false;
+    // 统一的tick间隔，所有TTable共用
+    public static final int TICK_INTERVAL = 1000 * 60; // 1分钟
+    public static final int CHECKPOINT_INTERVAL = 1000 * 60; // 1分钟
+    public static final int TICK_CLEAR_CACHE_INTERVAL = 1000 * 60; // 1分钟
+
+    // 使用TimerState来管理定时任务状态
+    private final TimerState tickTimerState = new TimerState(TICK_INTERVAL);
+    private final TimerState checkpointTimerState = new TimerState(CHECKPOINT_INTERVAL);
+    private final TimerState tickClearCacheTimerState = new TimerState(TICK_CLEAR_CACHE_INTERVAL);
+
     @SuppressWarnings({"rawtypes"})
     public void tick(long currTime) {
         if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
             return;
         }
-        if (currTime < nextTickTime) {
-            return;
-        }
-        nextTickTime = currTime + TICK_INTERVAL;
 
-        Service.getCurrent().launchCoroutine(this::tickCoroutine);
+        // 检查并执行tick任务
+        if (tickTimerState.canExecute(currTime)) {
+            tickTimerState.markStart();
+            Service.getCurrent().launchCoroutine(() -> {
+                try {
+                    tickCoroutine(Service.getTime());
+                } finally {
+                    tickTimerState.markComplete(); // 协程结束后才设置下一次执行时间
+                }
+            });
+        }
+
+        // 检查并执行checkpoint任务
+        if (checkpointTimerState.canExecute(currTime)) {
+            checkpointTimerState.markStart();
+            Service.getCurrent().launchCoroutine(() -> {
+                try {
+                    checkpointCoroutine(Service.getTime());
+                } finally {
+                    checkpointTimerState.markComplete(); // 协程结束后才设置下一次执行时间
+                }
+            });
+        }
+
+        // 检查并执行tickClearCache任务
+        if (tickClearCacheTimerState.canExecute(currTime)) {
+            tickClearCacheTimerState.markStart();
+            Service.getCurrent().launchCoroutine(() -> {
+                try {
+                    tickClearCacheCoroutine(Service.getTime());
+                } finally {
+                    tickClearCacheTimerState.markComplete(); // 协程结束后才设置下一次执行时间
+                }
+            });
+        }
     }
 
-    public void tickCoroutine() {
-        // 上一个tick还没结束 不进行该次tick
-        if (tickCoroutineRunning) {
-            return;
-        }
-        try {
-            tickCoroutineRunning = true;
-            _tickCoroutine(Service.getTime());
-        } finally {
-            tickCoroutineRunning = false;
-        }
-    }
-
-    public void _tickCoroutine(long currTime) {
+    public void tickCoroutine(long currTime) {
         if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
             return;
         }
+
+        // 执行tick操作（1分钟一次）
         for (TTable table : tableList) {
             table.tick(currTime);
         }
+    }
+
+    /**
+     * 执行checkpoint操作（1分钟一次）
+     */
+    public void checkpointCoroutine(long currTime) {
+        if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
+            return;
+        }
+
+        logger.info("Starting checkpoint execution at {}", currTime);
 
         for (TTable table : tableList) {
             table.checkpoint(false);
         }
 
+        logger.info("Completed checkpoint execution");
+    }
+
+    /**
+     * 执行tickClearCache操作（1分钟一次）
+     */
+    public void tickClearCacheCoroutine(long currTime) {
+        if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
+            return;
+        }
+
+        logger.info("Starting tickClearCache execution at {}", currTime);
+
+        // 执行tickClearCache操作（1分钟一次）
         for (TTable table : tableList) {
             // 支持flush 说明是玩家个人数据; 不清理让玩家手动调用flush清理
             if (!table.isSupportFlush()) {
                 table.tickClearCache();
             }
         }
+
+        logger.info("Completed tickClearCache execution");
     }
 
     public boolean checkTableCreate() {
