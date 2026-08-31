@@ -8,7 +8,9 @@ import java.util.Objects;
 
 @SerializeClass
 public class CallPoint implements ISerializable {
-    public String nodeId;
+    public int platformId;
+    public int serverId;
+    public int nodeId;
     public String servId;
 
     public CallPoint(){
@@ -17,22 +19,41 @@ public class CallPoint implements ISerializable {
 
     /**
      * 构造函数
-     * @param nodeId
-     * @param servId
+     * @param platformId 平台 ID
+     * @param serverId 服务器 ID
+     * @param nodeId Node ID
+     * @param servId Service ID
      */
-    public CallPoint(String nodeId, String servId) {
+    public CallPoint(int platformId, int serverId, int nodeId, String servId) {
+        this.platformId = platformId;
+        this.serverId = serverId;
         this.nodeId = nodeId;
         this.servId = servId;
     }
 
     public CallPoint(CallPoint callPoint) {
+        this.platformId = callPoint.platformId;
+        this.serverId = callPoint.serverId;
         this.nodeId = callPoint.nodeId;
         this.servId = callPoint.servId;
+    }
+
+    public CallPoint nodePoint() {
+        return new CallPoint(platformId, serverId, nodeId, null);
+    }
+
+    public boolean sameNode(CallPoint other) {
+        return other != null
+                && platformId == other.platformId
+                && serverId == other.serverId
+                && nodeId == other.nodeId;
     }
 
     @Override
     public String toString() {
         return new ToStringBuilder(this)
+                .append("platformId", platformId)
+                .append("serverId", serverId)
                 .append("nodeId", nodeId)
                 .append("servId", servId)
                 .toString();
@@ -42,19 +63,38 @@ public class CallPoint implements ISerializable {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         CallPoint callPoint = (CallPoint) o;
-        return Objects.equals(nodeId, callPoint.nodeId) && Objects.equals(servId, callPoint.servId);
+        return platformId == callPoint.platformId
+                && serverId == callPoint.serverId
+                && nodeId == callPoint.nodeId
+                && Objects.equals(servId, callPoint.servId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, servId);
+        return Objects.hash(platformId, serverId, nodeId, servId);
     }
 
-    public String getNodeId() {
+    public int getPlatformId() {
+        return platformId;
+    }
+
+    public void setPlatformId(int platformId) {
+        this.platformId = platformId;
+    }
+
+    public int getServerId() {
+        return serverId;
+    }
+
+    public void setServerId(int serverId) {
+        this.serverId = serverId;
+    }
+
+    public int getNodeId() {
         return nodeId;
     }
 
-    public void setNodeId(String nodeId) {
+    public void setNodeId(int nodeId) {
         this.nodeId = nodeId;
     }
 

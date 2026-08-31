@@ -2,6 +2,7 @@ package org.evd.game.runtime.netty;
 
 import io.netty.util.AttributeKey;
 import org.evd.game.runtime.RemoteSession;
+import org.evd.game.runtime.call.CallPoint;
 
 public class ServerAttributeKey {
 
@@ -11,7 +12,8 @@ public class ServerAttributeKey {
 
 	public static final AttributeKey<Integer> brokenType = AttributeKey.valueOf("brokenType");
 
-	public static final AttributeKey<String> remoteNodeId = AttributeKey.valueOf("remoteNodeId");
+	public static final AttributeKey<Integer> remoteNodeId = AttributeKey.valueOf("remoteNodeId");
+	public static final AttributeKey<CallPoint> remoteCallPoint = AttributeKey.valueOf("remoteCallPoint");
 	/** 当前物理 Channel 绑定的 RemoteNode Session。 */
 	public static final AttributeKey<RemoteSession> remoteSession = AttributeKey.valueOf("remoteSession");
 

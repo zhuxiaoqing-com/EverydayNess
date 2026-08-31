@@ -40,7 +40,7 @@ public class Node extends TickCase{
     private static final long OFFLINE_SERVICE_RETENTION_TIME = 5 * 60 * 1000L;
 
     /** 远程节点 */
-    protected final ConcurrentMap<String, RemoteNode> remoteNodes = new ConcurrentHashMap<>();
+    protected final ConcurrentMap<CallPoint, RemoteNode> remoteNodes = new ConcurrentHashMap<>();
     /** 非 Node 线程投递的 Node 事件，例如入站 Call 与连接断开后的状态清理。 */
     private final FrameQueue<Runnable> postedTasks = new FrameQueue<>(new ConcurrentLinkedQueue<>());
 
@@ -52,7 +52,7 @@ public class Node extends TickCase{
     private final ConcurrentHashMap<Object, Service> services = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Object, Service> pendServices = new ConcurrentHashMap<>();
     /** 远程node -> services镜像 */
-    private final ConcurrentHashMap<String, List<RegisteredService>> remoteNodeServices = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<CallPoint, List<RegisteredService>> remoteNodeServices = new ConcurrentHashMap<>();
     /** 已从服务索引中移除、但仍需保留一段时间的离线 Service。仅由 Node 线程访问。 */
     private final ConcurrentMap<CallPoint, RegisteredService> offlineServices = new ConcurrentHashMap<>();
     /** serviceType -> services缓存 */
@@ -62,6 +62,9 @@ public class Node extends TickCase{
     /** 地址 */
     private final String addr;
     private final NodeInfo nodeInfo;
+    private final int platformId;
+    private final int serverId;
+    private final CallPoint nodeCallPoint;
 
     public NodeType getNodeType() {
         return nodeInfo.getNodeType();
@@ -92,11 +95,14 @@ public class Node extends TickCase{
     private final CallPoint nodeDbCallPoint;
     ChannelManager channelManager = new ChannelManager();
 
-    public Node(NodeInfo nodeInfo){
+    public Node(NodeInfo nodeInfo, int platformId, int serverId){
         super(Integer.toString(nodeInfo.getNodeId()), 1);
         this.nodeInfo = nodeInfo;
+        this.platformId = platformId;
+        this.serverId = serverId;
+        this.nodeCallPoint = new CallPoint(platformId, serverId, nodeInfo.getNodeId(), null);
         this.addr = nodeInfo.getAddr();
-        this.nodeDbCallPoint = new CallPoint(getId(), "$node-db");
+        this.nodeDbCallPoint = getCallPoint("$node-db");
 
         int port = nodeInfo.getAddressInfo().getPort();
         acceptor = new NetAcceptor(port,
@@ -344,7 +350,7 @@ public class Node extends TickCase{
 
 
     private void sendCallResult(CallResult result) {
-        if (id.equals(result.to.nodeId)) {
+        if (isLocalNode(result.to)) {
             Service sourceService = services.get(result.to.servId);
             if (sourceService == null) {
                 LogCore.remote.error("local rpc rejection result cannot be delivered: node={}, targetService={}, waitId={}",
@@ -361,10 +367,10 @@ public class Node extends TickCase{
     }
 
     boolean sendCallResultOnSource(CallResult result) {
-        if (result == null || result.to == null || result.to.nodeId == null) {
+        if (result == null || result.to == null) {
             return false;
         }
-        RemoteNode remoteNode = remoteNodes.get(result.to.nodeId);
+        RemoteNode remoteNode = getRemoteNode(result.to);
         return remoteNode != null && remoteNode.sendCallOnSession(result, result.getSourceSessionId());
     }
 
@@ -386,7 +392,7 @@ public class Node extends TickCase{
      * @param call
      */
     private void sendCall(RemoteCall call) {
-        RemoteNode node = remoteNodes.get(call.getRemoteNodeId());
+        RemoteNode node = remoteNodes.get(call.getRemoteNodePoint());
         if (node == null || !node.send(call.getPacket(), call.getExpectedSessionId())) {
             LogCore.remote.error("发送Call请求失败: remoteNode={}, call={}", call.getRemoteNodeId(), call);
         }
@@ -535,14 +541,14 @@ public class Node extends TickCase{
 
     /**
      * 发送请求
-     * @param nodeId 目标 Node
+     * @param nodePoint 目标 Node 点位
      * @param sessionId 目标 RemoteSession
      * @param buffer 序列化数据
      * @param bufferLength 有效数据长度
      */
-    public boolean flushCall_st(String nodeId, long sessionId, byte[] buffer, int bufferLength) {
+    public boolean flushCall_st(CallPoint nodePoint, long sessionId, byte[] buffer, int bufferLength) {
         // 同一Node下 无需走传输协议 内部直接接收即可
-        if (id.equals(nodeId)) {
+        if (isLocalNode(nodePoint)) {
             InputStream input = new InputStream(buffer, 0, bufferLength);
             while (!input.isAtEnd()) {
                 postLocalCall(input.read());
@@ -550,12 +556,12 @@ public class Node extends TickCase{
             return true;
             // 其余的需要通过远程Node来发送请求值目标Node
         } else {
-            RemoteNode remoteNode = remoteNodes.get(nodeId);
+            RemoteNode remoteNode = remoteNodes.get(nodePoint);
             if (remoteNode == null) {
                 return false;
             }
             RemoteCall remoteCall = new RemoteCall(
-                    nodeId, sessionId, NodeFrameChunk.wrap(buffer, bufferLength));
+                    nodePoint, sessionId, NodeFrameChunk.wrap(buffer, bufferLength));
             post(() -> sendCall(remoteCall));
             return true;
         }
@@ -565,25 +571,22 @@ public class Node extends TickCase{
      * 这里返回能发送，后面的所有不能发送都不再处理发送失败;
      */
     public RemoteSession captureRemoteSession(CallBase call) {
-        if (call == null || call.to == null || call.to.nodeId == null) {
+        if (call == null || call.to == null) {
             return null;
         }
-        if (id.equals(call.to.nodeId)) {
-            return null;
-        }
-        RemoteNode remoteNode = remoteNodes.get(call.to.nodeId);
+        RemoteNode remoteNode = getRemoteNode(call.to);
         return remoteNode == null ? null : remoteNode.captureSession(call);
     }
 
     /** 仅检查目标 Session 的连接状态，用于检查已序列化但尚未满帧的数据。 */
-    public boolean canSendOutboundSession_nt(String nodeId, long sessionId) {
-        if (nodeId == null || sessionId < 0L) {
+    public boolean canSendOutboundSession_nt(CallPoint nodePoint, long sessionId) {
+        if (nodePoint == null || sessionId < 0L) {
             return false;
         }
-        if (id.equals(nodeId)) {
+        if (isLocalNode(nodePoint)) {
             return sessionId == 0L;
         }
-        RemoteNode remoteNode = remoteNodes.get(nodeId);
+        RemoteNode remoteNode = remoteNodes.get(nodePoint);
         return remoteNode != null && remoteNode.isCurrentSession(sessionId);
     }
 
@@ -613,28 +616,33 @@ public class Node extends TickCase{
      * @param name
      * @param addr
      */
-    public RemoteNode addRemoteNode(String name, String addr) {
-        return addRemoteNode(name, addr, false);
+    public RemoteNode addRemoteNode(int nodeId, String addr) {
+        return addRemoteNode(getCallPoint(null, nodeId).nodePoint(), addr, false);
     }
 
-    public synchronized RemoteNode addRemoteNode(String name, String addr, boolean needConnect) {
+    public synchronized RemoteNode addRemoteNode(int nodeId, String addr, boolean needConnect) {
+        return addRemoteNode(getCallPoint(null, nodeId).nodePoint(), addr, needConnect);
+    }
+
+    public synchronized RemoteNode addRemoteNode(CallPoint remoteNodePoint, String addr, boolean needConnect) {
         if (shutdownStarted.get()
                 && status != CaseStatus.Starting
                 && status != CaseStatus.Running) {
-            throw new SysException("cannot add remote node after JVM shutdown begins: node={}, remoteNode={}", id, name);
+            throw new SysException("cannot add remote node after JVM shutdown begins: node={}, remoteNode={}", id, remoteNodePoint);
         }
-        RemoteNode remote = remoteNodes.get(name);
+        CallPoint nodePoint = remoteNodePoint.nodePoint();
+        RemoteNode remote = remoteNodes.get(nodePoint);
         if (remote != null) {
             return remote;
         }
 
-        RemoteNode newRemote = new RemoteNode(this, name, addr, needConnect);
-        RemoteNode oldRemote = remoteNodes.putIfAbsent(name, newRemote);
+        RemoteNode newRemote = new RemoteNode(this, nodePoint, addr, needConnect);
+        RemoteNode oldRemote = remoteNodes.putIfAbsent(nodePoint, newRemote);
         if (oldRemote != null) {
             return oldRemote;
         }
 
-        LogCore.remote.info("添加远程node：name={},addr={},needConnect={}", name, addr, needConnect);
+        LogCore.remote.info("添加远程node：name={},addr={},needConnect={}", nodePoint, addr, needConnect);
         return newRemote;
     }
 
@@ -657,8 +665,8 @@ public class Node extends TickCase{
      */
     public void remoteCallHandle_nt(ByteBuf msg, NetChannel sourceChannel) {
         int len = msg.readableBytes();
-        String remoteNodeId = sourceChannel == null ? null : sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
-        DebugPrint.printReceiveNodeFrame(getId(), remoteNodeId, sourceChannel, len);
+        Integer remoteNodeId = sourceChannel == null ? null : sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+        DebugPrint.printReceiveNodeFrame(getNodeId(), remoteNodeId, sourceChannel, len);
 
         byte[] receiveBuffer = BufferPool.allocate();
         try {
@@ -691,7 +699,7 @@ public class Node extends TickCase{
 
     /** 仅在 Node 线程处理连接断开，保证与该连接已入队的入站消息保持顺序。 */
     private void handleChannelInactive_nt(NetChannel channel) {
-        String remoteNodeId = channel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+        Integer remoteNodeId = channel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
         RemoteSession session = channel.getChannel().attr(ServerAttributeKey.remoteSession).get();
         if (session != null) {
             remoteNodeId = session.getRemoteNodeId();
@@ -699,9 +707,10 @@ public class Node extends TickCase{
         if (remoteNodeId == null) {
             return;
         }
-        RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
+        CallPoint remoteNodePoint = channel.getChannel().attr(ServerAttributeKey.remoteCallPoint).get();
+        RemoteNode remoteNode = remoteNodePoint == null ? null : remoteNodes.get(remoteNodePoint.nodePoint());
         if (remoteNode != null && remoteNode.onChannelInactive_nt(channel, session)) {
-            remoteNodeServices.remove(remoteNode.getRemoteId());
+            remoteNodeServices.remove(remoteNode.getRemoteCallPoint());
             rebuildServiceIndexes();
         }
         if (session != null) {
@@ -743,14 +752,14 @@ public class Node extends TickCase{
         return nodeDbCallPoint;
     }
 
-    private void failRpcWaitsForRemote_nt(String remoteNodeId, RemoteSession session) {
+    private void failRpcWaitsForRemote_nt(Integer remoteNodeId, RemoteSession session) {
         for (Service service : services.values()) {
             if (service == null) {
                 continue;
             }
             try {
                 service.post(() -> {
-                    int failed = service.failRpcWaitsForRemote(remoteNodeId, session.getSessionId());
+                    int failed = service.failRpcWaitsForRemote(session.getRemoteCallPoint(), session.getSessionId());
                     if (failed > 0) {
                         LogCore.remote.warn("远程Node物理连接断开，结束对应 Session RPC等待: localNode={}, remoteNode={}, sessionId={}, channelId={}, service={}, count={}",
                                 id, remoteNodeId, session.getSessionId(), session.getChannelId(), service.getId(), failed);
@@ -773,7 +782,7 @@ public class Node extends TickCase{
             }*/
             throw new SysException("rpc call point is missing: callType={}", call.getClass().getSimpleName());
         }
-        if (!id.equals(call.getTo().nodeId)) {
+        if (!isLocalNode(call.getTo())) {
             /*if (sourceChannel != null) {
                 sourceChannel.close();
             }*/
@@ -783,7 +792,8 @@ public class Node extends TickCase{
 
         //  sourceChannel==null,说明是同node的消息
         if (sourceChannel != null) {
-            String attrRemoteNodeId = sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+            Integer attrRemoteNodeId = sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+            CallPoint attrRemoteNodePoint = sourceChannel.getChannel().attr(ServerAttributeKey.remoteCallPoint).get();
             boolean initialHandshake = call instanceof CallNodeServicesSync sync && sync.isInit();
             if (attrRemoteNodeId == null) {
                 if (!initialHandshake) {
@@ -804,7 +814,7 @@ public class Node extends TickCase{
                 sourceChannel.close();
                 return;
             }
-            RemoteNode remoteNode = attrRemoteNodeId == null ? null : remoteNodes.get(attrRemoteNodeId);
+            RemoteNode remoteNode = attrRemoteNodePoint == null ? null : remoteNodes.get(attrRemoteNodePoint.nodePoint());
             if (!initialHandshake
                     && (remoteNode == null || !remoteNode.isCurrentSession(call.getSourceSessionId()))) {
                 LogCore.remote.error("收到已过期 Session 的远程调用: node={}, callType={}, remoteNode={}, sessionId={}",
@@ -812,16 +822,16 @@ public class Node extends TickCase{
                 sourceChannel.close();
                 return;
             }
-            if(attrRemoteNodeId != null && !attrRemoteNodeId.equals(call.from.nodeId)) {
-                LogCore.remote.error("收到from.nodeId != attr.remoteId的非法消息: node={}, callType={}, from.remoteNode={}  attr.remoteId={}",
-                        getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId, attrRemoteNodeId);
+            if (attrRemoteNodePoint != null && !attrRemoteNodePoint.sameNode(call.from)) {
+                LogCore.remote.error("收到 from 节点身份与连接不一致的非法消息: node={}, callType={}, from.remoteNode={}  attr.remoteNode={}",
+                        getId(), call.getClass().getSimpleName(), call.from, attrRemoteNodePoint);
                 return;
             }
         }
 
         DebugPrint.printReceiveRpc(call);
 
-        String remoteId = call.from.nodeId;
+        CallPoint remoteNodePoint = call.from.nodePoint();
         // 根据请求类型来分别处理
         switch (call) {
             case RpcCallBase ignored: {
@@ -879,22 +889,22 @@ public class Node extends TickCase{
             break;
 
             case CallNodeServicesSync callNodeServicesSync: {
-                RemoteNode node = remoteNodes.get(remoteId);
+                RemoteNode node = remoteNodes.get(remoteNodePoint);
                 if (node == null) {
-                    node = addRemoteNode(remoteId, callNodeServicesSync.getAddr());
+                    node = addRemoteNode(remoteNodePoint, callNodeServicesSync.getAddr(), false);
                 }
                 if (callNodeServicesSync.isInit() && !node.onNodeServicesSync_nt(sourceChannel)) {
                     break;
                 }
-                syncRemoteServices_nt(remoteId, callNodeServicesSync.getServices());
+                syncRemoteServices_nt(remoteNodePoint, callNodeServicesSync.getServices());
             }
             break;
             case CallPing callPing: {
-                onRemotePing_nt(remoteId, sourceChannel, callPing);
+                onRemotePing_nt(remoteNodePoint, sourceChannel, callPing);
             }
             break;
             case CallPong callPong: {
-                onRemotePong_nt(remoteId, sourceChannel, callPong);
+                onRemotePong_nt(remoteNodePoint, sourceChannel, callPong);
             }
             break;
             default:
@@ -943,30 +953,30 @@ public class Node extends TickCase{
 
 
 
-    private void onRemotePing_nt(String remoteNodeId, NetChannel sourceChannel, CallPing ping) {
-        RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
+    private void onRemotePing_nt(CallPoint remoteNodePoint, NetChannel sourceChannel, CallPing ping) {
+        RemoteNode remoteNode = remoteNodes.get(remoteNodePoint);
         if (remoteNode == null) {
-            LogCore.remote.warn("收到未知远程node的ping: nodeId={}", remoteNodeId);
+            LogCore.remote.warn("收到未知远程node的ping: node={}", remoteNodePoint);
             return;
         }
         if (sourceChannel == null) {
-            LogCore.remote.warn("收到远程node ping时连接不存在: nodeId={}", remoteNodeId);
+            LogCore.remote.warn("收到远程node ping时连接不存在: node={}", remoteNodePoint);
             return;
         }
         remoteNode.updateServiceStatuses_nt(ping.getServiceStatuses());
         sourceChannel.setLastPingTime(currentTickTime_nt());
 
         CallPong call = new CallPong();
-        call.from = new CallPoint(id, null);
-        call.to = new CallPoint(remoteNodeId, null);
+        call.from = getNodeCallPoint();
+        call.to = remoteNode.getRemoteCallPoint();
         call.setServiceStatuses(buildLocalServiceStatuses_nt());
         remoteNode.sendCall(call);
     }
 
-    private void onRemotePong_nt(String remoteNodeId, NetChannel sourceChannel, CallPong pong) {
-        RemoteNode remoteNode = remoteNodes.get(remoteNodeId);
+    private void onRemotePong_nt(CallPoint remoteNodePoint, NetChannel sourceChannel, CallPong pong) {
+        RemoteNode remoteNode = remoteNodes.get(remoteNodePoint);
         if (remoteNode == null) {
-            LogCore.remote.warn("收到未知远程node的pong: nodeId={}", remoteNodeId);
+            LogCore.remote.warn("收到未知远程node的pong: node={}", remoteNodePoint);
             return;
         }
         remoteNode.updateServiceStatuses_nt(pong.getServiceStatuses());
@@ -977,7 +987,7 @@ public class Node extends TickCase{
     private void pulseInboundRemoteChannelsTimeout_nt() {
         long timeCurr = currentTickTime_nt();
         for (NetChannel netChannel : channelManager.getChannelMap().values()) {
-            String remoteNodeId = netChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
+            Integer remoteNodeId = netChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
 
             long lastActivityTime = netChannel.getLastPingTime();
             if (lastActivityTime <= 0L || (timeCurr - lastActivityTime) <= RemoteNode.INTERVAL_LOST) {
@@ -991,19 +1001,19 @@ public class Node extends TickCase{
 
     private void refreshLocalServices() {
         List<RegisteredService> snapshot = buildLocalServicesSnapshot();
-        remoteNodeServices.put(id, snapshot);
+        remoteNodeServices.put(getNodeCallPoint(), snapshot);
         rebuildServiceIndexes();
     }
 
-    private void syncRemoteServices_nt(String nodeId, List<RegisteredService> services) {
-        remoteNodeServices.put(nodeId, services);
+    private void syncRemoteServices_nt(CallPoint nodePoint, List<RegisteredService> services) {
+        remoteNodeServices.put(nodePoint, services);
         rebuildServiceIndexes();
     }
 
     private void sendLocalServicesToRemote_nt(RemoteNode remoteNode) {
         CallNodeServicesSync call = new CallNodeServicesSync();
-        call.from = new CallPoint(id, null);
-        call.to = new CallPoint(remoteNode.getRemoteId(), null);
+        call.from = getNodeCallPoint();
+        call.to = remoteNode.getRemoteCallPoint();
         call.setInit(false);
         call.setAddr(addr);
         call.setServices(buildLocalServicesSnapshot());
@@ -1043,7 +1053,9 @@ public class Node extends TickCase{
                     service.serviceInfo.getServiceType(),
                     "org.evd.game." + shortClassName + "." + shortClassName,
                     service.getId(),
-                    id));
+                    platformId,
+                    serverId,
+                    nodeInfo.getNodeId()));
         }
         snapshot.sort(Comparator.comparing(RegisteredService::getServiceClassName)
                 .thenComparing(RegisteredService::getServiceId));
@@ -1069,7 +1081,7 @@ public class Node extends TickCase{
                 tempType2ServiceMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
                         .add(new RegisteredService(service));
 
-                tempCallPoint2ServiceMap.put(new CallPoint(service.getNodeId(), service.getServiceId()), service);
+                tempCallPoint2ServiceMap.put(service.getCallPoint(), service);
                 tempType2CallMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
                         .add(new RegisteredService(service).getCallPoint());
             }
@@ -1079,7 +1091,9 @@ public class Node extends TickCase{
                     .thenComparing(RegisteredService::getServiceId));
         }
         for (List<CallPoint> value : tempType2CallMap.values()) {
-            value.sort(Comparator.comparing(CallPoint::getNodeId)
+            value.sort(Comparator.comparing(CallPoint::getPlatformId)
+                    .thenComparing(CallPoint::getServerId)
+                    .thenComparing(CallPoint::getNodeId)
                     .thenComparing(CallPoint::getServId));
         }
 
@@ -1162,8 +1176,32 @@ public class Node extends TickCase{
         return services;
     }
 
-    public ConcurrentHashMap<String, List<RegisteredService>> getRemoteNodeServices() {
+    public ConcurrentHashMap<CallPoint, List<RegisteredService>> getRemoteNodeServices() {
         return remoteNodeServices;
+    }
+
+    public CallPoint getCallPoint(String serviceId) {
+        return getCallPoint(serviceId, nodeInfo.getNodeId());
+    }
+
+    public int getNodeId() {
+        return nodeInfo.getNodeId();
+    }
+
+    private CallPoint getCallPoint(String serviceId, int nodeId) {
+        return new CallPoint(platformId, serverId, nodeId, serviceId);
+    }
+
+    public CallPoint getNodeCallPoint() {
+        return new CallPoint(nodeCallPoint);
+    }
+
+    public boolean isLocalNode(CallPoint callPoint) {
+        return callPoint != null && nodeCallPoint.equals(callPoint.nodePoint());
+    }
+
+    private RemoteNode getRemoteNode(CallPoint callPoint) {
+        return callPoint == null ? null : remoteNodes.get(callPoint.nodePoint());
     }
 
 }

@@ -209,7 +209,7 @@ public class Service extends TickCase {
         this.node = node;
         this.scheduledName = scheduledName;
         this.scope = new ContinuationScope(name);
-        this.callPoint = new CallPoint(node.getId(), name);
+        this.callPoint = node.getCallPoint(name);
         this.callTransport = new CallTransport(node, this, timerScheduler);
         this.messageSender = new MessageSender(this);
         this.processInnerSender = new ProcessInnerSender(this);
@@ -413,8 +413,8 @@ public class Service extends TickCase {
         rpcInboundDispatcher.handle(callResult);
     }
 
-    int failRpcWaitsForRemote(String remoteNodeId, long sessionId) {
-        callTransport.discard(remoteNodeId, sessionId);
+    int failRpcWaitsForRemote(CallPoint remoteNodePoint, long sessionId) {
+        callTransport.discard(remoteNodePoint, sessionId);
         return callTransport.failPendingRpcForSession(sessionId);
     }
 

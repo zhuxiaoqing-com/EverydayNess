@@ -1,6 +1,7 @@
 package org.evd.game.runtime.serialize;
 
 import org.evd.game.runtime.call.CallBase;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.Node;
 
 /**
@@ -9,8 +10,8 @@ import org.evd.game.runtime.Node;
  * 请求缓冲
  */
 public class CallPulseBuffer implements AutoCloseable{
-	/** 目标Node名称 */
-	private final String targetNodeId;
+	/** 目标 Node 点位 */
+	private final CallPoint targetNodePoint;
 	/**
 	 * Service 线程顺序刷新各 Session；同一时刻只有一个有效 Session，
 	 * 因此复用同一输出流即可，避免为每次刷新反复申请缓冲。
@@ -20,10 +21,10 @@ public class CallPulseBuffer implements AutoCloseable{
 	private final long sessionId;
 	/**
 	 * 构造函数
-	 * @param targetNodeId 目标 Node
+	 * @param targetNodePoint 目标 Node
 	 */
-	public CallPulseBuffer(String targetNodeId, long sessionId) {
-		this.targetNodeId = targetNodeId;
+	public CallPulseBuffer(CallPoint targetNodePoint, long sessionId) {
+		this.targetNodePoint = new CallPoint(targetNodePoint);
 		this.sessionId = sessionId;
 	}
 	
@@ -44,13 +45,13 @@ public class CallPulseBuffer implements AutoCloseable{
 		}
 
 		try {
-			if (!node.canSendOutboundSession_nt(targetNodeId, sessionId)) {
+			if (!node.canSendOutboundSession_nt(targetNodePoint, sessionId)) {
 				org.evd.game.runtime.support.LogCore.remote.warn(
-						"出站 Session 已失效，跳过该 Session 缓冲: targetNode={}, sessionId={}",
-						targetNodeId, sessionId);
+					"出站 Session 已失效，跳过该 Session 缓冲: targetNode={}, sessionId={}",
+					targetNodePoint, sessionId);
 				return;
 			}
-			node.flushCall_st(targetNodeId, sessionId, buffer.getBuffer(), buffer.getLength());
+			node.flushCall_st(targetNodePoint, sessionId, buffer.getBuffer(), buffer.getLength());
 		} finally {
 			buffer.reset();
 		}

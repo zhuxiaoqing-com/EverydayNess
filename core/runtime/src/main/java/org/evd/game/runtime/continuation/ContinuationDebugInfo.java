@@ -18,7 +18,7 @@ public final class ContinuationDebugInfo {
         /** 绑定 RPC 出站 Session；仅用于本地等待匹配和调试，不参与序列化。 */
         private volatile long sessionId = -1L;
 
-        public abstract String getTargetNodeId();
+        public abstract CallPoint getTargetCallPoint();
 
         public final long getSessionId() {
             return sessionId;
@@ -85,8 +85,8 @@ public final class ContinuationDebugInfo {
         }
 
         @Override
-        public String getTargetNodeId() {
-            return targetCallPoint.nodeId;
+        public CallPoint getTargetCallPoint() {
+            return targetCallPoint == null ? null : new CallPoint(targetCallPoint);
         }
 
         @Override
@@ -110,9 +110,9 @@ public final class ContinuationDebugInfo {
         }
 
         @Override
-        public String getTargetNodeId() {
+        public CallPoint getTargetCallPoint() {
             CallPoint callPoint = actorAddress == null ? null : actorAddress.getCallPoint();
-            return callPoint == null ? null : callPoint.nodeId;
+            return callPoint == null ? null : new CallPoint(callPoint);
         }
 
         @Override

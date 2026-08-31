@@ -37,7 +37,9 @@ public class RemoteNode {
     private static final long INTERVAL_RECONNECT_MAX = 60_000;
 
     /** 远程Node名称 */
-    private final String remoteId;
+    private final int remoteId;
+    /** 远程 Node 的完整身份。 */
+    private final CallPoint remoteCallPoint;
     /** 远程Node地址 */
     private final AddressInfo remoteAddr;
     /** 当前节点是否负责主动建连 */
@@ -56,14 +58,15 @@ public class RemoteNode {
     private final NetConnector connector;
     private final ChannelManager channelManager = new ChannelManager();
 
-    public RemoteNode(Node localNode, String remoteName, String remoteAddr, boolean needConnect) {
+    public RemoteNode(Node localNode, CallPoint remoteCallPoint, String remoteAddr, boolean needConnect) {
         this.localNode = localNode;
-        this.remoteId = remoteName;
+        this.remoteCallPoint = new CallPoint(remoteCallPoint);
+        this.remoteId = remoteCallPoint.nodeId;
         this.remoteAddr = new AddressInfo(remoteAddr);
         this.needConnect = needConnect;
         if (needConnect) {
             int port = this.remoteAddr.getPort();
-            this.connector = new NetConnector(getRemoteId(),
+            this.connector = new NetConnector(Integer.toString(getRemoteId()),
                     new BaseChannelInitializer(() -> new RemoteNodeChannelHandler(channelManager, this), false));
             LogCore.core.info("Netty 连接器初始化完成: remoteNode={}, port={}, needConnect={}", getRemoteId(), port, true);
         } else {
@@ -144,7 +147,7 @@ public class RemoteNode {
             return null;
         }
         ByteBuf byteBuf = encodeCall_nt(call).getByteBuf();
-        DebugPrint.printSendNodeFrame("sendCall", localNode.getId(), remoteId, activeChannel, byteBuf, call);
+        DebugPrint.printSendNodeFrame("sendCall", localNode.getNodeId(), remoteId, activeChannel, byteBuf, call);
         ChannelFuture writeFuture = activeChannel.tryWrite(byteBuf);
         if (writeFuture == null) {
             LogCore.remote.error("remote control/rpc frame rejected by Netty backpressure: localNode={}, remoteNode={}, callType={}",
@@ -163,7 +166,7 @@ public class RemoteNode {
         NetChannel targetChannel = session.getChannel();
         DebugPrint.printSendRpc(targetChannel, call);
         ByteBuf byteBuf = encodeCall_nt(call).getByteBuf();
-        DebugPrint.printSendNodeFrame("sendCallResult", localNode.getId(), remoteId, targetChannel, byteBuf, call);
+        DebugPrint.printSendNodeFrame("sendCallResult", localNode.getNodeId(), remoteId, targetChannel, byteBuf, call);
         if (targetChannel.tryWrite(byteBuf) != null) {
             return true;
         }
@@ -216,7 +219,7 @@ public class RemoteNode {
 
         DebugPrint.printSendRpc(channel, call);
         ByteBuf byteBuf = encodeCall_nt(call).getByteBuf();
-        DebugPrint.printSendNodeFrame("sendOnChannel", localNode.getId(), remoteId, channel, byteBuf, call);
+        DebugPrint.printSendNodeFrame("sendOnChannel", localNode.getNodeId(), remoteId, channel, byteBuf, call);
         if (!channel.write(byteBuf)) {
             LogCore.remote.error("node handshake frame rejected by Netty backpressure: localNode={}, remoteNode={}, callType={}",
                     localNode.getId(), remoteId, call.getClass().getSimpleName());
@@ -244,7 +247,7 @@ public class RemoteNode {
         }
         NetChannel channel = session.getChannel();
         ByteBuf byteBuf = packet.getByteBuf();
-        DebugPrint.printSendNodeFrame("sendPacket", localNode.getId(), remoteId, channel, byteBuf, null);
+        DebugPrint.printSendNodeFrame("sendPacket", localNode.getNodeId(), remoteId, channel, byteBuf, null);
         if (!channel.write(byteBuf)) {
             channel.close();
             return false;
@@ -260,8 +263,12 @@ public class RemoteNode {
         }
     }
 
-    public String getRemoteId() {
+    public int getRemoteId() {
         return remoteId;
+    }
+
+    public CallPoint getRemoteCallPoint() {
+        return new CallPoint(remoteCallPoint);
     }
 
     public Node getLocalNode() {
@@ -276,8 +283,8 @@ public class RemoteNode {
         }
 
         CallPing call = new CallPing();
-        call.from = new CallPoint(localNode.getId(), null);
-        call.to = new CallPoint(remoteId, null);
+        call.from = localNode.getNodeCallPoint();
+        call.to = getRemoteCallPoint();
         call.addr = localNode.getAddr();
         call.setServiceStatuses(localNode.buildLocalServiceStatuses_nt());
 
@@ -286,8 +293,8 @@ public class RemoteNode {
 
     private void sendNodeServicesSync(NetChannel channel, boolean init) {
         CallNodeServicesSync call = new CallNodeServicesSync();
-        call.from = new CallPoint(localNode.getId(), null);
-        call.to = new CallPoint(remoteId, null);
+        call.from = localNode.getNodeCallPoint();
+        call.to = getRemoteCallPoint();
         call.setInit(init);
         call.setAddr(localNode.getAddr());
         call.setServices(localNode.buildLocalServicesSnapshot());
@@ -300,6 +307,7 @@ public class RemoteNode {
             return;
         }
         channel.getChannel().attr(ServerAttributeKey.remoteNodeId).set(remoteId);
+        channel.getChannel().attr(ServerAttributeKey.remoteCallPoint).set(getRemoteCallPoint());
         if (!bindChannel(channel)) {
             return;
         }
@@ -345,7 +353,7 @@ public class RemoteNode {
             channel.close();
             return false;
         }
-        RemoteSession session = new RemoteSession(remoteId, channel);
+        RemoteSession session = new RemoteSession(remoteCallPoint, channel);
         channel.getChannel().attr(ServerAttributeKey.remoteSession).set(session);
         remoteServiceStatuses = Map.of();
         remoteServiceStatusTime = 0L;
@@ -358,6 +366,7 @@ public class RemoteNode {
         // 一旦链路重新握手成功，重连退让立即清零，下一次断线从基础间隔重新开始。
         reconnectInterval = 0L;
         channel.getChannel().attr(ServerAttributeKey.remoteNodeId).set(remoteId);
+        channel.getChannel().attr(ServerAttributeKey.remoteCallPoint).set(getRemoteCallPoint());
         LogCore.remote.info("远程Node逻辑上线: localNode={}, remoteNode={}, needConnect={} sessionId={} channelId={}",
                 localNode.getId(), remoteId, needConnect, session.getSessionId(), channel.getChannelId());
         return true;

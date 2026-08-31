@@ -40,7 +40,7 @@ public final class DebugPrint {
      * @param sourceChannel  接收数据帧的网络连接
      * @param payloadLength  数据帧负载长度
      */
-    public static void printReceiveNodeFrame(String nodeId, String remoteNodeId,
+    public static void printReceiveNodeFrame(int nodeId, Integer remoteNodeId,
                                               NetChannel sourceChannel, int payloadLength) {
         if (!isDebugEnabled()) {
             return;
@@ -62,7 +62,7 @@ public final class DebugPrint {
      * @param byteBuf       待发送的数据帧
      * @param call          数据帧对应的调用对象，普通数据包可以为空
      */
-    public static void printSendNodeFrame(String stage, String localNodeId, String remoteNodeId,
+    public static void printSendNodeFrame(String stage, int localNodeId, int remoteNodeId,
                                           NetChannel netChannel, ByteBuf byteBuf, CallBase call) {
         if (!isDebugEnabled()) {
             return;

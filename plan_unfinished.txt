@@ -4,10 +4,7 @@
 
 2.ymal改成注册中心;
 
-3.db加上version;做dbService扩缩容;
-        将DB改成version格式的，因为batch可以每一条消息都返回;所以可以确定返回是否更新成功;
-        	不对checkpont 应该不需要等返回的; 或者也需要等返回; DB缺一个聚合RPC，把多个DBReq收集起来一起执行;
-        	省的一个RPC结束才能进行下一个 显得卡;
+
 
 
 4.切换地图流程;其实也就是游戏玩法基础流程;
@@ -19,7 +16,4 @@
 15.location架构迎来了大动荡;加了跨服玩法以后Location就失效了;具体方案在1.txt
 
 
-19.CallPoint 需要加上serverId + 平台id
-
-20.gradle的jar包版本需要统一管理 你看下怎么管理下
 

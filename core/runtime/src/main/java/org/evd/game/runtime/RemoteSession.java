@@ -1,5 +1,6 @@
 package org.evd.game.runtime;
 
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.NetChannel;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -14,12 +15,12 @@ public final class RemoteSession {
     private static final AtomicLong SESSION_ID_ALLOC = new AtomicLong();
 
     private final long sessionId;
-    private final String remoteNodeId;
+    private final CallPoint remoteCallPoint;
     private final NetChannel channel;
 
-    RemoteSession(String remoteNodeId, NetChannel channel) {
+    RemoteSession(CallPoint remoteCallPoint, NetChannel channel) {
         this.sessionId = SESSION_ID_ALLOC.incrementAndGet();
-        this.remoteNodeId = remoteNodeId;
+        this.remoteCallPoint = new CallPoint(remoteCallPoint);
         this.channel = channel;
     }
 
@@ -27,8 +28,12 @@ public final class RemoteSession {
         return sessionId;
     }
 
-    public String getRemoteNodeId() {
-        return remoteNodeId;
+    public int getRemoteNodeId() {
+        return remoteCallPoint.nodeId;
+    }
+
+    public CallPoint getRemoteCallPoint() {
+        return new CallPoint(remoteCallPoint);
     }
 
     public long getChannelId() {

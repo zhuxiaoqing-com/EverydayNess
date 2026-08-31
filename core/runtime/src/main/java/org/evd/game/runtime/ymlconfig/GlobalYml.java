@@ -124,7 +124,9 @@ public final class GlobalYml {
                                 serviceInfo.getServiceType(),
                                 serviceClassName,
                                 getServiceName(serviceInfo, index),
-                                Integer.toString(nodeInfo.getNodeId())));
+                                requireNodeConfig().getPlatformId(),
+                                requireNodeConfig().getServerId(),
+                                nodeInfo.getNodeId()));
                     }
                 }
             }

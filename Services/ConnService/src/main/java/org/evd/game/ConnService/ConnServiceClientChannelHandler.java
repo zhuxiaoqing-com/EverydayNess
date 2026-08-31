@@ -22,7 +22,7 @@ final class ConnServiceClientChannelHandler extends ByteArrayChannelHandler {
     @Override
     protected void onChannelActive(ChannelHandlerContext ctx) {
         NetChannel netChannel = ctx.channel().attr(ServerAttributeKey.netChannel).get();
-        netChannel.setGate(new CallPoint(connService.getNode().getId(), connService.getId()));
+        netChannel.setGate(connService.getNode().getCallPoint(connService.getId()));
         connService.postClientChannelActive(netChannel);
     }
 

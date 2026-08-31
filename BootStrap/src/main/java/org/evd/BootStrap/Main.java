@@ -55,7 +55,7 @@ public class Main {
         NodeYml config = GlobalYml.requireNodeConfig();
 
         NodeInfo nodeInfo = GlobalYml.requireLocalNodeInfo();
-        Node node = new Node(nodeInfo);
+        Node node = new Node(nodeInfo, config.getPlatformId(), config.getServerId());
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
             node.createExecutor(scheduleInfo.getName(), scheduleInfo.getNum());
         }
@@ -232,7 +232,7 @@ public class Main {
         // Node 启动前准备完整远程拓扑，避免启动期握手与配置注册竞争。
         for (NodeInfo remoteInfo : config.getNodes()){
             if (nodeInfo.getNodeId() != remoteInfo.getNodeId()){
-                node.addRemoteNode(Integer.toString(remoteInfo.getNodeId()), remoteInfo.getAddr(),
+                node.addRemoteNode(remoteInfo.getNodeId(), remoteInfo.getAddr(),
                         NodeInfo.needConnect(nodeInfo, remoteInfo));
             }
         }

@@ -11,7 +11,9 @@ public class RegisteredService implements ISerializable {
     private ServiceType serviceType;
     private String serviceClassName;
     private String serviceId;
-    private String nodeId;
+    private int platformId;
+    private int serverId;
+    private int nodeId;
 
     /** 本地记录的离线时间，不参与服务注册信息序列化。 */
     @SerializeIgnore
@@ -23,15 +25,19 @@ public class RegisteredService implements ISerializable {
     public RegisteredService() {
     }
 
-    public RegisteredService(ServiceType serviceType, String serviceClassName, String serviceId, String nodeId) {
+    public RegisteredService(ServiceType serviceType, String serviceClassName, String serviceId,
+                             int platformId, int serverId, int nodeId) {
         this.serviceType = serviceType;
         this.serviceClassName = serviceClassName;
         this.serviceId = serviceId;
+        this.platformId = platformId;
+        this.serverId = serverId;
         this.nodeId = nodeId;
     }
 
     public RegisteredService(RegisteredService other) {
-        this(other.serviceType, other.serviceClassName, other.serviceId, other.nodeId);
+        this(other.serviceType, other.serviceClassName, other.serviceId,
+                other.platformId, other.serverId, other.nodeId);
     }
 
     public ServiceType getServiceType() {
@@ -58,11 +64,27 @@ public class RegisteredService implements ISerializable {
         this.serviceId = serviceId;
     }
 
-    public String getNodeId() {
+    public int getPlatformId() {
+        return platformId;
+    }
+
+    public void setPlatformId(int platformId) {
+        this.platformId = platformId;
+    }
+
+    public int getServerId() {
+        return serverId;
+    }
+
+    public void setServerId(int serverId) {
+        this.serverId = serverId;
+    }
+
+    public int getNodeId() {
         return nodeId;
     }
 
-    public void setNodeId(String nodeId) {
+    public void setNodeId(int nodeId) {
         this.nodeId = nodeId;
     }
 
@@ -76,7 +98,7 @@ public class RegisteredService implements ISerializable {
 
     public CallPoint getCallPoint() {
         if(callPoint == null) {
-            callPoint = new CallPoint(nodeId, serviceId);
+            callPoint = new CallPoint(platformId, serverId, nodeId, serviceId);
         }
         return callPoint;
     }
@@ -92,7 +114,9 @@ public class RegisteredService implements ISerializable {
                 "serviceType=" + serviceType +
                 ", serviceClassName='" + serviceClassName + '\'' +
                 ", serviceId='" + serviceId + '\'' +
-                ", nodeId='" + nodeId + '\'' +
+                ", platformId=" + platformId +
+                ", serverId=" + serverId +
+                ", nodeId=" + nodeId +
                 ", callPoint=" + callPoint +
                 '}';
     }

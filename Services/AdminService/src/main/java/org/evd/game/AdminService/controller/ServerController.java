@@ -5,6 +5,7 @@ import org.evd.game.AdminService.AdminService;
 import org.evd.game.AdminService.http.*;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.call.CallServiceStopResult;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
@@ -25,7 +26,7 @@ public class ServerController {
     public HttpResult<Void> serverStop(HttpRequest ctx) {
         AdminService adminService = ctx.getService(AdminService.class);
 
-        ConcurrentHashMap<String, List<RegisteredService>> remoteNodeServices = adminService.getNode().getRemoteNodeServices();
+        ConcurrentHashMap<CallPoint, List<RegisteredService>> remoteNodeServices = adminService.getNode().getRemoteNodeServices();
         List<RegisteredService> list = remoteNodeServices.values().stream()
                 .flatMap(Collection::stream)
                 .sorted(Comparator.comparingInt(a -> ServiceType.shutdownOrderId(a.getServiceType())))

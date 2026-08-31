@@ -1,6 +1,7 @@
 package org.evd.game.runtime;
 
 import org.evd.game.runtime.call.CallBase;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.call.RpcCallBase;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
@@ -142,7 +143,7 @@ public final class CallTransport {
             }
             service.continuationRuntime().fail(
                     pendingRpcCall.continuation,
-                    new RpcTransportException(pendingRpcCall.debugInfo.getTargetNodeId(), waitId),
+                    new RpcTransportException(pendingRpcCall.debugInfo.getTargetCallPoint(), waitId),
                     Task.Reason.RPC);
             failed++;
         }
@@ -156,8 +157,8 @@ public final class CallTransport {
             throw new RpcTransportException("rpc transport unavailable: null call");
         }
 
-        // NodeId一样 直接原地转发
-        if (service.node.getId().equals(call.to.getNodeId())) {
+        // 目标节点与当前节点身份一致时，直接在本地投递。
+        if (node.isLocalNode(call.to)) {
             call.setOutboundSessionId(0L);
             long waitId = call instanceof CallResult ? 0L : call.getId();
             if (waitId != 0L && !bindPendingRpcSession(waitId, 0L)) {
@@ -172,8 +173,9 @@ public final class CallTransport {
             node.postCallResultOnSource(callResult);
             return;
         }
-        String toNodeId = call.to == null ? null : call.to.nodeId;
-        boolean local = node.getId().equals(toNodeId);
+        CallPoint toNodePoint = call.to == null ? null : call.to.nodePoint();
+        Integer toNodeId = toNodePoint == null ? null : toNodePoint.nodeId;
+        boolean local = node.isLocalNode(call.to);
         RemoteSession session = local ? null : node.captureRemoteSession(call);
         if (!local && session == null) {
             LogCore.remote.warn("远程Node Service当前不可接收业务RPC，拒绝进入出站缓冲: localNode={}, remoteNode={}, service={}, callType={}",
@@ -190,10 +192,10 @@ public final class CallTransport {
             throw new RpcTransportException("rpc wait is not bindable: service={}, waitId={}, sessionId={}",
                     serviceId, waitId, sessionId);
         }
-        CallFrameBufferKey bufferKey = new CallFrameBufferKey(toNodeId, sessionId);
+        CallFrameBufferKey bufferKey = new CallFrameBufferKey(toNodePoint, sessionId);
         CallPulseBuffer buffer = callFrameBuffers.get(bufferKey);
         if (buffer == null) {
-            buffer = new CallPulseBuffer(toNodeId, sessionId);
+            buffer = new CallPulseBuffer(toNodePoint, sessionId);
             callFrameBuffers.put(bufferKey, buffer);
         }
 
@@ -249,17 +251,18 @@ public final class CallTransport {
         if (pendingRpcCall == null) {
             return null;
         }
-        String expectedNodeId = pendingRpcCall.debugInfo.getTargetNodeId();
-        String sourceNodeId = callResult.from == null ? null : callResult.from.nodeId;
+        CallPoint expectedNodePoint = pendingRpcCall.debugInfo.getTargetCallPoint() == null
+                ? null : pendingRpcCall.debugInfo.getTargetCallPoint().nodePoint();
+        CallPoint sourceNodePoint = callResult.from == null ? null : callResult.from.nodePoint();
         long expectedSessionId = pendingRpcCall.debugInfo.getSessionId();
-        if (!Objects.equals(expectedNodeId, sourceNodeId)
+        if (!Objects.equals(expectedNodePoint, sourceNodePoint)
                 || expectedSessionId != callResult.getSourceSessionId()) {
             LogCore.remote.error(
                     "RPC响应来源与等待不匹配，拒绝完成: service={}, waitId={}, expectedNode={}, sourceNode={}, expectedSession={}, sourceSession={}",
                     serviceId,
                     callResult.id,
-                    expectedNodeId,
-                    sourceNodeId,
+                    expectedNodePoint,
+                    sourceNodePoint,
                     expectedSessionId,
                     callResult.getSourceSessionId());
             return null;
@@ -268,8 +271,8 @@ public final class CallTransport {
     }
 
     /** 丢弃指定 Session 尚未刷出的消息。 */
-    void discard(String remoteNodeId, long sessionId) {
-        CallFrameBufferKey bufferKey = new CallFrameBufferKey(remoteNodeId, sessionId);
+    void discard(CallPoint remoteNodePoint, long sessionId) {
+        CallFrameBufferKey bufferKey = new CallFrameBufferKey(remoteNodePoint, sessionId);
         CallPulseBuffer buffer = callFrameBuffers.remove(bufferKey);
         if (buffer != null) {
             buffer.close();
@@ -320,6 +323,6 @@ public final class CallTransport {
         }
     }
 
-    private record CallFrameBufferKey(String nodeId, long sessionId) {
+    private record CallFrameBufferKey(CallPoint nodePoint, long sessionId) {
     }
 }
