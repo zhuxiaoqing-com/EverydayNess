@@ -251,7 +251,7 @@ public class Service extends TickCase {
                     messageLocationSender::cleanupIdle);
         }
 
-        if (supportMdb()) {
+        if (requiresMdb()) {
             this.mdb = new Mdb();
             DBExecInterface dbExecutor = node.hasNodeDbExecutor()
                     ? node.getNodeDbExecutor()
@@ -268,6 +268,13 @@ public class Service extends TickCase {
         markRunning();
 
         node.publishService(this);
+    }
+
+    /**
+     * 返回当前 Service 是否实际需要 MDB，同时供启动阶段统计 NODE_LOCAL 的数据库使用者。
+     */
+    public final boolean requiresMdb() {
+        return supportMdb();
     }
 
     public void init() {
@@ -920,8 +927,11 @@ public class Service extends TickCase {
         return mdb;
     }
 
-    protected boolean supportMdb() {
-        return false;
+    /**
+     * 根据 dbDef APT 生成的表注册器自动判断当前 Service 是否需要 MDB。
+     */
+    protected final boolean supportMdb() {
+        return Mdb.hasTableRegistry(getClass());
     }
 
     /** 是否在本 Service 初始化阶段触发公共配置表加载。 */

@@ -11,6 +11,7 @@ import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.ymlconfig.DbYml;
 import org.evd.game.runtime.ymlconfig.DbMysqlYml;
+import org.evd.game.runtime.ymlconfig.DbMysqlRuntimeYml;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
@@ -25,18 +26,42 @@ import java.time.Duration;
  * 还是由本 Node 的 Service 直接调用。
  */
 public final class DBProxy implements NodeDbExecutor {
-    private final StorageEngine storageEngine;
-    private final DBCache dbCache;
+    private static final int NODE_LOCAL_MIN_POOL_INITIAL_SIZE = 4;
+
+    private StorageEngine storageEngine;
+    private DBCache dbCache;
     private volatile boolean closed;
     private final ThreadLocal<Boolean> syncExecution = ThreadLocal.withInitial(() -> false);
 
     public DBProxy() {
+    }
+
+    @Override
+    public synchronized void init() {
+        init(PoolSize.remote());
+    }
+
+    /** NODE_LOCAL 使用者在启动阶段已经统计完成，连接池只按这个数量计算一次。 */
+    @Override
+    public synchronized void init(int mdbServiceCount) {
+        init(PoolSize.nodeLocal(mdbServiceCount));
+    }
+
+    private void init(PoolSize poolSize) {
+        if (closed) {
+            throw new IllegalStateException("DBProxy is already closed");
+        }
+        if (storageEngine != null) {
+            throw new IllegalStateException("DBProxy is already initialized");
+        }
         DbYml dbConfig = GlobalYml.requireDbConfig();
         if (!"mysql".equalsIgnoreCase(dbConfig.getDb().getEngine())) {
             throw new IllegalArgumentException("unsupported db engine: " + dbConfig.getDb().getEngine());
         }
         DbMysqlYml mysqlConfig = dbConfig.getDb().getMysql();
-        storageEngine = new StorageMysql(this, new LoggerMysql(mysqlConfig), dbConfig.getDb().getStorage());
+        storageEngine = new StorageMysql(this,
+                new LoggerMysql(mysqlConfig, poolSize.initialSize(), poolSize.maxSize()),
+                dbConfig.getDb().getStorage());
         if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
             dbCache = new DBCache(storageEngine);
         } else {
@@ -49,22 +74,26 @@ public final class DBProxy implements NodeDbExecutor {
         if (closed) {
             throw new ServiceStoppingException("database is stopping");
         }
+        StorageEngine currentStorageEngine = storageEngine;
+        if (currentStorageEngine == null) {
+            throw new IllegalStateException("DBProxy is not initialized");
+        }
 
         DBRsp dbRsp = new DBRsp();
         dbRsp.setSuccess(true);
         try {
-            DBRsp cache = storageEngine.cache(dbReq, dbCache);
+            DBRsp cache = currentStorageEngine.cache(dbReq, dbCache);
             if (cache != null) {
                 return cache;
             }
             switch (dbReq.getDbOpType()) {
-                case DbOpType.CREATE_TABLE -> storageEngine.initTable(dbReq);
-                case DbOpType.GET -> dbRsp = storageEngine.find(dbReq);
-                case DbOpType.BATCH_GET -> dbRsp = storageEngine.findBatch(dbReq);
-                case DbOpType.SAVE -> storageEngine.replace(dbReq);
-                case DbOpType.BATCH_SAVE -> storageEngine.replaceBatch(dbReq);
-                case DbOpType.REMOVE -> storageEngine.remove(dbReq);
-                case DbOpType.BATCH_REMOVE -> storageEngine.removeBatch(dbReq);
+                case DbOpType.CREATE_TABLE -> currentStorageEngine.initTable(dbReq);
+                case DbOpType.GET -> dbRsp = currentStorageEngine.find(dbReq);
+                case DbOpType.BATCH_GET -> dbRsp = currentStorageEngine.findBatch(dbReq);
+                case DbOpType.SAVE -> currentStorageEngine.replace(dbReq);
+                case DbOpType.BATCH_SAVE -> currentStorageEngine.replaceBatch(dbReq);
+                case DbOpType.REMOVE -> currentStorageEngine.remove(dbReq);
+                case DbOpType.BATCH_REMOVE -> currentStorageEngine.removeBatch(dbReq);
                 default -> throw new IllegalArgumentException("unsupported db operation: " + dbReq.getDbOpType());
             }
         } catch (Exception e) {
@@ -99,7 +128,12 @@ public final class DBProxy implements NodeDbExecutor {
         return service.awaitCompletionStage(mono.toFuture(), awaitTimeoutMillis);
     }
 
-    public void stop(boolean force) {
+    public synchronized void stop(boolean force) {
+        StorageEngine currentStorageEngine = storageEngine;
+        if (currentStorageEngine == null) {
+            closed = true;
+            return;
+        }
         boolean closeStorage = force;
         try {
             if (dbCache != null) {
@@ -109,7 +143,7 @@ public final class DBProxy implements NodeDbExecutor {
         } finally {
             if (closeStorage && !closed) {
                 closed = true;
-                storageEngine.close();
+                currentStorageEngine.close();
             }
         }
     }
@@ -117,5 +151,25 @@ public final class DBProxy implements NodeDbExecutor {
     @Override
     public void close() {
         stop(true);
+    }
+
+    private record PoolSize(int initialSize, int maxSize) {
+        private static PoolSize remote() {
+            DbMysqlRuntimeYml runtimeConfig = GlobalYml.requireDbConfig().getDb().getMysql().getRuntime();
+            return new PoolSize(runtimeConfig.getRemotePoolInitialSize(), runtimeConfig.getRemotePoolMaxSize());
+        }
+
+        private static PoolSize nodeLocal(int mdbServiceCount) {
+            if (mdbServiceCount <= 0) {
+                throw new IllegalArgumentException("mdbServiceCount must be positive");
+            }
+            DbMysqlRuntimeYml runtimeConfig = GlobalYml.requireDbConfig().getDb().getMysql().getRuntime();
+            long initialSize = (long) mdbServiceCount * runtimeConfig.getLocalInitialSizePerService();
+            long maxSize = (long) mdbServiceCount * runtimeConfig.getLocalMaxSizePerService();
+            int resolvedMaxSize = Math.toIntExact(Math.min(maxSize, runtimeConfig.getLocalMaxPoolSize()));
+            // n 大于 30 时 2n 会超过池上限，必须保证 initialSize 不大于 maxSize。
+            int resolvedInitialSize = Math.toIntExact(Math.clamp(initialSize, NODE_LOCAL_MIN_POOL_INITIAL_SIZE, resolvedMaxSize));
+            return new PoolSize(resolvedInitialSize, resolvedMaxSize);
+        }
     }
 }

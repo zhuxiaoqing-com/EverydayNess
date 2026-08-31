@@ -134,7 +134,7 @@ public class StorageMysql implements StorageEngine {
                 connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField())),
                 Connection::close
         );
-        await(operation.timeout(operationTimeout)
+        await(logger.executeSerial(key, () -> operation.timeout(operationTimeout)
                 .doOnError(e -> log.error("replace error, table={}, key={}", tableName, key, e))
                 .onErrorMap(SysException::new)
                 .doFinally(signalType -> {
@@ -142,7 +142,7 @@ public class StorageMysql implements StorageEngine {
                     if (costMs > costMsWarn) {
                         log.warn("table {} replace key {} cost: {} ms", tableName, key, costMs);
                     }
-                }));
+                })));
     }
 
     @Override
@@ -153,34 +153,37 @@ public class StorageMysql implements StorageEngine {
             return;
         }
         String tableName = mysqlReq.getTableName();
-        String batchKeys = getBatchKeys(mysqlReq);
         String sql = resolveSql(dbReq);
-        long begin = System.nanoTime();
-        awaitBatch(Mono.usingWhen(
+        awaitBatch(logger.executeSerialBatch(tableFieldList,
+                DbTableField::getTableKey,
+                fields -> {
+                    String batchKeys = getBatchKeys(fields);
+                    long begin = System.nanoTime();
+                    return Mono.usingWhen(
                         logger.openWriteConnection(),
                         connection -> {
-                            List<DbTableField> tableFieldList1 = mysqlReq.getTablFieldList();
-                            if (tableFieldList1.size() <= batchPerCount) {
-                                return executeWrite(connection, sql, tableFieldList1);
+                            if (fields.size() <= batchPerCount) {
+                                return executeWrite(connection, sql, fields);
                             }
                             List<Mono<Void>> operations = new ArrayList<>();
-                            for (int start = 0; start < tableFieldList1.size(); start += batchPerCount) {
-                                int end = Math.min(start + batchPerCount, tableFieldList1.size());
-                                operations.add(executeWrite(connection, sql, tableFieldList1.subList(start, end)));
+                            for (int start = 0; start < fields.size(); start += batchPerCount) {
+                                int end = Math.min(start + batchPerCount, fields.size());
+                                operations.add(executeWrite(connection, sql, fields.subList(start, end)));
                             }
                             return Flux.concat(operations).then();
                         },
                         Connection::close
-                ).timeout(batchOperationTimeout)
-                .doOnError(e -> log.error("replace batch error, table={}, keys={}, num={}",
-                        tableName, batchKeys, tableFieldList.size(), e))
-                .onErrorMap(SysException::new)
-                .doFinally(signalType -> {
-                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                    if (costMs > batchCostMsWarn) {
-                        log.warn("table {} batch replace keys {} num {} cost: {} ms",
-                                tableName, batchKeys, tableFieldList.size(), costMs);
-                    }
+                    ).timeout(batchOperationTimeout)
+                    .doOnError(e -> log.error("replace batch error, table={}, keys={}, num={}",
+                            tableName, batchKeys, fields.size(), e))
+                    .onErrorMap(SysException::new)
+                    .doFinally(signalType -> {
+                        long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                        if (costMs > batchCostMsWarn) {
+                            log.warn("table {} batch replace keys {} num {} cost: {} ms",
+                                    tableName, batchKeys, fields.size(), costMs);
+                        }
+                    });
                 }));
     }
 
@@ -192,17 +195,19 @@ public class StorageMysql implements StorageEngine {
             return;
         }
         String tableName = mysqlReq.getTableName();
-        String batchKeys = getBatchKeys(mysqlReq);
-        String sql = resolveSql(dbReq);
-        long begin = System.nanoTime();
-        awaitBatch(Mono.usingWhen(
+        awaitBatch(logger.executeSerialBatch(tableFieldList,
+                DbTableField::getTableKey,
+                fields -> {
+                    String batchKeys = getBatchKeys(fields);
+                    String sql = resolveBatchSql(tableName, DbOpType.BATCH_REMOVE, fields.size());
+                    long begin = System.nanoTime();
+                    return Mono.usingWhen(
                         logger.openWriteConnection(),
                         connection -> {
-                            List<DbTableField> tableFieldList1 = mysqlReq.getTablFieldList();
                             Statement statement = connection.createStatement(sql);
-                            if (tableFieldList1 != null && !tableFieldList1.isEmpty()) {
+                            if (!fields.isEmpty()) {
                                 int paramIndex = 0;
-                                for (DbTableField tableField : tableFieldList1) {
+                                for (DbTableField tableField : fields) {
                                     statement.bind(paramIndex++, tableField.getTableKey());
                                 }
                             }
@@ -211,16 +216,17 @@ public class StorageMysql implements StorageEngine {
                                     .then();
                         },
                         Connection::close
-                ).timeout(batchOperationTimeout)
-                .doOnError(e -> log.error("remove batch error, table={}, keys={}, num={}",
-                        tableName, batchKeys, tableFieldList.size(), e))
-                .onErrorMap(SysException::new)
-                .doFinally(signalType -> {
-                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                    if (costMs > batchCostMsWarn) {
-                        log.warn("table {} batch remove keys {} num {} cost: {} ms",
-                                tableName, batchKeys, tableFieldList.size(), costMs);
-                    }
+                    ).timeout(batchOperationTimeout)
+                    .doOnError(e -> log.error("remove batch error, table={}, keys={}, num={}",
+                            tableName, batchKeys, fields.size(), e))
+                    .onErrorMap(SysException::new)
+                    .doFinally(signalType -> {
+                        long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                        if (costMs > batchCostMsWarn) {
+                            log.warn("table {} batch remove keys {} num {} cost: {} ms",
+                                    tableName, batchKeys, fields.size(), costMs);
+                        }
+                    });
                 }));
     }
 
@@ -249,7 +255,7 @@ public class StorageMysql implements StorageEngine {
                         log.warn("table {} insert key {} cost: {} ms", tableName, key, costMs);
                     }
                 });
-        return await(operation);
+        return await(logger.executeSerial(key, () -> operation));
     }
 
     @Override
@@ -264,7 +270,7 @@ public class StorageMysql implements StorageEngine {
                 connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField())),
                 Connection::close
         );
-        await(operation.timeout(operationTimeout)
+        await(logger.executeSerial(key, () -> operation.timeout(operationTimeout)
                 .doOnError(e -> log.error("remove error, table={}, key={}", tableName, key, e))
                 .onErrorMap(SysException::new)
                 .doFinally(signalType -> {
@@ -272,7 +278,7 @@ public class StorageMysql implements StorageEngine {
                     if (costMs > costMsWarn) {
                         log.warn("table {} remove key {} cost: {} ms", tableName, key, costMs);
                     }
-                }));
+                })));
     }
 
     @Override
@@ -320,7 +326,7 @@ public class StorageMysql implements StorageEngine {
                 },
                 Connection::close
         );
-        return await(operation.timeout(operationTimeout)
+        return await(logger.executeSerial(key, () -> operation.timeout(operationTimeout)
                 .doOnError(e -> log.error("find error, table={}, key={}", tableName, key, e))
                 .onErrorMap(SysException::new)
                 .doFinally(signalType -> {
@@ -328,22 +334,26 @@ public class StorageMysql implements StorageEngine {
                     if (costMs > costMsWarn) {
                         log.warn("table {} find key {} cost: {} ms", tableName, key, costMs);
                     }
-                }));
+                })));
     }
 
     @Override
     public DBRsp findBatch(DBReq dbReq) {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
+        List<DbTableField> tableFieldList = mysqlReq.getTablFieldList();
         String tableName = mysqlReq.getTableName();
-        String batchKeys = getBatchKeys(mysqlReq);
-        String sql = resolveSql(dbReq);
-        long begin = System.nanoTime();
-        Mono<DBRsp> operation = Mono.usingWhen(
+        List<DBRsp> responses = awaitBatch(logger.executeSerialBatch(tableFieldList,
+                DbTableField::getTableKey,
+                fields -> {
+                    String batchKeys = getBatchKeys(fields);
+                    String sql = resolveBatchSql(tableName, DbOpType.BATCH_GET, fields.size());
+                    long begin = System.nanoTime();
+                    Mono<DBRsp> operation = Mono.usingWhen(
                 logger.openReadConnection(),
                 connection -> {
                     Statement statement = connection.createStatement(sql);
                     int paramIndex = 0;
-                    for (DbTableField tableField : mysqlReq.getTablFieldList()) {
+                    for (DbTableField tableField : fields) {
                         statement.bind(paramIndex++, tableField.getTableKey());
                     }
                     return Flux.from(statement.execute())
@@ -368,16 +378,34 @@ public class StorageMysql implements StorageEngine {
                             });
                 },
                 Connection::close
-        );
-        return awaitBatch(operation.timeout(batchOperationTimeout)
-                .doOnError(e -> log.error("find batch error, table={}, keys={}", tableName, batchKeys, e))
-                .onErrorMap(SysException::new)
-                .doFinally(signalType -> {
-                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                    if (costMs > batchCostMsWarn) {
-                        log.warn("table {} batch find keys {} cost: {} ms", tableName, batchKeys, costMs);
-                    }
+                    );
+                    return operation.timeout(batchOperationTimeout)
+                            .doOnError(e -> log.error("find batch error, table={}, keys={}", tableName, batchKeys, e))
+                            .onErrorMap(SysException::new)
+                            .doFinally(signalType -> {
+                                long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                                if (costMs > batchCostMsWarn) {
+                                    log.warn("table {} batch find keys {} cost: {} ms", tableName, batchKeys, costMs);
+                                }
+                            });
                 }));
+        return mergeBatchResponses(responses);
+    }
+
+    private DBRsp mergeBatchResponses(List<DBRsp> responses) {
+        MysqlRsp mergedMysqlRsp = new MysqlRsp();
+        for (DBRsp response : responses) {
+            if (!response.isSuccess()) {
+                return response;
+            }
+            MysqlRsp mysqlRsp = Objects.requireNonNull(response.getMysqlRsp(),
+                    "batch response mysqlRsp 不能为空");
+            mergedMysqlRsp.getTablFieldList().addAll(mysqlRsp.getTablFieldList());
+        }
+        DBRsp result = new DBRsp();
+        result.setSuccess(true);
+        result.setMysqlRsp(mergedMysqlRsp);
+        return result;
     }
 
     @Override
@@ -586,19 +614,35 @@ public class StorageMysql implements StorageEngine {
         return builder.toString();
     }
 
-    private String getBatchKeys(MysqlReq mysqlReq) {
-        if (mysqlReq.getTablFieldList() == null || mysqlReq.getTablFieldList().isEmpty()) {
+    private String getBatchKeys(List<DbTableField> tableFieldList) {
+        if (tableFieldList == null || tableFieldList.isEmpty()) {
             return "[]";
         }
         StringBuilder builder = new StringBuilder("[");
-        for (int i = 0; i < mysqlReq.getTablFieldList().size(); i++) {
+        for (int i = 0; i < tableFieldList.size(); i++) {
             if (i > 0) {
                 builder.append(", ");
             }
-            builder.append(mysqlReq.getTableKey(mysqlReq.getTablFieldList().get(i)));
+            builder.append(tableFieldList.get(i).getTableKey());
         }
         builder.append(']');
         return builder.toString();
+    }
+
+    private String resolveBatchSql(String tableName, DbOpType dbOpType, int keyCount) {
+        TableMeta tableMeta = tableMetaCache.get(tableName);
+        if (tableMeta == null) {
+            throw new IllegalArgumentException("table meta 未注册: " + tableName);
+        }
+        return switch (dbOpType) {
+            case BATCH_GET -> "SELECT " + joinColumnNames(tableMeta.columnNames())
+                    + " FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName()
+                    + " IN (" + createPlaceholders(keyCount) + ")";
+            case BATCH_REMOVE -> "DELETE FROM " + tableMeta.tableName()
+                    + " WHERE " + tableMeta.keyColumnName()
+                    + " IN (" + createPlaceholders(keyCount) + ")";
+            default -> throw new IllegalArgumentException("unsupported batch db op type: " + dbOpType);
+        };
     }
 
     private record TableMeta(String tableName, String keyColumnName, List<String> columnNames) {

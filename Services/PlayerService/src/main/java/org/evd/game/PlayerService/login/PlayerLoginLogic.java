@@ -9,10 +9,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.client.ClientSessionRef;
-import org.evd.game.runtime.continuation.ContinuationLockScope;
-import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.support.LogCore;
-import org.evd.game.runtime.support.exception.CoroutineLockTimeoutException;
 
 /** PlayerService 的玩家登录业务逻辑。 */
 @Actor
@@ -44,8 +41,15 @@ public final class PlayerLoginLogic {
 
         ActorAddress actorAddress = owner.registerPlayerActor(playerId);
         sessionManager.bindPlayerSession(userId, playerId, session, actorAddress);
+        // MDB 生命周期先完成，后续 PlayerDataRepository 的普通 get/add 才能通过 LOAD_FINISH 门禁。
+        Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
+        if (!sessionManager.isCurrent(userId, playerId, session)) {
+            LogCore.core.warn("PlayerService MDB 加载返回后登录 Session 已失效: service={}, userId={}, playerId={}, gateSessionId={}",
+                    owner.getId(), userId, playerId, session.getSessionId());
+            return null;
+        }
         playerDataRepository.loadOrCreate(playerId, role.getName(), role.getLevel());
-        if (!sessionManager.markReady(playerId)) {
+        if (!sessionManager.markReadyIfCurrent(userId, playerId, session)) {
             LogCore.core.warn("PlayerService 玩家数据加载完成后绑定状态失效: service={}, userId={}, playerId={}, gateSessionId={}",
                     owner.getId(), userId, playerId, session.getSessionId());
             return null;
@@ -73,13 +77,18 @@ public final class PlayerLoginLogic {
     public void onlinePlayer(String userId, long playerId, ClientSessionRef session) {
         PlayerService owner = owner();
         PlayerSessionManager sessionManager = owner.sessionManager();
-        if (!sessionManager.hasOnlinePlayer(playerId)) {
+        if (!sessionManager.isCurrent(userId, playerId, session)) {
             LogCore.core.warn("PlayerService 玩家绑定不存在，跳过进入地图: service={}, userId={}, playerId={}",
                     owner.getId(), userId, playerId);
             return;
         }
 
         Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
+        if (!sessionManager.isCurrent(userId, playerId, session)) {
+            LogCore.core.warn("PlayerService MDB 加载返回后玩家 Session 已失效，跳过进入地图: service={}, userId={}, playerId={}, gateSessionId={}",
+                    owner.getId(), userId, playerId, session.getSessionId());
+            return;
+        }
 
         // 调用玩家上线数据，还有每分钟事件啥的
 
@@ -90,7 +99,11 @@ public final class PlayerLoginLogic {
                     owner.getId(), userId, playerId, e.getMessage());
             return;
         }
-        sessionManager.markOnline(playerId);
+        if (!sessionManager.markOnline(playerId)) {
+            LogCore.core.warn("PlayerService 玩家进入地图后绑定状态已失效: service={}, userId={}, playerId={}, gateSessionId={}",
+                    owner.getId(), userId, playerId, session.getSessionId());
+            return;
+        }
         LogCore.core.info("PlayerService 玩家正式上线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
                 owner.getId(), userId, playerId, session.getGate(), session.getSessionId());
 

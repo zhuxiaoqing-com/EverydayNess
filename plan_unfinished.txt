@@ -28,4 +28,5 @@
 
 19.CallPoint 需要加上serverId + 平台id
 
+20.gradle的jar包版本需要统一管理 你看下怎么管理下
 

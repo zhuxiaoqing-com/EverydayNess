@@ -21,7 +21,9 @@ public class DBService extends Service {
     @Override
     public void init() {
         super.init();
-        dbProxy = new DBProxy();
+        DBProxy proxy = new DBProxy();
+        proxy.init();
+        dbProxy = proxy;
     }
 
     @Override

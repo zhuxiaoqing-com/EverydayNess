@@ -12,6 +12,7 @@ public enum LockType {
     LOCATION_CALL(6), // Location 调用锁
     LOGIN(7), // 登录流程锁
     TABLE(8), // MDB 表级锁
+    MDB_PLAYER(9), // 玩家 MDB load/flush 生命周期锁
 
     ;
 

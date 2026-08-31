@@ -26,6 +26,7 @@ public final class PlayerOfflineManager {
         }
 
         owner.removePlayerActorState(playerId);
+        owner.getMdb().playerLogout(playerId);
         LogCore.core.info("PlayerService 玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenType={}",
                 owner.getId(), userId, playerId, gate, gateSessionId,
                 BrokenType.fromCode(brokenTypeCode));

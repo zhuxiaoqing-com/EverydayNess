@@ -56,9 +56,6 @@ public class Main {
 
         NodeInfo nodeInfo = GlobalYml.requireLocalNodeInfo();
         Node node = new Node(nodeInfo);
-        if (config.getDbTopology() == DbTopology.NODE_LOCAL) {
-            node.setNodeDbExecutor(createNodeDbExecutor());
-        }
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()) {
             node.createExecutor(scheduleInfo.getName(), scheduleInfo.getNum());
         }
@@ -91,6 +88,7 @@ public class Main {
         }
 
         // 预注册全部 Service，避免 Node 首个心跳在 Service 尚未创建时误判为空。
+        List<Service> localServices = new ArrayList<>();
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()){
             for (ServiceInfo serviceInfo : scheduleInfo.getServices()){
                 String className = serviceInfo.getClassName();
@@ -114,7 +112,23 @@ public class Main {
                     String serviceName = GlobalYml.getServiceName(serviceInfo, i);
                     Service service = (Service)con.newInstance(node, serviceName, scheduleInfo.getName(), serviceInfo.getInterval(), serviceInfo);
                     node.addService(service);
+                    localServices.add(service);
                 }
+            }
+        }
+
+        if (config.getDbTopology() == DbTopology.NODE_LOCAL) {
+            int mdbServiceCount = (int) localServices.stream()
+                    .filter(Service::requiresMdb)
+                    .count();
+            if (mdbServiceCount > 0) {
+                log.info("NODE_LOCAL DB proxy configured: node={}, mdbServices={}",
+                        node.getId(), mdbServiceCount);
+                NodeDbExecutor nodeDbExecutor = createNodeDbExecutor();
+                nodeDbExecutor.init(mdbServiceCount);
+                node.setNodeDbExecutor(nodeDbExecutor);
+            } else {
+                log.info("NODE_LOCAL DB disabled: node has no Service requiring MDB, node={}", node.getId());
             }
         }
 

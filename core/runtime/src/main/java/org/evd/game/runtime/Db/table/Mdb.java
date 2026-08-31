@@ -7,6 +7,8 @@ import org.evd.game.runtime.Db.table.util.TimeCostPrint;
 import org.evd.game.runtime.util.RuntimeUtils;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.slf4j.Logger;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 
 public class Mdb {
     public static Logger logger = LoggerFactory.getLogger(Mdb.class.getName());
+    private static final String TABLE_REGISTRY_SUFFIX = ".db.DbTableRegistry";
 
     private enum LifecycleState {
         NEW,
@@ -30,6 +33,25 @@ public class Mdb {
         // TimerState已经在构造函数中初始化了，不需要再次初始化
     }
 
+    /**
+     * 判断 Service 是否生成了自己的数据库表注册器。
+     *
+     * <p>数据库表由 dbDef APT 生成到 Service 包下的 db.DbTableRegistry，
+     * 因此注册器是否存在就是该 Service 是否需要 Mdb 的编译产物依据。</p>
+     */
+    public static boolean hasTableRegistry(Class<?> ownerClass) {
+        try {
+            Class.forName(tableRegistryClassName(ownerClass), false, ownerClass.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
+    private static String tableRegistryClassName(Class<?> ownerClass) {
+        return ownerClass.getPackageName() + TABLE_REGISTRY_SUFFIX;
+    }
+
     private final Map<Class<?>, TTable<?, ?>> class2TableMap = new HashMap<>();
     private final List<TTable<?, ?>> tableList = new ArrayList<>();
 
@@ -37,6 +59,7 @@ public class Mdb {
     Service service;
 
     private volatile LifecycleState lifecycleState = LifecycleState.NEW;
+    private MdbPlayerManager mdbPlayerManager;
 
 
     public void start(Class<?> ownerClass, DBExecInterface dbExecInterface, Service service) {
@@ -49,6 +72,7 @@ public class Mdb {
         }
         this.dbExecInterface = dbExecInterface;
         this.service = service;
+        this.mdbPlayerManager = new MdbPlayerManager(this, service);
 
         try {
             TableRegistry tableRegistry = loadTableRegistry(ownerClass);
@@ -72,7 +96,7 @@ public class Mdb {
     }
 
     private TableRegistry loadTableRegistry(Class<?> ownerClass) throws Exception {
-        String registryClassName = ownerClass.getPackageName() + ".db.DbTableRegistry";
+        String registryClassName = tableRegistryClassName(ownerClass);
         Class<?> registryClass;
         try {
             registryClass = Class.forName(registryClassName);
@@ -119,17 +143,22 @@ public class Mdb {
     }
 
 
-    /** 在当前 Service continuation 中异步加载玩家需要的全部 MDB 表。 */
-    @SuppressWarnings("unchecked")
-    public void loadPlayerAllTableToMemory(Object key) {
+    /** 请求加载玩家 MDB；已加载或尚未开始 flush 时直接复用现有 cache。 */
+    public void loadPlayerAllTableToMemory(long playerId) {
+        mdbPlayerManager.load(playerId);
+    }
+
+    /** 在 MdbPlayerManager 已持有玩家生命周期锁时执行实际表加载。 */
+    void loadPlayerAllTableToMemoryInternal(long playerId) {
+        Object key = playerId;
         logger.info("loadPlayerAllTableToMemory key {}", key);
         TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "loadPlayerAllTableToMemory: " + key);
         try {
-            for (TTable table : tableList) {
+            for (TTable<?, ?> table : tableList) {
                 if (!table.isSupportFlush()) {
                     continue;
                 }
-                table.getAsync(key);
+                table.getForLoad(playerId);
             }
             timeCostPrint.print();
         } catch (Exception e) {
@@ -155,7 +184,7 @@ public class Mdb {
      */
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private boolean flush(Object key) {
+    boolean flushPlayerAllTableToMemory(Object key) {
         logger.info("flush flushLogicThread start key {}", key);
 
         TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "flush: " + key);
@@ -166,13 +195,49 @@ public class Mdb {
                 continue;
             }
             tableCount++;
-            if (!table.flush(key)) {
+            if (!table.flushPlayer(((Number) key).longValue())) {
                 allSuccess = false;
             }
         }
         logger.info("flush flushMdbSaveDB summary key {} tableCount {} success {} ", key, tableCount, allSuccess);
         timeCostPrint.print();
         return allSuccess;
+    }
+
+    @SuppressWarnings("unchecked")
+    void clearPlayerCache(Object key) {
+        long playerId = toPlayerId(key);
+        for (TTable table : tableList) {
+            if (table.isSupportFlush()) {
+                table.deletePlayerCache(playerId);
+            }
+        }
+    }
+
+    public void playerLogout(long playerId) {
+        mdbPlayerManager.logout(playerId);
+    }
+
+    void checkPlayerAccess(Object key, boolean forLoad) {
+        if (!isSupportFlush()) {
+            return;
+        }
+        mdbPlayerManager.checkAccess(toPlayerId(key), forLoad);
+    }
+
+    long playerIdForKey(Object key) {
+        return toPlayerId(key);
+    }
+
+    ContinuationLockScope awaitPlayerLifecycleLock(long playerId) {
+        return service.awaitCoroutineLockScope(LockType.MDB_PLAYER, playerId);
+    }
+
+    private long toPlayerId(Object key) {
+        if (key instanceof Number number) {
+            return number.longValue();
+        }
+        throw new DBException("玩家 MDB key 不是合法 playerId: " + key);
     }
 
     // 统一的tick间隔，所有TTable共用
@@ -190,6 +255,8 @@ public class Mdb {
         if (lifecycleState != LifecycleState.RUNNING || allCallPoint().isEmpty()) {
             return;
         }
+
+        mdbPlayerManager.tick(currTime);
 
         // 检查并执行tick任务
         if (tickTimerState.canExecute(currTime)) {
@@ -305,6 +372,9 @@ public class Mdb {
         long currTime = System.currentTimeMillis();
         logger.info("@@@@@@@@@@@@@@@@  mdb stop begin   @@@@@@@@@@@@@@@@  {}", service.getId());
 
+        if (mdbPlayerManager != null) {
+            mdbPlayerManager.close();
+        }
         for (TTable tables : tableList) {
             tables.close(runCheckpoint);
         }

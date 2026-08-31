@@ -1,19 +1,25 @@
 package org.evd.game.DBService.storage.mysql;
 
+import io.asyncer.r2dbc.mysql.MySqlConnectionFactoryProvider;
 import io.r2dbc.pool.ConnectionPool;
 import io.r2dbc.pool.ConnectionPoolConfiguration;
 import io.r2dbc.spi.Connection;
 import io.r2dbc.spi.ConnectionFactories;
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
+import org.evd.game.runtime.ymlconfig.DbMysqlRuntimeYml;
 import org.evd.game.runtime.ymlconfig.DbMysqlYml;
 import org.evd.game.runtime.support.exception.SysException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.netty.resources.LoopResources;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
 import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
@@ -35,10 +41,13 @@ public class LoggerMysql implements LoggerEngine {
     private final int poolInitialSize;
     private final int poolMaxSize;
     private final Duration poolMaxIdleTime;
+    private final int r2dbcIoWorkerCount;
+    private final LoopResources loopResources;
+    private final DbSerialExecutor serialExecutor;
     private final ConnectionFactory bootstrapConnectionFactory;
     private final ConnectionPool connectionPool;
 
-    public LoggerMysql(DbMysqlYml config) {
+    public LoggerMysql(DbMysqlYml config, int poolInitialSize, int poolMaxSize) {
         try {
             this.autoCreate = config.isAutoCreate();
             this.database = config.getDatabase();
@@ -48,16 +57,26 @@ public class LoggerMysql implements LoggerEngine {
             this.connectionTimeout = Duration.ofMillis(config.getConnectionTimeoutMs());
             this.operationTimeout = Duration.ofMillis(config.getOperationTimeoutMs());
             this.batchOperationTimeout = Duration.ofMillis(config.getBatchOperationTimeoutMs());
-            this.poolInitialSize = config.getPoolInitialSize();
-            this.poolMaxSize = config.getPoolMaxSize();
+            if (poolInitialSize < 1 || poolMaxSize < poolInitialSize) {
+                throw new IllegalArgumentException("invalid mysql pool size: initial="
+                        + poolInitialSize + ", max=" + poolMaxSize);
+            }
+            this.poolInitialSize = poolInitialSize;
+            this.poolMaxSize = poolMaxSize;
             this.poolMaxIdleTime = Duration.ofMillis(config.getPoolMaxIdleTimeMs());
+            DbMysqlRuntimeYml runtimeConfig = config.getRuntime();
+            this.r2dbcIoWorkerCount = runtimeConfig.getR2dbcIoWorkerCount();
+            this.loopResources = LoopResources.create(
+                    "r2dbc-mysql", LoopResources.DEFAULT_IO_SELECT_COUNT, r2dbcIoWorkerCount, true);
             this.databaseUrl = requireUrl(config.getResolvedR2dbcUrl());
             this.bootstrapUrl = autoCreate ? stripDatabase(databaseUrl) : databaseUrl;
             this.bootstrapConnectionFactory = createConnectionFactory(bootstrapUrl);
             checkDatabase(database);
             this.connectionPool = createConnectionPool(databaseUrl);
-            logger.info("MySQL R2DBC pool init OK, autoCreate={}, initialSize={}, maxSize={}",
-                    autoCreate, poolInitialSize, poolMaxSize);
+            this.serialExecutor = new DbSerialExecutor(
+                    runtimeConfig.getSerialLaneCount(), runtimeConfig.getSerialMaxPendingPerLane());
+            logger.info("MySQL R2DBC pool init OK, autoCreate={}, initialSize={}, maxSize={}, ioWorkerCount={}",
+                    autoCreate, poolInitialSize, poolMaxSize, r2dbcIoWorkerCount);
         } catch (Exception e) {
             logger.error("LoggerMysql error", e);
             throw new SysException(e);
@@ -86,6 +105,16 @@ public class LoggerMysql implements LoggerEngine {
         return Mono.from(connectionPool.create())
                 .cast(Connection.class)
                 .timeout(connectionTimeout);
+    }
+
+    public <T> Mono<T> executeSerial(Object key, Supplier<Mono<T>> operation) {
+        return serialExecutor.submit(key, operation);
+    }
+
+    public <T, R> Mono<List<R>> executeSerialBatch(List<T> items,
+                                                     Function<T, Object> keyExtractor,
+                                                     Function<List<T>, Mono<R>> operation) {
+        return serialExecutor.submitBatch(items, keyExtractor, operation);
     }
 
     private void checkDatabase(String databaseName) {
@@ -145,6 +174,7 @@ public class LoggerMysql implements LoggerEngine {
 
     private ConnectionFactory createConnectionFactory(String url) {
         ConnectionFactoryOptions.Builder builder = ConnectionFactoryOptions.parse(url).mutate();
+        builder.option(MySqlConnectionFactoryProvider.LOOP_RESOURCES, loopResources);
         if (username != null && !username.isBlank()) {
             builder.option(USER, username);
         }
@@ -181,7 +211,10 @@ public class LoggerMysql implements LoggerEngine {
 
     @Override
     public void close() {
-        connectionPool.dispose();
+        serialExecutor.close(() -> {
+            connectionPool.dispose();
+            loopResources.dispose();
+        });
     }
 
     @Override

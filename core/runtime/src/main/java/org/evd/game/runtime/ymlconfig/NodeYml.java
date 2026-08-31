@@ -15,7 +15,8 @@ public class NodeYml {
     /** 公共 CSV 配置表所在目录，相对路径以项目根目录为基准。 */
     private String tableDir;
     /** 全局数据库部署形态，所有 Node 必须使用同一拓扑。 */
-    private DbTopology dbTopology = DbTopology.REMOTE_SERVICE;
+    /** 默认每个 Node 自己持有数据库入口；需要集中数据库时显式配置 REMOTE_SERVICE。 */
+    private DbTopology dbTopology = DbTopology.NODE_LOCAL;
     private boolean debug;
     private int platformId;
     private int serverId;

@@ -60,6 +60,9 @@ add和remove的话 直接在方法开头判断就行;add remove没有load字段�
 
 loadPlayerAllTableToMemory 目前看不需要加锁，反正get里面每次都会重复判断状态的，状态不对直接后续的加载直接失败;
 然后再最终全部load结束的时候 会再判断一次，如果状态已经不对了就直接不管return;
+简单点 load 和flush加同样的锁？
+load加一个协程锁;flush加一个协程锁;flush是按时间来的，所以不会有一直load flush的问题;
+
 
     load_wait = 1; // 等待load
     load_ing = 2; // load中
@@ -71,26 +74,6 @@ loadPlayerAllTableToMemory 目前看不需要加锁，反正get里面每次都�
 
 
 所以我还是需要加锁
-
-然后你把 **加载状态机需要调整**
-    你设想的门禁应当放在 TTable.get/add/remove 方法入口、读取 cache 之前，而不只是“准备查数据库时”。
-    否则：
-    LOADING 阶段已经部分加载的 cache 可以被普通 get 读取。
-    EVICTED 后 add/remove 不需要查 DB，也能重新创建脏 cache。
-    flush 后仍可能读取负缓存。
-    建议由 PlayerService 持有独立于 Session 的驻留状态：
-    UNLOADED
-      → LOADING(epoch)
-      → LOADED(epoch)
-      → FLUSH_PENDING(epoch)
-      → FLUSHING(epoch)
-      → EVICTED(epoch)
-    规则是：
-    只有 LOADED 允许普通 get/add/remove。
-    LOADING 只允许唯一的内部 loadMemory token 绕过门禁。
-    FLUSH_PENDING 开始后，业务入口和 checkpoint 都不能再收集该玩家。
-    等当前 checkpoint 真正返回后才能进入 FLUSHING。
-    同一玩家、同一 generation 只能有一个 flush。
-    不同玩家可以并发 flush。
-    EVICTED 只有新 owner/generation 能重新推进到 LOADING。
-    状态不能放在 PPlayerOnline 中，因为当前离线首先删除 Session binding，flush 状态也会一起消失。   按这 改完 我应该不需要DBService了 也不需要org.evd.game.DBService.entity.DBCache了，只需要本地直接访问Mysql 了;
+这里 checkpoint 和tickClearCache 和loadMemory flush 是不是有冲突呀，感觉是不是这几个都放一个协程里面，让其串行 这样才不会有并发问题，
+比如checkpoint先保存了，然后flush也进行了，结果flush的数据先保存到数据库了，checkpoint的数据还没进数据库;
+这个还有一个解决方案就是我数据库那里也以玩家Key绑定数据库访问线程，这样就一定是线性的了;

@@ -11,9 +11,8 @@ public class DbMysqlYml {
     private int connectionTimeoutMs = 4000;
     private int operationTimeoutMs = 10000;
     private int batchOperationTimeoutMs = 300000;
-    private int poolInitialSize = 4;
-    private int poolMaxSize = 16;
     private int poolMaxIdleTimeMs = 300000;
+    private DbMysqlRuntimeYml runtime = new DbMysqlRuntimeYml();
     private String testQuery = "SELECT 1";
 
     public String getJdbcUrl() {
@@ -122,28 +121,20 @@ public class DbMysqlYml {
         this.batchOperationTimeoutMs = batchOperationTimeoutMs;
     }
 
-    public int getPoolInitialSize() {
-        return poolInitialSize;
-    }
-
-    public void setPoolInitialSize(int poolInitialSize) {
-        this.poolInitialSize = poolInitialSize;
-    }
-
-    public int getPoolMaxSize() {
-        return poolMaxSize;
-    }
-
-    public void setPoolMaxSize(int poolMaxSize) {
-        this.poolMaxSize = poolMaxSize;
-    }
-
     public int getPoolMaxIdleTimeMs() {
         return poolMaxIdleTimeMs;
     }
 
     public void setPoolMaxIdleTimeMs(int poolMaxIdleTimeMs) {
         this.poolMaxIdleTimeMs = poolMaxIdleTimeMs;
+    }
+
+    public DbMysqlRuntimeYml getRuntime() {
+        return runtime;
+    }
+
+    public void setRuntime(DbMysqlRuntimeYml runtime) {
+        this.runtime = runtime;
     }
 
     public String getTestQuery() {

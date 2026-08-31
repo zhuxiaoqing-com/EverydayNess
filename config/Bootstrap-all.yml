@@ -28,10 +28,6 @@ nodes:
         - serviceType: LOC
           name: location
           num: -1
-        - serviceType: DB
-          name: db
-          num: 1
-          interval: 100
         - serviceType: PLAYER
           name: player
           num: 2

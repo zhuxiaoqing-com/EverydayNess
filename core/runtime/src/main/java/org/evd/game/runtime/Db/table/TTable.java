@@ -11,12 +11,12 @@ import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
-import org.evd.game.runtime.continuation.LockType;
-import org.evd.game.runtime.support.TwoTuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -52,15 +52,21 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     public V get(K key) {
-        return get(key, isSync());
+        return get(key, isSync(), false);
     }
 
     /** 固定使用异步数据库查询，供批量预加载等场景使用。 */
     public V getAsync(K key) {
-        return get(key, false);
+        return get(key, false, false);
     }
 
-    private V get(K key, boolean sync) {
+    /** 按表声明的主键类型加载玩家数据，避免 Long playerId 误传给 String/Integer 表。 */
+    V getForLoad(long playerId) {
+        return get(playerKey(playerId), false, true);
+    }
+
+    private V get(K key, boolean sync, boolean forLoad) {
+        checkAccess(key, forLoad);
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
             if (tRecord.isRemoveState()) {
@@ -80,6 +86,16 @@ public abstract class TTable<K, V extends DirtyObject> {
         V value = sync
                 ? getExecSync(createGetDBReq(key))
                 : getExec(createGetDBReq(key), callPoint);
+        checkAccess(key, forLoad);
+
+        // DB await 期间可能已经发生 add/remove；旧查询结果不能覆盖最新 cache。
+        tRecord = cache.get(key);
+        if (tRecord != null) {
+            if (tRecord.isRemoveState()) {
+                return null;
+            }
+            return tRecord.get();
+        }
         if (value == null) {
             findFailCache.put(key, defaultValue);
             countGetMiss.incrementAndGet();
@@ -97,6 +113,7 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     public boolean add(K key, V value, boolean immediately) {
+        getMdb().checkPlayerAccess(key, false);
         if (value == null) {
             throw new NullPointerException("value is null");
         }
@@ -115,6 +132,7 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     public boolean remove(K key) {
+        getMdb().checkPlayerAccess(key, false);
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
             tRecord.remove();
@@ -148,6 +166,30 @@ public abstract class TTable<K, V extends DirtyObject> {
      * 这里默认所有的数据库类都能遍历到，因为在遍历这个之前需要，将所有没有归属某一个callPoint的数据库类修正掉;
      */
     public void checkpointLogicThread(CallPoint callPoint) {
+        if (!isSupportFlush()) {
+            checkpointLogicThreadInternal(callPoint);
+            return;
+        }
+
+        List<Long> playerIds = cache.values().stream()
+                .map(record -> getMdb().playerIdForKey(record.getKey()))
+                .distinct()
+                .sorted()
+                .toList();
+        List<ContinuationLockScope> lifecycleLocks = new ArrayList<>(playerIds.size());
+        try {
+            for (Long playerId : playerIds) {
+                lifecycleLocks.add(getMdb().awaitPlayerLifecycleLock(playerId));
+            }
+            checkpointLogicThreadInternal(callPoint);
+        } finally {
+            for (int i = lifecycleLocks.size() - 1; i >= 0; i--) {
+                lifecycleLocks.get(i).close();
+            }
+        }
+    }
+
+    private void checkpointLogicThreadInternal(CallPoint callPoint) {
         logger.info("checkpoint table Start table {} ", getName());
 
         List<TRecord<K, V>> addTRecordCache = new ArrayList<>();
@@ -377,7 +419,11 @@ public abstract class TTable<K, V extends DirtyObject> {
 
 
     /** 在表锁范围内持有行锁，将单个 key 写库并从缓存删除。 */
-    public boolean flush(K key) {
+    boolean flush(K key) {
+        return flush(key, true);
+    }
+
+    private boolean flush(K key, boolean clearCache) {
         if (getMdb().isClosing()) {
             logger.error("flush mdb is closing table {} key {}", getName(), key);
             return false;
@@ -390,13 +436,16 @@ public abstract class TTable<K, V extends DirtyObject> {
         }
 
         if (!record.isModified()) {
-            cache.remove(key);
+            if (clearCache) {
+                cache.remove(key);
+            }
+            return true;
         }
             long oldDirty = record.getValue().getDirty();
 
         if (record.flush("flush")) {
             TRecord<K, V> currentRecord2 = cache.get(record.getKey());
-            if (currentRecord2 == record
+            if (clearCache && currentRecord2 == record
                     && oldDirty == currentRecord2.getValue().getDirty()) {
                 cache.remove(key);
             }
@@ -404,6 +453,10 @@ public abstract class TTable<K, V extends DirtyObject> {
         }
 
         return false;
+    }
+
+    boolean flushPlayer(long playerId) {
+        return flush(playerKey(playerId), false);
     }
 
     public void close() {
@@ -448,13 +501,48 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
 
-    public Collection<TRecord<K, V>> getCacheList() {
+    Collection<TRecord<K, V>> getCacheList() {
         return cache.values();
     }
 
-    public void deleteCache(K key) {
+    void deleteCache(K key) {
         findFailCache.invalidate(key);
         cache.remove(key);
+    }
+
+    void deletePlayerCache(long playerId) {
+        Iterator<Map.Entry<K, TRecord<K, V>>> iterator = cache.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<K, TRecord<K, V>> entry = iterator.next();
+            if (getMdb().playerIdForKey(entry.getKey()) != playerId) {
+                continue;
+            }
+            findFailCache.invalidate(entry.getKey());
+            iterator.remove();
+        }
+    }
+
+    private void checkAccess(K key, boolean forLoad) {
+        getMdb().checkPlayerAccess(key, forLoad);
+    }
+
+    @SuppressWarnings("unchecked")
+    private K playerKey(long playerId) {
+        Type genericType = getClass().getGenericSuperclass();
+        if (!(genericType instanceof ParameterizedType parameterizedType)) {
+            throw new DBException("无法确定玩家 MDB 表主键类型: table=" + getName());
+        }
+        Type keyType = parameterizedType.getActualTypeArguments()[0];
+        if (keyType == Long.class || keyType == long.class) {
+            return (K) Long.valueOf(playerId);
+        }
+        if (keyType == Integer.class || keyType == int.class) {
+            return (K) Integer.valueOf(Math.toIntExact(playerId));
+        }
+        if (keyType == String.class) {
+            return (K) Long.toString(playerId);
+        }
+        throw new DBException("玩家 MDB 表主键类型不支持: table=" + getName() + ", keyType=" + keyType);
     }
 
     public V getExec(DBReq dbReq, CallPoint callPoint) {
@@ -495,13 +583,6 @@ public abstract class TTable<K, V extends DirtyObject> {
         return mdb.allCallPoint();
     }
 
-
-    /**
-     * 仅限于内部使用
-     */
-    public TRecord<K, V> getTRecordByCache(K key) {
-        return cache.get(key);
-    }
 
     protected abstract V newValue();
 

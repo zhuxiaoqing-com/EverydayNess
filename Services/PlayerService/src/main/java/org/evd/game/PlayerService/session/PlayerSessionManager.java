@@ -25,6 +25,15 @@ public final class PlayerSessionManager {
         return onlinePlayers.get(playerId);
     }
 
+    /** 校验当前登录流程仍持有同一个玩家会话。 */
+    public boolean isCurrent(String userId, long playerId, ClientSessionRef session) {
+        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
+        return currentBinding != null && session != null
+                && userId != null && userId.equals(currentBinding.getUserId())
+                && session.getGate() != null && session.getGate().equals(currentBinding.getGate())
+                && session.getSessionId() == currentBinding.getGateSessionId();
+    }
+
     /** 建立已完成参数和重复上线检查的玩家在线绑定。 */
     public void bindPlayerSession(String userId, long playerId, ClientSessionRef session,
                                   ActorAddress actorAddress) {
@@ -35,13 +44,11 @@ public final class PlayerSessionManager {
         onlinePlayers.put(playerId, binding);
     }
 
-    /** 将已完成玩家数据加载的当前绑定推进到可上线状态。 */
-    public boolean markReady(long playerId) {
-        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
-        if (currentBinding == null) {
+    public boolean markReadyIfCurrent(String userId, long playerId, ClientSessionRef session) {
+        if (!isCurrent(userId, playerId, session)) {
             return false;
         }
-        currentBinding.markReady();
+        onlinePlayers.get(playerId).markReady();
         return true;
     }
 

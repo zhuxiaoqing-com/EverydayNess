@@ -1,28 +1,35 @@
-db:
-  engine: mysql
-  mysql:
-    r2dbcUrl: "r2dbc:mysql://127.0.0.1:3306/game"
-    username: "root"
-    password: "123456"
-    database: "game"
-    autoCreate: true
-    connectionTimeoutMs: 4000
-    operationTimeoutMs: 10000
-    batchOperationTimeoutMs: 300000
-    poolInitialSize: 4
-    poolMaxSize: 16
-    poolMaxIdleTimeMs: 300000
-    testQuery: "SELECT 1"
+db: # 数据库配置
+  engine: mysql # 数据库引擎类型
+  mysql: # MySQL 数据库配置
+    r2dbcUrl: "r2dbc:mysql://127.0.0.1:3306/game" # R2DBC 数据库连接地址
+    username: "root" # 数据库用户名
+    password: "123456" # 数据库密码
+    database: "game" # 数据库名称
+    autoCreate: true # 是否自动创建数据库及相关结构
+    connectionTimeoutMs: 4000 # 数据库连接超时时间，单位：毫秒
+    operationTimeoutMs: 10000 # 单次数据库操作超时时间，单位：毫秒
+    batchOperationTimeoutMs: 300000 # 批量数据库操作超时时间，单位：毫秒
+    poolMaxIdleTimeMs: 300000 # 连接池连接最大空闲时间，单位：毫秒
+    runtime: # 数据库运行时及连接池配置
+      remotePoolInitialSize: 4 # 远程连接池初始连接数
+      remotePoolMaxSize: 16 # 远程连接池最大连接数
+      localInitialSizePerService: 2 # 每个服务的本地连接池初始连接数
+      localMaxSizePerService: 6 # 每个服务的本地连接池最大连接数
+      localMaxPoolSize: 60 # 本地连接池最大总连接数
+      r2dbcIoWorkerCount: 4 # R2DBC IO 工作线程数
+      serialLaneCount: 128 # 串行执行通道数量
+      serialMaxPendingPerLane: 10000 # 每个串行通道最大待处理任务数
+    testQuery: "SELECT 1" # 数据库连接健康检查语句
 
-  mongo:
-    enabled: false
-    uri: "mongodb://127.0.0.1:27017"
-    database: "game"
+  mongo: # MongoDB 数据库配置
+    enabled: false # 是否启用 MongoDB
+    uri: "mongodb://127.0.0.1:27017" # MongoDB 连接地址
+    database: "game" # MongoDB 数据库名称
 
-  storage:
-    batchThreshold: 30
-    batchPerCount: 500
-    costMsWarn: 100
-    batchCostMsWarn: 30000
-    enableMemoryCache: false
-    cacheFlushMs: 300000
+  storage: # 数据存储及批处理配置
+    batchThreshold: 30 # 触发批量处理的最小数据条数
+    batchPerCount: 500 # 单批次最大处理数据条数
+    costMsWarn: 100 # 单次存储耗时告警阈值，单位：毫秒
+    batchCostMsWarn: 30000 # 批量存储耗时告警阈值，单位：毫秒
+    enableMemoryCache: false # 是否启用内存缓存
+    cacheFlushMs: 300000 # 内存缓存刷新间隔，单位：毫秒

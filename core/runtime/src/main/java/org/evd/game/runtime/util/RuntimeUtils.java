@@ -22,9 +22,23 @@ public class RuntimeUtils {
         if (length <= 0) {
             return null;
         }
-        int i = Math.floorMod(hash(key.hashCode()), length);
+        int i = mod(key, length);
         return list.get(i);
     }
+
+    public static <K> K mod(Object key, K[] list) {
+        int length = list.length;
+        if (length <= 0) {
+            return null;
+        }
+        int i = mod(key, length);
+        return list[i];
+    }
+
+    public static int mod(Object key, int length) {
+        return Math.floorMod(hash(key), length);
+    }
+
 
     public static int hash(Object key) {
         int h;

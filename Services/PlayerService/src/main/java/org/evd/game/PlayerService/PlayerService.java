@@ -98,9 +98,4 @@ public class PlayerService extends Service {
         return sessionManager.getOnlineCount();
     }
 
-    /** 声明 PlayerService 支持 MDB 消息分发。 */
-    @Override
-    protected boolean supportMdb() {
-        return true;
-    }
 }
