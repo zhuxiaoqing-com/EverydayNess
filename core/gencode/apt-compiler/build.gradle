@@ -10,20 +10,20 @@ repositories {
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
     implementation project(":core:gencode:apt-annotation")
 
     // 注册注解，并对其生成META-INF的配置信息
-    implementation 'com.google.auto.service:auto-service:1.0-rc6'
-    annotationProcessor 'com.google.auto.service:auto-service:1.0-rc6'
+    implementation libs.auto.service
+    annotationProcessor libs.auto.service
     // 第三方自动生成代码框架（可以通过类的调用方式来自动生成代码，简洁高效）
-    implementation 'com.squareup:javapoet:1.10.0'
-    implementation 'org.freemarker:freemarker:2.3.31'
-    implementation 'org.apache.commons:commons-lang3:3.14.0'
+    implementation libs.javapoet
+    implementation libs.freemarker
+    implementation libs.commons.lang3
 }
 
 //sourceCompatibility = JavaVersion.VERSION_1_8

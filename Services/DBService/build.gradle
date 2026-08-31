@@ -1,8 +1,8 @@
 apply from: rootProject.file('gradle/service-module.gradle')
 
 dependencies {
-    implementation 'io.asyncer:r2dbc-mysql:1.4.0'
-    implementation 'io.r2dbc:r2dbc-pool:1.0.2.RELEASE'
-    implementation 'io.projectreactor:reactor-core:3.7.7'
-    implementation 'org.mongodb:mongo-java-driver:3.12.14'
+    implementation libs.r2dbc.mysql
+    implementation libs.r2dbc.pool
+    implementation libs.reactor.core
+    implementation libs.mongo.java.driver
 }

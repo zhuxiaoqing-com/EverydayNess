@@ -1,0 +1,61 @@
+[versions]
+slf4j = "2.0.13"
+log4j = "2.23.1"
+fastjson2 = "2.0.51"
+protostuff = "1.8.0"
+protobuf = "3.25.3"
+caffeine = "3.1.8"
+lombok = "1.18.34"
+junit = "5.10.0"
+snakeyaml = "2.0"
+fastutil = "8.5.16"
+protobufPlugin = "0.9.4"
+r2dbcMysql = "1.4.0"
+r2dbcPool = "1.0.2.RELEASE"
+reactor = "3.7.7"
+mongoJavaDriver = "3.12.14"
+netty = "4.1.112.Final"
+autoService = "1.0-rc6"
+javapoet = "1.10.0"
+freemarker = "2.3.31"
+commonsLang3 = "3.14.0"
+jeromq = "0.5.4"
+quartz = "2.3.2"
+agrona = "2.5.0"
+mysqlConnector = "8.4.0"
+picocsv = "2.6.0"
+
+[libraries]
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+log4j-api = { module = "org.apache.logging.log4j:log4j-api", version.ref = "log4j" }
+log4j-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j" }
+log4j-slf4j2-impl = { module = "org.apache.logging.log4j:log4j-slf4j2-impl", version.ref = "log4j" }
+fastjson2 = { module = "com.alibaba.fastjson2:fastjson2", version.ref = "fastjson2" }
+protostuff-api = { module = "io.protostuff:protostuff-api", version.ref = "protostuff" }
+protostuff-core = { module = "io.protostuff:protostuff-core", version.ref = "protostuff" }
+protostuff-runtime = { module = "io.protostuff:protostuff-runtime", version.ref = "protostuff" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+fastutil = { module = "it.unimi.dsi:fastutil", version.ref = "fastutil" }
+protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
+r2dbc-mysql = { module = "io.asyncer:r2dbc-mysql", version.ref = "r2dbcMysql" }
+r2dbc-pool = { module = "io.r2dbc:r2dbc-pool", version.ref = "r2dbcPool" }
+reactor-core = { module = "io.projectreactor:reactor-core", version.ref = "reactor" }
+mongo-java-driver = { module = "org.mongodb:mongo-java-driver", version.ref = "mongoJavaDriver" }
+netty-all = { module = "io.netty:netty-all", version.ref = "netty" }
+auto-service = { module = "com.google.auto.service:auto-service", version.ref = "autoService" }
+javapoet = { module = "com.squareup:javapoet", version.ref = "javapoet" }
+freemarker = { module = "org.freemarker:freemarker", version.ref = "freemarker" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commonsLang3" }
+jeromq = { module = "org.zeromq:jeromq", version.ref = "jeromq" }
+quartz = { module = "org.quartz-scheduler:quartz", version.ref = "quartz" }
+agrona = { module = "org.agrona:agrona", version.ref = "agrona" }
+mysql-connector-j = { module = "com.mysql:mysql-connector-j", version.ref = "mysqlConnector" }
+picocsv = { module = "com.github.nbbrd.picocsv:picocsv", version.ref = "picocsv" }
+
+[plugins]
+protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }

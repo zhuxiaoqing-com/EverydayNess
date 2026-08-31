@@ -1,21 +1,7 @@
-buildscript {
-    repositories {
-        maven {
-            url 'https://maven.aliyun.com/repository/public'
-        }
-        mavenCentral()
-        mavenLocal()
-    }
-    dependencies {
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.9.4'
-    }
-}
-
 plugins {
     id 'java'
+    alias(libs.plugins.protobuf)
 }
-
-apply plugin: 'com.google.protobuf'
 
 group = 'org.example'
 version = '1.0-SNAPSHOT'
@@ -36,9 +22,9 @@ sourceSets {
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    implementation 'org.yaml:snakeyaml:2.0'
+    testImplementation platform(libs.junit.bom)
+    testImplementation libs.junit.jupiter
+    implementation libs.snakeyaml
     implementation project(':core:runtime')
 
     implementation project(':core:gencode:apt-annotation')
@@ -47,7 +33,8 @@ dependencies {
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.25.3'
+        def protocDependency = libs.protoc.get()
+        artifact = "${protocDependency.module.group}:${protocDependency.module.name}:${protocDependency.version}"
     }
 }
 
