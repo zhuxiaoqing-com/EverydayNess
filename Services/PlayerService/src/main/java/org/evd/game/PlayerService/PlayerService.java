@@ -4,6 +4,7 @@ import org.evd.game.PlayerService.offline.PlayerOfflineManager;
 import org.evd.game.PlayerService.player.PlayerDataRepository;
 import org.evd.game.PlayerService.reconcile.PlayerOnlineReconcileS;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
+import org.evd.game.PlayerService.timer.PlayerTimer;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
@@ -17,6 +18,7 @@ public class PlayerService extends Service {
     private final PlayerDataRepository playerDataRepository;
     private final PlayerOfflineManager offlineManager;
     private final PlayerOnlineReconcileS playerOnlineReconcileS;
+    private final PlayerTimer playerTimer;
 
     /** 创建 PlayerService，并初始化玩家会话绑定管理器。 */
     public PlayerService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
@@ -25,11 +27,13 @@ public class PlayerService extends Service {
         this.playerDataRepository = new PlayerDataRepository();
         this.offlineManager = new PlayerOfflineManager(this, sessionManager);
         this.playerOnlineReconcileS = new PlayerOnlineReconcileS(this, sessionManager, this.offlineManager);
+        this.playerTimer = new PlayerTimer(this);
     }
 
     @Override
     public void init() {
         super.init();
+        newRepeatedTimer(PlayerTimer.INTERVAL_MILLIS, false, playerTimer::onSecond);
         newRepeatedTimerCoroutine(PlayerOnlineReconcileS.INTERVAL_MILLIS, false, playerOnlineReconcileS::reconcile);
     }
 

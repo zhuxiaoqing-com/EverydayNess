@@ -153,18 +153,18 @@ public class Mdb {
         Object key = playerId;
         logger.info("loadPlayerAllTableToMemory key {}", key);
         TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "loadPlayerAllTableToMemory: " + key);
-        try {
-            for (TTable<?, ?> table : tableList) {
-                if (!table.isSupportFlush()) {
-                    continue;
-                }
-                table.getForLoad(playerId);
+        for (TTable<?, ?> table : tableList) {
+            if (!table.isSupportFlush()) {
+                continue;
             }
-            timeCostPrint.print();
-        } catch (Exception e) {
-            logger.error("Mdb loadPlayerAllTableToMemory error key {} ", key, e);
-            throw new DBException(e);
+            try {
+                table.getForLoad(playerId);
+            } catch (RuntimeException e) {
+                logger.error("Mdb loadPlayerAllTableToMemory error key {} table {}", key, table.getName(), e);
+                throw e;
+            }
         }
+        timeCostPrint.print();
     }
 
     /*
@@ -183,11 +183,11 @@ public class Mdb {
      * todo flush这里其实还没弄好;flush成功以后需要同步给location服务器，将其退出，否则就还在Location服务器，不变;
      */
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    boolean flushPlayerAllTableToMemory(Object key) {
-        logger.info("flush flushLogicThread start key {}", key);
+    @SuppressWarnings({"rawtypes"})
+    boolean flushPlayerAllTableToMemory(long playerId) {
+        logger.info("flush flushLogicThread start key {}", playerId);
 
-        TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "flush: " + key);
+        TimeCostPrint timeCostPrint = new TimeCostPrint(logger, 60, "flush: " + playerId);
         boolean allSuccess = true;
         int tableCount = 0;
         for (TTable table : tableList) {
@@ -195,23 +195,38 @@ public class Mdb {
                 continue;
             }
             tableCount++;
-            if (!table.flushPlayer(((Number) key).longValue())) {
+            if (!table.flushPlayer(playerId)) {
                 allSuccess = false;
             }
         }
-        logger.info("flush flushMdbSaveDB summary key {} tableCount {} success {} ", key, tableCount, allSuccess);
+        logger.info("flush flushMdbSaveDB summary key {} tableCount {} success {} ", playerId, tableCount, allSuccess);
         timeCostPrint.print();
         return allSuccess;
     }
 
     @SuppressWarnings("unchecked")
-    void clearPlayerCache(Object key) {
-        long playerId = toPlayerId(key);
+    void clearPlayerCache(long playerId) {
         for (TTable table : tableList) {
             if (table.isSupportFlush()) {
                 table.deletePlayerCache(playerId);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    boolean clearPlayerCacheIfClean(long playerId) {
+        for (TTable table : tableList) {
+            if (!table.isSupportFlush()) {
+                continue;
+            }
+            if (table.hasModifiedPlayerCache(playerId)) {
+                logger.warn("玩家 MDB flush 后清理 cache 前发现数据再次修改: playerId={}, table={}",
+                        playerId, table.getName());
+                return false;
+            }
+        }
+        clearPlayerCache(playerId);
+        return true;
     }
 
     public void playerLogout(long playerId) {
@@ -223,10 +238,6 @@ public class Mdb {
             return;
         }
         mdbPlayerManager.checkAccess(toPlayerId(key), forLoad);
-    }
-
-    long playerIdForKey(Object key) {
-        return toPlayerId(key);
     }
 
     ContinuationLockScope awaitPlayerLifecycleLock(long playerId) {

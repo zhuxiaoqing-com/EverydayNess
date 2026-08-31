@@ -9,14 +9,14 @@ import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
+import org.evd.game.runtime.support.TwoTuple;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
+import org.evd.game.runtime.continuation.LockType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -48,7 +48,9 @@ public abstract class TTable<K, V extends DirtyObject> {
 
 
     private boolean isSync() {
-        return getMdb().isLocal();
+        // 先默认异步访问吧;
+        return false;
+        //return getMdb().isLocal();
     }
 
     public V get(K key) {
@@ -67,6 +69,26 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     private V get(K key, boolean sync, boolean forLoad) {
         checkAccess(key, forLoad);
+        TRecord<K, V> tRecord = cache.get(key);
+        if (tRecord != null) {
+            if (tRecord.isRemoveState()) {
+                return null;
+            }
+            return tRecord.get();
+        }
+
+        if (!sync) {
+            try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+                    LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+                checkAccess(key, forLoad);
+                return getFromDb(key, false, forLoad);
+            }
+        }
+
+        return getFromDb(key, true, forLoad);
+    }
+
+    private V getFromDb(K key, boolean sync, boolean forLoad) {
         TRecord<K, V> tRecord = cache.get(key);
         if (tRecord != null) {
             if (tRecord.isRemoveState()) {
@@ -166,27 +188,7 @@ public abstract class TTable<K, V extends DirtyObject> {
      * 这里默认所有的数据库类都能遍历到，因为在遍历这个之前需要，将所有没有归属某一个callPoint的数据库类修正掉;
      */
     public void checkpointLogicThread(CallPoint callPoint) {
-        if (!isSupportFlush()) {
-            checkpointLogicThreadInternal(callPoint);
-            return;
-        }
-
-        List<Long> playerIds = cache.values().stream()
-                .map(record -> getMdb().playerIdForKey(record.getKey()))
-                .distinct()
-                .sorted()
-                .toList();
-        List<ContinuationLockScope> lifecycleLocks = new ArrayList<>(playerIds.size());
-        try {
-            for (Long playerId : playerIds) {
-                lifecycleLocks.add(getMdb().awaitPlayerLifecycleLock(playerId));
-            }
-            checkpointLogicThreadInternal(callPoint);
-        } finally {
-            for (int i = lifecycleLocks.size() - 1; i >= 0; i--) {
-                lifecycleLocks.get(i).close();
-            }
-        }
+        checkpointLogicThreadInternal(callPoint);
     }
 
     private void checkpointLogicThreadInternal(CallPoint callPoint) {
@@ -418,12 +420,22 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
 
-    /** 在表锁范围内持有行锁，将单个 key 写库并从缓存删除。 */
-    boolean flush(K key) {
-        return flush(key, true);
+
+    boolean flushPlayer(long playerId) {
+        return flush(playerKey(playerId));
     }
 
-    private boolean flush(K key, boolean clearCache) {
+
+    /**
+     * flush 是按玩家同步多张表的。
+     * 如果每张表成功后立刻删自己的 cache，但后面的表失败了，就会出现：
+     * 部分表 cache 已删
+     * 部分表 cache 还在
+     * 但玩家状态仍然是 LOAD_FINISH
+     * 玩家重新登录时看到 LOAD_FINISH 会直接复用 cache，不会重新完整加载，导致 cache 不完整。
+     * 所以现在先保留所有 cache，等玩家所有表都 flush 成功后，再统一清理。
+     */
+    private boolean flush(K key) {
         if (getMdb().isClosing()) {
             logger.error("flush mdb is closing table {} key {}", getName(), key);
             return false;
@@ -436,27 +448,21 @@ public abstract class TTable<K, V extends DirtyObject> {
         }
 
         if (!record.isModified()) {
-            if (clearCache) {
-                cache.remove(key);
-            }
             return true;
         }
-            long oldDirty = record.getValue().getDirty();
+        long oldDirty = record.getValue().getDirty();
 
         if (record.flush("flush")) {
-            TRecord<K, V> currentRecord2 = cache.get(record.getKey());
-            if (clearCache && currentRecord2 == record
-                    && oldDirty == currentRecord2.getValue().getDirty()) {
-                cache.remove(key);
-            }
+            // 这里不管中间flush变化了;会在上层检测
+            /**
+             * 这里没用，比如A表flush 但是数据还没清理，B表又flush，这个时候有一个协程拿着get出来的数据进行更新，那我不是这个数据还是修改了，
+             * 但是我在clearPlayerCache  这边检测的话，就可以避免这个情况 可以在调用clearPlayerCache 前先检测下 这样也不会影响failLoad
+             */
+            record.checkpointRefreshState(oldDirty);
             return true;
         }
 
         return false;
-    }
-
-    boolean flushPlayer(long playerId) {
-        return flush(playerKey(playerId), false);
     }
 
     public void close() {
@@ -511,15 +517,15 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     void deletePlayerCache(long playerId) {
-        Iterator<Map.Entry<K, TRecord<K, V>>> iterator = cache.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<K, TRecord<K, V>> entry = iterator.next();
-            if (getMdb().playerIdForKey(entry.getKey()) != playerId) {
-                continue;
-            }
-            findFailCache.invalidate(entry.getKey());
-            iterator.remove();
-        }
+        K key = playerKey(playerId);
+        findFailCache.invalidate(key);
+        cache.remove(key);
+    }
+
+    boolean hasModifiedPlayerCache(long playerId) {
+        K key = playerKey(playerId);
+        TRecord<K, V> record = cache.get(key);
+        return record != null && record.isModified();
     }
 
     private void checkAccess(K key, boolean forLoad) {
@@ -528,21 +534,7 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     @SuppressWarnings("unchecked")
     private K playerKey(long playerId) {
-        Type genericType = getClass().getGenericSuperclass();
-        if (!(genericType instanceof ParameterizedType parameterizedType)) {
-            throw new DBException("无法确定玩家 MDB 表主键类型: table=" + getName());
-        }
-        Type keyType = parameterizedType.getActualTypeArguments()[0];
-        if (keyType == Long.class || keyType == long.class) {
-            return (K) Long.valueOf(playerId);
-        }
-        if (keyType == Integer.class || keyType == int.class) {
-            return (K) Integer.valueOf(Math.toIntExact(playerId));
-        }
-        if (keyType == String.class) {
-            return (K) Long.toString(playerId);
-        }
-        throw new DBException("玩家 MDB 表主键类型不支持: table=" + getName() + ", keyType=" + keyType);
+        return (K) Long.valueOf(playerId);
     }
 
     public V getExec(DBReq dbReq, CallPoint callPoint) {

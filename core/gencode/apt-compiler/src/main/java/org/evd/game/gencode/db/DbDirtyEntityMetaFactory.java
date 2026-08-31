@@ -269,14 +269,17 @@ final class DbDirtyEntityMeta {
 
 final class DbDirtyFieldMeta {
     final String name;
+    final String docComment;
     final String methodSuffix;
     final String columnName;
     final Integer tagValue;
     final boolean primaryKey;
     final DbDirtyTypeMeta type;
 
-    DbDirtyFieldMeta(String name, String methodSuffix, Integer tagValue, boolean primaryKey, DbDirtyTypeMeta type) {
+    DbDirtyFieldMeta(String name, String docComment, String methodSuffix, Integer tagValue, boolean primaryKey,
+                     DbDirtyTypeMeta type) {
         this.name = name;
+        this.docComment = docComment;
         this.methodSuffix = methodSuffix;
         this.columnName = DbDirtyEntityMetaFactory.toSnakeCase(name);
         this.tagValue = tagValue;
@@ -290,7 +293,8 @@ final class DbDirtyFieldMeta {
         Integer tagValue = dbDirtyTag == null ? null : dbDirtyTag.value();
         boolean primaryKey = dbDirtyTag != null && dbDirtyTag.primaryKey();
         String name = field.getSimpleName().toString();
-        return new DbDirtyFieldMeta(name, upperFirst(name), tagValue, primaryKey,
+        String docComment = processingEnv.getElementUtils().getDocComment(field);
+        return new DbDirtyFieldMeta(name, docComment, upperFirst(name), tagValue, primaryKey,
                 DbDirtyTypeMeta.of(field.asType(), processingEnv, currentBeanPackage, ownerSerialize, ownerClassName, name));
     }
 

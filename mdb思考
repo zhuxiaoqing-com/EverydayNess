@@ -77,3 +77,13 @@ load加一个协程锁;flush加一个协程锁;flush是按时间来的，所以�
 这里 checkpoint 和tickClearCache 和loadMemory flush 是不是有冲突呀，感觉是不是这几个都放一个协程里面，让其串行 这样才不会有并发问题，
 比如checkpoint先保存了，然后flush也进行了，结果flush的数据先保存到数据库了，checkpoint的数据还没进数据库;
 这个还有一个解决方案就是我数据库那里也以玩家Key绑定数据库访问线程，这样就一定是线性的了;
+
+
+flush必须要等所有的玩家数据都flush成功以后才能清理cache数据;
+         * flush 是按玩家同步多张表的。
+         * 如果每张表成功后立刻删自己的 cache，但后面的表失败了，就会出现：
+         * 部分表 cache 已删
+         * 部分表 cache 还在
+         * 但玩家状态仍然是 LOAD_FINISH
+         * 玩家重新登录时看到 LOAD_FINISH 会直接复用 cache，不会重新完整加载，导致 cache 不完整。
+         * 所以现在先保留所有 cache，等玩家所有表都 flush 成功后，再统一清理。

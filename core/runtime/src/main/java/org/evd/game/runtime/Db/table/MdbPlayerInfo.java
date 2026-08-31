@@ -5,7 +5,6 @@ final class MdbPlayerInfo {
     private final long playerId;
     private MdbState state = MdbState.EMPTY;
     private boolean inUse;
-    private boolean flushRequested;
     private long flushDeadline;
 
     MdbPlayerInfo(long playerId) {
@@ -30,14 +29,6 @@ final class MdbPlayerInfo {
 
     void setInUse(boolean inUse) {
         this.inUse = inUse;
-    }
-
-    boolean isFlushRequested() {
-        return flushRequested;
-    }
-
-    void setFlushRequested(boolean flushRequested) {
-        this.flushRequested = flushRequested;
     }
 
     long getFlushDeadline() {

@@ -4,12 +4,13 @@ import org.evd.game.runtime.annotation.Event;
 import org.evd.game.runtime.annotation.EventListener;
 
 /**
- * 系统分钟事件
+ * 玩家上线事件
  */
-public record SystemMinuteEvent() implements Event {
-    public static final SystemMinuteEvent INSTANCE = new SystemMinuteEvent();
+public record RoleLoginEvent(
+        long playerId
+) implements Event {
 
     public interface Listener extends EventListener {
-        void onEvent(SystemMinuteEvent event);
+        void onEvent(RoleLoginEvent event);
     }
 }

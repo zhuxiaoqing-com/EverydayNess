@@ -32,7 +32,6 @@ final class MdbPlayerManager {
     void load(long playerId) {
         MdbPlayerInfo info = getOrCreate(playerId);
         info.setInUse(true);
-        info.setFlushRequested(false);
         info.setFlushDeadline(0L);
 
         MdbState state = info.getState();
@@ -49,6 +48,10 @@ final class MdbPlayerManager {
         }
 
         try (ContinuationLockScope ignored = lifecycleLock(playerId)) {
+            // 等待生命周期锁期间可能已经下线，或者该状态对象已经被 flush 清理。
+            if (!info.isInUse() || playerInfoMap.get(playerId) != info) {
+                return;
+            }
             state = info.getState();
             switch (state) {
                 // 数据已经完整加载并且仍在内存中，本次 load 直接复用现有数据。
@@ -82,7 +85,6 @@ final class MdbPlayerManager {
             return;
         }
         info.setInUse(false);
-        info.setFlushRequested(true);
         info.setFlushDeadline(Service.getTime() + FLUSH_DELAY_MILLIS);
         logger.info("玩家 MDB 进入延迟 flush: playerId={}, state={}, delayMillis={}",
                 playerId, info.getState(), FLUSH_DELAY_MILLIS);
@@ -115,13 +117,6 @@ final class MdbPlayerManager {
             return;
         }
         info.setState(MdbState.LOAD_FINISH);
-
-        // load 期间如果延迟任务已经到期，不能把本轮 load 永久留在内存中。
-        if (!info.isInUse() && info.isFlushRequested()
-                && Service.getTime() >= info.getFlushDeadline()) {
-            info.setState(MdbState.FLUSH_WAIT);
-            flushLocked(info);
-        }
     }
 
     private void flushLocked(MdbPlayerInfo info) {
@@ -144,15 +139,23 @@ final class MdbPlayerManager {
         if (!success) {
             // flush 已经结束但没有完成落库，保留 cache 并等待下一次明确重试。
             info.setState(MdbState.LOAD_FINISH);
+            if (!info.isInUse()) {
+                info.setFlushDeadline(Service.getTime() + FLUSH_DELAY_MILLIS);
+            }
             return;
         }
 
-        info.setState(MdbState.EMPTY);
         if (info.isInUse()) {
             // 登录请求正在等待同一把锁，交给它在锁内转入 LOAD_WAIT。
+            info.setState(MdbState.EMPTY);
             return;
         }
-        mdb.clearPlayerCache(info.getPlayerId());
+        if (!mdb.clearPlayerCacheIfClean(info.getPlayerId())) {
+            info.setState(MdbState.LOAD_FINISH);
+            info.setFlushDeadline(Service.getTime() + FLUSH_DELAY_MILLIS);
+            return;
+        }
+        info.setState(MdbState.EMPTY);
         playerInfoMap.remove(info.getPlayerId(), info);
     }
 
@@ -174,7 +177,7 @@ final class MdbPlayerManager {
         List<MdbPlayerInfo> infos = new ArrayList<>(playerInfoMap.values());
         for (MdbPlayerInfo info : infos) {
             if (playerInfoMap.get(info.getPlayerId()) != info
-                    || info.isInUse() || !info.isFlushRequested()
+                    || info.isInUse() || info.getFlushDeadline() <= 0L
                     || currentTime < info.getFlushDeadline()) {
                 continue;
             }

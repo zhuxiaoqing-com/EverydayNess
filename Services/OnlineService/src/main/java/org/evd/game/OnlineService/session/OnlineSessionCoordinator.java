@@ -109,6 +109,7 @@ public final class OnlineSessionCoordinator {
             // 保留 OnlineUserState 的兼容镜像；实际玩家生命周期以 OnlinePlayer 为准。
             userState.setActivePlayerId(playerId);
             userState.setActivePlayerService(playerService);
+            historicalPlayerServiceMap.bind(onlinePlayer.getUserId(), userState.getActivePlayerService());
         }
         return onlinePlayer;
     }
@@ -124,7 +125,6 @@ public final class OnlineSessionCoordinator {
         }
         onlinePlayer.markPlayerReady();
         userState.setActivePlayerActorAddress(actorAddress);
-        historicalPlayerServiceMap.bind(onlinePlayer.getUserId(), userState.getActivePlayerService());
         Service.getCurrent().getMessageLocationSender().cache(
                 ActorId.player(onlinePlayer.getPlayerId()), actorAddress);
         LogCore.core.info("OnlineService 缓存 PlayerActorAddress: userId={}, playerId={}, actorId={}, actorAddress={}",

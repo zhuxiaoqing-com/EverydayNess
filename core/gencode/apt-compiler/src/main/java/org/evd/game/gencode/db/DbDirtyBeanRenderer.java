@@ -29,6 +29,7 @@ final class DbDirtyBeanRenderer {
         sb.append("public final class ").append(entity.beanClassName)
                 .append(" extends DirtyObject {\n");
         for (DbDirtyFieldMeta field : entity.fields) {
+            appendFieldDocComment(sb, field);
             tagRenderer.appendAnnotation(sb, field, "    ");
             sb.append("    private ").append(field.type.fieldType).append(" ").append(field.name).append(";\n");
         }
@@ -47,6 +48,24 @@ final class DbDirtyBeanRenderer {
         appendToString(sb, entity);
         sb.append("}\n");
         return DbDirtyTypeNameSupport.rewriteImportedTypeNames(sb.toString(), importedEntityTypes);
+    }
+
+    private void appendFieldDocComment(StringBuilder sb, DbDirtyFieldMeta field) {
+        if (field.docComment == null || field.docComment.isBlank()) {
+            return;
+        }
+        sb.append("    /**\n");
+        for (String line : field.docComment.strip().split("\\R")) {
+            if (line.startsWith(" ")) {
+                line = line.substring(1);
+            }
+            sb.append("     *");
+            if (!line.isEmpty()) {
+                sb.append(" ").append(line);
+            }
+            sb.append("\n");
+        }
+        sb.append("     */\n");
     }
 
     private DbDirtyFieldTagRenderer resolveTagRenderer(DBserialize dbType) {

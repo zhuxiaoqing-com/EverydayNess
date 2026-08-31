@@ -37,7 +37,11 @@ public class DBPlayerDataDef{
     private DBItemDataDef obj1;
     @DBDirtyTag(9)
     private byte[] bytes;
-
+    /**
+     * 上次午夜毫秒值
+     */
+    @DBDirtyTag(10)
+    private long lastMidnightMill;
 
     /**
      * 操作方法全部自动生成

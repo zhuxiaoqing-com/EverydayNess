@@ -7,9 +7,7 @@ import org.evd.game.runtime.annotation.EventListener;
  * 玩家午夜事件
  */
 public record RoleMidnightEvent(
-        long playerId,
-        int taskId,
-        int progress
+        long playerId
 ) implements Event {
 
     public interface Listener extends EventListener {

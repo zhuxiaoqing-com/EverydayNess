@@ -27,7 +27,6 @@ db: # 数据库配置
     database: "game" # MongoDB 数据库名称
 
   storage: # 数据存储及批处理配置
-    batchThreshold: 30 # 触发批量处理的最小数据条数
     batchPerCount: 500 # 单批次最大处理数据条数
     costMsWarn: 100 # 单次存储耗时告警阈值，单位：毫秒
     batchCostMsWarn: 30000 # 批量存储耗时告警阈值，单位：毫秒

@@ -4,9 +4,7 @@ import org.evd.game.runtime.annotation.Event;
 import org.evd.game.runtime.annotation.EventListener;
 
 public record RoleMinuteEvent(
-        long playerId,
-        int taskId,
-        int progress
+        long playerId
 ) implements Event {
 
     public interface Listener extends EventListener {

@@ -17,6 +17,8 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.call.RpcCallBase;
 import org.evd.game.runtime.config.ConfigTableInitializer;
+import org.evd.game.runtime.annotation.Event;
+import org.evd.game.runtime.annotation.EventListener;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
@@ -42,6 +44,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * 服务
@@ -474,6 +478,27 @@ public class Service extends TickCase {
             throw new SysException("actorInterface is null: service={}", id);
         }
         return actorInterfaceIndexer.getObjByClass(actorInterface);
+    }
+
+    public final <T> void forEachActor(Class<T> actorInterface, Consumer<T> consumer) {
+        if (actorInterface == null) {
+            throw new SysException("actorInterface is null: service={}", id);
+        }
+        List<T> objByClass = actorInterfaceIndexer.getObjByClass(actorInterface);
+        for (T byClass : objByClass) {
+            try {
+                consumer.accept(byClass);
+            } catch (Exception e) {
+                LogCore.core.error("Service Actor 接口回调失败: service={}, actorInterface={}, actorClass={}",
+                        id, actorInterface.getName(), byClass.getClass().getName(), e);
+            }
+        }
+    }
+
+    /** 派发事件；同一个事件对象会被所有监听器复用。 */
+    public final <E extends Event, L extends EventListener> void publishEvent(
+            Class<L> listenerType, E event, BiConsumer<L, E> consumer) {
+        forEachActor(listenerType, listener -> consumer.accept(listener, event));
     }
 
     public final Map<Class<?>, List<Object>> getActorInterfaceMap() {

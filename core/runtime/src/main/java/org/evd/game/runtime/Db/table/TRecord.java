@@ -161,10 +161,10 @@ public class TRecord<K, V extends DirtyObject> {
     }
 
 
-    public void checkpointRefreshState(Long oldDirty) {
+    public boolean checkpointRefreshState(Long oldDirty) {
         // 不一样，说明checkpoint协程让开期间，值又变过了;
         if (value.getDirty() != oldDirty) {
-            return;
+            return false;
         }
         // 设置为没变化
         value.clearModify();
@@ -174,6 +174,8 @@ public class TRecord<K, V extends DirtyObject> {
                 state = GET;
                 break;
         }
+
+        return true;
     }
 
     public void checkPointFail() {

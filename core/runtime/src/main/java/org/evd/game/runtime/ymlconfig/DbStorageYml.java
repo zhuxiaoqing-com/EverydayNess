@@ -1,20 +1,11 @@
 package org.evd.game.runtime.ymlconfig;
 
 public class DbStorageYml {
-    private int batchThreshold = 30;
     private int batchPerCount = 500;
     private int costMsWarn = 100;
     private int batchCostMsWarn = 30000;
     private boolean enableMemoryCache = false;
     private long cacheFlushMs = 60_000L;
-
-    public int getBatchThreshold() {
-        return batchThreshold;
-    }
-
-    public void setBatchThreshold(int batchThreshold) {
-        this.batchThreshold = batchThreshold;
-    }
 
     public int getBatchPerCount() {
         return batchPerCount;
