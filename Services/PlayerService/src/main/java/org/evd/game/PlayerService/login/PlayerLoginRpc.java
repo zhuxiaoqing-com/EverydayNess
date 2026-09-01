@@ -19,8 +19,8 @@ public final class PlayerLoginRpc {
     }
 
     @Rpc
-    public void onlinePlayer(String userId, long playerId, ClientSessionRef session) {
-        logic().onlinePlayer(userId, playerId, session);
+    public void onlinePlayer(String userId, long playerId, RoleData role, ClientSessionRef session) {
+        logic().onlinePlayer(userId, playerId, role, session);
     }
 
     @Rpc

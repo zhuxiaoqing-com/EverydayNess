@@ -92,11 +92,6 @@ public class PlayerService extends Service {
 
     }
 
-    /** 执行登录完成后的玩家进入地图入口。 */
-    public void enterMap(long playerId) {
-        LogCore.core.info("PlayerService 进入地图占位: service={}, playerId={}", id, playerId);
-    }
-
     /** 返回当前 PlayerService 已绑定的在线玩家数量。 */
     public int getOnlineCount() {
         return sessionManager.getOnlineCount();

@@ -181,10 +181,6 @@ final class MdbPlayerManager {
                     || currentTime < info.getFlushDeadline()) {
                 continue;
             }
-            if (info.getState() == MdbState.EMPTY) {
-                playerInfoMap.remove(info.getPlayerId(), info);
-                continue;
-            }
             if (info.getState() == MdbState.LOAD_FINISH) {
                 info.setState(MdbState.FLUSH_WAIT);
             }

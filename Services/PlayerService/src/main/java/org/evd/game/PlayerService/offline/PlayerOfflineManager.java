@@ -2,7 +2,10 @@ package org.evd.game.PlayerService.offline;
 
 import org.evd.game.PlayerService.PlayerService;
 import org.evd.game.PlayerService.event.RoleLogoutEvent;
+import org.evd.game.PlayerService.map.PlayerMapLogic;
+import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.MapRoute;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
@@ -21,6 +24,9 @@ public final class PlayerOfflineManager {
     /** 只清理仍匹配当前网关会话的玩家，旧离线通知不会误删新绑定。 */
     public void onPlayerOffline(String userId, long playerId, CallPoint gate,
                                 long gateSessionId, int brokenTypeCode) {
+        PPlayerOnline currentPlayer = sessionManager.get(playerId);
+        MapRoute currentMap = currentPlayer == null ? null : currentPlayer.getCurrentMap();
+        long enterSeq = currentPlayer == null ? 0L : currentPlayer.getMapEnterSeq();
         if (!sessionManager.removeIfCurrent(userId, playerId, gate, gateSessionId)) {
             LogCore.core.info("PlayerService 忽略旧 Session 下线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
                     owner.getId(), userId, playerId, gate, gateSessionId);
@@ -29,6 +35,8 @@ public final class PlayerOfflineManager {
 
         LogCore.core.info("PlayerService 开始处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                 owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
+
+        owner.getActor(PlayerMapLogic.class).leaveMap(playerId, currentMap, enterSeq);
 
         Service.getCurrent().publishEvent(RoleLogoutEvent.Listener.class, new RoleLogoutEvent(playerId), RoleLogoutEvent.Listener::onEvent);
 

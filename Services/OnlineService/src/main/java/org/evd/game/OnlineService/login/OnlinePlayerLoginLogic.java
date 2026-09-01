@@ -53,7 +53,7 @@ public final class OnlinePlayerLoginLogic {
         }
 
         // 2. 从 LobbyService 查询并校验当前账号要进入的角色。
-        LobbyRoleSnapshot role = loadRole(owner, userId);
+        LobbyRoleSnapshot role = loadRole(userId);
         if (!isCurrentSession(owner, userId, session)) {
             LogCore.core.warn("OnlineService Lobby 返回后 Session 已失效: userId={}, playerId={}, gateSessionId={}",
                     userId, playerId, session.getSessionId());
@@ -149,8 +149,7 @@ public final class OnlinePlayerLoginLogic {
             return;
         }
 
-        // 下面都是send 没有让出协程，所以不需要继续判断isCurrentSession;
-        // 7. 将 GW ActorAddress 同步到 Online 和 PlayerService 两侧。
+        // 7. 先同步 GW ActorAddress，PlayerService 需要它完成进入地图前置校验。
         sessionCoordinator.bindGateActorAddress(onlinePlayer, gateActorAddress);
         RpcResult<Void> gatePlayerBound = PlayerLoginRpcProxy.sendBindGateActorAddress(
                 playerService, playerId, gateActorAddress);
@@ -160,25 +159,23 @@ public final class OnlinePlayerLoginLogic {
                     gatePlayerBound.getErrorCode(), gatePlayerBound.getErrorMessage());
         }
 
-        //  PlayerService 通知已发出后，直接标记 OnlinePlayer 正式在线。
+        // 8. 通知 PlayerService 执行进入地图和本地正式上线处理。
+        RpcResult<Void> playerOnline = PlayerLoginRpcProxy.sendOnlinePlayer(
+                playerService, userId, playerId, roleData, session);
+        if (!playerOnline.isSuccess()) {
+            LogCore.core.warn("OnlineService 发送 PlayerService 正式上线通知失败: userId={}, playerId={}, playerService={}, errorCode={}, message={}",
+                    userId, playerId, playerService,
+                    playerOnline.getErrorCode(), playerOnline.getErrorMessage());
+        }
+
         onlinePlayer.markOnline();
 
-        //  通知 LobbyService 当前角色已进入游戏。
+        // 9. 通知 LobbyService 当前角色已进入游戏。
         RpcResult<Void> lobbyOnline = LobbyServiceRpcProxy.sendPlayerOnline(
                 null, userId, playerId, session.getGate(), session.getSessionId());
         if (!lobbyOnline.isSuccess()) {
             LogCore.core.warn("OnlineService 发送 LobbyService 正式上线失败: userId={}, playerId={}, errorCode={}, message={}",
                     userId, playerId, lobbyOnline.getErrorCode(), lobbyOnline.getErrorMessage());
-        }
-
-
-        //  通知 PlayerService 执行进入地图和本地正式上线处理。
-        RpcResult<Void> playerOnline = PlayerLoginRpcProxy.sendOnlinePlayer(
-                playerService, userId, playerId, session);
-        if (!playerOnline.isSuccess()) {
-            LogCore.core.warn("OnlineService 发送 PlayerService 正式上线通知失败: userId={}, playerId={}, playerService={}, errorCode={}, message={}",
-                    userId, playerId, playerService,
-                    playerOnline.getErrorCode(), playerOnline.getErrorMessage());
         }
 
 
@@ -189,7 +186,7 @@ public final class OnlinePlayerLoginLogic {
         pushSuccess(session, playerId);
     }
 
-    private LobbyRoleSnapshot loadRole(OnlineService owner, String userId) {
+    private LobbyRoleSnapshot loadRole(String userId) {
         RpcResult<LobbyRoleSnapshot> result = LobbyServiceRpcProxy.callGetRole(null, userId);
         if (!result.isSuccess()) {
             LogCore.core.warn("OnlineService 查询角色失败: userId={}, errorCode={}, message={} ",

@@ -4,8 +4,8 @@ import org.evd.game.PlayerService.PlayerService;
 import org.evd.game.PlayerService.dbDef.db.bean.DBPlayerData;
 import org.evd.game.PlayerService.dbDef.db.table.DBPlayerDataTable;
 import org.evd.game.PlayerService.event.RoleLoginEvent;
-import org.evd.game.PlayerService.event.RoleLogoutEvent;
 import org.evd.game.PlayerService.event.RoleMidnightEvent;
+import org.evd.game.PlayerService.map.PlayerMapLogic;
 import org.evd.game.PlayerService.player.PlayerDataRepository;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.annotation.actor.Actor;
@@ -16,9 +16,6 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.util.TimeUtils;
-
-import java.util.Collection;
-
 /** PlayerService 的玩家登录业务逻辑。 */
 @Actor
 public final class PlayerLoginLogic {
@@ -26,7 +23,6 @@ public final class PlayerLoginLogic {
     public ActorAddress loginPlayer(String userId, RoleData role, ClientSessionRef session) {
         PlayerService owner = owner();
         PlayerSessionManager sessionManager = owner.sessionManager();
-        PlayerDataRepository playerDataRepository = owner.playerDataRepository();
         if (userId == null || userId.isBlank() || role == null || role.getPlayerId() <= 0L
                 || session == null || session.getGate() == null || session.getSessionId() <= 0L) {
             LogCore.core.warn("PlayerService 玩家登录参数非法: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
@@ -51,18 +47,7 @@ public final class PlayerLoginLogic {
         sessionManager.bindPlayerSession(userId, playerId, session, actorAddress);
         // MDB 生命周期先完成，后续 PlayerDataRepository 的普通 get/add 才能通过 LOAD_FINISH 门禁。
         // Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
-        try {
-            Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
-        } catch (Exception e) {
-            LogCore.core.error("PlayerService MDB 加载失败: playerId={}", playerId, e);
-            throw e;
-        }
-        if (!sessionManager.isCurrent(userId, playerId, session)) {
-            LogCore.core.warn("PlayerService MDB 加载返回后登录 Session 已失效: service={}, userId={}, playerId={}, gateSessionId={}",
-                    owner.getId(), userId, playerId, session.getSessionId());
-            return null;
-        }
-        playerDataRepository.loadOrCreate(playerId, role.getName(), role.getLevel());
+
         if (!sessionManager.markReadyIfCurrent(userId, playerId, session)) {
             LogCore.core.warn("PlayerService 玩家数据加载完成后绑定状态失效: service={}, userId={}, playerId={}, gateSessionId={}",
                     owner.getId(), userId, playerId, session.getSessionId());
@@ -87,8 +72,8 @@ public final class PlayerLoginLogic {
                 owner.getId(), playerId, ActorId.gate(playerId), gateActorAddress);
     }
 
-    /** 完成进入地图并推进 PlayerService 正式上线。 */
-    public void onlinePlayer(String userId, long playerId, ClientSessionRef session) {
+    /** 完成进入地图后的玩家上线处理；地图进入本身由 PlayerMapLogic 负责。 */
+    public void onlinePlayer(String userId, long playerId, RoleData role, ClientSessionRef session) {
         PlayerService owner = owner();
         PlayerSessionManager sessionManager = owner.sessionManager();
         if (!sessionManager.isCurrent(userId, playerId, session)) {
@@ -97,31 +82,36 @@ public final class PlayerLoginLogic {
             return;
         }
 
-        // 调用玩家上线数据，还有每分钟事件啥的
-        // 玩家登录事件
-        Service.getCurrent().publishEvent(RoleLoginEvent.Listener.class, new RoleLoginEvent(playerId), RoleLoginEvent.Listener::onEvent);
-
-        // 检测午夜事件
-        long currMill = Service.getTime();
-        DBPlayerData dbPlayerData = DBPlayerDataTable.get(playerId);
-        if(!TimeUtils.isSameDay(dbPlayerData.getLastMidnightMill(),currMill)){
-            dbPlayerData.setLastMidnightMill(currMill);
-            Service.getCurrent().publishEvent(RoleMidnightEvent.Listener.class, new RoleMidnightEvent(playerId), RoleMidnightEvent.Listener::onEvent);
+        /*
+         * 放这里比较合适，先让流程跑完 再加载，再次上线 还是会在这里排队 也没事;
+         */
+        try {
+            Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService MDB 加载失败: playerId={}", playerId, e);
+            throw e;
         }
 
         if (!sessionManager.isCurrent(userId, playerId, session)) {
-            LogCore.core.warn("PlayerService MDB 加载返回后玩家 Session 已失效，跳过进入地图: service={}, userId={}, playerId={}, gateSessionId={}",
+            LogCore.core.warn("PlayerService MDB 加载返回后登录 Session 已失效: service={}, userId={}, playerId={}, gateSessionId={}",
                     owner.getId(), userId, playerId, session.getSessionId());
             return;
         }
 
-        try {
-            owner.enterMap(playerId);
-        } catch (RuntimeException e) {
-            LogCore.core.warn("PlayerService 玩家进入地图失败: service={}, userId={}, playerId={}, message={}",
-                    owner.getId(), userId, playerId, e.getMessage());
-            return;
+        PlayerDataRepository playerDataRepository = owner.playerDataRepository();
+        playerDataRepository.loadOrCreate(playerId, role.getName(), role.getLevel());
+
+
+        Service.getCurrent().publishEvent(RoleLoginEvent.Listener.class,
+                new RoleLoginEvent(playerId), RoleLoginEvent.Listener::onEvent);
+        DBPlayerData dbPlayerData = DBPlayerDataTable.get(playerId);
+        long currMill = Service.getTime();
+        if (!TimeUtils.isSameDay(dbPlayerData.getLastMidnightMill(), currMill)) {
+            dbPlayerData.setLastMidnightMill(currMill);
+            Service.getCurrent().publishEvent(RoleMidnightEvent.Listener.class,
+                    new RoleMidnightEvent(playerId), RoleMidnightEvent.Listener::onEvent);
         }
+
         if (!sessionManager.markOnline(playerId)) {
             LogCore.core.warn("PlayerService 玩家进入地图后绑定状态已失效: service={}, userId={}, playerId={}, gateSessionId={}",
                     owner.getId(), userId, playerId, session.getSessionId());
@@ -130,8 +120,15 @@ public final class PlayerLoginLogic {
         LogCore.core.info("PlayerService 玩家正式上线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
                 owner.getId(), userId, playerId, session.getGate(), session.getSessionId());
 
-    }
 
+        try {
+            owner.getActor(PlayerMapLogic.class).enterMap(playerId);
+        } catch (RuntimeException e) {
+            LogCore.core.warn("PlayerService 玩家进入地图失败: service={}, userId={}, playerId={}, message={}",
+                    owner.getId(), userId, playerId, e.getMessage());
+            return;
+        }
+    }
 
     private PlayerService owner() {
         return Service.getCurrent(PlayerService.class);

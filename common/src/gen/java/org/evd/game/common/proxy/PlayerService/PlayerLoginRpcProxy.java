@@ -45,8 +45,8 @@ public final class PlayerLoginRpcProxy {
     /**
     * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> sendOnlinePlayer(CallPoint remote, String userId, long playerId, ClientSessionRef session){
-        return RpcResult.run(() -> inst().onlinePlayer(remote, userId, playerId, session));
+    public static RpcResult<Void> sendOnlinePlayer(CallPoint remote, String userId, long playerId, RoleData role, ClientSessionRef session){
+        return RpcResult.run(() -> inst().onlinePlayer(remote, userId, playerId, role, session));
     }
 
 
@@ -71,9 +71,9 @@ public final class PlayerLoginRpcProxy {
     /**
     * 对应源方法: org.evd.game.PlayerService.login.PlayerLoginRpc#onlinePlayer()
     */
-    public void onlinePlayer(CallPoint remote, String userId, long playerId, ClientSessionRef session){
+    public void onlinePlayer(CallPoint remote, String userId, long playerId, RoleData role, ClientSessionRef session){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPC_ONLINEPLAYER_3, new Object[]{userId, playerId, session});
+        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPC_ONLINEPLAYER_3, new Object[]{userId, playerId, role, session});
     }
 
 

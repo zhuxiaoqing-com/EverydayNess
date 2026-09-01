@@ -3,6 +3,7 @@ package org.evd.game.PlayerService.session;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.actor.ActorAddress;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.MapRoute;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -53,12 +54,27 @@ public final class PlayerSessionManager {
     }
 
     /** 按 playerId 登记当前玩家对应的 GW ActorAddress。 */
-    public void bindGateActorAddress(long playerId, ActorAddress gateActorAddress) {
+    public boolean bindGateActorAddress(long playerId, ActorAddress gateActorAddress) {
         PPlayerOnline currentBinding = onlinePlayers.get(playerId);
         if (currentBinding == null) {
-            return;
+            return false;
         }
-        currentBinding.bindGateActorAddress(gateActorAddress);
+        return currentBinding.bindGateActorAddress(gateActorAddress);
+    }
+
+    public boolean beginEnterMap(long playerId) {
+        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
+        return currentBinding != null && currentBinding.beginEnterMap();
+    }
+
+    public boolean completeEnterMap(long playerId, MapRoute route) {
+        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
+        return currentBinding != null && currentBinding.completeEnterMap(route);
+    }
+
+    public long getMapEnterSeq(long playerId) {
+        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
+        return currentBinding == null ? 0L : currentBinding.getMapEnterSeq();
     }
 
     /** 将完成进入地图的当前绑定推进到正式在线状态。 */
@@ -67,8 +83,7 @@ public final class PlayerSessionManager {
         if (currentBinding == null) {
             return false;
         }
-        currentBinding.markOnline();
-        return true;
+        return currentBinding.markOnline();
     }
 
     /** 仅清理仍匹配当前网关会话的玩家，避免旧会话误删新绑定。 */

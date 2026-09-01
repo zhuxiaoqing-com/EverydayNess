@@ -1,0 +1,51 @@
+地图状态：
+    发起进入地图;
+    进入地图完成; 先简单弄这两个吧
+
+PlayerService发起进入地图，
+    设置进入地图状态; 检测当前其他状态是否满足;
+    查看上一个地图id,发往SceneManagerService进行退出地图;
+    SceneManagerService查看地图在哪个Stage，这个应该不需要，
+    PlayerSerivce知道玩家在哪的，直接访问即可;
+    查看上一个地图，直接给上一个地图发送退出地图,如果不在上一个地图，就直接返回，
+    在的话，就调用退出地图，然后里面会有退出地图的协议发送，这边退出地图完成，继续回来执行进入地图逻辑,
+    访问SceneMangerService;查看对应地图id所对应的地图，没有的话，或者根据策略来生成在SceneManagerService的地图Id;
+    然后负载均衡一个Stage进行创建地图,到了Stage创建地图，返回SceneMangerService创建成功;
+    然后将等待在SceneManagerService的玩家进入地图;走完进入地图逻辑 返回PlayerService
+
+
+    Player 进入地图->先退出上一个地图->访问SceneManager获取地图数据->如果地图没创建就进行创建->
+    创建或者查找到了就发送消息给Player,->这里查看是否已经离线,离线就直接return;
+     记录即将进入的地图唯一id 然后进入地图(这个最好单独一个方法，后面匹配成功就是直接调用这个方法进地图就好了)->
+     发送给Stage进入地图;Stage保存玩家数据标识玩家即将进入某个地图;
+       ->返回PlayerService，
+
+                这个时候玩家要进入另外的地图，因为在进入地图状态中，所以禁止进入地图;
+                        实际上是进入A地图时，然后进入B地图失败;但是也可以理解为,进入B地图成功以后,又去了A地图;所以这个禁止地图不是什么问题;
+
+    如果这个时候离线了;就会触发离开地图,这个时候离开地图，直接查看记录的即将进入的地图id,地图callPoint等数据，直接发往那个地图;
+        要么是在准备进入地图状态;要么是进入地图状态;准备进入地图状态，就直接删除状态，已经进入地图就运行退出地图;
+
+
+最新的进入地图逻辑;
+    显示场景管理服;进去判断场景是否存在，不存在就创建，然后玩家队列挂在场景管理服;
+    然后就是场景服 检测是否可以进入场景，可以的话就存预进入队列; 然后去退出上一个地图,然后退出完了以后,等客户端进入地图加载完毕，再进入这个地图;
+    完美;
+
+退出地图呢 只在离线时操作 如果是在完全进入地图的情况下的话，直接发往stage退出地图;如果还在传送中的话，还要发往指定的stageManager和即将进入的stage里让其离开地图;
+
+发起进入地图，进行创建
+        TransferContext{ // 保存在Player 的RoleMapData 数据库里面
+                   MapInfo{
+                    long sceneId;
+                    int mapCfgId;
+                    CallPoint sceneCallPoint;
+                   }
+                   long targetStageId;
+                   long targetStageManagerId;
+                   long transferId;
+        }
+
+
+
+

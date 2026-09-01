@@ -46,7 +46,7 @@ public final class OnlinePlayer {
         transition(Status.GATE_BOUND);
     }
 
-    /** PlayerService 正式上线通知发出后标记为 ONLINE。 */
+    /** PlayerService 确认进入地图完成后标记为 ONLINE。 */
     public void markOnline() {
         transition(Status.ONLINE);
     }

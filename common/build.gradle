@@ -10,10 +10,14 @@ repositories {
     mavenCentral()
 }
 
+def protoDir = providers.gradleProperty('protoDir')
+        .orElse('proto')
+        .get()
+
 sourceSets {
     main {
         proto {
-            srcDirs += 'src/main/proto'
+            srcDir rootProject.file(protoDir)
         }
         java {
             srcDir 'src/gen/java'
