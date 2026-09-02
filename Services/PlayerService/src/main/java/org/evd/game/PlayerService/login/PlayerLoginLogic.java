@@ -32,14 +32,30 @@ public final class PlayerLoginLogic {
             return null;
         }
         long playerId = role.getPlayerId();
+
+
         if (sessionManager.hasOnlinePlayer(playerId)) {
             LogCore.core.error("PlayerService 玩家已经上线: service={}, userId={}, playerId={}",
                     owner.getId(), userId, playerId);
-            return null;
+
+            // 给2秒缓冲，防止下线还没执行完毕，如果还是在线就是哪里有问题，或者哪里卡主了; 直接下线;
+            Service.getCurrent().sleep(2_000);
+
+            if (sessionManager.hasOnlinePlayer(playerId)) {
+                LogCore.core.error("PlayerService 二次等待 玩家已经上线: service={}, userId={}, playerId={}",
+                        owner.getId(), userId, playerId);
+                return null;
+            }
         }
         if (owner.hasPlayerActor(playerId)) {
             LogCore.core.error("PlayerService 玩家 Actor 已存在，拒绝重复上线: service={}, userId={}, playerId={}",
                     owner.getId(), userId, playerId);
+            return null;
+        }
+
+        if (!sessionManager.markReadyIfCurrent(userId, playerId, session)) {
+            LogCore.core.warn("PlayerService hasOnlinePlayer完成后绑定状态失效: service={}, userId={}, playerId={}, gateSessionId={}",
+                    owner.getId(), userId, playerId, session.getSessionId());
             return null;
         }
 

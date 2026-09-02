@@ -35,16 +35,63 @@ PlayerService发起进入地图，
 退出地图呢 只在离线时操作 如果是在完全进入地图的情况下的话，直接发往stage退出地图;如果还在传送中的话，还要发往指定的stageManager和即将进入的stage里让其离开地图;
 
 发起进入地图，进行创建
-        TransferContext{ // 保存在Player 的RoleMapData 数据库里面
-                   MapInfo{
+        加这个，是怕退出玩家失败;这个怎么办;对对对无所谓，我记得可以上线的时候,
+        也调用进入地图，然后也判断是否在上一个地图，也会走退出上一个地图的;
+        至于传送中的数据的话，确实有点难办，可以将状态也放TransferContext,
+        然后弄过期时间，或者不管 每次都直接绕一圈;
+
+        离开地图，反正也需要进行return的;
+
+        假设将传送中的也要退出的话，应该是去oldScene，然后去Transfer的manager，然后去currScene;
+        或者其实再发起一次退出地图;统一都走Manager, 然后有两个就先去old,再去curr,
+        正常情况下 状态如果是在进入地图中 应该是不能发起的; 如果是状态过期了,
+        过期了直接就不管，正常不会过期的，如果这次发起过期了，下一次大概率还是会过期的;
+        TransferContext{ // 保存在PlayerService 的RoleMapData 数据库里面
+                    long startMill; // 用来检测是否过期;
+                    boolean start = false;
+                   MapInfo  oldMapInfo{
                     long sceneId;
                     int mapCfgId;
-                    CallPoint sceneCallPoint;
+                    long groupId; // 地图groupId;用来区分不同的功能，后面还可以加新字段;先用groupId这个;
                    }
-                   long targetStageId;
-                   long targetStageManagerId;
-                   long transferId;
+
+                   MapInfo  targetInfo;
         }
+        MapInfo currMapInfo; // 保存在PlayerService 的RoleMapData 数据库里面
+
+        先正常进入地图，检测TransferContext是否存在，存在就return， 打warn日志;
+        如果是login的话，等待2秒后直接清空，打error日志，
+        然后创建新的TransferContext，  将currMapInfo放到oldMapInfo，将当前要传输的放到targetInfo，sceneId没有就设置为空就好了;
+        然后发送去当前要进入的地图的Manager 使用send, Manager里先检测地图是否存在，使用 MapKey{
+             int mapCfgId, long groupId;
+        }
+        存在的话，获取到 SMSceneInfo{
+            MapKey mapKey;
+            State {创建中， 已经创建， 已经销毁}
+            List<playerId 以及入参数据> waitEnterQueue;
+            CallPoint stageCallPoint;
+        }
+
+        如果为空，就创建SMSceneInfo 并将其设置为创建中;并且将其加入waitEnterQueue; 负载均衡stage, 然后发向指定的stage,call调用，进行创建SceneBattle(场景父类);创建完以后将其修改为已经创建,
+            并且建waitEnterQueue里的玩家全部发给stage进行进入地图;
+        如果是创建中，将其加入waitEnterQueue;return;
+        如果已经创建，就将其发往指定的CallPoint进行加入预加入队列;
+                SMSceneInfo记录在XXXDeal里，Deal里有一个Map，
+                然后SceneManagerService,里有一个地方管理Deal，Map<MapType，XXXDeal>;
+                Deal有个共同的父类，将基础逻辑都放里面;
+        发往Stage以后，根据MapKey找到对应的sceneId,如果没有SceneId的话，就return,就是进入失败了;
+        找到SceneBattle以后调用其 canEnter，可以进入的话，就进行加入pendingRoleMap队列;
+        然后发给oldScene进行退出老scene地图，使用call，退出完毕以后，就回来发送消息给客户端，让客户端进入该新地图;
+
+        然后就等客户端进度条加载完毕后发送ReadyEnterMap,发送以后就调用 SceneBattle 真正进入地图;
+
+
+
+
+
+
+
+
 
 
 

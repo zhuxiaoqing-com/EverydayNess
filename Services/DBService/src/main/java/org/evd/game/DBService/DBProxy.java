@@ -116,8 +116,8 @@ public final class DBProxy implements NodeDbExecutor {
     }
 
     public <T> T awaitDb(Mono<T> mono, long timeoutMillis) {
-        // 等待层多等 10 秒，给底层 operation.timeout() 的取消、连接清理和结果回传留出时间。
-        long awaitTimeoutMillis = timeoutMillis + 10000L;
+        // 等待层多等 5 秒，给底层 operation.timeout() 的取消、连接清理和结果回传留出时间。正常打不了协程超时的;
+        long awaitTimeoutMillis = timeoutMillis + 5000L;
         if (Boolean.TRUE.equals(syncExecution.get())) {
             return mono.block(Duration.ofMillis(awaitTimeoutMillis));
         }
