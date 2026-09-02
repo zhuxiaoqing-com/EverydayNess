@@ -8,20 +8,20 @@ import java.util.Map;
 /** 滚服 Snowflake ID 布局族。具体版本由其子类定义。 */
 public abstract class RollingServerIdLayout extends SnowflakeIdLayout {
 
-    public static final int VERSION = 0;
     public static final int VERSION_BITS = 1;
 
     private static final class VersionLayouts {
         private static final Map<Integer, LayoutFactory> FACTORY_MAP = Map.of(
-                VERSION, RollingServerIdLayout0::new);
+                RollingServerIdLayout0.VERSION, RollingServerIdLayout0::new);
         private static final Map<Integer, SnowflakeIdLayout> DEFAULT_LAYOUT_MAP = Map.of(
-                VERSION, new RollingServerIdLayout0(0, 0, 0));
+                RollingServerIdLayout0.VERSION, new RollingServerIdLayout0(0, 0, 0));
     }
 
     protected RollingServerIdLayout(int platformBits, int playerServerBits, int nodeBits,
                                     int epochSecondBits, int sequenceBits,
-                                    int platformId, int playerServerId, int nodeId) {
-        super(SnowflakeIdType.ROLLING_SERVER, VERSION, VERSION_BITS,
+                                    int platformId, int playerServerId, int nodeId,
+                                    int version) {
+        super(SnowflakeIdType.ROLLING_SERVER, version, VERSION_BITS,
                 platformBits, playerServerBits, nodeBits, epochSecondBits, sequenceBits,
                 platformId, playerServerId, nodeId);
     }

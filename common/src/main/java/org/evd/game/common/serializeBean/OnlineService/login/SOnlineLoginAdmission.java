@@ -5,20 +5,20 @@ import org.evd.game.base.ISerializable;
 
 /** Online 返回给 GW 的登录准入结果；queued=true 时表示请求仍在 Online 排队。 */
 @SerializeClass
-public class OnlineLoginAdmission implements ISerializable {
-    private OnlineTokenState tokenState;
+public class SOnlineLoginAdmission implements ISerializable {
+    private SOnlineTokenState tokenState;
     private String gateAddr;
     private boolean queued;
 
-    public OnlineLoginAdmission() {
+    public SOnlineLoginAdmission() {
     }
 
-    public OnlineLoginAdmission(OnlineTokenState tokenState) {
+    public SOnlineLoginAdmission(SOnlineTokenState tokenState) {
         this.tokenState = tokenState;
     }
 
-    public static OnlineLoginAdmission queued() {
-        OnlineLoginAdmission admission = new OnlineLoginAdmission();
+    public static SOnlineLoginAdmission queued() {
+        SOnlineLoginAdmission admission = new SOnlineLoginAdmission();
         admission.queued = true;
         return admission;
     }
@@ -31,11 +31,11 @@ public class OnlineLoginAdmission implements ISerializable {
         this.gateAddr = gateAddr;
     }
 
-    public OnlineTokenState getTokenState() {
+    public SOnlineTokenState getTokenState() {
         return tokenState;
     }
 
-    public void setTokenState(OnlineTokenState tokenState) {
+    public void setTokenState(SOnlineTokenState tokenState) {
         this.tokenState = tokenState;
     }
 

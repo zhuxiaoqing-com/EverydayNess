@@ -4,7 +4,7 @@ import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 
 @SerializeClass
-public class ConnInfoBase implements ISerializable {
+public class SConnInfoBase implements ISerializable {
     private int con1;
     private int con2;
 

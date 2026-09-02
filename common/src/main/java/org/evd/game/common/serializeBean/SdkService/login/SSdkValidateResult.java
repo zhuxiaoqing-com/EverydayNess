@@ -4,14 +4,14 @@ import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 
 @SerializeClass
-public class SdkValidateResult implements ISerializable {
+public class SSdkValidateResult implements ISerializable {
     private boolean success;
     private String message;
 
-    public SdkValidateResult() {
+    public SSdkValidateResult() {
     }
 
-    public SdkValidateResult(boolean success, String message) {
+    public SSdkValidateResult(boolean success, String message) {
         this.success = success;
         this.message = message;
     }

@@ -9,10 +9,10 @@ import org.evd.game.common.proto.S2C_Login;
 import org.evd.game.common.proxy.LobbyService.LobbyServiceRpcProxy;
 import org.evd.game.common.proxy.OnlineService.OnlineLoginRpcProxy;
 import org.evd.game.common.proxy.SdkService.SdkServiceRpcProxy;
-import org.evd.game.common.serializeBean.LobbyService.login.LobbyUserAccessResult;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineTokenState;
-import org.evd.game.common.serializeBean.SdkService.login.SdkValidateResult;
+import org.evd.game.common.serializeBean.LobbyService.login.SLobbyUserAccessResult;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineLoginAdmission;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineTokenState;
+import org.evd.game.common.serializeBean.SdkService.login.SSdkValidateResult;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
@@ -54,37 +54,37 @@ public final class ConnLoginLogic {
             reject(owner, session, userId, "SdkService 未配置", true);
             return;
         }
-        RpcResult<SdkValidateResult> sdkResult = SdkServiceRpcProxy.callRequestValidate(
+        RpcResult<SSdkValidateResult> sdkResult = SdkServiceRpcProxy.callRequestValidate(
                 sdkRemote, userId, request.getSdkToken());
         if (!sdkResult.isSuccess()) {
             reject(owner, session, userId, "SDK 服务不可用", false);
             return;
         }
-        SdkValidateResult validateResult = sdkResult.getValue();
+        SSdkValidateResult validateResult = sdkResult.getValue();
         if (validateResult == null || !validateResult.isSuccess()) {
             String message = validateResult == null ? "SDK 校验结果为空" : validateResult.getMessage();
             reject(owner, session, userId, message, false);
             return;
         }
-        RpcResult<LobbyUserAccessResult> userResult = LobbyServiceRpcProxy.callValidateOrCreateUser(null, userId);
+        RpcResult<SLobbyUserAccessResult> userResult = LobbyServiceRpcProxy.callValidateOrCreateUser(null, userId);
         if (!userResult.isSuccess()) {
             reject(owner, session, userId, "LobbyService 用户校验失败", true);
             return;
         }
-        LobbyUserAccessResult accessResult = userResult.getValue();
+        SLobbyUserAccessResult accessResult = userResult.getValue();
         if (accessResult == null || !accessResult.isAllowed()) {
             String message = accessResult == null ? "用户校验结果为空" : accessResult.getMessage();
             reject(owner, session, userId,
                     message == null || message.isBlank() ? "用户不可登录" : message, false);
             return;
         }
-        RpcResult<OnlineLoginAdmission> admissionResult = OnlineLoginRpcProxy.callAdmitLogin(
+        RpcResult<SOnlineLoginAdmission> admissionResult = OnlineLoginRpcProxy.callAdmitLogin(
                 null, userId, session.getGate(), session.getSessionId());
         if (!admissionResult.isSuccess()) {
             reject(owner, session, userId, "OnlineService 服务不可用", false);
             return;
         }
-        OnlineLoginAdmission admission = admissionResult.getValue();
+        SOnlineLoginAdmission admission = admissionResult.getValue();
         if (admission == null) {
             rejectAndClose(owner, session, "OnlineService 暂时无法受理登录");
             return;
@@ -98,7 +98,7 @@ public final class ConnLoginLogic {
             rejectAndClose(owner, session, "OnlineService 登录准入结果非法");
             return;
         }
-        OnlineTokenState tokenState = admission.getTokenState();
+        SOnlineTokenState tokenState = admission.getTokenState();
         LogCore.core.info("ConnService 登录准入成功: service={}, sessionId={}, userId={}, targetGate={}, version={}, expireAt={}",
                 owner.getId(), session.getSessionId(), userId, tokenState.getGate(),
                 tokenState.getVersion(), tokenState.getExpireAt());

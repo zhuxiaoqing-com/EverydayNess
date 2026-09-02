@@ -17,6 +17,7 @@ package org.evd.game.runtime.util.id.rollingServer;
  */
 public final class RollingServerIdLayout0 extends RollingServerIdLayout {
 
+    public static final int VERSION = 0;
     private static final int PLATFORM_BITS = 8;
     private static final int PLAYER_SERVER_BITS = 12;
     private static final int NODE_BITS = 2;
@@ -29,6 +30,6 @@ public final class RollingServerIdLayout0 extends RollingServerIdLayout {
 
     public RollingServerIdLayout0(int platformId, int playerServerId, int nodeId) {
         super(PLATFORM_BITS, PLAYER_SERVER_BITS, NODE_BITS, EPOCH_SECOND_BITS, SEQUENCE_BITS,
-                platformId, playerServerId, nodeId);
+                platformId, playerServerId, nodeId, VERSION);
     }
 }

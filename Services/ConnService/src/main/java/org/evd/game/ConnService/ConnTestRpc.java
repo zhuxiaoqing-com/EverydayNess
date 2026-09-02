@@ -3,7 +3,7 @@ package org.evd.game.ConnService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.annotation.actor.Rpc;
-import org.evd.game.common.serializeBean.ConnService.test.ConnInfo;
+import org.evd.game.common.serializeBean.ConnService.test.SConnInfo;
 import org.evd.game.annotation.actor.ActorType;
 
 /**
@@ -21,7 +21,7 @@ public class ConnTestRpc {
 
 
     @Rpc(actorType = ActorType.GATE)
-    public boolean connTest2(int a, Object b, ConnInfo connInfo) {
+    public boolean connTest2(int a, Object b, SConnInfo connInfo) {
         return true;
     }
 
@@ -32,7 +32,7 @@ public class ConnTestRpc {
 
 
     @Rpc()
-    public boolean connTest4(int a, Object b, ConnInfo connInfo) {
+    public boolean connTest4(int a, Object b, SConnInfo connInfo) {
         return true;
     }
 }

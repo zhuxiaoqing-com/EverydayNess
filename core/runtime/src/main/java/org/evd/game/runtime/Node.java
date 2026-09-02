@@ -21,6 +21,10 @@ import org.evd.game.runtime.support.exception.InboundBusinessException;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
 import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.RuntimeUtils;
+import org.evd.game.runtime.util.id.SceneIdGenerator;
+import org.evd.game.runtime.util.id.SnowflakeIdGenerator;
+import org.evd.game.runtime.util.id.SnowflakeIdType;
+import org.evd.game.runtime.util.id.multiNode.MultiNodeIdLayout0;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -105,6 +109,8 @@ public class Node extends TickCase{
         this.nodeInfo = nodeInfo;
         this.platformId = platformId;
         this.serverId = serverId;
+        SnowflakeIdGenerator.init(SnowflakeIdType.MULTI_NODE, MultiNodeIdLayout0.VERSION);
+        SceneIdGenerator.init(nodeInfo.getNodeId());
         this.nodeCallPoint = new CallPoint(platformId, serverId, nodeInfo.getNodeId(), null);
         this.addr = nodeInfo.getAddr();
         this.nodeDbCallPoint = getCallPoint("$node-db");

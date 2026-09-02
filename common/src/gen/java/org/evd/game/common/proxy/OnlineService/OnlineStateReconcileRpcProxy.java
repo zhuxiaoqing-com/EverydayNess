@@ -5,10 +5,10 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.annotation.service.ServiceType;
 import java.util.List;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SConnStateCheck;
 import org.evd.game.runtime.call.CallPoint;
 import java.util.Map;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SPlayerStateCheck;
 
 /**
 * 根据OnlineStateReconcileRpcService生成的代理类
@@ -32,7 +32,7 @@ public final class OnlineStateReconcileRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<List<ConnStateCheck>> callReconcileConnSessions(CallPoint remote, CallPoint connService, Map<String,ConnStateCheck> entries){
+    public static RpcResult<List<SConnStateCheck>> callReconcileConnSessions(CallPoint remote, CallPoint connService, Map<String,SConnStateCheck> entries){
         return RpcResult.call(() -> inst().reconcileConnSessions(remote, connService, entries));
     }
 
@@ -40,7 +40,7 @@ public final class OnlineStateReconcileRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<PlayerStateCheck[]> callReconcilePlayerSessions(CallPoint remote, CallPoint playerService, List<PlayerStateCheck> entries){
+    public static RpcResult<SPlayerStateCheck[]> callReconcilePlayerSessions(CallPoint remote, CallPoint playerService, List<SPlayerStateCheck> entries){
         return RpcResult.call(() -> inst().reconcilePlayerSessions(remote, playerService, entries));
     }
 
@@ -50,24 +50,24 @@ public final class OnlineStateReconcileRpcProxy {
     * 对应源方法: org.evd.game.OnlineService.reconcile.OnlineStateReconcileRpc#reconcileConnSessions()
     */
     @SuppressWarnings("unchecked")
-    public List<ConnStateCheck> reconcileConnSessions(CallPoint remote, CallPoint connService, Map<String,ConnStateCheck> entries){
+    public List<SConnStateCheck> reconcileConnSessions(CallPoint remote, CallPoint connService, Map<String,SConnStateCheck> entries){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (List<ConnStateCheck>)service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILECONNSESSIONS_5, new Object[]{connService, entries});
+        return (List<SConnStateCheck>)service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILECONNSESSIONS_5, new Object[]{connService, entries});
     }
 
 
     /**
     * 对应源方法: org.evd.game.OnlineService.reconcile.OnlineStateReconcileRpc#reconcilePlayerSessions()
     */
-    public PlayerStateCheck[] reconcilePlayerSessions(CallPoint remote, CallPoint playerService, List<PlayerStateCheck> entries){
+    public SPlayerStateCheck[] reconcilePlayerSessions(CallPoint remote, CallPoint playerService, List<SPlayerStateCheck> entries){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (PlayerStateCheck[])service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILEPLAYERSESSIONS_6, new Object[]{playerService, entries});
+        return (SPlayerStateCheck[])service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILEPLAYERSESSIONS_6, new Object[]{playerService, entries});
     }
 
 

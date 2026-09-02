@@ -1,6 +1,6 @@
 package org.evd.game.OnlineService.login;
 
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineLoginAdmission;
 import org.evd.game.runtime.call.CallPoint;
 
 import java.util.ArrayDeque;
@@ -90,7 +90,7 @@ public final class OnlineLoginQueue {
             }
             requests.poll();
             requestsByUser.remove(request.userId(), request);
-            OnlineLoginAdmission admission = login.createAdmission(request.userId(), now);
+            SOnlineLoginAdmission admission = login.createAdmission(request.userId(), now);
          /*   if (admission == null || admission.getTokenState() == null) {
                 requests.addFirst(request);
                 requestsByUser.put(request.userId(), request);

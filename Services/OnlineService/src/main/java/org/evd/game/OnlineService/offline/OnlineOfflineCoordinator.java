@@ -4,7 +4,7 @@ import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.common.proxy.ConnService.ConnOfflineRpcProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerOfflineRpcProxy;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -32,7 +32,7 @@ public final class OnlineOfflineCoordinator {
     /** 处理网关下线通知，并释放当前用户和玩家状态。 */
     public void onSessionOffline(String userId, long playerId, CallPoint gate, long gateSessionId,
                                  int brokenTypeCode) {
-        OnlineUserState userState = owner.sessionCoordinator().getUserState(userId);
+        SOnlineUserState userState = owner.sessionCoordinator().getUserState(userId);
         if (userState != null && playerId > 0L && playerId != userState.getActivePlayerId()) {
             LogCore.core.warn("OnlineService 离线通知 playerId 与当前状态不一致，按当前状态清理: userId={}, notifiedPlayerId={}, currentPlayerId={}",
                     userId, playerId, userState.getActivePlayerId());
@@ -44,7 +44,7 @@ public final class OnlineOfflineCoordinator {
     public void offlineSession(String userId, CallPoint gate,
                                long gateSessionId, BrokenType brokenType) {
         OnlineSessionCoordinator session = owner.sessionCoordinator();
-        OnlineUserState userState = session.getUserState(userId);
+        SOnlineUserState userState = session.getUserState(userId);
         if (isSessionMismatch(userState, gate, gateSessionId)) {
             LogCore.core.info("OnlineService 忽略旧 Session 下线: userId={}, gate={}, gateSessionId={}, current={}",
                     userId, gate, gateSessionId, userState);
@@ -75,7 +75,7 @@ public final class OnlineOfflineCoordinator {
         session.removeOnlineState(userId);
     }
 
-    private boolean isSessionMismatch(OnlineUserState state, CallPoint gate, long gateSessionId) {
+    private boolean isSessionMismatch(SOnlineUserState state, CallPoint gate, long gateSessionId) {
         return state == null || gate == null || !gate.equals(state.getActiveGate())
                 || gateSessionId != state.getActiveGateSessionId();
     }

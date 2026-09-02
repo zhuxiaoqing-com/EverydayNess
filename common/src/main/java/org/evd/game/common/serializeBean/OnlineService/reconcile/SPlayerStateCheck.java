@@ -6,16 +6,16 @@ import org.evd.game.runtime.call.CallPoint;
 
 /** PlayerService 上报的玩家绑定状态校验数据。 */
 @SerializeClass
-public class PlayerStateCheck implements ISerializable {
+public class SPlayerStateCheck implements ISerializable {
     private String userId;
     private long playerId;
     private CallPoint gate;
     private long gateSessionId;
 
-    public PlayerStateCheck() {
+    public SPlayerStateCheck() {
     }
 
-    public PlayerStateCheck(String userId, long playerId, CallPoint gate,
+    public SPlayerStateCheck(String userId, long playerId, CallPoint gate,
                             long gateSessionId) {
         this.userId = userId;
         this.playerId = playerId;

@@ -77,7 +77,7 @@ final class DbDirtyBeanRenderer {
     }
 
     private void appendParentConstructor(StringBuilder sb, DbDirtyEntityMeta entity) {
-        sb.append("    ").append(entity.beanClassName).append("(DirtyObject _xp_) {\n");
+        sb.append("    public ").append(entity.beanClassName).append("(DirtyObject _xp_) {\n");
         sb.append("        super(_xp_);\n");
         for (DbDirtyFieldMeta field : entity.fields) {
             String defaultValue = DbDirtyRenderSupport.renderDefaultValue(field.type, "this");
@@ -105,7 +105,7 @@ final class DbDirtyBeanRenderer {
         sb.append("    public ").append(entity.beanClassName).append("(").append(entity.beanClassName).append(" _o_, DirtyObject _xp_) {\n");
         sb.append("        super(_xp_);\n");
         for (DbDirtyFieldMeta field : entity.fields) {
-            appendCopyField(sb, field, "        ", "_o_." + field.name, false);
+            appendCopyField(sb, field, "        ", "_o_." + field.name);
         }
         sb.append("        makeModify();\n");
         sb.append("    }\n");
@@ -114,13 +114,13 @@ final class DbDirtyBeanRenderer {
     private void appendCopyFrom(StringBuilder sb, DbDirtyEntityMeta entity) {
         sb.append("    public void copyFrom(").append(entity.beanClassName).append(" _o_) {\n");
         for (DbDirtyFieldMeta field : entity.fields) {
-            appendCopyField(sb, field, "        ", "_o_." + field.name, true);
+            appendCopyField(sb, field, "        ", "_o_." + field.name);
         }
         sb.append("        makeModify();\n");
         sb.append("    }\n");
     }
 
-    private void appendCopyField(StringBuilder sb, DbDirtyFieldMeta field, String indent, String sourceExpr, boolean withModify) {
+    private void appendCopyField(StringBuilder sb, DbDirtyFieldMeta field, String indent, String sourceExpr) {
         DbDirtyTypeMeta type = field.type;
         switch (type.kind) {
             case LIST -> {
@@ -157,20 +157,15 @@ final class DbDirtyBeanRenderer {
                     sb.append(indent).append("this.").append(field.name).append(".putAll(").append(sourceExpr).append(");\n");
                 }
             }
-            case ENTITY -> sb.append(indent).append("this.").append(field.name).append(" = ")
-                    .append(copyValueExpr(type, sourceExpr, "this")).append(";\n");
+            case ENTITY -> sb.append(indent).append("this.").append(field.name).append(" = new ")
+                    .append(type.fieldType).append("(").append(sourceExpr).append(", this);\n");
             default -> sb.append(indent).append("this.").append(field.name).append(" = ").append(sourceExpr).append(";\n");
-        }
-        if (withModify && type.kind == DbDirtyTypeKind.ENTITY) {
-            sb.append(indent).append("if (this.").append(field.name).append(" != null) {\n");
-            sb.append(indent).append("    this.").append(field.name).append(".setParent(this);\n");
-            sb.append(indent).append("}\n");
         }
     }
 
     private String copyValueExpr(DbDirtyTypeMeta type, String valueExpr, String parentExpr) {
         if (type.kind == DbDirtyTypeKind.ENTITY) {
-            return valueExpr + " == null ? null : new " + type.fieldType + "(" + valueExpr + ", " + parentExpr + ")";
+            return "new " + type.fieldType + "(" + valueExpr + ", " + parentExpr + ")";
         }
         return valueExpr;
     }
@@ -182,12 +177,14 @@ final class DbDirtyBeanRenderer {
             sb.append("    }\n\n");
 
             sb.append("    public void set").append(field.methodSuffix).append("(").append(field.type.fieldType).append(" _v_){\n");
+            if (field.type.kind != DbDirtyTypeKind.PRIMITIVE) {
+                sb.append("        java.util.Objects.requireNonNull(_v_, \"").append(field.name)
+                        .append(" 不能为空\");\n");
+            }
             sb.append("        this.").append(field.name).append(" = _v_;\n");
             if (field.type.kind == DbDirtyTypeKind.ENTITY || field.type.kind == DbDirtyTypeKind.LIST
                     || field.type.kind == DbDirtyTypeKind.SET || field.type.kind == DbDirtyTypeKind.MAP) {
-                sb.append("        if (_v_ != null) {\n");
-                sb.append("            _v_.setParent(this);\n");
-                sb.append("        }\n");
+                sb.append("        _v_.setParent(this);\n");
             }
             sb.append("        makeModify();\n");
             sb.append("    }\n\n");

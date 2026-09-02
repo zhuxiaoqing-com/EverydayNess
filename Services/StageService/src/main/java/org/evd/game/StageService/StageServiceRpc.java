@@ -3,33 +3,49 @@ package org.evd.game.StageService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.runtime.Service;
 
-/** StageService 地图实例和玩家进出地图 RPC。 */
+/** StageService SceneBattle 生命周期和玩家进出地图 RPC。 */
 @Actor
 @RpcHandler
 public final class StageServiceRpc {
     @Rpc
-    public boolean createMap(long mapInstanceId, int mapConfigId) {
-        return owner().createMap(mapInstanceId, mapConfigId);
+    public int getMapCount() {
+        return logic().getMapCount();
     }
 
     @Rpc
-    public boolean destroyMap(long mapInstanceId) {
-        return owner().destroyMap(mapInstanceId);
+    public boolean createScene(SMapKey mapKey, long sceneId) {
+        return logic().createScene(mapKey, sceneId);
     }
 
     @Rpc
-    public boolean enterMap(long mapInstanceId, long playerId, long enterSeq) {
-        return owner().enterMap(mapInstanceId, playerId, enterSeq);
+    public void prepareEnterScene(SMapEnterRequest request) {
+        logic().prepareEnterScene(request);
     }
 
     @Rpc
-    public boolean leaveMap(long mapInstanceId, long playerId, long enterSeq) {
-        return owner().leaveMap(mapInstanceId, playerId, enterSeq);
+    public boolean enterScene(long sceneId, long playerId, long transferId) {
+        return logic().enterScene(sceneId, playerId, transferId);
+    }
+
+    @Rpc
+    public boolean exitScene(long sceneId, long playerId) {
+        return logic().exitScene(sceneId, playerId);
+    }
+
+    @Rpc
+    public boolean destroyScene(long sceneId) {
+        return logic().destroyScene(sceneId);
     }
 
     private StageService owner() {
         return Service.getCurrent(StageService.class);
+    }
+
+    private StageSceneLogic logic() {
+        return owner().getActor(StageSceneLogic.class);
     }
 }

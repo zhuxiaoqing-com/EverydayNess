@@ -5,7 +5,6 @@ import org.evd.game.PlayerService.event.RoleLogoutEvent;
 import org.evd.game.PlayerService.map.PlayerMapLogic;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.MapRoute;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
@@ -24,9 +23,6 @@ public final class PlayerOfflineManager {
     /** 只清理仍匹配当前网关会话的玩家，旧离线通知不会误删新绑定。 */
     public void onPlayerOffline(String userId, long playerId, CallPoint gate,
                                 long gateSessionId, int brokenTypeCode) {
-        PPlayerOnline currentPlayer = sessionManager.get(playerId);
-        MapRoute currentMap = currentPlayer == null ? null : currentPlayer.getCurrentMap();
-        long enterSeq = currentPlayer == null ? 0L : currentPlayer.getMapEnterSeq();
         if (!sessionManager.isCurrent(userId, playerId, gate, gateSessionId)) {
             LogCore.core.error("PlayerService 下线 Session 与当前绑定不一致: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                     owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
@@ -36,7 +32,7 @@ public final class PlayerOfflineManager {
                 owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
 
         try {
-            owner.getActor(PlayerMapLogic.class).leaveMap(playerId, currentMap, enterSeq);
+            owner.getActor(PlayerMapLogic.class).leaveMap(playerId);
             Service.getCurrent().publishEvent(RoleLogoutEvent.Listener.class, new RoleLogoutEvent(playerId), RoleLogoutEvent.Listener::onEvent);
         } catch (Exception e) {
             LogCore.core.error("PlayerService 玩家离线地图或事件清理失败: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",

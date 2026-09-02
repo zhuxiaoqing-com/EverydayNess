@@ -17,6 +17,7 @@ package org.evd.game.runtime.util.id.multiNode;
  */
 public final class MultiNodeIdLayout0 extends MultiNodeIdLayout {
 
+    public static final int VERSION = 0;
     private static final int PLATFORM_BITS = 6;
     private static final int PLAYER_SERVER_BITS = 10;
     private static final int NODE_BITS = 6;
@@ -29,6 +30,6 @@ public final class MultiNodeIdLayout0 extends MultiNodeIdLayout {
 
     public MultiNodeIdLayout0(int platformId, int playerServerId, int nodeId) {
         super(PLATFORM_BITS, PLAYER_SERVER_BITS, NODE_BITS, EPOCH_SECOND_BITS, SEQUENCE_BITS,
-                platformId, playerServerId, nodeId);
+                platformId, playerServerId, nodeId, VERSION);
     }
 }

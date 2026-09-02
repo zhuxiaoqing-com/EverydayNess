@@ -13,9 +13,9 @@ import org.evd.game.common.proxy.ConnService.ConnOfflineRpcProxy;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proxy.LobbyService.LobbyServiceRpcProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerLoginRpcProxy;
-import org.evd.game.common.serializeBean.LobbyService.role.LobbyRoleSnapshot;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.LobbyService.role.SLobbyRoleSnapshot;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
@@ -40,7 +40,7 @@ public final class OnlinePlayerLoginLogic {
 
         // 1. 先确认当前连接仍是 Online 记录的有效会话，并拒绝重复选角。
         OnlineSessionCoordinator sessionCoordinator = owner.sessionCoordinator();
-        OnlineUserState userState = sessionCoordinator.getUserState(userId);
+        SOnlineUserState userState = sessionCoordinator.getUserState(userId);
         if (!sessionCoordinator.matchesSession(userId, session.getGate(), session.getSessionId())) {
             LogCore.core.warn("OnlineService 选角请求 Session 已失效: userId={}, playerId={}, gate={}, gateSessionId={}, currentState={}",
                     userId, playerId, session.getGate(), session.getSessionId(), userState);
@@ -53,7 +53,7 @@ public final class OnlinePlayerLoginLogic {
         }
 
         // 2. 从 LobbyService 查询并校验当前账号要进入的角色。
-        LobbyRoleSnapshot role = loadRole(userId);
+        SLobbyRoleSnapshot role = loadRole(userId);
         if (!isCurrentSession(owner, userId, session)) {
             LogCore.core.warn("OnlineService Lobby 返回后 Session 已失效: userId={}, playerId={}, gateSessionId={}",
                     userId, playerId, session.getSessionId());
@@ -76,7 +76,7 @@ public final class OnlinePlayerLoginLogic {
         }
 
         // 3. 选择承载该玩家的 PlayerService，优先使用当前负载较低的服务。
-        OnlinePlayerCandidate candidate = owner.serviceSelector()
+        SOnlinePlayerCandidate candidate = owner.serviceSelector()
                 .selectLeastLoadedPlayer(userId);
         CallPoint playerService = candidate == null ? null : candidate.getCallPoint();
         if (playerService == null) {
@@ -186,8 +186,8 @@ public final class OnlinePlayerLoginLogic {
         pushSuccess(session, playerId);
     }
 
-    private LobbyRoleSnapshot loadRole(String userId) {
-        RpcResult<LobbyRoleSnapshot> result = LobbyServiceRpcProxy.callGetRole(null, userId);
+    private SLobbyRoleSnapshot loadRole(String userId) {
+        RpcResult<SLobbyRoleSnapshot> result = LobbyServiceRpcProxy.callGetRole(null, userId);
         if (!result.isSuccess()) {
             LogCore.core.warn("OnlineService 查询角色失败: userId={}, errorCode={}, message={} ",
                     userId, result.getErrorCode(), result.getErrorMessage());
@@ -208,7 +208,7 @@ public final class OnlinePlayerLoginLogic {
                 .setSuccess(false).setMessage(reason).setPlayerId(playerId).build());
     }
 
-    /** 检查 OnlineUserState 是否仍对应本次选角请求。 */
+    /** 检查 SOnlineUserState 是否仍对应本次选角请求。 */
     private boolean isCurrentSession(OnlineService owner, String userId, ClientSessionRef session) {
         return owner.sessionCoordinator().matchesSession(
                 userId, session.getGate(), session.getSessionId());

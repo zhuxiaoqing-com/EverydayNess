@@ -119,4 +119,7 @@ public class PlayerService extends Service {
         return getMdb().getPlayerUserIds();
     }
 
+    public static PlayerService current() {
+        return getCurrent(PlayerService.class);
+    }
 }

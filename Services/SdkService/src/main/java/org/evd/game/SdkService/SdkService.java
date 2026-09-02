@@ -1,6 +1,6 @@
 package org.evd.game.SdkService;
 
-import org.evd.game.common.serializeBean.SdkService.login.SdkValidateResult;
+import org.evd.game.common.serializeBean.SdkService.login.SSdkValidateResult;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
@@ -14,7 +14,7 @@ public class SdkService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
     }
 
-    public SdkValidateResult requestValidate(String userId, String sdkToken) {
+    public SSdkValidateResult requestValidate(String userId, String sdkToken) {
         boolean success = LOCAL_STUB_ENABLED && userId != null && !userId.isBlank()
                 && sdkToken != null && !sdkToken.isBlank();
         String message;
@@ -28,6 +28,6 @@ public class SdkService extends Service {
 
         LogCore.core.info("SdkService 校验请求: service={}, userId={}, success={}",
                 id, userId, success);
-        return new SdkValidateResult(success, message);
+        return new SSdkValidateResult(success, message);
     }
 }

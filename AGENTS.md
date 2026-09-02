@@ -12,3 +12,15 @@
 - 一个类标注多个入口 Handler 时使用 `XxxHandler` 后缀；这种多标识类只允许在确实需要手写组合入口时使用，通常应拆成单标识类。
 - `Service` 负责生命周期、服务级状态和基础设施；业务入口和业务逻辑应放到对应的 `@Actor` 类中。
 - APT 必须校验上述类标识、`@Actor` 约束、入口注解归属和单标识命名规则；不要依赖运行时才发现归属错误。
+
+## dbDef 数据对象命名规范
+
+- `Services/*/src/dbDef/java` 下定义数据库对象的类名必须以 `DB` 开头。
+- 数据库定义类使用 `DBXxxDef` 命名，APT 生成的数据库 Bean、表对象及其引用也必须保留 `DB` 前缀。
+- `dbDef` 中的 `package-info.java` 等非对象文件不受此命名要求限制。
+
+## serializeBean 序列化对象命名规范
+
+- `common/src/main/java/org/evd/game/common/serializeBean` 下作为跨服务数据传输使用的序列化对象，类名必须以 `S` 开头。
+- 实现或继承 `ISerializable` 的类型使用 `SXxx` 命名，并同步更新文件名、构造器、字段类型、RPC 参数和生成代理引用。
+- 不属于序列化对象的辅助类或测试类型不适用此命名要求。

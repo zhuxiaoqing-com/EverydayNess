@@ -6,15 +6,15 @@ import org.evd.game.runtime.call.CallPoint;
 
 /** SceneManagerService 返回给玩家服务的地图实例路由。 */
 @SerializeClass
-public class MapRoute implements ISerializable {
+public class SMapRoute implements ISerializable {
     private int mapConfigId;
     private long mapInstanceId;
     private CallPoint stage;
 
-    public MapRoute() {
+    public SMapRoute() {
     }
 
-    public MapRoute(int mapConfigId, long mapInstanceId, CallPoint stage) {
+    public SMapRoute(int mapConfigId, long mapInstanceId, CallPoint stage) {
         this.mapConfigId = mapConfigId;
         this.mapInstanceId = mapInstanceId;
         this.stage = stage == null ? null : new CallPoint(stage);

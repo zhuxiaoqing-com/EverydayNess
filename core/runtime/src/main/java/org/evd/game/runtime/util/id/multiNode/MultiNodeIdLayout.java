@@ -8,20 +8,20 @@ import java.util.Map;
 /** 多 Node Snowflake ID 布局族。具体版本由其子类定义。 */
 public abstract class MultiNodeIdLayout extends SnowflakeIdLayout {
 
-    public static final int VERSION = 1;
     public static final int VERSION_BITS = 1;
 
     private static final class VersionLayouts {
         private static final Map<Integer, LayoutFactory> FACTORY_MAP = Map.of(
-                VERSION, MultiNodeIdLayout0::new);
+                MultiNodeIdLayout0.VERSION, MultiNodeIdLayout0::new);
         private static final Map<Integer, SnowflakeIdLayout> DEFAULT_LAYOUT_MAP = Map.of(
-                VERSION, new MultiNodeIdLayout0(0, 0, 0));
+                MultiNodeIdLayout0.VERSION, new MultiNodeIdLayout0(0, 0, 0));
     }
 
     protected MultiNodeIdLayout(int platformBits, int playerServerBits, int nodeBits,
                                 int epochSecondBits, int sequenceBits,
-                                int platformId, int playerServerId, int nodeId) {
-        super(SnowflakeIdType.MULTI_NODE, VERSION, VERSION_BITS,
+                                int platformId, int playerServerId, int nodeId,
+                                int version) {
+        super(SnowflakeIdType.MULTI_NODE, version, VERSION_BITS,
                 platformBits, playerServerBits, nodeBits, epochSecondBits, sequenceBits,
                 platformId, playerServerId, nodeId);
     }

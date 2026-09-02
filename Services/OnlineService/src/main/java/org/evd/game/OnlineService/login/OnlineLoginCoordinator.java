@@ -3,9 +3,9 @@ package org.evd.game.OnlineService.login;
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.routing.OnlineServiceSelector;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineTokenState;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlineConnCandidate;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineLoginAdmission;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineTokenState;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proto.MsgId;
 import org.evd.game.common.proto.S2C_Login;
@@ -28,7 +28,7 @@ public final class OnlineLoginCoordinator {
     private final OnlineService owner;
     private final OnlineServiceSelector selector;
     private final OnlineSessionCoordinator sessionCoordinator;
-    private final Map<String, OnlineTokenState> tokenStates = new HashMap<>();
+    private final Map<String, SOnlineTokenState> tokenStates = new HashMap<>();
     private final OnlineLoginQueue admissionQueue;
     private final int maxOnline;
     private long nextVersion = System.currentTimeMillis();
@@ -60,7 +60,7 @@ public final class OnlineLoginCoordinator {
     }
 
     /** 校验登录请求并创建登录准入，容量不足时将请求加入排队。 */
-    public OnlineLoginAdmission admitLogin(String userId, CallPoint requestGate,
+    public SOnlineLoginAdmission admitLogin(String userId, CallPoint requestGate,
                                            long requestSessionId, long now) {
         if (userId == null || userId.isBlank()) {
             LogCore.core.info("OnlineService 拒绝登录准入，userId 为空: service={}", owner.getId());
@@ -81,9 +81,9 @@ public final class OnlineLoginCoordinator {
             LogCore.core.info("OnlineService 登录进入排队: userId={}, position={}, maxOnline={}, reserved={}, queueSize={}",
                     userId, admissionQueue.position(userId), maxOnline,
                     reservedUserCount(), admissionQueue.size());
-            return OnlineLoginAdmission.queued();
+            return SOnlineLoginAdmission.queued();
         }
-        OnlineLoginAdmission admission = createAdmission(userId, now);
+        SOnlineLoginAdmission admission = createAdmission(userId, now);
         if (!sendAdmissionResponse(userId, requestGate, requestSessionId, admission)) {
             return null;
         }
@@ -111,7 +111,7 @@ public final class OnlineLoginCoordinator {
     }
 
     /** 创建用户的预登录准入结果。 */
-    public OnlineLoginAdmission createAdmission(String userId, long now) {
+    public SOnlineLoginAdmission createAdmission(String userId, long now) {
         return createAdmissionInternal(userId, now);
     }
 
@@ -122,13 +122,13 @@ public final class OnlineLoginCoordinator {
     }
 
     /** 向已经获得名额的排队请求发送准入结果。 */
-    public void onAdmissionReady(OnlineLoginQueue.QueuedLogin request, OnlineLoginAdmission admission) {
+    public void onAdmissionReady(OnlineLoginQueue.QueuedLogin request, SOnlineLoginAdmission admission) {
         sendAdmissionResponse(request.userId(), request.gate(), request.sessionId(), admission);
     }
 
     /** 统一向首段登录连接发送准入成功响应。 */
     private boolean sendAdmissionResponse(String userId, CallPoint gate, long sessionId,
-                                           OnlineLoginAdmission admission) {
+                                           SOnlineLoginAdmission admission) {
         if (admission == null || admission.getTokenState() == null) {
             LogCore.core.warn("OnlineService 登录准入结果非法: userId={}, gate={}, sessionId={}",
                     userId, gate, sessionId);
@@ -155,21 +155,21 @@ public final class OnlineLoginCoordinator {
     }
 
     /** 为用户选择连接网关并生成预登录 token。 */
-    private OnlineLoginAdmission createAdmissionInternal(String userId, long now) {
-        OnlineConnCandidate candidate = selector.selectLeastLoadedConn();
+    private SOnlineLoginAdmission createAdmissionInternal(String userId, long now) {
+        SOnlineConnCandidate candidate = selector.selectLeastLoadedConn();
         if (candidate == null || candidate.getCallPoint() == null) {
             return null;
         }
         long version = nextVersion(now);
-        OnlineTokenState tokenState = new OnlineTokenState(
+        SOnlineTokenState tokenState = new SOnlineTokenState(
                 UUID.randomUUID().toString(), userId, candidate.getCallPoint(),
                 now + TOKEN_TTL_MILLIS, version);
-        OnlineTokenState replaced = tokenStates.put(userId, tokenState);
+        SOnlineTokenState replaced = tokenStates.put(userId, tokenState);
         if (replaced != null) {
             LogCore.core.info("OnlineService 替换旧预登录: userId={}, oldVersion={}, newVersion={}",
                     userId, replaced.getVersion(), version);
         }
-        OnlineLoginAdmission admission = new OnlineLoginAdmission(tokenState);
+        SOnlineLoginAdmission admission = new SOnlineLoginAdmission(tokenState);
         admission.setGateAddr(candidate.getPublicAddr());
         LogCore.core.info("OnlineService 登录准入成功: userId={}, gate={}, version={}, expireAt={}, gateLoginCount={}",
                 userId, candidate.getCallPoint(), version, tokenState.getExpireAt(), candidate.getLoginCount());
@@ -188,21 +188,21 @@ public final class OnlineLoginCoordinator {
     }
 
     /** 获取并校验用户当前持有的预登录 token。 */
-    public OnlineTokenState getTokenState(String userId, String token) {
+    public SOnlineTokenState getTokenState(String userId, String token) {
         if (userId == null || userId.isBlank() || token == null || token.isBlank()) {
             return null;
         }
-        OnlineTokenState tokenState = tokenStates.get(userId);
+        SOnlineTokenState tokenState = tokenStates.get(userId);
         if (tokenState == null || !userId.equals(tokenState.getUserId())
                 || !token.equals(tokenState.getToken())) {
             return null;
         }
-        return new OnlineTokenState(tokenState);
+        return new SOnlineTokenState(tokenState);
     }
 
     /** 在二段登录期间按版本和网关校验并续期预登录 token。 */
     public boolean renewPendingLogin(String userId, String token, long version, CallPoint gate, long now) {
-        OnlineTokenState tokenState = currentToken(userId, token, version, gate, now);
+        SOnlineTokenState tokenState = currentToken(userId, token, version, gate, now);
         if (tokenState == null) {
             return false;
         }
@@ -212,7 +212,7 @@ public final class OnlineLoginCoordinator {
 
     /** 取消指定 token 对应的预登录会话并继续处理登录队列。 */
     public boolean cancelPendingSession(String userId, String token) {
-        OnlineTokenState tokenState = tokenStates.get(userId);
+        SOnlineTokenState tokenState = tokenStates.get(userId);
         if (tokenState == null || token == null
                 || !token.equals(tokenState.getToken())
                 || !userId.equals(tokenState.getUserId())) {
@@ -224,12 +224,12 @@ public final class OnlineLoginCoordinator {
     }
 
     /** 校验用户、token、版本、网关及有效期是否仍与当前预登录状态一致。 */
-    private OnlineTokenState currentToken(String userId, String token, long version,
+    private SOnlineTokenState currentToken(String userId, String token, long version,
                                           CallPoint gate, long now) {
         if (userId == null || userId.isBlank() || token == null || token.isBlank() || gate == null) {
             return null;
         }
-        OnlineTokenState tokenState = tokenStates.get(userId);
+        SOnlineTokenState tokenState = tokenStates.get(userId);
         if (tokenState == null || !token.equals(tokenState.getToken())
                 || version > 0L && tokenState.getVersion() != version
                 || !userId.equals(tokenState.getUserId())

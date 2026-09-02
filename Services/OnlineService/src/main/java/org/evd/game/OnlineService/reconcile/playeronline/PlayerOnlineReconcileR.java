@@ -3,8 +3,8 @@ package org.evd.game.OnlineService.reconcile.playeronline;
 import org.evd.game.OnlineService.offline.OnlineOfflineCoordinator;
 import org.evd.game.OnlineService.session.OnlinePlayer;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SPlayerStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.support.LogCore;
@@ -23,13 +23,13 @@ public final class PlayerOnlineReconcileR {
         this.offlineCoordinator = offlineCoordinator;
     }
 
-    public PlayerStateCheck[] reconcile(CallPoint playerService, List<PlayerStateCheck> entries) {
+    public SPlayerStateCheck[] reconcile(CallPoint playerService, List<SPlayerStateCheck> entries) {
         if (playerService == null) {
             throw new IllegalArgumentException("OnlineService Player 对账 source CallPoint 不能为空");
         }
-        List<PlayerStateCheck> invalidEntries = new ArrayList<>();
-        for (PlayerStateCheck entry : entries) {
-            OnlineUserState onlineState = sessionCoordinator.getUserState(entry.getUserId());
+        List<SPlayerStateCheck> invalidEntries = new ArrayList<>();
+        for (SPlayerStateCheck entry : entries) {
+            SOnlineUserState onlineState = sessionCoordinator.getUserState(entry.getUserId());
             if (onlineState == null) {
                 invalidEntries.add(entry);
             } else if (isFullyOnline(onlineState)
@@ -38,13 +38,13 @@ public final class PlayerOnlineReconcileR {
             }
         }
 
-        List<OnlineUserState> statesToRepair = new ArrayList<>();
-        for (OnlineUserState onlineState : sessionCoordinator.getUserStates()) {
+        List<SOnlineUserState> statesToRepair = new ArrayList<>();
+        for (SOnlineUserState onlineState : sessionCoordinator.getUserStates()) {
             if (!isFullyOnline(onlineState)
                     || !playerService.equals(onlineState.getActivePlayerService())) {
                 continue;
             }
-            PlayerStateCheck playerEntry = findEntry(entries, onlineState.getUserId());
+            SPlayerStateCheck playerEntry = findEntry(entries, onlineState.getUserId());
             if (playerEntry == null || !samePlayerState(playerService, playerEntry, onlineState)) {
                 if (onlineState.observePlayerReconcileMismatch()) {
                     statesToRepair.add(onlineState);
@@ -54,7 +54,7 @@ public final class PlayerOnlineReconcileR {
             }
         }
 
-        for (OnlineUserState onlineState : statesToRepair) {
+        for (SOnlineUserState onlineState : statesToRepair) {
             offlineCoordinator.kickGateway(
                     onlineState.getActiveGate(), onlineState.getActiveGateSessionId(),
                     BrokenType.STATE_RECONCILE, "player state reconcile mismatch");
@@ -64,11 +64,11 @@ public final class PlayerOnlineReconcileR {
         }
 
         logMismatch(playerService, invalidEntries.size(), entries.size());
-        return invalidEntries.toArray(PlayerStateCheck[]::new);
+        return invalidEntries.toArray(SPlayerStateCheck[]::new);
     }
 
-    private PlayerStateCheck findEntry(List<PlayerStateCheck> entries, String userId) {
-        for (PlayerStateCheck entry : entries) {
+    private SPlayerStateCheck findEntry(List<SPlayerStateCheck> entries, String userId) {
+        for (SPlayerStateCheck entry : entries) {
             if (userId.equals(entry.getUserId())) {
                 return entry;
             }
@@ -76,8 +76,8 @@ public final class PlayerOnlineReconcileR {
         return null;
     }
 
-    private boolean samePlayerState(CallPoint playerService, PlayerStateCheck entry,
-                                    OnlineUserState onlineState) {
+    private boolean samePlayerState(CallPoint playerService, SPlayerStateCheck entry,
+                                    SOnlineUserState onlineState) {
         return playerService.equals(onlineState.getActivePlayerService())
                 && entry.getPlayerId() == onlineState.getActivePlayerId()
                 && entry.getGateSessionId() == onlineState.getActiveGateSessionId()
@@ -85,7 +85,7 @@ public final class PlayerOnlineReconcileR {
                 && entry.getGate().equals(onlineState.getActiveGate());
     }
 
-    private boolean isFullyOnline(OnlineUserState state) {
+    private boolean isFullyOnline(SOnlineUserState state) {
         if (state == null) {
             return false;
         }

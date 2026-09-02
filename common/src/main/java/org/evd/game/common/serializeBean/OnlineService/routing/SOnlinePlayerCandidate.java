@@ -5,14 +5,14 @@ import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
 @SerializeClass
-public class OnlinePlayerCandidate implements ISerializable {
+public class SOnlinePlayerCandidate implements ISerializable {
     private CallPoint callPoint;
     private int onlineCount;
 
-    public OnlinePlayerCandidate() {
+    public SOnlinePlayerCandidate() {
     }
 
-    public OnlinePlayerCandidate(CallPoint callPoint, int onlineCount) {
+    public SOnlinePlayerCandidate(CallPoint callPoint, int onlineCount) {
         this.callPoint = callPoint == null ? null : new CallPoint(callPoint);
         this.onlineCount = onlineCount;
     }

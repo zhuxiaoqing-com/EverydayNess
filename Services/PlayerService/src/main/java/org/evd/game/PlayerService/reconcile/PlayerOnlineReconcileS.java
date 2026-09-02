@@ -5,7 +5,7 @@ import org.evd.game.PlayerService.offline.PlayerOfflineManager;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileRpcProxy;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SPlayerStateCheck;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
@@ -31,16 +31,16 @@ public final class PlayerOnlineReconcileS {
 
     /** 将 PlayerService 当前运行态交给 Online 校验，并按原会话精确清理失效玩家。 */
     public void reconcile() {
-        List<PlayerStateCheck> entries = new ArrayList<>();
+        List<SPlayerStateCheck> entries = new ArrayList<>();
         for (PPlayerOnline binding : sessionManager.onlinePlayers()) {
             if (binding.getStatus() != PPlayerOnline.Status.ONLINE) {
                 continue;
             }
-            entries.add(new PlayerStateCheck(
+            entries.add(new SPlayerStateCheck(
                     binding.getUserId(), binding.getPlayerId(), binding.getGate(),
                     binding.getGateSessionId()));
         }
-        RpcResult<PlayerStateCheck[]> result =
+        RpcResult<SPlayerStateCheck[]> result =
                 OnlineStateReconcileRpcProxy.callReconcilePlayerSessions(
                         null, owner.getCallPoint(), entries);
         if (!result.isSuccess()) {
@@ -50,8 +50,8 @@ public final class PlayerOnlineReconcileS {
             return;
         }
 
-        PlayerStateCheck[] invalidEntries = result.getValue();
-        for (PlayerStateCheck entry : entries) {
+        SPlayerStateCheck[] invalidEntries = result.getValue();
+        for (SPlayerStateCheck entry : entries) {
             PPlayerOnline current = sessionManager.get(entry.getPlayerId());
             if (current == null) {
                 continue;
@@ -64,8 +64,8 @@ public final class PlayerOnlineReconcileS {
     }
 
 
-    private void processMismatches(PlayerStateCheck[] mismatches) {
-        for (PlayerStateCheck entry : mismatches) {
+    private void processMismatches(SPlayerStateCheck[] mismatches) {
+        for (SPlayerStateCheck entry : mismatches) {
             PPlayerOnline current = sessionManager.get(entry.getPlayerId());
             if (current == null || current.getStatus() != PPlayerOnline.Status.ONLINE
                     || !entry.getUserId().equals(current.getUserId())
@@ -89,8 +89,8 @@ public final class PlayerOnlineReconcileS {
         }
     }
 
-    private boolean containsSameSession(PlayerStateCheck[] entries, PlayerStateCheck expected) {
-        for (PlayerStateCheck entry : entries) {
+    private boolean containsSameSession(SPlayerStateCheck[] entries, SPlayerStateCheck expected) {
+        for (SPlayerStateCheck entry : entries) {
             if (entry.getUserId().equals(expected.getUserId())
                     && entry.getPlayerId() == expected.getPlayerId()
                     && entry.getGateSessionId() == expected.getGateSessionId()

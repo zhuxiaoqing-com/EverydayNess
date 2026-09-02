@@ -4,8 +4,8 @@ import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SConnStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SPlayerStateCheck;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -17,14 +17,14 @@ import java.util.Map;
 @RpcHandler
 public final class OnlineStateReconcileRpc {
     @Rpc
-    public List<ConnStateCheck> reconcileConnSessions(
-            CallPoint connService, Map<String, ConnStateCheck> entries) {
+    public List<SConnStateCheck> reconcileConnSessions(
+            CallPoint connService, Map<String, SConnStateCheck> entries) {
         return logic().reconcileConnSessions(connService, entries);
     }
 
     @Rpc
-    public PlayerStateCheck[] reconcilePlayerSessions(
-            CallPoint playerService, List<PlayerStateCheck> entries) {
+    public SPlayerStateCheck[] reconcilePlayerSessions(
+            CallPoint playerService, List<SPlayerStateCheck> entries) {
         return logic().reconcilePlayerSessions(playerService, entries);
     }
 

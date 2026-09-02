@@ -5,7 +5,7 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.annotation.actor.ActorType;
-import org.evd.game.common.serializeBean.ConnService.test.ConnInfo;
+import org.evd.game.common.serializeBean.ConnService.test.SConnInfo;
 
 /**
 * 根据ConnTestRpcService生成的代理类
@@ -38,7 +38,7 @@ public final class ConnTestRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<Boolean> callConnTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
+    public static RpcResult<Boolean> callConnTest2(long actorUniqueId, int a, Object b, SConnInfo connInfo){
         return RpcResult.call(() -> inst().connTest2(actorUniqueId, a, b, connInfo));
     }
 
@@ -53,7 +53,7 @@ public final class ConnTestRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<Boolean> callConnTest4(CallPoint remote, int a, Object b, ConnInfo connInfo){
+    public static RpcResult<Boolean> callConnTest4(CallPoint remote, int a, Object b, SConnInfo connInfo){
         return RpcResult.call(() -> inst().connTest4(remote, a, b, connInfo));
     }
 
@@ -71,7 +71,7 @@ public final class ConnTestRpcProxy {
     /**
     * 对应源方法: org.evd.game.ConnService.ConnTestRpc#connTest2()
     */
-    public boolean connTest2(long actorUniqueId, int a, Object b, ConnInfo connInfo){
+    public boolean connTest2(long actorUniqueId, int a, Object b, SConnInfo connInfo){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
         return (boolean)Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST2_7, new Object[]{a, b, connInfo});
     }
@@ -89,7 +89,7 @@ public final class ConnTestRpcProxy {
     /**
     * 对应源方法: org.evd.game.ConnService.ConnTestRpc#connTest4()
     */
-    public boolean connTest4(CallPoint remote, int a, Object b, ConnInfo connInfo){
+    public boolean connTest4(CallPoint remote, int a, Object b, SConnInfo connInfo){
         Service service = Service.getCurrent();
         return (boolean)service.callWait(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST4_9, new Object[]{a, b, connInfo});
     }

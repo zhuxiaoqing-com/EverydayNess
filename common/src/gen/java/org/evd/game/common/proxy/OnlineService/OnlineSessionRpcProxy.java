@@ -5,7 +5,7 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 
 /**
 * 根据OnlineSessionRpcService生成的代理类
@@ -48,7 +48,7 @@ public final class OnlineSessionRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<OnlineUserState> callGetUserState(CallPoint remote, String userId){
+    public static RpcResult<SOnlineUserState> callGetUserState(CallPoint remote, String userId){
         return RpcResult.call(() -> inst().getUserState(remote, userId));
     }
 
@@ -96,12 +96,12 @@ public final class OnlineSessionRpcProxy {
     /**
     * 对应源方法: org.evd.game.OnlineService.session.OnlineSessionRpc#getUserState()
     */
-    public OnlineUserState getUserState(CallPoint remote, String userId){
+    public SOnlineUserState getUserState(CallPoint remote, String userId){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (OnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_GETUSERSTATE_11, new Object[]{userId});
+        return (SOnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_GETUSERSTATE_11, new Object[]{userId});
     }
 
 

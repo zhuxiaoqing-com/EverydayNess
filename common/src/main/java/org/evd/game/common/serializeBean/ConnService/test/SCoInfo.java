@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @SerializeClass
-public class CoInfo implements ISerializable {
+public class SCoInfo implements ISerializable {
     public String aa;
     public List<String> list = new ArrayList<>();
 

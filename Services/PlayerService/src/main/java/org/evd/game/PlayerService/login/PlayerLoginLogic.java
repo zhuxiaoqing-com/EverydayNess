@@ -125,17 +125,8 @@ public final class PlayerLoginLogic {
                     new RoleMidnightEvent(playerId), RoleMidnightEvent.Listener::onEvent);
         }
 
-        if (!sessionManager.markOnline(playerId)) {
-            LogCore.core.warn("PlayerService 玩家进入地图后绑定状态已失效: service={}, userId={}, playerId={}, gateSessionId={}",
-                    owner.getId(), userId, playerId, session.getSessionId());
-            return;
-        }
-        LogCore.core.info("PlayerService 玩家正式上线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
-                owner.getId(), userId, playerId, session.getGate(), session.getSessionId());
-
-
         try {
-            owner.getActor(PlayerMapLogic.class).enterMap(playerId);
+            owner.getActor(PlayerMapLogic.class).enterMapOnLogin(playerId);
         } catch (RuntimeException e) {
             LogCore.core.warn("PlayerService 玩家进入地图失败: service={}, userId={}, playerId={}, message={}",
                     owner.getId(), userId, playerId, e.getMessage());

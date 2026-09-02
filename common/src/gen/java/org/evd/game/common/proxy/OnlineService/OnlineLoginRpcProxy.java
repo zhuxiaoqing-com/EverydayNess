@@ -4,7 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.annotation.service.ServiceType;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineLoginAdmission;
 import org.evd.game.runtime.call.CallPoint;
 
 /**
@@ -30,7 +30,7 @@ public final class OnlineLoginRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<OnlineLoginAdmission> callAdmitLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
+    public static RpcResult<SOnlineLoginAdmission> callAdmitLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
         return RpcResult.call(() -> inst().admitLogin(remote, userId, requestGate, requestSessionId));
     }
 
@@ -54,12 +54,12 @@ public final class OnlineLoginRpcProxy {
     /**
     * 对应源方法: org.evd.game.OnlineService.login.OnlineLoginRpc#admitLogin()
     */
-    public OnlineLoginAdmission admitLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
+    public SOnlineLoginAdmission admitLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (OnlineLoginAdmission)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_ADMITLOGIN_0, new Object[]{userId, requestGate, requestSessionId});
+        return (SOnlineLoginAdmission)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_ADMITLOGIN_0, new Object[]{userId, requestGate, requestSessionId});
     }
 
 

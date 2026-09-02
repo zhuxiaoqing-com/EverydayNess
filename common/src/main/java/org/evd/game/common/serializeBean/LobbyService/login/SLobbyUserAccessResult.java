@@ -5,26 +5,26 @@ import org.evd.game.base.ISerializable;
 
 /** Lobby 对用户登录资格的校验结果。 */
 @SerializeClass
-public class LobbyUserAccessResult implements ISerializable {
+public class SLobbyUserAccessResult implements ISerializable {
     private boolean allowed;
     private boolean created;
     private String message;
 
-    public LobbyUserAccessResult() {
+    public SLobbyUserAccessResult() {
     }
 
-    private LobbyUserAccessResult(boolean allowed, boolean created, String message) {
+    private SLobbyUserAccessResult(boolean allowed, boolean created, String message) {
         this.allowed = allowed;
         this.created = created;
         this.message = message;
     }
 
-    public static LobbyUserAccessResult allowed(boolean created) {
-        return new LobbyUserAccessResult(true, created, "ok");
+    public static SLobbyUserAccessResult allowed(boolean created) {
+        return new SLobbyUserAccessResult(true, created, "ok");
     }
 
-    public static LobbyUserAccessResult denied(String message) {
-        return new LobbyUserAccessResult(false, false, message);
+    public static SLobbyUserAccessResult denied(String message) {
+        return new SLobbyUserAccessResult(false, false, message);
     }
 
     public boolean isAllowed() { return allowed; }

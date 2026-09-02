@@ -42,6 +42,19 @@ final class DbDirtyRenderSupport {
             case LIST -> "new XArrayList<>(" + parentExpr + ")";
             case SET -> "new XHashSet<>(" + parentExpr + ")";
             case MAP -> "new XHashMap<>(" + parentExpr + ")";
+            case ENTITY -> "new " + type.fieldType + "(" + parentExpr + ")";
+            case OTHER -> switch (type.fieldType) {
+                case "byte[]" -> "new byte[0]";
+                case "Byte" -> "(byte) 0";
+                case "Short" -> "(short) 0";
+                case "Integer" -> "0";
+                case "Long" -> "0L";
+                case "Float" -> "0F";
+                case "Double" -> "0D";
+                case "Boolean" -> "false";
+                case "Character" -> "'\\0'";
+                default -> throw new IllegalStateException("没有默认值的 DB 字段类型: " + type.fieldType);
+            };
             case PRIMITIVE -> switch (type.fieldType) {
                 case "boolean" -> "false";
                 case "byte" -> "(byte)0";
@@ -53,7 +66,7 @@ final class DbDirtyRenderSupport {
                 case "char" -> "'\\0'";
                 default -> "0";
             };
-            default -> null;
+            default -> throw new IllegalStateException("没有默认值的 DB 字段类型: " + type.kind);
         };
     }
 

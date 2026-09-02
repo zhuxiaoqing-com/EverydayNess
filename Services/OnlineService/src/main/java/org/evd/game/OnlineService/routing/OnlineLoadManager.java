@@ -4,8 +4,8 @@ import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerServiceRpcProxy;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlineConnCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlinePlayerCandidate;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -35,15 +35,15 @@ public final class OnlineLoadManager {
     }
 
     /** 从缓存中选择登录数最少的 ConnService。 */
-    public OnlineConnCandidate selectLeastLoadedConn() {
+    public SOnlineConnCandidate selectLeastLoadedConn() {
         if (connLoads.isEmpty()) {
             refreshConnLoads();
         }
-        OnlineConnCandidate best = null;
+        SOnlineConnCandidate best = null;
         for (Map.Entry<CallPoint, ConnLoad> entry : connLoads.entrySet()) {
             ConnLoad load = entry.getValue();
             if (best == null || load.loginCount() < best.getLoginCount()) {
-                best = new OnlineConnCandidate(entry.getKey(), load.publicAddr(), load.loginCount());
+                best = new SOnlineConnCandidate(entry.getKey(), load.publicAddr(), load.loginCount());
             }
         }
         if (best == null) {
@@ -53,14 +53,14 @@ public final class OnlineLoadManager {
     }
 
     /** 从缓存中选择在线玩家数最少的 PlayerService。 */
-    public OnlinePlayerCandidate selectLeastLoadedPlayer() {
+    public SOnlinePlayerCandidate selectLeastLoadedPlayer() {
         if (playerLoads.isEmpty()) {
             refreshPlayerLoads();
         }
-        OnlinePlayerCandidate best = null;
+        SOnlinePlayerCandidate best = null;
         for (Map.Entry<CallPoint, Integer> entry : playerLoads.entrySet()) {
             if (best == null || entry.getValue() < best.getOnlineCount()) {
-                best = new OnlinePlayerCandidate(entry.getKey(), entry.getValue());
+                best = new SOnlinePlayerCandidate(entry.getKey(), entry.getValue());
             }
         }
         if (best == null) {
@@ -70,7 +70,7 @@ public final class OnlineLoadManager {
     }
 
     /** 优先复用用户历史 PlayerService；历史服务当前不可用时再选择负载最低的服务。 */
-    public OnlinePlayerCandidate selectLeastLoadedPlayer(String userId) {
+    public SOnlinePlayerCandidate selectLeastLoadedPlayer(String userId) {
         CallPoint historicalPlayerService = owner.sessionCoordinator()
                 .getHistoricalPlayerService(userId);
         RegisteredService offlineService = owner.getNode().getOfflineService(historicalPlayerService);
@@ -89,7 +89,7 @@ public final class OnlineLoadManager {
             if (onlineCount != null) {
                 LogCore.core.info("OnlineService 优先复用历史 PlayerService: playerService={}, onlineCount={}",
                         historicalPlayerService, onlineCount);
-                return new OnlinePlayerCandidate(historicalPlayerService, onlineCount);
+                return new SOnlinePlayerCandidate(historicalPlayerService, onlineCount);
             }
             LogCore.core.warn("OnlineService 历史 PlayerService 当前不可用，改用负载选择: playerService={}",
                     historicalPlayerService);

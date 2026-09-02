@@ -4,8 +4,8 @@ import org.evd.game.OnlineService.offline.OnlineOfflineCoordinator;
 import org.evd.game.OnlineService.reconcile.gwonline.GwOnlineReconcileR;
 import org.evd.game.OnlineService.reconcile.playeronline.PlayerOnlineReconcileR;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.PlayerStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SConnStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SPlayerStateCheck;
 import org.evd.game.runtime.call.CallPoint;
 
 import java.util.List;
@@ -22,13 +22,13 @@ public final class OnlineStateReconcileManager {
         this.playerOnlineReconcileR = new PlayerOnlineReconcileR(sessionCoordinator, offlineCoordinator);
     }
 
-    public List<ConnStateCheck> reconcileConnSessions(
-            CallPoint connService, Map<String, ConnStateCheck> entries) {
+    public List<SConnStateCheck> reconcileConnSessions(
+            CallPoint connService, Map<String, SConnStateCheck> entries) {
         return gwOnlineReconcileR.reconcile(connService, entries);
     }
 
-    public PlayerStateCheck[] reconcilePlayerSessions(
-            CallPoint playerService, List<PlayerStateCheck> entries) {
+    public SPlayerStateCheck[] reconcilePlayerSessions(
+            CallPoint playerService, List<SPlayerStateCheck> entries) {
         return playerOnlineReconcileR.reconcile(playerService, entries);
     }
 }

@@ -2,7 +2,7 @@ package org.evd.game.ConnService.reconcile;
 
 import org.evd.game.ConnService.ConnService;
 import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileRpcProxy;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SConnStateCheck;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
@@ -23,16 +23,16 @@ public final class GwOnlineReconcileS {
     }
 
     public void reconcile() {
-        Map<String, ConnStateCheck> entries = new HashMap<>();
+        Map<String, SConnStateCheck> entries = new HashMap<>();
         for (NetChannel channel : owner.clientChannelManager().getChannelMap().values()) {
             if (channel.getPlayerId() <= 0L || channel.getUserId().isBlank()
                     || channel.getSessionState() != NetChannel.SessionState.PLAYER_LOGIN_READY) {
                 continue;
             }
-            entries.put(channel.getUserId(), new ConnStateCheck(
+            entries.put(channel.getUserId(), new SConnStateCheck(
                     channel.getUserId(), channel.getPlayerId(), channel.getChannelId()));
         }
-        RpcResult<List<ConnStateCheck>> result = OnlineStateReconcileRpcProxy.callReconcileConnSessions(
+        RpcResult<List<SConnStateCheck>> result = OnlineStateReconcileRpcProxy.callReconcileConnSessions(
                 null, owner.getCallPoint(), entries);
         if (!result.isSuccess()) {
             LogCore.core.warn("ConnService GW-Online 对账请求失败: service={}, count={}, errorCode={}, message={}",
@@ -42,15 +42,15 @@ public final class GwOnlineReconcileS {
         processRelation(entries, result.getValue());
     }
 
-    private void processRelation(Map<String, ConnStateCheck> entries,
-                                 List<ConnStateCheck> mismatches) {
-        for (ConnStateCheck entry : entries.values()) {
+    private void processRelation(Map<String, SConnStateCheck> entries,
+                                 List<SConnStateCheck> mismatches) {
+        for (SConnStateCheck entry : entries.values()) {
             NetChannel current = owner.findClientChannel(entry.getGateSessionId());
             if (current != null && !containsSameSession(mismatches, entry)) {
                 current.clearOnlineReconcileMismatch();
             }
         }
-        for (ConnStateCheck entry : mismatches) {
+        for (SConnStateCheck entry : mismatches) {
             NetChannel current = owner.findClientChannel(entry.getGateSessionId());
             if (current == null || current.getSessionState() == NetChannel.SessionState.CLOSING) {
                 continue;
@@ -71,8 +71,8 @@ public final class GwOnlineReconcileS {
         }
     }
 
-    private boolean containsSameSession(List<ConnStateCheck> entries, ConnStateCheck expected) {
-        for (ConnStateCheck entry : entries) {
+    private boolean containsSameSession(List<SConnStateCheck> entries, SConnStateCheck expected) {
+        for (SConnStateCheck entry : entries) {
             if (entry.getUserId().equals(expected.getUserId())
                     && entry.getPlayerId() == expected.getPlayerId()
                     && entry.getGateSessionId() == expected.getGateSessionId()) {

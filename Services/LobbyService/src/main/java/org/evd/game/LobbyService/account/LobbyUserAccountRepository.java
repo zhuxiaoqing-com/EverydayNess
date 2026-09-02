@@ -4,7 +4,7 @@ import org.evd.game.LobbyService.dbDef.db.bean.LBRole;
 import org.evd.game.LobbyService.dbDef.db.bean.LBUserAccount;
 import org.evd.game.LobbyService.dbDef.db.table.LBRoleTable;
 import org.evd.game.LobbyService.dbDef.db.table.LBUserAccountTable;
-import org.evd.game.common.serializeBean.LobbyService.login.LobbyUserAccessResult;
+import org.evd.game.common.serializeBean.LobbyService.login.SLobbyUserAccessResult;
 import org.evd.game.runtime.support.LogCore;
 
 /** Lobby 用户账号仓库，负责账号、角色数据和封禁状态。 */
@@ -13,9 +13,9 @@ public final class LobbyUserAccountRepository {
     public static final int STATUS_BANNED = 1;
 
     /** 查询用户；不存在时创建，存在但封禁时拒绝登录。 */
-    public LobbyUserAccessResult validateOrCreate(String userId, long now) {
+    public SLobbyUserAccessResult validateOrCreate(String userId, long now) {
         if (userId == null || userId.isBlank()) {
-            return LobbyUserAccessResult.denied("userId 不能为空");
+            return SLobbyUserAccessResult.denied("userId 不能为空");
         }
 
         LBUserAccount account = LBUserAccountTable.get(userId);
@@ -28,30 +28,30 @@ public final class LobbyUserAccountRepository {
             created.setLastLoginTime(now);
             if (LBUserAccountTable.add(userId, created, true)) {
                 LogCore.core.info("LobbyService 创建用户账号: userId={}", userId);
-                return LobbyUserAccessResult.allowed(true);
+                return SLobbyUserAccessResult.allowed(true);
             }
 
             // 并发首登时另一请求可能已经完成创建，重新读取后继续按真实状态判断。
             account = LBUserAccountTable.get(userId);
             if (account == null) {
                 LogCore.core.error("LobbyService 创建用户账号失败: userId={}", userId);
-                return LobbyUserAccessResult.denied("用户数据创建失败");
+                return SLobbyUserAccessResult.denied("用户数据创建失败");
             }
         }
 
         if (account.getStatus() == STATUS_BANNED) {
             String reason = account.getBanReason();
-            return LobbyUserAccessResult.denied(
+            return SLobbyUserAccessResult.denied(
                     reason == null || reason.isBlank() ? "用户已被封禁" : "用户已被封禁: " + reason);
         }
         if (account.getStatus() != STATUS_NORMAL) {
             LogCore.core.warn("LobbyService 用户账号状态非法: userId={}, status={}",
                     userId, account.getStatus());
-            return LobbyUserAccessResult.denied("用户状态非法");
+            return SLobbyUserAccessResult.denied("用户状态非法");
         }
 
         account.setLastLoginTime(now);
-        return LobbyUserAccessResult.allowed(false);
+        return SLobbyUserAccessResult.allowed(false);
     }
 
     /** 获取用户账号数据；登录状态不保存在账号对象中。 */

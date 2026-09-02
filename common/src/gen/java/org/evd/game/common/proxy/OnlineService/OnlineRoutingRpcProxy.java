@@ -4,8 +4,8 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.annotation.service.ServiceType;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlineConnCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlinePlayerCandidate;
 
 /**
 * 根据OnlineRoutingRpcService生成的代理类
@@ -29,7 +29,7 @@ public final class OnlineRoutingRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<OnlineConnCandidate> callSelectLeastLoadedConn(CallPoint remote){
+    public static RpcResult<SOnlineConnCandidate> callSelectLeastLoadedConn(CallPoint remote){
         return RpcResult.call(() -> inst().selectLeastLoadedConn(remote));
     }
 
@@ -37,7 +37,7 @@ public final class OnlineRoutingRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<OnlinePlayerCandidate> callSelectLeastLoadedPlayer(CallPoint remote){
+    public static RpcResult<SOnlinePlayerCandidate> callSelectLeastLoadedPlayer(CallPoint remote){
         return RpcResult.call(() -> inst().selectLeastLoadedPlayer(remote));
     }
 
@@ -46,24 +46,24 @@ public final class OnlineRoutingRpcProxy {
     /**
     * 对应源方法: org.evd.game.OnlineService.routing.OnlineRoutingRpc#selectLeastLoadedConn()
     */
-    public OnlineConnCandidate selectLeastLoadedConn(CallPoint remote){
+    public SOnlineConnCandidate selectLeastLoadedConn(CallPoint remote){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (OnlineConnCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGRPC_SELECTLEASTLOADEDCONN_7, new Object[]{});
+        return (SOnlineConnCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGRPC_SELECTLEASTLOADEDCONN_7, new Object[]{});
     }
 
 
     /**
     * 对应源方法: org.evd.game.OnlineService.routing.OnlineRoutingRpc#selectLeastLoadedPlayer()
     */
-    public OnlinePlayerCandidate selectLeastLoadedPlayer(CallPoint remote){
+    public SOnlinePlayerCandidate selectLeastLoadedPlayer(CallPoint remote){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (OnlinePlayerCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGRPC_SELECTLEASTLOADEDPLAYER_8, new Object[]{});
+        return (SOnlinePlayerCandidate)service.callWait(remote, EnumCall.ENUM_ONLINEROUTINGRPC_SELECTLEASTLOADEDPLAYER_8, new Object[]{});
     }
 
 

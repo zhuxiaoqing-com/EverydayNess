@@ -6,7 +6,7 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
 
 @SerializeClass
-public class OnlineUserState implements ISerializable {
+public class SOnlineUserState implements ISerializable {
     private String userId;
     private CallPoint activeGate;
     private long activeGateSessionId;
@@ -18,10 +18,10 @@ public class OnlineUserState implements ISerializable {
     private int gwMissingCount;
     private int playerMissingCount;
 
-    public OnlineUserState() {
+    public SOnlineUserState() {
     }
 
-    public OnlineUserState(String userId, CallPoint gate, long gateSessionId,
+    public SOnlineUserState(String userId, CallPoint gate, long gateSessionId,
                            long playerId, CallPoint playerService,
                            ActorAddress playerActorAddress, ActorAddress gateActorAddress) {
         this.userId = userId;
@@ -34,7 +34,7 @@ public class OnlineUserState implements ISerializable {
         this.activeGateActorAddress = gateActorAddress == null ? null : new ActorAddress(gateActorAddress);
     }
 
-    public OnlineUserState(OnlineUserState other) {
+    public SOnlineUserState(SOnlineUserState other) {
         this.userId = other.userId;
         this.activeGate = other.activeGate == null ? null : new CallPoint(other.activeGate);
         this.activeGateSessionId = other.activeGateSessionId;

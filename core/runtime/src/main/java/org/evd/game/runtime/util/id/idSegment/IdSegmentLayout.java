@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 public abstract class IdSegmentLayout extends IdLayout {
 
     private static final Logger log = LoggerFactory.getLogger(IdSegmentLayout.class);
-    public static final int VERSION = 0;
     public static final int VERSION_BITS = 1;
     private static final int SEGMENT_SIZE = 10_000;
     private static final int PREFETCH_THRESHOLD = 2_000;
@@ -32,13 +31,13 @@ public abstract class IdSegmentLayout extends IdLayout {
 
     private static final class VersionLayouts {
         private static final Map<Integer, LayoutFactory> FACTORY_MAP = Map.of(
-                VERSION, IdSegmentLayout0::new);
+                IdSegmentLayout0.VERSION, IdSegmentLayout0::new);
     }
 
     protected IdSegmentLayout(int platformBits, int playerServerBits, int nodeBits,
                               int incrementBits, int platformId, int playerServerId,
-                              int nodeId) {
-        super(1, VERSION, platformBits, playerServerBits, nodeBits, incrementBits,
+                              int nodeId, int version) {
+        super(1, version, platformBits, playerServerBits, nodeBits, incrementBits,
                 platformId, playerServerId, nodeId);
         segmentAllocator = new MysqlIdSegmentAllocator();
         for (IDEnum idEnum : IDEnum.values()) {

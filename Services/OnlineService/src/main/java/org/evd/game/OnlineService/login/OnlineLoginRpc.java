@@ -4,7 +4,7 @@ import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineLoginAdmission;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -13,7 +13,7 @@ import org.evd.game.runtime.call.CallPoint;
 @RpcHandler
 public final class OnlineLoginRpc {
     @Rpc
-    public OnlineLoginAdmission admitLogin(String userId, CallPoint requestGate, long requestSessionId) {
+    public SOnlineLoginAdmission admitLogin(String userId, CallPoint requestGate, long requestSessionId) {
         return logic().admitLogin(userId, requestGate, requestSessionId);
     }
 

@@ -3,7 +3,6 @@ package org.evd.game.PlayerService.session;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.actor.ActorAddress;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.MapRoute;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -68,21 +67,6 @@ public final class PlayerSessionManager {
             return false;
         }
         return currentBinding.bindGateActorAddress(gateActorAddress);
-    }
-
-    public boolean beginEnterMap(long playerId) {
-        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
-        return currentBinding != null && currentBinding.beginEnterMap();
-    }
-
-    public boolean completeEnterMap(long playerId, MapRoute route) {
-        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
-        return currentBinding != null && currentBinding.completeEnterMap(route);
-    }
-
-    public long getMapEnterSeq(long playerId) {
-        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
-        return currentBinding == null ? 0L : currentBinding.getMapEnterSeq();
     }
 
     /** 将完成进入地图的当前绑定推进到正式在线状态。 */

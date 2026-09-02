@@ -4,16 +4,16 @@ import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 
 @SerializeClass
-public class LobbyRoleSnapshot implements ISerializable {
+public class SLobbyRoleSnapshot implements ISerializable {
     private long playerId;
     private int characterId;
     private String name;
     private int level;
 
-    public LobbyRoleSnapshot() {
+    public SLobbyRoleSnapshot() {
     }
 
-    public LobbyRoleSnapshot(long playerId, int characterId, String name, int level) {
+    public SLobbyRoleSnapshot(long playerId, int characterId, String name, int level) {
         this.playerId = playerId;
         this.characterId = characterId;
         this.name = name;

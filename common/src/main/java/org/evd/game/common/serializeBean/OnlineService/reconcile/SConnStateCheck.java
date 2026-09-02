@@ -5,15 +5,15 @@ import org.evd.game.base.ISerializable;
 
 /** ConnService 上报的玩家连接状态校验数据。 */
 @SerializeClass
-public class ConnStateCheck implements ISerializable {
+public class SConnStateCheck implements ISerializable {
     private String userId;
     private long playerId;
     private long gateSessionId;
 
-    public ConnStateCheck() {
+    public SConnStateCheck() {
     }
 
-    public ConnStateCheck(String userId, long playerId, long gateSessionId) {
+    public SConnStateCheck(String userId, long playerId, long gateSessionId) {
         this.userId = userId;
         this.playerId = playerId;
         this.gateSessionId = gateSessionId;

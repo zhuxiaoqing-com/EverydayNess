@@ -1,8 +1,8 @@
 package org.evd.game.OnlineService.routing;
 
 import org.evd.game.OnlineService.OnlineService;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlineConnCandidate;
-import org.evd.game.common.serializeBean.OnlineService.routing.OnlinePlayerCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlineConnCandidate;
+import org.evd.game.common.serializeBean.OnlineService.routing.SOnlinePlayerCandidate;
 
 /** OnlineService 统一负责的可负载服务选择。 */
 public final class OnlineServiceSelector {
@@ -14,17 +14,17 @@ public final class OnlineServiceSelector {
     }
 
     /** 选择负载最低的 ConnService。 */
-    public OnlineConnCandidate selectLeastLoadedConn() {
+    public SOnlineConnCandidate selectLeastLoadedConn() {
         return loadManager.selectLeastLoadedConn();
     }
 
     /** 选择负载最低的 PlayerService。 */
-    public OnlinePlayerCandidate selectLeastLoadedPlayer() {
+    public SOnlinePlayerCandidate selectLeastLoadedPlayer() {
         return loadManager.selectLeastLoadedPlayer();
     }
 
     /** 优先返回用户历史使用过且当前仍可用的 PlayerService，否则再按负载选择。 */
-    public OnlinePlayerCandidate selectLeastLoadedPlayer(String userId) {
+    public SOnlinePlayerCandidate selectLeastLoadedPlayer(String userId) {
         return loadManager.selectLeastLoadedPlayer(userId);
     }
 

@@ -9,9 +9,9 @@ import org.evd.game.common.proxy.ConnService.ConnLoginRpcProxy;
 import org.evd.game.common.proxy.ConnService.ConnOfflineRpcProxy;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proxy.LobbyService.LobbyRoleRpcProxy;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineLoginAdmission;
-import org.evd.game.common.serializeBean.OnlineService.login.OnlineTokenState;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineLoginAdmission;
+import org.evd.game.common.serializeBean.OnlineService.login.SOnlineTokenState;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -23,7 +23,7 @@ import org.evd.game.runtime.support.LogCore;
 @Actor
 public final class OnlineLoginLogic {
     /** 受理首段登录，按容量生成预登录状态或进入队列。 */
-    public OnlineLoginAdmission admitLogin(String userId, CallPoint requestGate, long requestSessionId) {
+    public SOnlineLoginAdmission admitLogin(String userId, CallPoint requestGate, long requestSessionId) {
         return owner().loginCoordinator().admitLogin(
                 userId, requestGate, requestSessionId, owner().getTimeCurrent());
     }
@@ -59,7 +59,7 @@ public final class OnlineLoginLogic {
     /** 校验预登录状态并执行二段登录流程。 */
     private void login2Internal(OnlineService owner, CallPoint gate, long gateSessionId,
                                 String userId, String token) {
-        OnlineTokenState tokenState = owner.loginCoordinator().getTokenState(userId, token);
+        SOnlineTokenState tokenState = owner.loginCoordinator().getTokenState(userId, token);
         if (tokenState == null) {
             LogCore.core.info("OnlineService 二段登录拒绝: userId={}, gate={}, gateSessionId={}, reason=token invalid",
                     userId, gate, gateSessionId);
@@ -87,7 +87,7 @@ public final class OnlineLoginLogic {
             return;
         }
 
-        OnlineTokenState currentToken = owner.loginCoordinator().getTokenState(userId, token);
+        SOnlineTokenState currentToken = owner.loginCoordinator().getTokenState(userId, token);
         if (currentToken == null || currentToken.getVersion() != expectedVersion
                 || currentToken.getGate() == null || !currentToken.getGate().equals(gate)) {
             LogCore.core.info("OnlineService 清理旧会话前预登录已变化: userId={}, gateSessionId={}, version={}",
@@ -96,7 +96,7 @@ public final class OnlineLoginLogic {
             return;
         }
 
-        OnlineUserState oldUserState = owner.sessionCoordinator().getUserState(userId);
+        SOnlineUserState oldUserState = owner.sessionCoordinator().getUserState(userId);
 
         // 先清理旧会话的下游状态，但不在这里等待/踢旧 GW；旧 GW 要在新状态登记后再 call。
         CallPoint oldGate = oldUserState == null ? null : oldUserState.getActiveGate();
@@ -110,7 +110,7 @@ public final class OnlineLoginLogic {
     /** 统一提交 ONLINE 用户、GW 登记，并在 GW 成功后返回玩家列表。 */
     private void userLogin(OnlineService owner, CallPoint gate, long gateSessionId,
                            String userId, String token, long version,
-                           OnlineUserState oldUserState) {
+                           SOnlineUserState oldUserState) {
         if (!owner.loginCoordinator().cancelPendingSession(userId, token)) {
             LogCore.core.warn("OnlineService 用户上线提交失败，删除预登录状态失败: userId={}, gate={}, gateSessionId={}, version={}",
                     userId, gate, gateSessionId, version);
@@ -122,7 +122,7 @@ public final class OnlineLoginLogic {
 
         kickOldGateway(oldUserState);
 
-        OnlineUserState currentUserState = owner.sessionCoordinator().getUserState(userId);
+        SOnlineUserState currentUserState = owner.sessionCoordinator().getUserState(userId);
         if (!owner.sessionCoordinator().matchesSession(userId, gate, gateSessionId)) {
             LogCore.core.warn("OnlineService 新建用户状态后会话已失效: userId={}, gate={}, gateSessionId={}, version={}, currentState={}",
                     userId, gate, gateSessionId, version, currentUserState);
@@ -161,7 +161,7 @@ public final class OnlineLoginLogic {
     }
 
     /** 新会话登记后再同步关闭旧 GW；旧 GW 的延迟离线通知会被当前会话校验忽略。 */
-    private void kickOldGateway(OnlineUserState oldUserState) {
+    private void kickOldGateway(SOnlineUserState oldUserState) {
         if (oldUserState == null || oldUserState.getActiveGate() == null
                 || oldUserState.getActiveGateSessionId() <= 0L) {
             return;

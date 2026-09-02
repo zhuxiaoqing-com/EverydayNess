@@ -3,8 +3,8 @@ package org.evd.game.OnlineService.reconcile.gwonline;
 import org.evd.game.OnlineService.offline.OnlineOfflineCoordinator;
 import org.evd.game.OnlineService.session.OnlinePlayer;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
-import org.evd.game.common.serializeBean.OnlineService.reconcile.ConnStateCheck;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.reconcile.SConnStateCheck;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.support.LogCore;
@@ -24,14 +24,14 @@ public final class GwOnlineReconcileR {
         this.offlineCoordinator = offlineCoordinator;
     }
 
-    public List<ConnStateCheck> reconcile(CallPoint connService,
-                                          Map<String, ConnStateCheck> reportedEntries) {
+    public List<SConnStateCheck> reconcile(CallPoint connService,
+                                          Map<String, SConnStateCheck> reportedEntries) {
         if (connService == null) {
             throw new IllegalArgumentException("OnlineService GW 对账 source CallPoint 不能为空");
         }
-        List<ConnStateCheck> invalidEntries = new ArrayList<>();
-        for (ConnStateCheck entry : reportedEntries.values()) {
-            OnlineUserState onlineState = sessionCoordinator.getUserState(entry.getUserId());
+        List<SConnStateCheck> invalidEntries = new ArrayList<>();
+        for (SConnStateCheck entry : reportedEntries.values()) {
+            SOnlineUserState onlineState = sessionCoordinator.getUserState(entry.getUserId());
             if (onlineState == null) {
                 invalidEntries.add(entry);
                 continue;
@@ -42,13 +42,13 @@ public final class GwOnlineReconcileR {
             }
         }
 
-        List<OnlineUserState> statesToOffline = new ArrayList<>();
-        for (OnlineUserState onlineState : sessionCoordinator.getUserStates()) {
+        List<SOnlineUserState> statesToOffline = new ArrayList<>();
+        for (SOnlineUserState onlineState : sessionCoordinator.getUserStates()) {
             if (!isFullyOnline(onlineState)
                     || !connService.equals(onlineState.getActiveGate())) {
                 continue;
             }
-            ConnStateCheck connEntry = reportedEntries.get(onlineState.getUserId());
+            SConnStateCheck connEntry = reportedEntries.get(onlineState.getUserId());
             if (connEntry == null || !sameConnState(connService, connEntry, onlineState)) {
                 if (onlineState.observeGwReconcileMismatch()) {
                     statesToOffline.add(onlineState);
@@ -58,7 +58,7 @@ public final class GwOnlineReconcileR {
             }
         }
 
-        for (OnlineUserState onlineState : statesToOffline) {
+        for (SOnlineUserState onlineState : statesToOffline) {
             offlineCoordinator.offlineSession(onlineState.getUserId(),
                     onlineState.getActiveGate(), onlineState.getActiveGateSessionId(),
                     BrokenType.STATE_RECONCILE);
@@ -68,14 +68,14 @@ public final class GwOnlineReconcileR {
         return invalidEntries;
     }
 
-    private boolean sameConnState(CallPoint connService, ConnStateCheck entry,
-                                   OnlineUserState onlineState) {
+    private boolean sameConnState(CallPoint connService, SConnStateCheck entry,
+                                   SOnlineUserState onlineState) {
         return connService.equals(onlineState.getActiveGate())
                 && entry.getGateSessionId() == onlineState.getActiveGateSessionId()
                 && entry.getPlayerId() == onlineState.getActivePlayerId();
     }
 
-    private boolean isFullyOnline(OnlineUserState state) {
+    private boolean isFullyOnline(SOnlineUserState state) {
         if (state == null) {
             return false;
         }

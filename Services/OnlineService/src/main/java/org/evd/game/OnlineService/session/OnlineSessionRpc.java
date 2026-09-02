@@ -4,7 +4,7 @@ import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -13,7 +13,7 @@ import org.evd.game.runtime.call.CallPoint;
 @RpcHandler
 public final class OnlineSessionRpc {
     @Rpc
-    public OnlineUserState getUserState(String userId) {
+    public SOnlineUserState getUserState(String userId) {
         return logic().getUserState(userId);
     }
 

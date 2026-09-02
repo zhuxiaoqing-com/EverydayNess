@@ -3,8 +3,8 @@ package org.evd.game.LobbyService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
-import org.evd.game.common.serializeBean.LobbyService.login.LobbyUserAccessResult;
-import org.evd.game.common.serializeBean.LobbyService.role.LobbyRoleSnapshot;
+import org.evd.game.common.serializeBean.LobbyService.login.SLobbyUserAccessResult;
+import org.evd.game.common.serializeBean.LobbyService.role.SLobbyRoleSnapshot;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -13,12 +13,12 @@ import org.evd.game.runtime.call.CallPoint;
 @RpcHandler
 public final class LobbyServiceRpc {
     @Rpc
-    public LobbyUserAccessResult validateOrCreateUser(String userId) {
+    public SLobbyUserAccessResult validateOrCreateUser(String userId) {
         return owner().validateOrCreateUser(userId);
     }
 
     @Rpc
-    public LobbyRoleSnapshot getRole(String userId) {
+    public SLobbyRoleSnapshot getRole(String userId) {
         return owner().getRole(userId);
     }
 

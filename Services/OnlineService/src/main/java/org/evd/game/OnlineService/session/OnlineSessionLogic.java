@@ -2,7 +2,7 @@ package org.evd.game.OnlineService.session;
 
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.actor.Actor;
-import org.evd.game.common.serializeBean.OnlineService.session.OnlineUserState;
+import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
@@ -14,7 +14,7 @@ import org.evd.game.runtime.support.exception.CoroutineLockTimeoutException;
 @Actor
 public final class OnlineSessionLogic {
     /** 查询用户正式上线后的会话状态。 */
-    public OnlineUserState getUserState(String userId) {
+    public SOnlineUserState getUserState(String userId) {
         return owner().sessionCoordinator().getUserState(userId);
     }
 

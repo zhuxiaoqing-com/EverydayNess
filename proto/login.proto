@@ -63,3 +63,16 @@ message S2C_SelectRoleEnter {
   string message = 2;
   int64 player_id = 3;
 }
+
+message C2S_ReadyEnterMap {
+  int64 transfer_id = 1;
+}
+
+message S2C_ReadyEnterMap {
+  bool success = 1;
+  string message = 2;
+  int64 transfer_id = 3;
+  int64 scene_id = 4;
+  int32 map_cfg_id = 5;
+  int64 group_id = 6;
+}

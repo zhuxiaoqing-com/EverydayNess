@@ -5,7 +5,7 @@ import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
 @SerializeClass
-public class OnlineTokenState implements ISerializable {
+public class SOnlineTokenState implements ISerializable {
     private String token;
     private String userId;
     private CallPoint gate;
@@ -13,10 +13,10 @@ public class OnlineTokenState implements ISerializable {
     /** 仅供服务器之间校验的世代号，不下发给客户端。 */
     private long version;
 
-    public OnlineTokenState() {
+    public SOnlineTokenState() {
     }
 
-    public OnlineTokenState(String token, String userId, CallPoint gate, long expireAt, long version) {
+    public SOnlineTokenState(String token, String userId, CallPoint gate, long expireAt, long version) {
         this.token = token;
         this.userId = userId;
         this.gate = gate;
@@ -24,7 +24,7 @@ public class OnlineTokenState implements ISerializable {
         this.version = version;
     }
 
-    public OnlineTokenState(OnlineTokenState other) {
+    public SOnlineTokenState(SOnlineTokenState other) {
         this(other.token, other.userId, other.gate, other.expireAt, other.version);
     }
 
