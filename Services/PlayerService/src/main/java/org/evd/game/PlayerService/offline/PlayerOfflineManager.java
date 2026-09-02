@@ -27,22 +27,27 @@ public final class PlayerOfflineManager {
         PPlayerOnline currentPlayer = sessionManager.get(playerId);
         MapRoute currentMap = currentPlayer == null ? null : currentPlayer.getCurrentMap();
         long enterSeq = currentPlayer == null ? 0L : currentPlayer.getMapEnterSeq();
-        if (!sessionManager.removeIfCurrent(userId, playerId, gate, gateSessionId)) {
-            LogCore.core.info("PlayerService 忽略旧 Session 下线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}",
-                    owner.getId(), userId, playerId, gate, gateSessionId);
-            return;
+        if (!sessionManager.isCurrent(userId, playerId, gate, gateSessionId)) {
+            LogCore.core.error("PlayerService 下线 Session 与当前绑定不一致: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
+                    owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
         }
 
         LogCore.core.info("PlayerService 开始处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                 owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
 
-        owner.getActor(PlayerMapLogic.class).leaveMap(playerId, currentMap, enterSeq);
-
-        Service.getCurrent().publishEvent(RoleLogoutEvent.Listener.class, new RoleLogoutEvent(playerId), RoleLogoutEvent.Listener::onEvent);
+        try {
+            owner.getActor(PlayerMapLogic.class).leaveMap(playerId, currentMap, enterSeq);
+            Service.getCurrent().publishEvent(RoleLogoutEvent.Listener.class, new RoleLogoutEvent(playerId), RoleLogoutEvent.Listener::onEvent);
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService 玩家离线地图或事件清理失败: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
+                    owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode, e);
+        }
 
         // 先标记 MDB 下线，后续 Actor/Location 清理可能等待 RPC，不能延迟 flush 计时。
         owner.getMdb().playerLogout(playerId);
         owner.removePlayerActorState(playerId);
+        sessionManager.remove(playerId);
+
         LogCore.core.info("PlayerService 结束处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenType={}",
                 owner.getId(), userId, playerId, gate, gateSessionId,
                 BrokenType.fromCode(brokenTypeCode));

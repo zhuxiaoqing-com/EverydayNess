@@ -35,6 +35,14 @@ public final class PlayerSessionManager {
                 && session.getSessionId() == currentBinding.getGateSessionId();
     }
 
+    /** 校验指定玩家是否仍持有当前网关会话。 */
+    public boolean isCurrent(String userId, long playerId, CallPoint gate, long gateSessionId) {
+        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
+        return currentBinding != null && userId != null && userId.equals(currentBinding.getUserId())
+                && gate != null && gate.equals(currentBinding.getGate())
+                && gateSessionId == currentBinding.getGateSessionId();
+    }
+
     /** 建立已完成参数和重复上线检查的玩家在线绑定。 */
     public void bindPlayerSession(String userId, long playerId, ClientSessionRef session,
                                   ActorAddress actorAddress) {
@@ -86,18 +94,9 @@ public final class PlayerSessionManager {
         return currentBinding.markOnline();
     }
 
-    /** 仅清理仍匹配当前网关会话的玩家，避免旧会话误删新绑定。 */
-    public boolean removeIfCurrent(String userId, long playerId, CallPoint gate,
-                                  long gateSessionId) {
-        PPlayerOnline currentBinding = onlinePlayers.get(playerId);
-        if (currentBinding == null || gate == null
-                || !userId.equals(currentBinding.getUserId())
-                || !gate.equals(currentBinding.getGate())
-                || currentBinding.getGateSessionId() != gateSessionId) {
-            return false;
-        }
-        onlinePlayers.remove(playerId, currentBinding);
-        return true;
+    /** 删除指定玩家的在线绑定。 */
+    public void remove(long playerId) {
+        onlinePlayers.remove(playerId);
     }
 
     /** 返回当前 PlayerService 中已建立绑定的玩家数量。 */

@@ -19,6 +19,7 @@ public class RegisteredService implements ISerializable {
     @SerializeIgnore
     private long offlineMill;
 
+    /** 本地记录 Service 进入 Pending 的时间，不参与服务注册信息序列化。 */
     @SerializeIgnore
     private long pendingStartTime;
 
