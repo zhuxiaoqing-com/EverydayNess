@@ -22,9 +22,9 @@ public final class PlayerLoginRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_PLAYERLOGINRPC_BINDGATEACTORADDRESS_1 = 1;
-        public final static int ENUM_PLAYERLOGINRPC_LOGINPLAYER_2 = 2;
-        public final static int ENUM_PLAYERLOGINRPC_ONLINEPLAYER_3 = 3;
+        public final static int ENUM_PLAYERLOGINRPC_BINDGATEACTORADDRESS_2 = 2;
+        public final static int ENUM_PLAYERLOGINRPC_LOGINPLAYER_3 = 3;
+        public final static int ENUM_PLAYERLOGINRPC_ONLINEPLAYER_4 = 4;
     }
 
     /**
@@ -55,7 +55,7 @@ public final class PlayerLoginRpcProxy {
     */
     public void bindGateActorAddress(CallPoint remote, long playerId, ActorAddress gateActorAddress){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPC_BINDGATEACTORADDRESS_1, new Object[]{playerId, gateActorAddress});
+        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPC_BINDGATEACTORADDRESS_2, new Object[]{playerId, gateActorAddress});
     }
 
 
@@ -64,7 +64,7 @@ public final class PlayerLoginRpcProxy {
     */
     public ActorAddress loginPlayer(CallPoint remote, String userId, RoleData role, ClientSessionRef session){
         Service service = Service.getCurrent();
-        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_PLAYERLOGINRPC_LOGINPLAYER_2, new Object[]{userId, role, session});
+        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_PLAYERLOGINRPC_LOGINPLAYER_3, new Object[]{userId, role, session});
     }
 
 
@@ -73,7 +73,7 @@ public final class PlayerLoginRpcProxy {
     */
     public void onlinePlayer(CallPoint remote, String userId, long playerId, RoleData role, ClientSessionRef session){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPC_ONLINEPLAYER_3, new Object[]{userId, playerId, role, session});
+        service.call(remote, EnumCall.ENUM_PLAYERLOGINRPC_ONLINEPLAYER_4, new Object[]{userId, playerId, role, session});
     }
 
 

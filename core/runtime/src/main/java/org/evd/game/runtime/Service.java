@@ -239,7 +239,7 @@ public class Service extends TickCase {
      */
     @Override
     protected void onStart() {
-        node.attachToNode(this);
+        super.onStart();
     }
 
     /**
@@ -255,6 +255,10 @@ public class Service extends TickCase {
                     messageLocationSender::cleanupIdle);
         }
 
+        if (supportTable()) {
+            ConfigTableInitializer.init(GlobalYml.requireTableDir());
+        }
+
         if (requiresMdb()) {
             this.mdb = new Mdb();
             DBExecInterface dbExecutor = node.hasNodeDbExecutor()
@@ -263,14 +267,23 @@ public class Service extends TickCase {
             mdb.start(getClass(), dbExecutor, this);
         }
 
-        if (supportTable()) {
-            ConfigTableInitializer.init(GlobalYml.requireTableDir());
-        }
 
+        /*
+         * 不能进行rpc操作;只能本地初始化一些数据;
+         * 而且一般rpc操作也都是要等onServiceConnect上来以后才进行的吧; 直接rpc也没service给你访问呀;
+         */
         init();
 
+        // 直接在这里标识,目前看没什么问题
+        node.attachToNode(this);
+        /*
+         * 这里和下面的publishService是一体的,
+         * 和addService分开是为了 init()里可以进行rpc操作，会等rpc操作完成以后，才会发布service;
+         * 但是这里没法接到return，其实用处不大;所以不需要init可以进行rpc，直接不允许rpc就好了;
+         * 至于下面的逻辑 继续保持这样也没事，就让init结束时才进行标记运行;
+         */
         markRunning();
-
+        // init 可能挂起；只有完整成功返回后，服务才对本地和远端路由可见。
         node.publishService(this);
     }
 
@@ -968,22 +981,26 @@ public class Service extends TickCase {
         return true;
     }
 
-    /**
-     * 有新的service连接进来;可能包含自己
-     */
+    /** 发现新的 Service，可能包含自己；此时 Service 还没有进入正式路由索引。 */
     protected void onServiceConnect(Collection<RegisteredService> serviceList) {
+    }
+
+    /** 新 Service 已结束稳定等待，并已经进入正式路由索引。 */
+    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
         if (mdb != null) {
             mdb.connectService(serviceList);
         }
     }
 
-    /**
-     * 有新的service断链;可能包含自己
-     */
+    /** Service 从最新注册快照消失，可能包含自己。 */
     protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
         if (mdb != null) {
             mdb.disconnectService(serviceList);
         }
+    }
+
+    /** Service 已离线超过保留时间并从 offlineServices 中彻底清理。 */
+    protected void onServiceOfflineExpired(Collection<RegisteredService> serviceList) {
     }
 
     @Override

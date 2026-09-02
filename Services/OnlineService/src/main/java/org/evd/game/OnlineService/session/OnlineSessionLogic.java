@@ -23,6 +23,11 @@ public final class OnlineSessionLogic {
         return owner().sessionCoordinator().isPlayerOffline(userId);
     }
 
+    /** 删除已经由 PlayerService 确认过期的历史绑定。 */
+    public void removeHistoricalPlayerService(String userId, CallPoint expectedPlayerService) {
+        owner().sessionCoordinator().removeHistoricalPlayerService(userId, expectedPlayerService);
+    }
+
     /** 清理匹配的正式在线会话，并返回其 PlayerService。 */
     public CallPoint clearSession(String userId, CallPoint gate, long sessionId) {
         return owner().sessionCoordinator().clearSession(userId, gate, sessionId);

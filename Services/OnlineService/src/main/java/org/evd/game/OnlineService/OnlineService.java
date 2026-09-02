@@ -9,7 +9,10 @@ import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.support.LogCore;
+
+import java.util.Collection;
 
 public class OnlineService extends Service {
     private final OnlineServiceSelector serviceSelector;
@@ -40,11 +43,16 @@ public class OnlineService extends Service {
         LogCore.core.info("OnlineService 初始化完成: service={}", id);
     }
 
-    /** 推进在线会话映射的过期清理。 */
     @Override
-    public void tick() {
-        super.tick();
-        sessionCoordinator.tick(getTimeCurrent());
+    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+        super.onServiceConnectReady(serviceList);
+        sessionCoordinator.onServiceConnectReady(serviceList);
+    }
+
+    @Override
+    protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        super.onServiceDisconnect(serviceList);
+        sessionCoordinator.onServiceDisconnect(serviceList);
     }
 
     /** 返回 OnlineService 的网关和 PlayerService 负载选择器。 */

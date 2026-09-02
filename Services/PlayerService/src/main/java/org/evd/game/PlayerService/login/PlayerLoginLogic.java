@@ -45,9 +45,6 @@ public final class PlayerLoginLogic {
 
         ActorAddress actorAddress = owner.registerPlayerActor(playerId);
         sessionManager.bindPlayerSession(userId, playerId, session, actorAddress);
-        // MDB 生命周期先完成，后续 PlayerDataRepository 的普通 get/add 才能通过 LOAD_FINISH 门禁。
-        // Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
-
         if (!sessionManager.markReadyIfCurrent(userId, playerId, session)) {
             LogCore.core.warn("PlayerService 玩家数据加载完成后绑定状态失效: service={}, userId={}, playerId={}, gateSessionId={}",
                     owner.getId(), userId, playerId, session.getSessionId());
@@ -86,7 +83,7 @@ public final class PlayerLoginLogic {
          * 放这里比较合适，先让流程跑完 再加载，再次上线 还是会在这里排队 也没事;
          */
         try {
-            Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId);
+            Service.getCurrent().getMdb().loadPlayerAllTableToMemory(playerId, userId);
         } catch (Exception e) {
             LogCore.core.error("PlayerService MDB 加载失败: playerId={}", playerId, e);
             throw e;

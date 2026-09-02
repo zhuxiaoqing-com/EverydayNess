@@ -26,6 +26,7 @@ public final class OnlineSessionRpcProxy {
         public final static int ENUM_ONLINESESSIONRPC_CLEARSESSION_10 = 10;
         public final static int ENUM_ONLINESESSIONRPC_GETUSERSTATE_11 = 11;
         public final static int ENUM_ONLINESESSIONRPC_ISPLAYEROFFLINE_12 = 12;
+        public final static int ENUM_ONLINESESSIONRPC_REMOVEHISTORICALPLAYERSERVICE_13 = 13;
     }
 
     /**
@@ -59,6 +60,13 @@ public final class OnlineSessionRpcProxy {
         return RpcResult.call(() -> inst().isPlayerOffline(remote, userId));
     }
 
+
+    /**
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    */
+    public static RpcResult<Void> sendRemoveHistoricalPlayerService(CallPoint remote, String userId, CallPoint expectedPlayerService){
+        return RpcResult.run(() -> inst().removeHistoricalPlayerService(remote, userId, expectedPlayerService));
+    }
 
 
     /**
@@ -106,6 +114,18 @@ public final class OnlineSessionRpcProxy {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_ISPLAYEROFFLINE_12, new Object[]{userId});
+    }
+
+
+    /**
+    * 对应源方法: org.evd.game.OnlineService.session.OnlineSessionRpc#removeHistoricalPlayerService()
+    */
+    public void removeHistoricalPlayerService(CallPoint remote, String userId, CallPoint expectedPlayerService){
+        Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
+        service.call(remote, EnumCall.ENUM_ONLINESESSIONRPC_REMOVEHISTORICALPLAYERSERVICE_13, new Object[]{userId, expectedPlayerService});
     }
 
 

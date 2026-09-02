@@ -6,16 +6,17 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Collection;
 
 /** OnlineService 的正式在线状态和玩家服务绑定状态源。 */
 public final class OnlineSessionCoordinator {
     private final UserIdPlayerServiceMap historicalPlayerServiceMap = new UserIdPlayerServiceMap();
-    private final UserIdConnServiceMap historicalConnServiceMap = new UserIdConnServiceMap();
     private final OnlinePlayerRegistry onlinePlayerRegistry = new OnlinePlayerRegistry();
     private final Map<String, OnlineUserState> userStates = new HashMap<>();
 
@@ -76,10 +77,14 @@ public final class OnlineSessionCoordinator {
         return historicalPlayerServiceMap.get(userId);
     }
 
-    /** 推进用户到 ConnService、PlayerService 的过期映射清理。 */
-    public void tick(long now) {
-        historicalPlayerServiceMap.tick(now, this::isPlayerOffline);
-        historicalConnServiceMap.tick(now, this::isPlayerOffline);
+    /** 接收已经进入正式路由的 Service，恢复 PlayerService 的 MDB 历史绑定。 */
+    public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+        historicalPlayerServiceMap.onServiceConnectReady(serviceList);
+    }
+
+    /** 接收服务断开事件，删除断开的 PlayerService 历史绑定。 */
+    public void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        historicalPlayerServiceMap.onServiceDisconnect(serviceList);
     }
 
     /** 创建新正式会话；网关 actor 和 Location 等选定 playerId 后再注册。 */
@@ -87,7 +92,6 @@ public final class OnlineSessionCoordinator {
         OnlineUserState newState = new OnlineUserState(
                 userId, gate, gateSessionId, 0L, null, null, null);
         userStates.put(userId, newState);
-        historicalConnServiceMap.bind(userId, gate);
     }
 
     /**
@@ -176,10 +180,17 @@ public final class OnlineSessionCoordinator {
         userState.setActivePlayerActorAddress(null);
         userState.setActiveGateActorAddress(null);
         userState.setActivePlayerId(0L);
-        historicalPlayerServiceMap.remove(userId);
         LogCore.core.info("OnlineService 清理 PlayerService 绑定: userId={}, gateSessionId={}, playerService={}",
                 userId, gateSessionId, expectedPlayerService);
         return true;
+    }
+
+    /** 删除仍指向指定 PlayerService 的历史绑定。 */
+    public void removeHistoricalPlayerService(String userId, CallPoint expectedPlayerService) {
+        if (!historicalPlayerServiceMap.remove(userId, expectedPlayerService)) {
+            LogCore.core.info("OnlineService 历史 PlayerService 绑定已变化，跳过过期回调删除: userId={}, playerService={}",
+                    userId, expectedPlayerService);
+        }
     }
 
     /** 摘除已经由调用方完成会话校验的正式在线状态。 */

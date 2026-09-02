@@ -20,6 +20,9 @@ public class RegisteredService implements ISerializable {
     private long offlineMill;
 
     @SerializeIgnore
+    private long pendingStartTime;
+
+    @SerializeIgnore
     private CallPoint callPoint;
 
     public RegisteredService() {
@@ -38,6 +41,8 @@ public class RegisteredService implements ISerializable {
     public RegisteredService(RegisteredService other) {
         this(other.serviceType, other.serviceClassName, other.serviceId,
                 other.platformId, other.serverId, other.nodeId);
+        this.offlineMill = other.offlineMill;
+        this.pendingStartTime = other.pendingStartTime;
     }
 
     public ServiceType getServiceType() {
@@ -107,6 +112,14 @@ public class RegisteredService implements ISerializable {
         this.callPoint = callPoint;
     }
 
+
+    public long getPendingStartTime() {
+        return pendingStartTime;
+    }
+
+    public void setPendingStartTime(long pendingStartTime) {
+        this.pendingStartTime = pendingStartTime;
+    }
 
     @Override
     public String toString() {

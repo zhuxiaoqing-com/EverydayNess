@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 public class Mdb {
     public static Logger logger = LoggerFactory.getLogger(Mdb.class.getName());
@@ -144,8 +145,18 @@ public class Mdb {
 
 
     /** 请求加载玩家 MDB；已加载或尚未开始 flush 时直接复用现有 cache。 */
-    public void loadPlayerAllTableToMemory(long playerId) {
-        mdbPlayerManager.load(playerId);
+    public void loadPlayerAllTableToMemory(long playerId, String userId) {
+        mdbPlayerManager.load(playerId, userId);
+    }
+
+    /** 设置玩家 MDB 缓存真正清理后的回调。 */
+    public void setPlayerCacheExpiredCallback(Consumer<MdbPlayerInfo> callback) {
+        mdbPlayerManager.setPlayerCacheExpiredCallback(callback);
+    }
+
+    /** 返回当前 MDB 中仍保留的玩家 userId，用于 OnlineService 重启后恢复历史绑定。 */
+    public List<String> getPlayerUserIds() {
+        return mdbPlayerManager.getPlayerUserIds();
     }
 
     /** 在 MdbPlayerManager 已持有玩家生命周期锁时执行实际表加载。 */

@@ -5,6 +5,8 @@ import org.evd.game.PlayerService.player.PlayerDataRepository;
 import org.evd.game.PlayerService.reconcile.PlayerOnlineReconcileS;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.PlayerService.timer.PlayerTimer;
+import org.evd.game.common.proxy.OnlineService.OnlineSessionRpcProxy;
+import org.evd.game.runtime.Db.table.MdbPlayerInfo;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorId;
@@ -12,6 +14,9 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+
+import java.util.List;
 
 public class PlayerService extends Service {
     private final PlayerSessionManager sessionManager;
@@ -33,8 +38,20 @@ public class PlayerService extends Service {
     @Override
     public void init() {
         super.init();
+        getMdb().setPlayerCacheExpiredCallback(this::onPlayerCacheExpired);
         newRepeatedTimer(PlayerTimer.INTERVAL_MILLIS, false, playerTimer::onSecond);
         newRepeatedTimerCoroutine(PlayerOnlineReconcileS.INTERVAL_MILLIS, false, playerOnlineReconcileS::reconcile);
+    }
+
+    /** MDB 玩家缓存过期后通知 OnlineService 删除历史 PlayerService 绑定。 */
+    private void onPlayerCacheExpired(MdbPlayerInfo info) {
+        String userId = info.getUserId();
+        RpcResult<Void> result = OnlineSessionRpcProxy.sendRemoveHistoricalPlayerService(
+                null, userId, getCallPoint());
+        if (!result.isSuccess()) {
+            LogCore.core.warn("PlayerService 通知 OnlineService 删除历史绑定失败: service={}, userId={}, errorCode={}, message={}",
+                    getId(), userId, result.getErrorCode(), result.getErrorMessage());
+        }
     }
 
     /** 执行 PlayerService 的周期性服务任务。 */
@@ -95,6 +112,11 @@ public class PlayerService extends Service {
     /** 返回当前 PlayerService 已绑定的在线玩家数量。 */
     public int getOnlineCount() {
         return sessionManager.getOnlineCount();
+    }
+
+    /** 返回 MDB 当前仍保留的玩家，用于 OnlineService 重启后恢复历史绑定。 */
+    public List<String> getMdbPlayerUserIds() {
+        return getMdb().getPlayerUserIds();
     }
 
 }

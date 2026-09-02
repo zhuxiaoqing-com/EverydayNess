@@ -23,6 +23,11 @@ public final class OnlineSessionRpc {
     }
 
     @Rpc
+    public void removeHistoricalPlayerService(String userId, CallPoint expectedPlayerService) {
+        logic().removeHistoricalPlayerService(userId, expectedPlayerService);
+    }
+
+    @Rpc
     public CallPoint clearSession(String userId, CallPoint gate, long sessionId) {
         return logic().clearSession(userId, gate, sessionId);
     }

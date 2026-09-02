@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 /** 集中管理玩家 MDB 的 load、保留和 flush 生命周期。 */
 final class MdbPlayerManager {
@@ -23,14 +25,15 @@ final class MdbPlayerManager {
     private final Service service;
     private final Map<Long, MdbPlayerInfo> playerInfoMap = new HashMap<>();
     private final TimerState tickTimerState = new TimerState(TICK_INTERVAL_MILLIS);
+    private Consumer<MdbPlayerInfo> playerCacheExpiredCallback;
 
     MdbPlayerManager(Mdb mdb, Service service) {
         this.mdb = mdb;
         this.service = service;
     }
 
-    void load(long playerId) {
-        MdbPlayerInfo info = getOrCreate(playerId);
+    void load(long playerId, String userId) {
+        MdbPlayerInfo info = getOrCreate(playerId, userId);
         info.setInUse(true);
         info.setFlushDeadline(0L);
 
@@ -156,7 +159,9 @@ final class MdbPlayerManager {
             return;
         }
         info.setState(MdbState.EMPTY);
-        playerInfoMap.remove(info.getPlayerId(), info);
+        if (playerInfoMap.remove(info.getPlayerId(), info) && playerCacheExpiredCallback != null) {
+            playerCacheExpiredCallback.accept(info);
+        }
     }
 
     void tick(long currentTime) {
@@ -236,11 +241,40 @@ final class MdbPlayerManager {
         return service.awaitCoroutineLockScope(LockType.MDB_PLAYER, playerId);
     }
 
-    private MdbPlayerInfo getOrCreate(long playerId) {
+    private MdbPlayerInfo getOrCreate(long playerId, String userId) {
         if (playerId <= 0L) {
             throw new DBException("playerId 非法: " + playerId);
         }
-        return playerInfoMap.computeIfAbsent(playerId, MdbPlayerInfo::new);
+        if (userId == null || userId.isBlank()) {
+            throw new DBException("玩家 MDB 加载 userId 非法: playerId=" + playerId);
+        }
+        MdbPlayerInfo info = playerInfoMap.get(playerId);
+        if (info != null) {
+            if (!userId.equals(info.getUserId())) {
+                throw new DBException("玩家 MDB userId 不一致: playerId=" + playerId
+                        + ", currentUserId=" + info.getUserId() + ", requestUserId=" + userId);
+            }
+            return info;
+        }
+        MdbPlayerInfo created = new MdbPlayerInfo(playerId, userId);
+        MdbPlayerInfo existing = playerInfoMap.putIfAbsent(playerId, created);
+        if (existing != null && !userId.equals(existing.getUserId())) {
+            throw new DBException("玩家 MDB userId 不一致: playerId=" + playerId
+                    + ", currentUserId=" + existing.getUserId() + ", requestUserId=" + userId);
+        }
+        return existing == null ? created : existing;
+    }
+
+    void setPlayerCacheExpiredCallback(Consumer<MdbPlayerInfo> callback) {
+        this.playerCacheExpiredCallback = Objects.requireNonNull(callback, "callback");
+    }
+
+    List<String> getPlayerUserIds() {
+        List<String> userIds = new ArrayList<>(playerInfoMap.size());
+        for (MdbPlayerInfo info : playerInfoMap.values()) {
+            userIds.add(info.getUserId());
+        }
+        return userIds;
     }
 
     void close() {

@@ -1,29 +1,29 @@
 package org.evd.game.OnlineService.session;
 
+import org.evd.game.annotation.service.ServiceType;
+import org.evd.game.common.proxy.PlayerService.PlayerServiceRpcProxy;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+import org.evd.game.runtime.support.LogCore;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 import java.util.HashMap;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Predicate;
 
 /**
  * OnlineService 中 userId 到 PlayerService 的绑定。
  *
- * <p>超时时间存的是绝对时间；{@value #NO_TIMEOUT} 表示永不超时。</p>
+ * <p>历史绑定由 PlayerService 的 MDB 缓存生命周期驱动清理。</p>
  */
 public final class UserIdPlayerServiceMap {
-    public static final long NO_TIMEOUT = -1L;
-    private static final long OFFLINE_TIMEOUT_MILLIS = 5 * 60 * 1000L;
-
     private static final class Binding {
         private CallPoint service;
-        private long timeoutAt;
 
         private Binding(CallPoint service) {
             this.service = service;
-            this.timeoutAt = NO_TIMEOUT;
         }
 
         private CallPoint service() {
@@ -34,18 +34,11 @@ public final class UserIdPlayerServiceMap {
             this.service = service;
         }
 
-        private long timeoutAt() {
-            return timeoutAt;
-        }
-
-        private void setTimeoutAt(long timeoutAt) {
-            this.timeoutAt = timeoutAt;
-        }
     }
 
     private final Map<String, Binding> bindings = new HashMap<>();
 
-    /** 建立或刷新用户到 PlayerService 的绑定，并取消离线超时。 */
+    /** 建立或刷新用户到 PlayerService 的历史绑定。 */
     public void bind(String userId, CallPoint playerService) {
         if (userId == null || userId.isBlank() || playerService == null) {
             return;
@@ -56,49 +49,64 @@ public final class UserIdPlayerServiceMap {
             return;
         }
         binding.setService(new CallPoint(playerService));
-        binding.setTimeoutAt(NO_TIMEOUT);
     }
 
-    /** 删除用户到 PlayerService 的绑定。 */
-    public void remove(String userId) {
-        if (userId != null) {
-            bindings.remove(userId);
+    /** PlayerService 进入正式路由后，从其 MDB 恢复仍保留的历史绑定。 */
+    public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+        for (RegisteredService service : serviceList) {
+            if (service.getServiceType() != ServiceType.PLAYER) {
+                continue;
+            }
+            CallPoint playerService = service.getCallPoint();
+            RpcResult<List<String>> result = PlayerServiceRpcProxy.callGetMdbPlayerUserIds(playerService);
+            if (!result.isSuccess()) {
+                LogCore.core.error("OnlineService 恢复 PlayerService 历史绑定失败: playerService={}, errorCode={}, message={}",
+                        playerService, result.getErrorCode(), result.getErrorMessage());
+                continue;
+            }
+            for (String userId : result.getValue()) {
+                bind(userId, playerService);
+            }
+            LogCore.core.info("OnlineService 恢复 PlayerService 历史绑定: playerService={}, count={}",
+                    playerService, result.getValue().size());
         }
+    }
+
+    /** PlayerService 断开后，立即删除指向该服务的全部历史绑定。 */
+    public void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        for (RegisteredService service : serviceList) {
+            if (service.getServiceType() != ServiceType.PLAYER) {
+                continue;
+            }
+            CallPoint playerService = service.getCallPoint();
+            int removedCount = 0;
+            for (Iterator<Map.Entry<String, Binding>> iterator = bindings.entrySet().iterator();
+                 iterator.hasNext(); ) {
+                Map.Entry<String, Binding> entry = iterator.next();
+                if (playerService.equals(entry.getValue().service())) {
+                    iterator.remove();
+                    removedCount++;
+                }
+            }
+            LogCore.core.info("OnlineService 删除断开 PlayerService 的历史绑定: playerService={}, count={}",
+                    playerService, removedCount);
+        }
+    }
+
+    /** 仅删除仍指向指定 PlayerService 的历史绑定。 */
+    public boolean remove(String userId, CallPoint expectedPlayerService) {
+        Binding binding = bindings.get(userId);
+        if (binding == null || expectedPlayerService == null
+                || !expectedPlayerService.equals(binding.service())) {
+            return false;
+        }
+        return bindings.remove(userId, binding);
     }
 
     /** 返回用户当前绑定的 PlayerService 地址副本。 */
     public CallPoint get(String userId) {
         Binding binding = bindings.get(userId);
         return binding == null ? null : new CallPoint(binding.service());
-    }
-
-    /** 返回用户绑定的离线清理截止时间。 */
-    public long getTimeoutAt(String userId) {
-        Binding binding = bindings.get(userId);
-        return binding == null ? NO_TIMEOUT : binding.timeoutAt();
-    }
-
-    /**
-     * 每次 tick 根据 OnlineService 的在线状态推进超时。
-     * 在线玩家始终恢复为 {@value #NO_TIMEOUT}；离线玩家第一次被发现时开始计时。
-     */
-    public void tick(long now, Predicate<String> isPlayerOffline) {
-        Objects.requireNonNull(isPlayerOffline, "isPlayerOffline");
-        for (Iterator<Map.Entry<String, Binding>> iterator = bindings.entrySet().iterator(); iterator.hasNext(); ) {
-            Map.Entry<String, Binding> entry = iterator.next();
-            Binding binding = entry.getValue();
-            if (!isPlayerOffline.test(entry.getKey())) {
-                if (binding.timeoutAt() != NO_TIMEOUT) {
-                    binding.setTimeoutAt(NO_TIMEOUT);
-                }
-                continue;
-            }
-            if (binding.timeoutAt() == NO_TIMEOUT) {
-                binding.setTimeoutAt(now + OFFLINE_TIMEOUT_MILLIS);
-            } else if (binding.timeoutAt() <= now) {
-                iterator.remove();
-            }
-        }
     }
 
     /** 返回当前保存的用户到 PlayerService 绑定数量。 */
