@@ -42,6 +42,8 @@ public class ActorProcessor extends ProcessorBase {
             Character.class.getCanonicalName(),
             String.class.getCanonicalName()
     );
+    /** 日志对象由框架共享，不属于 Actor 的业务状态。 */
+    private static final String SLF4J_LOGGER_TYPE = "org.slf4j.Logger";
     private static final String EVENT_LISTENER_CLASS_NAME =
             "org.evd.game.runtime.annotation.EventListener";
 
@@ -247,7 +249,8 @@ public class ActorProcessor extends ProcessorBase {
                 continue;
             }
             if (enclosedElement.getModifiers().contains(Modifier.FINAL)
-                    && isAllowedStaticFinalType(enclosedElement.asType())) {
+                    && (isAllowedStaticFinalType(enclosedElement.asType())
+                    || isAllowedStaticLoggerType(enclosedElement.asType()))) {
                 continue;
             }
             throw new IllegalStateException("@Actor 不允许声明 static 数据: "
@@ -267,6 +270,12 @@ public class ActorProcessor extends ProcessorBase {
             return true;
         }
         return ALLOWED_BOXED_TYPES.contains(typeElement.getQualifiedName().toString());
+    }
+
+    private boolean isAllowedStaticLoggerType(TypeMirror typeMirror) {
+        Element element = typeUtils.asElement(typeMirror);
+        return element instanceof TypeElement typeElement
+                && SLF4J_LOGGER_TYPE.equals(typeElement.getQualifiedName().toString());
     }
 
     private ActorTarget toActorTarget(TypeElement actorType) {

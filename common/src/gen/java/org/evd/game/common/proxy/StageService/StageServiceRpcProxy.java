@@ -70,15 +70,16 @@ public final class StageServiceRpcProxy {
 
 
     /**
-    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<Void> sendPrepareEnterScene(CallPoint remote, SMapEnterRequest request){
-        return RpcResult.run(() -> inst().prepareEnterScene(remote, request));
+    public static RpcResult<Boolean> callPrepareEnterScene(CallPoint remote, SMapEnterRequest request){
+        return RpcResult.call(() -> inst().prepareEnterScene(remote, request));
     }
 
 
+
     /**
-    * 对应源方法: org.evd.game.StageService.StageServiceRpc#createScene()
+    * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#createScene()
     */
     public boolean createScene(CallPoint remote, SMapKey mapKey, long sceneId){
         Service service = Service.getCurrent();
@@ -87,7 +88,7 @@ public final class StageServiceRpcProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.StageService.StageServiceRpc#destroyScene()
+    * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#destroyScene()
     */
     public boolean destroyScene(CallPoint remote, long sceneId){
         Service service = Service.getCurrent();
@@ -96,7 +97,7 @@ public final class StageServiceRpcProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.StageService.StageServiceRpc#enterScene()
+    * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#enterScene()
     */
     public boolean enterScene(CallPoint remote, long sceneId, long playerId, long transferId){
         Service service = Service.getCurrent();
@@ -105,7 +106,7 @@ public final class StageServiceRpcProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.StageService.StageServiceRpc#exitScene()
+    * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#exitScene()
     */
     public boolean exitScene(CallPoint remote, long sceneId, long playerId){
         Service service = Service.getCurrent();
@@ -114,7 +115,7 @@ public final class StageServiceRpcProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.StageService.StageServiceRpc#getMapCount()
+    * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#getMapCount()
     */
     public int getMapCount(CallPoint remote){
         Service service = Service.getCurrent();
@@ -123,11 +124,11 @@ public final class StageServiceRpcProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.StageService.StageServiceRpc#prepareEnterScene()
+    * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#prepareEnterScene()
     */
-    public void prepareEnterScene(CallPoint remote, SMapEnterRequest request){
+    public boolean prepareEnterScene(CallPoint remote, SMapEnterRequest request){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_STAGESERVICERPC_PREPAREENTERSCENE_9, new Object[]{request});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_PREPAREENTERSCENE_9, new Object[]{request});
     }
 
 

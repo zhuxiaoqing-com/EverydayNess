@@ -45,11 +45,12 @@ public final class ConnServiceRpcProxy {
 
 
     /**
-    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<Void> sendPushToClient(CallPoint remote, long sessionId, ClientFrameChunk packet){
-        return RpcResult.run(() -> inst().pushToClient(remote, sessionId, packet));
+    public static RpcResult<Boolean> callPushToClient(CallPoint remote, long sessionId, ClientFrameChunk packet){
+        return RpcResult.call(() -> inst().pushToClient(remote, sessionId, packet));
     }
+
 
     /**
     * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
@@ -94,9 +95,9 @@ public final class ConnServiceRpcProxy {
     /**
     * 对应源方法: org.evd.game.ConnService.ConnServiceRpc#pushToClient()
     */
-    public void pushToClient(CallPoint remote, long sessionId, ClientFrameChunk packet){
+    public boolean pushToClient(CallPoint remote, long sessionId, ClientFrameChunk packet){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNSERVICERPC_PUSHTOCLIENT_2, new Object[]{sessionId, packet});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_PUSHTOCLIENT_2, new Object[]{sessionId, packet});
     }
 
 

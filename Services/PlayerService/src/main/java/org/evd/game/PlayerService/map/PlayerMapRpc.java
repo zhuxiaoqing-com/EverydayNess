@@ -12,8 +12,14 @@ import org.evd.game.runtime.Service;
 @RpcHandler
 public final class PlayerMapRpc {
     @Rpc
-    public void readyEnterMap(long playerId, long transferId, SMapInfo targetInfo) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
+    public boolean readyEnterMap(long playerId, long transferId, SMapInfo targetInfo) {
+        return Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
                 .readyEnterMap(playerId, transferId, targetInfo);
+    }
+
+    @Rpc
+    public void onExitMap(long playerId, long sceneId) {
+        Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
+                .onExitMap(playerId, sceneId);
     }
 }

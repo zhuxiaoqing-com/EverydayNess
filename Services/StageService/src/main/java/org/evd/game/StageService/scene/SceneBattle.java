@@ -2,6 +2,7 @@ package org.evd.game.StageService.scene;
 
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.runtime.call.CallPoint;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,7 +30,7 @@ public class SceneBattle {
     }
 
     public void addPendingRole(SMapEnterRequest request) {
-        pendingRoleMap.put(request.getPlayerId(), new SMapEnterRequest(request));
+        pendingRoleMap.put(request.getPlayerId(), request);
     }
 
     public boolean enter(long playerId, long transferId) {
@@ -50,6 +51,14 @@ public class SceneBattle {
         pendingRoleMap.remove(playerId);
         roleMap.remove(playerId);
         return true;
+    }
+
+    public CallPoint getPlayerService(long playerId) {
+        SMapEnterRequest request = roleMap.get(playerId);
+        if (request == null) {
+            request = pendingRoleMap.get(playerId);
+        }
+        return request == null ? null : request.getPlayerService();
     }
 
     public boolean isEmpty() {

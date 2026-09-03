@@ -4,6 +4,7 @@ import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.Service;
 
@@ -12,8 +13,13 @@ import org.evd.game.runtime.Service;
 @RpcHandler
 public final class SceneManagerRpc {
     @Rpc
-    public void enterMap(SMapEnterRequest request) {
-        Service.getCurrent(SceneManagerService.class).getActor(SceneManagerLogic.class).enterMap(request);
+    public boolean enterMap(SMapEnterRequest request) {
+        return Service.getCurrent(SceneManagerService.class).getActor(SceneManagerLogic.class).enterMap(request);
+    }
+
+    @Rpc
+    public boolean exitMap(SMapInfo mapInfo, long playerId) {
+        return Service.getCurrent(SceneManagerService.class).getActor(SceneManagerLogic.class).exitMap(mapInfo, playerId);
     }
 
     @Rpc

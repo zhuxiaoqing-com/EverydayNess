@@ -11,8 +11,9 @@ import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 @RpcHandler
 public final class ConnServiceRpc {
     @Rpc
-    public void pushToClient(long sessionId, ClientFrameChunk packet) {
+    public boolean pushToClient(long sessionId, ClientFrameChunk packet) {
         owner().pushToClient(sessionId, packet);
+        return true;
     }
 
     @Rpc

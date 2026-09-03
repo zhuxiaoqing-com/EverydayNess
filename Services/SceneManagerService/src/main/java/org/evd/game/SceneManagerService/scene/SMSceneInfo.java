@@ -4,14 +4,14 @@ import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRe
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.runtime.call.CallPoint;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /** SceneManager 记录的一个 SMapKey 对应场景。 */
 public final class SMSceneInfo {
     private final SMapKey mapKey;
     private final long sceneId;
-    private final List<SMapEnterRequest> waitEnterQueue = new ArrayList<>();
+    private final Map<Long, SMapEnterRequest> waitEnterQueue = new HashMap<>();
     private SceneState state;
     private final CallPoint stageCallPoint;
 
@@ -30,7 +30,7 @@ public final class SMSceneInfo {
         return sceneId;
     }
 
-    public List<SMapEnterRequest> getWaitEnterQueue() {
+    public Map<Long, SMapEnterRequest> getWaitEnterQueue() {
         return waitEnterQueue;
     }
 

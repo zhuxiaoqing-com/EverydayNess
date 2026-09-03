@@ -78,10 +78,10 @@ public final class LobbyRoleLogic {
         if (role != null) {
             builder.setRole(role);
         }
-        RpcResult<Void> result = ConnServiceRpcProxy.sendPushToClient(
+        RpcResult<Boolean> result = ConnServiceRpcProxy.callPushToClient(
                 session.getGate(), session.getSessionId(),
                 ClientFrameChunk.wrap(MsgId.S2C_CREATE_ROLE_VALUE, builder.build()));
-        if (!result.isSuccess()) {
+        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             LogCore.core.warn("LobbyService 回创建角色响应失败: gateSessionId={}, errorCode={}, message={}",
                     session.getSessionId(), result.getErrorCode(), result.getErrorMessage());
         }
@@ -110,9 +110,9 @@ public final class LobbyRoleLogic {
                 .setMessage("ok")
                 .addAllRoles(roles)
                 .build();
-        RpcResult<Void> result = ConnServiceRpcProxy.sendPushToClient(
+        RpcResult<Boolean> result = ConnServiceRpcProxy.callPushToClient(
                 gate, gateSessionId, ClientFrameChunk.wrap(MsgId.S2C_ROLE_LIST_VALUE, response));
-        if (!result.isSuccess()) {
+        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             LogCore.core.warn("LobbyService 回角色列表失败: userId={}, gateSessionId={}, errorCode={}, message={}",
                     userId, gateSessionId, result.getErrorCode(), result.getErrorMessage());
         }

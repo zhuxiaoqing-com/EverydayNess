@@ -112,8 +112,9 @@ public class ConnService extends Service {
         OnlinePlayerLoginRpcProxy.sendSelectRoleEnter(online, session, forwarded);
     }
 
-    public void pushToClient(long sessionId, ClientFrameChunk packet) {
+    public boolean pushToClient(long sessionId, ClientFrameChunk packet) {
         writeClientPacket(sessionId, packet, false);
+        return true;
     }
 
     public void pushToUserId(String userId, ClientFrameChunk packet) {

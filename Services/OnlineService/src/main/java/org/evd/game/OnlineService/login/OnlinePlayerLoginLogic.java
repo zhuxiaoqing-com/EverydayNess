@@ -226,10 +226,10 @@ public final class OnlinePlayerLoginLogic {
     }
 
     private void push(ClientSessionRef session, S2C_SelectRoleEnter response) {
-        RpcResult<Void> result = ConnServiceRpcProxy.sendPushToClient(
+        RpcResult<Boolean> result = ConnServiceRpcProxy.callPushToClient(
                 session.getGate(), session.getSessionId(),
                 ClientFrameChunk.wrap(MsgId.S2C_SELECT_ROLE_ENTER_VALUE, response));
-        if (!result.isSuccess()) {
+        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             LogCore.core.warn("OnlineService 回选角响应失败: gateSessionId={}, errorCode={}, message={}",
                     session.getSessionId(), result.getErrorCode(), result.getErrorMessage());
         }

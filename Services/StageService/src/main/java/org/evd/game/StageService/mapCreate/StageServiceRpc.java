@@ -1,5 +1,6 @@
-package org.evd.game.StageService;
+package org.evd.game.StageService.mapCreate;
 
+import org.evd.game.StageService.StageService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
@@ -7,7 +8,7 @@ import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRe
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.runtime.Service;
 
-/** StageService SceneBattle 生命周期和玩家进出地图 RPC。 */
+/** StageService 地图创建和进入 RPC 入口。 */
 @Actor
 @RpcHandler
 public final class StageServiceRpc {
@@ -22,8 +23,8 @@ public final class StageServiceRpc {
     }
 
     @Rpc
-    public void prepareEnterScene(SMapEnterRequest request) {
-        logic().prepareEnterScene(request);
+    public boolean prepareEnterScene(SMapEnterRequest request) {
+        return logic().prepareEnterScene(request);
     }
 
     @Rpc
@@ -41,11 +42,7 @@ public final class StageServiceRpc {
         return logic().destroyScene(sceneId);
     }
 
-    private StageService owner() {
-        return Service.getCurrent(StageService.class);
-    }
-
     private StageSceneLogic logic() {
-        return owner().getActor(StageSceneLogic.class);
+        return Service.getCurrent(StageService.class).getActor(StageSceneLogic.class);
     }
 }

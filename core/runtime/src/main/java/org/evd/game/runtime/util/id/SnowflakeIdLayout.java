@@ -35,7 +35,7 @@ public abstract class SnowflakeIdLayout extends IdLayout {
     }
 
     /** 所有 Snowflake 版本统一使用的起始时间：2024-01-01 00:00:00 UTC+8。 */
-    public static final long EPOCH_MILLIS = LocalDate.of(2024, 1, 1)
+    public static final long EPOCH_MILLIS = LocalDate.of(2026, 1, 1)
             .atStartOfDay()
             .toInstant(ZoneOffset.ofHours(8))
             .toEpochMilli();

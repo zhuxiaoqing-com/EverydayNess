@@ -1,9 +1,10 @@
 package org.evd.game.SceneManagerService.scene;
 
 import org.evd.game.SceneManagerService.SceneManagerService;
+import org.evd.game.SceneManagerService.scene.deal.NormalSceneDeal;
 import org.evd.game.common.config.table.MapConfig;
 import org.evd.game.common.config.table.MapConfigs;
-import org.evd.game.common.constant.MapType;
+import org.evd.game.common.constant.MapConst;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.support.exception.SysException;
 
@@ -15,7 +16,7 @@ public final class SceneDealManager {
     private final Map<Integer, AbstractSceneDeal> deals = new HashMap<>();
 
     public SceneDealManager(SceneManagerService owner) {
-        deals.put(MapType.NORMAL.getType(), new NormalSceneDeal(owner));
+        deals.put(MapConst.MapType.NORMAL.getType(), new NormalSceneDeal(owner));
     }
 
     public AbstractSceneDeal getDeal(int mapCfgId) {

@@ -643,7 +643,6 @@ public class Node extends TickCase{
 
     /**
      * 添加远程Node
-     * @param name
      * @param addr
      */
     public RemoteNode addRemoteNode(int nodeId, String addr) {

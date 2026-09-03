@@ -1,5 +1,6 @@
 package org.evd.game.SceneManagerService;
 
+import lombok.extern.slf4j.Slf4j;
 import org.evd.game.SceneManagerService.scene.SceneDealManager;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
@@ -9,7 +10,6 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.exception.SysException;
-import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 
@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 /** SceneManagerService 只负责 Deal 生命周期、场景 ID 和 Stage 路由。 */
+@Slf4j
 public class SceneManagerService extends Service {
     private final SceneDealManager sceneDealManager;
     private final Map<CallPoint, Integer> stageMapCounts = new HashMap<>();
@@ -60,7 +61,7 @@ public class SceneManagerService extends Service {
             CallPoint stage = registeredStage.getCallPoint();
             Integer mapCount = stageMapCounts.get(stage);
             if (mapCount == null) {
-                LogCore.core.warn("SceneManager 没有 Stage 地图数量缓存: stage={}", stage);
+                log.warn("SceneManager 没有 Stage 地图数量缓存: stage={}", stage);
                 continue;
             }
             if (selectedStage == null || mapCount < selectedMapCount) {
@@ -81,7 +82,7 @@ public class SceneManagerService extends Service {
             CallPoint stage = registeredStage.getCallPoint();
             RpcResult<Integer> result = StageServiceRpcProxy.callGetMapCount(stage);
             if (!result.isSuccess() || result.getValue() == null) {
-                LogCore.core.warn("SceneManager 刷新 Stage 地图数量失败: stage={}, errorCode={}, message={}",
+                log.warn("SceneManager 刷新 Stage 地图数量失败: stage={}, errorCode={}, message={}",
                         stage, result.getErrorCode(), result.getErrorMessage());
                 continue;
             }
