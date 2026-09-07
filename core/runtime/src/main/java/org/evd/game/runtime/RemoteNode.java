@@ -353,13 +353,18 @@ public class RemoteNode {
             channel.close();
             return false;
         }
+        if (oldSession != null) {
+            LogCore.remote.info("远程Node连接被新连接替换，先触发旧Session下线: localNode={}, remoteNode={}, oldSessionId={}, oldChannelId={}, newChannelId={}",
+                    localNode.getId(), remoteId, oldSession.getSessionId(), oldSession.getChannelId(), channel.getChannelId());
+            localNode.handleChannelInactive_nt(oldSession.getChannel());
+        }
         RemoteSession session = new RemoteSession(remoteCallPoint, channel);
         channel.getChannel().attr(ServerAttributeKey.remoteSession).set(session);
         remoteServiceStatuses = Map.of();
         remoteServiceStatusTime = 0L;
         currentSession = session;
         if (oldSession != null) {
-            LogCore.remote.info("旧的远程Node关闭: localNode={}, remoteNode={}, needConnect={} oldChannelId {} ",
+            LogCore.remote.info("旧的远程Node连接关闭: localNode={}, remoteNode={}, needConnect={} oldChannelId={} ",
                     localNode.getId(), remoteId, needConnect, oldSession.getChannelId());
             oldSession.getChannel().close();
         }

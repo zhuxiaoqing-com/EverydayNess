@@ -727,12 +727,17 @@ public class Node extends TickCase{
     }
 
     /** 仅在 Node 线程处理连接断开，保证与该连接已入队的入站消息保持顺序。 */
-    private void handleChannelInactive_nt(NetChannel channel) {
+    void handleChannelInactive_nt(NetChannel channel) {
         Integer remoteNodeId = channel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
         RemoteSession session = channel.getChannel().attr(ServerAttributeKey.remoteSession).get();
         if (session != null) {
             remoteNodeId = session.getRemoteNodeId();
         }
+        LogCore.remote.info("Node处理远程连接断开: node={}, remoteNode={}, channelId={}, sessionId={}",
+                id,
+                remoteNodeId,
+                channel.getChannelId(),
+                session == null ? -1L : session.getSessionId());
         if (remoteNodeId == null) {
             return;
         }
@@ -824,9 +829,19 @@ public class Node extends TickCase{
             Integer attrRemoteNodeId = sourceChannel.getChannel().attr(ServerAttributeKey.remoteNodeId).get();
             CallPoint attrRemoteNodePoint = sourceChannel.getChannel().attr(ServerAttributeKey.remoteCallPoint).get();
             boolean initialHandshake = call instanceof CallNodeServicesSync sync && sync.isInit();
+            // 初始握手还没有 RemoteSession，需要先拦截已断开的连接，避免绑定失效 Session。
+            if (!sourceChannel.isValid()) {
+                LogCore.remote.warn("收到已断开连接上的远程消息，丢弃: node={}, remoteNode={}, channelId={}, sessionId={}, callType={}",
+                        id,
+                        attrRemoteNodeId,
+                        sourceChannel.getChannelId(),
+                        call.getSourceSessionId(),
+                        call.getClass().getSimpleName());
+                return;
+            }
             if (attrRemoteNodeId == null) {
                 if (!initialHandshake) {
-                    LogCore.remote.error("收到未完成远程节点握手的非法消息: node={}, callType={}, remoteNode={}",
+                    LogCore.remote.warn("收到未绑定Session的远程调用，丢弃: node={}, callType={}, remoteNode={}",
                             getId(), call.getClass().getSimpleName(), call.from == null ? null : call.from.nodeId);
                     sourceChannel.close();
                     return;
@@ -846,7 +861,7 @@ public class Node extends TickCase{
             RemoteNode remoteNode = attrRemoteNodePoint == null ? null : remoteNodes.get(attrRemoteNodePoint.nodePoint());
             if (!initialHandshake
                     && (remoteNode == null || !remoteNode.isCurrentSession(call.getSourceSessionId()))) {
-                LogCore.remote.error("收到已过期 Session 的远程调用: node={}, callType={}, remoteNode={}, sessionId={}",
+                LogCore.remote.warn("收到已失效远程Session的消息，丢弃: node={}, callType={}, remoteNode={}, sessionId={}",
                         getId(), call.getClass().getSimpleName(), attrRemoteNodeId, call.getSourceSessionId());
                 sourceChannel.close();
                 return;
