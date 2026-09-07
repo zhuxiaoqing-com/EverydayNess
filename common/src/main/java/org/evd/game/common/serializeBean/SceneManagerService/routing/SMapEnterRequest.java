@@ -7,7 +7,7 @@ import org.evd.game.runtime.call.CallPoint;
 /** SceneManager 发往 Stage 的一次玩家预进入请求。 */
 @SerializeClass
 public final class SMapEnterRequest implements ISerializable {
-    private long playerId;
+    private SPlayerMapSimpleData playerData;
     private long transferId;
     private CallPoint playerService;
     private SMapInfo oldMapInfo;
@@ -16,9 +16,9 @@ public final class SMapEnterRequest implements ISerializable {
     public SMapEnterRequest() {
     }
 
-    public SMapEnterRequest(long playerId, long transferId, CallPoint playerService,
-                           SMapInfo oldMapInfo, SMapInfo targetInfo) {
-        this.playerId = playerId;
+    public SMapEnterRequest(SPlayerMapSimpleData playerData, long transferId, CallPoint playerService,
+                            SMapInfo oldMapInfo, SMapInfo targetInfo) {
+        this.playerData = playerData == null ? null : new SPlayerMapSimpleData(playerData);
         this.transferId = transferId;
         this.playerService = playerService == null ? null : new CallPoint(playerService);
         this.oldMapInfo = oldMapInfo == null ? null : new SMapInfo(oldMapInfo);
@@ -26,7 +26,7 @@ public final class SMapEnterRequest implements ISerializable {
     }
 
     public SMapEnterRequest(SMapEnterRequest other) {
-        this(other == null ? 0L : other.playerId,
+        this(other == null ? null : other.playerData,
                 other == null ? 0L : other.transferId,
                 other == null ? null : other.playerService,
                 other == null ? null : other.oldMapInfo,
@@ -34,11 +34,22 @@ public final class SMapEnterRequest implements ISerializable {
     }
 
     public long getPlayerId() {
-        return playerId;
+        return playerData == null ? 0L : playerData.getPlayerId();
     }
 
     public void setPlayerId(long playerId) {
-        this.playerId = playerId;
+        if (playerData == null) {
+            playerData = new SPlayerMapSimpleData();
+        }
+        playerData.setPlayerId(playerId);
+    }
+
+    public SPlayerMapSimpleData getPlayerData() {
+        return playerData == null ? null : new SPlayerMapSimpleData(playerData);
+    }
+
+    public void setPlayerData(SPlayerMapSimpleData playerData) {
+        this.playerData = playerData == null ? null : new SPlayerMapSimpleData(playerData);
     }
 
     public long getTransferId() {

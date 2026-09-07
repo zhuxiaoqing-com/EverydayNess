@@ -8,7 +8,7 @@ import org.evd.game.annotation.serialize.DBserialize;
 @DBDirtyEntity(DBserialize.PB)
 public class DBTransferContextDef {
     @DBDirtyTag(1)
-    private long startMill;
+    private long transferId;
     @DBDirtyTag(2)
     private boolean start;
     @DBDirtyTag(3)

@@ -4,6 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
 
 /**
@@ -48,8 +49,8 @@ public final class StageServiceRpcProxy {
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<Boolean> callEnterScene(CallPoint remote, long sceneId, long playerId, long transferId){
-        return RpcResult.call(() -> inst().enterScene(remote, sceneId, playerId, transferId));
+    public static RpcResult<Boolean> callEnterScene(CallPoint remote, long sceneId, SPlayerMapData playerData){
+        return RpcResult.call(() -> inst().enterScene(remote, sceneId, playerData));
     }
 
 
@@ -99,9 +100,9 @@ public final class StageServiceRpcProxy {
     /**
     * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#enterScene()
     */
-    public boolean enterScene(CallPoint remote, long sceneId, long playerId, long transferId){
+    public boolean enterScene(CallPoint remote, long sceneId, SPlayerMapData playerData){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_ENTERSCENE_6, new Object[]{sceneId, playerId, transferId});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_ENTERSCENE_6, new Object[]{sceneId, playerData});
     }
 
 

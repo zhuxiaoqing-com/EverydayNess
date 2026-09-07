@@ -1,6 +1,7 @@
 package org.evd.game.ConnService;
 
 import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.actor.ActorType;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.Service;
@@ -21,7 +22,7 @@ public final class ConnServiceRpc {
         owner().pushToUserId(userId, packet);
     }
 
-    @Rpc
+    @Rpc(actorType = ActorType.GATE)
     public void pushToPlayerId(long playerId, ClientFrameChunk packet) {
         owner().pushToPlayerId(playerId, packet);
     }

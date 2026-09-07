@@ -34,7 +34,7 @@ public abstract class AbstractSceneDeal {
         SMapKey mapKey = targetInfo.toMapKey();
         SMSceneInfo sceneInfo = scenes.get(mapKey);
         boolean needCreate = sceneInfo == null;
-        boolean wasCreating = sceneInfo != null && sceneInfo.getState() == SceneState.CREATING;
+        boolean wasCreating = sceneInfo != null && sceneInfo.getState() == SMSceneState.CREATING;
         if (!needCreate && !wasCreating) {
             return sendPrepareEnter(sceneInfo, request);
         }
@@ -76,7 +76,7 @@ public abstract class AbstractSceneDeal {
             sceneInfo.getWaitEnterQueue().remove(request.getPlayerId(), request);
         }
 
-        if (sceneInfo.getState() != SceneState.CREATED) {
+        if (sceneInfo.getState() != SMSceneState.CREATED) {
             log.error("SceneManager 场景未创建完成，无法发送预进入请求: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}, state={}",
                     request.getPlayerId(), request.getTransferId(), sceneInfo.getSceneId(),
                     mapKey.getMapCfgId(), mapKey.getGroupId(), sceneInfo.getState());
@@ -99,7 +99,7 @@ public abstract class AbstractSceneDeal {
                     playerId, sceneInfo.getSceneId(), mapKey.getMapCfgId(), mapKey.getGroupId());
             return true;
         }
-        if (sceneInfo.getState() != SceneState.CREATED) {
+        if (sceneInfo.getState() != SMSceneState.CREATED) {
             log.error("SceneManager 场景未创建完成，无法退出地图: playerId={}, sceneId={}, mapCfgId={}, groupId={}, state={}",
                     playerId, sceneInfo.getSceneId(), mapKey.getMapCfgId(), mapKey.getGroupId(), sceneInfo.getState());
             return false;
@@ -119,7 +119,7 @@ public abstract class AbstractSceneDeal {
         RpcResult<Boolean> result = StageServiceRpcProxy.callCreateScene(sceneInfo.getStageCallPoint(),
                 sceneInfo.getMapKey(), sceneInfo.getSceneId());
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
-            sceneInfo.setState(SceneState.DESTROYED);
+            sceneInfo.setState(SMSceneState.DESTROYED);
             scenes.remove(sceneInfo.getMapKey());
             log.error("SceneManager 创建 SceneBattle 失败: sceneId={}, mapCfgId={}, groupId={}, errorCode={}, message={}",
                     sceneInfo.getSceneId(), sceneInfo.getMapKey().getMapCfgId(), sceneInfo.getMapKey().getGroupId(),
@@ -127,7 +127,7 @@ public abstract class AbstractSceneDeal {
             return false;
         }
 
-        sceneInfo.setState(SceneState.CREATED);
+        sceneInfo.setState(SMSceneState.CREATED);
         return true;
     }
 
@@ -151,7 +151,7 @@ public abstract class AbstractSceneDeal {
 
     public CallPoint findSceneStage(long sceneId) {
         for (SMSceneInfo info : scenes.values()) {
-            if (info.getSceneId() == sceneId && info.getState() == SceneState.CREATED) {
+            if (info.getSceneId() == sceneId && info.getState() == SMSceneState.CREATED) {
                 return info.getStageCallPoint();
             }
         }

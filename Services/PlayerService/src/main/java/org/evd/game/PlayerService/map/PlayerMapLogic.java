@@ -14,6 +14,8 @@ import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
 import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapSimpleData;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
@@ -29,65 +31,61 @@ import org.evd.game.common.proto.S2C_ReadyEnterMap;
 public final class PlayerMapLogic {
     private static final int LOGIN_MAP_CFG_ID = 1;
     private static final long LOGIN_GROUP_ID = 0L;
+    private static final long LOGIN_STATE_WAIT_MILL = 2_000L;
 
-    /** 登录进入默认地图；已有转场上下文按登录规则等待后清理。 */
+    /** 登录进入默认地图；已有状态即将超时时短暂等待，避免本次登录无意义失败。 */
     public void enterMapOnLogin(long playerId) {
-        startTransfer(playerId, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID, true);
+        long remainingMill = stateLogic().getRemainingMill(playerId);
+        if (remainingMill > 0L && remainingMill <= LOGIN_STATE_WAIT_MILL) {
+            log.info("PlayerService 登录等待玩家地图状态超时: playerId={}, remainingMill={}",
+                    playerId, remainingMill);
+            Service.getCurrent().sleep(remainingMill);
+            if (!owner().sessionManager().hasOnlinePlayer(playerId)) {
+                log.warn("PlayerService 登录等待地图状态期间玩家已离线: playerId={}", playerId);
+                return;
+            }
+        }
+        startTransfer(playerId, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID);
     }
 
     /** 发起一次普通地图转场。 */
     public void enterMap(long playerId, int mapCfgId, long groupId) {
-        startTransfer(playerId, mapCfgId, groupId, false);
+        startTransfer(playerId, mapCfgId, groupId);
     }
 
-    private void startTransfer(long playerId, int mapCfgId, long groupId, boolean login) {
+    private void startTransfer(long playerId, int mapCfgId, long groupId) {
         PlayerService owner = owner();
         if(!owner.sessionManager().hasOnlinePlayer(playerId)) {
             log.warn("PlayerService 玩家不在线，忽略地图进入请求: playerId={}", playerId);
             return;
         }
         DBRoleMapData roleMapData = getOrCreateRoleMapData(playerId);
-        DBTransferContext oldContext = roleMapData.getTransferContext();
-        if (oldContext.getStartMill() > 0L) {
-            if (!login) {
-                log.warn("PlayerService 玩家已有地图转场，忽略新的进入请求: playerId={}, startMill={}",
-                        playerId, oldContext.getStartMill());
-                return;
-            }
-            long oldStartMill = oldContext.getStartMill();
-            Service.getCurrent().sleep(2_000L);
-
-            if (!owner.sessionManager().hasOnlinePlayer(playerId)) {
-                log.warn("PlayerService 玩家不在线，等待2秒，忽略地图进入请求: playerId={}", playerId);
-                return;
-            }
-
-            // 不一样就是有新的进入场景进来了
-            if (oldContext.getStartMill() == oldStartMill) {
-                roleMapData.setTransferContext(new DBTransferContext());
-            }
-
-            log.error("PlayerService 登录时发现旧地图转场，等待后强制清空: playerId={}, oldStartMill {} startMill={}",
-                    playerId, oldStartMill, oldContext.getStartMill());
+        if (!stateLogic().enter(playerId, PlayerMapState.ENTER_MAP)) {
+            log.warn("PlayerService 玩家当前状态不允许进入地图: playerId={}, state={}",
+                    playerId, stateLogic().getState(playerId));
+            return;
         }
 
         long transferId = Service.getTime();
         SMapInfo oldMapInfo = toCommon(roleMapData.getCurrMapInfo());
         SMapInfo targetInfo = new SMapInfo(0L, mapCfgId, groupId);
         DBTransferContext transferContext = new DBTransferContext();
-        transferContext.setStartMill(transferId);
-        transferContext.setStart(false);
+        transferContext.setTransferId(transferId);
+        transferContext.setStart(true);
         transferContext.setOldMapInfo(toDb(oldMapInfo));
         transferContext.setTargetInfo(toDb(targetInfo));
         roleMapData.setTransferContext(transferContext);
 
-        SMapEnterRequest request = new SMapEnterRequest(playerId, transferId, owner.getCallPoint(),
+        SPlayerMapSimpleData simpleData = dataLogic().getSimpleData(playerId);
+        SMapEnterRequest request = new SMapEnterRequest(simpleData, transferId, owner.getCallPoint(),
                 oldMapInfo, targetInfo);
         CallPoint sceneManager = MapConst.getSceneManagerCallPoint(mapCfgId);
         RpcResult<Boolean> result = SceneManagerRpcProxy.callEnterMap(sceneManager, request);
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             log.error("PlayerService 发送地图转场请求失败: playerId={}, transferId={}, mapCfgId={}, groupId={}, errorCode={}, message={}",
                     playerId, transferId, mapCfgId, groupId, result.getErrorCode(), result.getErrorMessage());
+            roleMapData.setTransferContext(new DBTransferContext());
+            stateLogic().exit(playerId, PlayerMapState.ENTER_MAP);
         }
     }
 
@@ -95,19 +93,20 @@ public final class PlayerMapLogic {
     public boolean readyEnterMap(long playerId, long transferId, SMapInfo targetInfo) {
         DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
         DBTransferContext context = roleMapData == null ? null : roleMapData.getTransferContext();
-        if (context == null || context.getStartMill() <= 0L || context.getStartMill() != transferId
-                || targetInfo == null) {
+        if (context == null || context.getTransferId() <= 0L || context.getTransferId() != transferId
+                || targetInfo == null || !stateLogic().isIn(playerId, PlayerMapState.ENTER_MAP)) {
             log.warn("PlayerService 地图转场上下文已失效，忽略 ReadyEnterMap: playerId={}, transferId={}",
                     playerId, transferId);
             return false;
         }
-        context.setStart(true);
         context.setTargetInfo(toDb(targetInfo));
+        stateLogic().exit(playerId, PlayerMapState.ENTER_MAP);
 
         PPlayerOnline online = owner().sessionManager().get(playerId);
         if (online == null || online.getGate() == null || online.getGateSessionId() <= 0L) {
             log.warn("PlayerService 玩家会话不存在，无法通知客户端加载地图: playerId={}, transferId={}",
                     playerId, transferId);
+            roleMapData.setTransferContext(new DBTransferContext());
             return false;
         }
         S2C_ReadyEnterMap message = S2C_ReadyEnterMap.newBuilder()
@@ -118,13 +117,16 @@ public final class PlayerMapLogic {
                 .setMapCfgId(targetInfo.getMapCfgId())
                 .setGroupId(targetInfo.getGroupId())
                 .build();
-        RpcResult<Boolean> result = ConnServiceRpcProxy.callPushToClient(online.getGate(), online.getGateSessionId(),
+        RpcResult<Void> result = ConnServiceRpcProxy.callPushToPlayerId(playerId, playerId,
                 ClientFrameChunk.wrap(MsgId.S2C_READY_ENTER_MAP_VALUE, message));
-        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
+        if (!result.isSuccess()) {
             log.warn("PlayerService 通知客户端加载地图失败: playerId={}, transferId={}, errorCode={}, message={}",
                     playerId, transferId, result.getErrorCode(), result.getErrorMessage());
+            roleMapData.setTransferContext(new DBTransferContext());
             return false;
         }
+        log.info("PlayerService 完成地图预进入并通知客户端: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
+                playerId, transferId, targetInfo.getSceneId(), targetInfo.getMapCfgId(), targetInfo.getGroupId());
         return true;
     }
 
@@ -137,6 +139,8 @@ public final class PlayerMapLogic {
                     playerId, sceneId, current);
             return;
         }
+        log.info("PlayerService 清理玩家当前地图: playerId={}, sceneId={}, mapCfgId={}, groupId={}",
+                playerId, sceneId, current.getMapCfgId(), current.getGroupId());
         roleMapData.setCurrMapInfo(new DBMapInfo());
     }
 
@@ -145,8 +149,8 @@ public final class PlayerMapLogic {
         long playerId = session.getPlayerId();
         DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
         DBTransferContext context = roleMapData == null ? null : roleMapData.getTransferContext();
-        if (context == null || context.getStartMill() <= 0L || !context.getStart()
-                || context.getStartMill() != request.getTransferId()
+        if (context == null || context.getTransferId() <= 0L || !context.getStart()
+                || context.getTransferId() != request.getTransferId()
                 || context.getTargetInfo().getSceneId() <= 0L) {
             log.warn("PlayerService 客户端 ReadyEnterMap 与当前转场不匹配: playerId={}, transferId={}",
                     playerId, request.getTransferId());
@@ -168,14 +172,17 @@ public final class PlayerMapLogic {
             log.error("PlayerService 找不到目标场景 Stage: playerId={}, transferId={}, sceneId={}, errorCode={}, message={}",
                     playerId, request.getTransferId(), targetInfo.getSceneId(),
                     stage.getErrorCode(), stage.getErrorMessage());
+            roleMapData.setTransferContext(new DBTransferContext());
             return;
         }
+        SPlayerMapData playerData = dataLogic().getData(playerId);
         RpcResult<Boolean> result = StageServiceRpcProxy.callEnterScene(stage.getValue(),
-                targetInfo.getSceneId(), playerId, request.getTransferId());
+                targetInfo.getSceneId(), playerData);
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             log.error("PlayerService Stage 正式进入地图失败: playerId={}, transferId={}, sceneId={}, errorCode={}, message={}",
                     playerId, request.getTransferId(), targetInfo.getSceneId(),
                     result.getErrorCode(), result.getErrorMessage());
+            roleMapData.setTransferContext(new DBTransferContext());
             return;
         }
         roleMapData.setCurrMapInfo(new DBMapInfo(targetInfo));
@@ -192,9 +199,16 @@ public final class PlayerMapLogic {
     public void leaveMap(long playerId) {
         DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
         DBTransferContext transferContext = roleMapData == null ? null : roleMapData.getTransferContext();
-        if (transferContext != null && transferContext.getStartMill() > 0L
-                && transferContext.getTargetInfo().getSceneId() > 0L) {
-            removeFromScene(playerId, transferContext.getTargetInfo());
+        DBMapInfo target = transferContext == null ? null : transferContext.getTargetInfo();
+        if (target != null && target.getMapCfgId() > 0) {
+            removeFromScene(playerId, target);
+        }
+        if (roleMapData != null) {
+            PlayerMapState state = stateLogic().getState(playerId);
+            if (state != PlayerMapState.NONE) {
+                stateLogic().exit(playerId, state);
+            }
+            roleMapData.setTransferContext(new DBTransferContext());
         }
         DBMapInfo current =
                 roleMapData == null ? null : roleMapData.getCurrMapInfo();
@@ -243,5 +257,13 @@ public final class PlayerMapLogic {
 
     private PlayerService owner() {
         return Service.getCurrent(PlayerService.class);
+    }
+
+    private PlayerMapDataLogic dataLogic() {
+        return owner().getActor(PlayerMapDataLogic.class);
+    }
+
+    private PlayerMapStateLogic stateLogic() {
+        return owner().getActor(PlayerMapStateLogic.class);
     }
 }

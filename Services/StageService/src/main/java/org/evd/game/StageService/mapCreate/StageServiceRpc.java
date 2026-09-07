@@ -6,6 +6,7 @@ import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
 import org.evd.game.runtime.Service;
 
 /** StageService 地图创建和进入 RPC 入口。 */
@@ -28,8 +29,8 @@ public final class StageServiceRpc {
     }
 
     @Rpc
-    public boolean enterScene(long sceneId, long playerId, long transferId) {
-        return logic().enterScene(sceneId, playerId, transferId);
+    public boolean enterScene(long sceneId, SPlayerMapData playerData) {
+        return logic().enterScene(sceneId, playerData);
     }
 
     @Rpc

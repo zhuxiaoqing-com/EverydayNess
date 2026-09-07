@@ -12,14 +12,14 @@ public final class SMSceneInfo {
     private final SMapKey mapKey;
     private final long sceneId;
     private final Map<Long, SMapEnterRequest> waitEnterQueue = new HashMap<>();
-    private SceneState state;
+    private SMSceneState state;
     private final CallPoint stageCallPoint;
 
     public SMSceneInfo(SMapKey mapKey, long sceneId, CallPoint stageCallPoint) {
         this.mapKey = new SMapKey(mapKey.getMapCfgId(), mapKey.getGroupId());
         this.sceneId = sceneId;
         this.stageCallPoint = stageCallPoint == null ? null : new CallPoint(stageCallPoint);
-        this.state = SceneState.CREATING;
+        this.state = SMSceneState.CREATING;
     }
 
     public SMapKey getMapKey() {
@@ -34,11 +34,11 @@ public final class SMSceneInfo {
         return waitEnterQueue;
     }
 
-    public SceneState getState() {
+    public SMSceneState getState() {
         return state;
     }
 
-    public void setState(SceneState state) {
+    public void setState(SMSceneState state) {
         this.state = state;
     }
 

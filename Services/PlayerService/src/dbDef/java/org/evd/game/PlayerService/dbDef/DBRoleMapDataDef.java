@@ -13,4 +13,8 @@ public class DBRoleMapDataDef {
     private DBTransferContextDef transferContext;
     @DBDirtyTag(3)
     private DBMapInfoDef currMapInfo;
+    @DBDirtyTag(4)
+    private int stateType;
+    @DBDirtyTag(5)
+    private long stateStartMill;
 }
