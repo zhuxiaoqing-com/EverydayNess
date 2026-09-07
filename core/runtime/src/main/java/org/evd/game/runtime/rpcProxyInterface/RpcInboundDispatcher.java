@@ -58,7 +58,8 @@ public final class RpcInboundDispatcher {
                 if(call.dispatchType == DispatchType.STOP_SERVICE) {
                     callReturn.result = service.rpcStop();
                 } else {
-                    callReturn.result = service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
+                    callReturn.result = service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args,
+                            call instanceof ActorMessage actorMessage ? actorMessage.getActorId() : null);
                 }
             } catch (Throwable e) {
                 rethrowFatal(e);
@@ -71,7 +72,8 @@ public final class RpcInboundDispatcher {
         }
 
         try {
-            service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args);
+            service.getRpcMethodInvoker().invokeBusiness(call.methodKey, args,
+                    call instanceof ActorMessage actorMessage ? actorMessage.getActorId() : null);
         } catch (Exception e) {
             LogCore.core.error("rpc dispatch failed: service={}, methodKey={}", service.getId(), call.methodKey, e);
         }

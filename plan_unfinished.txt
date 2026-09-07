@@ -18,6 +18,9 @@
 16.加一个MatchService 匹配用
 
 17.考虑各种service断开以后需要处理的事情，等scene弄好以后就可以弄个这个饿了，因为主要也就这几个service需要处理;
+         应该就是online和playerService断开以后需要将玩家下线;
 
 18.考虑各个service单独断开以后是否能单独重启;状态会不会有问题
+
+19.进入地图流程和退出地图流程其实还没走完;因为还要改变location 和改变playerService GwService 还有 OnlineService;
 

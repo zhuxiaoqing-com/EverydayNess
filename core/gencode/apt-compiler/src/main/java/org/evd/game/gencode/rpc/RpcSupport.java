@@ -197,8 +197,9 @@ final class RpcSupport {
             methodModel.put("generateResultMethod", true);
             methodModel.put("isVoid", isVoid);
             methodModel.put("hasResult", !isVoid);
-            String formalParams = method.toParamTypeAndTypes();
-            String nameParams = method.toParamNames();
+            boolean injectActorId = isLocationRoute(method);
+            String formalParams = method.toTransportParamTypeAndTypes(injectActorId);
+            String nameParams = method.toTransportParamNames(injectActorId);
             String callTarget = routeService ? "remote" : "actorUniqueId";
             methodModel.put("formalParams", formalParams);
             methodModel.put("nameParams", nameParams);
@@ -307,8 +308,13 @@ final class RpcSupport {
             methodModel.put("targetPrefix", targetPrefix);
 
             String func = method.returnType.equals("void") ? "Function" : "ReturnFunction";
+            if (isLocationRoute(method)) {
+                func = "Actor" + func;
+            }
             methodModel.put("func", func);
-            methodModel.put("typeParams", method.toParamTypesWitchReturn());
+            methodModel.put("typeParams", isLocationRoute(method)
+                    ? method.toActorFunctionTypeParams()
+                    : method.toParamTypesWitchReturn());
             methodModel.put("returnType", method.getDisplayReturnType());
             methodModel.put("formalParams", method.toParamTypeAndTypes());
             methodModel.put("nameParams", method.toParamNames());
@@ -470,6 +476,14 @@ final class RpcSupport {
         if (method.rpcActorType == ActorType.NONE) {
             return;
         }
+        if (!method.hasInjectedActorId()) {
+            throw new IllegalStateException("Actor RPC 必须使用 ActorId 作为首参数: "
+                    + method.fullClassName + "#" + method.methodName);
+        }
+        if (method.params.length > 10) {
+            throw new IllegalStateException("Actor RPC 参数数量超过运行时支持上限 10: "
+                    + method.fullClassName + "#" + method.methodName);
+        }
         String actorOwnerServiceClassName = method.rpcActorType.getOwnerServiceClassName();
         if (actorOwnerServiceClassName == null || actorOwnerServiceClassName.isEmpty()) {
             throw new IllegalStateException("ActorType." + method.rpcActorType.name()
@@ -614,7 +628,7 @@ final class RpcSupport {
                                            boolean timeoutOverload) {
         List<String> paramTypes = new ArrayList<>();
         paramTypes.add(isServiceRoute(method) ? "org.evd.game.runtime.call.CallPoint" : "long");
-        for (ParamStruct param : method.params) {
+        for (ParamStruct param : transportParams(method)) {
             paramTypes.add(param.paramType);
         }
         if (timeoutOverload) {
@@ -631,7 +645,7 @@ final class RpcSupport {
         } else {
             paramTypes.add("long");
         }
-        for (ParamStruct param : method.params) {
+        for (ParamStruct param : transportParams(method)) {
             paramTypes.add(param.paramType);
         }
         if (timeoutOverload) {
@@ -660,6 +674,11 @@ final class RpcSupport {
 
     private boolean isLocationRoute(MethodStruct<Rpc> method) {
         return method.rpcActorType != ActorType.NONE;
+    }
+
+    private List<ParamStruct> transportParams(MethodStruct<Rpc> method) {
+        int startIndex = isLocationRoute(method) && method.hasInjectedActorId() ? 1 : 0;
+        return Arrays.asList(method.params).subList(startIndex, method.params.length);
     }
 }
 

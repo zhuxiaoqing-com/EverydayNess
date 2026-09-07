@@ -6,6 +6,7 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.annotation.actor.ActorType;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
+import org.evd.game.runtime.actor.ActorId;
 
 /**
 * 根据ConnServiceRpcService生成的代理类
@@ -57,15 +58,15 @@ public final class ConnServiceRpcProxy {
     /**
     * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> callPushToPlayerId(long actorUniqueId, long playerId, ClientFrameChunk packet){
-        return RpcResult.run(() -> inst().pushToPlayerId(actorUniqueId, playerId, packet));
+    public static RpcResult<Void> callPushToPlayerId(long actorUniqueId, ClientFrameChunk packet){
+        return RpcResult.run(() -> inst().pushToPlayerId(actorUniqueId, packet));
     }
 
     /**
     * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> callPushToUserId(long actorUniqueId, String userId, ClientFrameChunk packet){
-        return RpcResult.run(() -> inst().pushToUserId(actorUniqueId, userId, packet));
+    public static RpcResult<Void> sendPushToUserId(CallPoint remote, String userId, ClientFrameChunk packet){
+        return RpcResult.run(() -> inst().pushToUserId(remote, userId, packet));
     }
 
     /**
@@ -106,18 +107,18 @@ public final class ConnServiceRpcProxy {
     /**
     * 对应源方法: org.evd.game.ConnService.ConnServiceRpc#pushToPlayerId()
     */
-    public void pushToPlayerId(long actorUniqueId, long playerId, ClientFrameChunk packet){
+    public void pushToPlayerId(long actorUniqueId, ClientFrameChunk packet){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNSERVICERPC_PUSHTOPLAYERID_3, new Object[]{playerId, packet});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNSERVICERPC_PUSHTOPLAYERID_3, new Object[]{packet});
     }
 
 
     /**
     * 对应源方法: org.evd.game.ConnService.ConnServiceRpc#pushToUserId()
     */
-    public void pushToUserId(long actorUniqueId, String userId, ClientFrameChunk packet){
-        ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNSERVICERPC_PUSHTOUSERID_4, new Object[]{userId, packet});
+    public void pushToUserId(CallPoint remote, String userId, ClientFrameChunk packet){
+        Service service = Service.getCurrent();
+        service.call(remote, EnumCall.ENUM_CONNSERVICERPC_PUSHTOUSERID_4, new Object[]{userId, packet});
     }
 
 

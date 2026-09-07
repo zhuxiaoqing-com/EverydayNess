@@ -117,7 +117,7 @@ public final class PlayerMapLogic {
                 .setMapCfgId(targetInfo.getMapCfgId())
                 .setGroupId(targetInfo.getGroupId())
                 .build();
-        RpcResult<Void> result = ConnServiceRpcProxy.callPushToPlayerId(playerId, playerId,
+        RpcResult<Void> result = ConnServiceRpcProxy.callPushToPlayerId(playerId,
                 ClientFrameChunk.wrap(MsgId.S2C_READY_ENTER_MAP_VALUE, message));
         if (!result.isSuccess()) {
             log.warn("PlayerService 通知客户端加载地图失败: playerId={}, transferId={}, errorCode={}, message={}",

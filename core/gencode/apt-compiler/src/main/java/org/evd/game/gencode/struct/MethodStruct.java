@@ -69,26 +69,63 @@ public class MethodStruct<T> {
         return nameParams.toString();
     }
 
+    public boolean hasInjectedActorId() {
+        if (params.length == 0) {
+            return false;
+        }
+        String paramType = params[0].paramType;
+        return "ActorId".equals(paramType) || paramType.endsWith(".ActorId");
+    }
+
+    public String toTransportParamNames(boolean injectActorId) {
+        return toParamNames(injectActorId && hasInjectedActorId() ? 1 : 0);
+    }
+
+    public String toTransportParamTypeAndTypes(boolean injectActorId) {
+        return toParamTypeAndTypes(injectActorId && hasInjectedActorId() ? 1 : 0);
+    }
+
+    private String toParamNames(int startIndex) {
+        StringBuilder nameParams = new StringBuilder();
+        for (int i = startIndex; i < params.length; ++i) {
+            ParamStruct paramStruct = params[i];
+            if (!nameParams.isEmpty()) {
+                nameParams.append(", ");
+            }
+            nameParams.append(paramStruct.paramName);
+        }
+        return nameParams.toString();
+    }
+
     public String toParamTypesWitchReturn(){
         StringBuilder typeParams = new StringBuilder();
+        return toParamTypesWitchReturn(0);
+    }
+
+    public String toActorFunctionTypeParams() {
+        return toParamTypesWitchReturn(1);
+    }
+
+    private String toParamTypesWitchReturn(int startIndex) {
+        StringBuilder typeParams = new StringBuilder();
         if (returnType.equals("void")){
-            if (params.length > 0){
+            if (params.length > startIndex){
                 typeParams.append("<");
             }
-            for (int i=0; i<params.length; ++i){
+            for (int i=startIndex; i<params.length; ++i){
                 ParamStruct paramStruct = params[i];
                 typeParams.append(AptUtils.shortTypeName(paramStruct.paramTypeWrapper));
                 if (i < params.length - 1){
                     typeParams.append(", ");
                 }
             }
-            if (params.length > 0){
+            if (params.length > startIndex){
                 typeParams.append(">");
             }
         }else{
             typeParams.append("<");
             typeParams.append(AptUtils.shortTypeName(returnTypeWrapper));
-            for (int i=0; i<params.length; ++i){
+            for (int i=startIndex; i<params.length; ++i){
                 ParamStruct paramStruct = params[i];
                 typeParams.append(", ");
                 typeParams.append(AptUtils.shortTypeName(paramStruct.paramTypeWrapper));
@@ -99,8 +136,12 @@ public class MethodStruct<T> {
     }
 
     public String toParamTypeAndTypes(){
+        return toParamTypeAndTypes(0);
+    }
+
+    private String toParamTypeAndTypes(int startIndex) {
         StringBuilder formalParams = new StringBuilder();
-        for (int i=0; i<params.length; ++i) {
+        for (int i=startIndex; i<params.length; ++i) {
             ParamStruct paramStruct = params[i];
             formalParams.append(AptUtils.shortTypeName(paramStruct.paramType))
                     .append(" ")

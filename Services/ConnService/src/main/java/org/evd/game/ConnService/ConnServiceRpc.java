@@ -4,6 +4,7 @@ import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.ActorType;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
+import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 
@@ -23,8 +24,8 @@ public final class ConnServiceRpc {
     }
 
     @Rpc(actorType = ActorType.GATE)
-    public void pushToPlayerId(long playerId, ClientFrameChunk packet) {
-        owner().pushToPlayerId(playerId, packet);
+    public void pushToPlayerId(ActorId actorId, ClientFrameChunk packet) {
+        owner().pushToPlayerId(actorId.getUniqueId(), packet);
     }
 
     @Rpc

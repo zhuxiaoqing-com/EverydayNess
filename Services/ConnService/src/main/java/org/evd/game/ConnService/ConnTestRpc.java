@@ -5,6 +5,7 @@ import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.common.serializeBean.ConnService.test.SConnInfo;
 import org.evd.game.annotation.actor.ActorType;
+import org.evd.game.runtime.actor.ActorId;
 
 /**
  * @author zhuxiaoqing
@@ -15,13 +16,13 @@ import org.evd.game.annotation.actor.ActorType;
 @RpcHandler
 public class ConnTestRpc {
     @Rpc(actorType = ActorType.GATE)
-    public void connTest1() {
+    public void connTest1(ActorId actorId) {
 
     }
 
 
     @Rpc(actorType = ActorType.GATE)
-    public boolean connTest2(int a, Object b, SConnInfo connInfo) {
+    public boolean connTest2(ActorId actorId, int a, Object b, SConnInfo connInfo) {
         return true;
     }
 
