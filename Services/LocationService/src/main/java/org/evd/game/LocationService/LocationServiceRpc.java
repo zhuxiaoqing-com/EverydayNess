@@ -12,8 +12,8 @@ import org.evd.game.runtime.actor.ActorId;
 @RpcHandler
 public final class LocationServiceRpc {
     @Rpc
-    public void add(ActorId actorId, ActorAddress actorAddress) {
-        owner().add(actorId, actorAddress);
+    public boolean add(ActorId actorId, ActorAddress actorAddress) {
+        return owner().add(actorId, actorAddress);
     }
 
     @Rpc

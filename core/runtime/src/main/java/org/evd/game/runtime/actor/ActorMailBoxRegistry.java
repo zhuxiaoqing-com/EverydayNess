@@ -27,6 +27,10 @@ public class ActorMailBoxRegistry {
     }
 
     public void register(ActorId actorId, MailBoxType boxType) {
+        register(actorId, boxType, true);
+    }
+
+    public void register(ActorId actorId, MailBoxType boxType, boolean publishLocation) {
         ActorId key = new ActorId(actorId);
         if (actors.containsKey(key)) {
             throw new IllegalStateException("ActorMailBoxRegistry actor already exists: " + actorId);
@@ -39,10 +43,16 @@ public class ActorMailBoxRegistry {
 
         CallPoint callPoint = service.getCallPoint();
         ActorAddress actorAddress = new ActorAddress(callPoint, mailBoxBean.getEpoch());
-        locationInterface.add(callPoint, actorId, actorAddress);
+        if (publishLocation) {
+            locationInterface.add(callPoint, actorId, actorAddress);
+        }
     }
 
     public void unregister(ActorId actorId) {
+        unregister(actorId, true);
+    }
+
+    public void unregister(ActorId actorId, boolean removeLocation) {
         MailBoxBean remove = actors.remove(actorId);
         if(remove == null) {
             log.error("ActorMailBoxRegistry unregister is null {} ", actorId);
@@ -50,7 +60,9 @@ public class ActorMailBoxRegistry {
         }
         CallPoint callPoint = service.getCallPoint();
         ActorAddress actorAddress = new ActorAddress(callPoint, remove.getEpoch());
-        locationInterface.remove(callPoint, actorId, actorAddress);
+        if (removeLocation) {
+            locationInterface.remove(callPoint, actorId, actorAddress);
+        }
     }
 
     public boolean contains(ActorId actorId) {

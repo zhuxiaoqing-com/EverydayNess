@@ -76,3 +76,11 @@ message S2C_ReadyEnterMap {
   int32 map_cfg_id = 5;
   int64 group_id = 6;
 }
+
+message S2C_EnterMap {
+  bool success = 1;
+  string message = 2;
+  int64 scene_id = 3;
+  int32 map_cfg_id = 4;
+  int64 group_id = 5;
+}

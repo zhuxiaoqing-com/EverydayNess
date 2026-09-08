@@ -2,6 +2,7 @@ package org.evd.game.PlayerService.session;
 
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.support.LogCore;
 
 /** PlayerService 持有的玩家在线运行态。 */
 public final class PPlayerOnline {
@@ -82,13 +83,14 @@ public final class PPlayerOnline {
         return true;
     }
 
-    /** 完成地图进入后，进入正式在线状态。 */
-    boolean markOnline() {
+    /** 登录流程准备完成后，进入正式在线状态。 */
+    void markOnline() {
         if (status != Status.READY) {
-            return false;
+            LogCore.core.warn("PlayerService 玩家标记在线失败: userId={}, playerId={}, status={}",
+                    userId, playerId, status);
+            return;
         }
         transition(Status.ONLINE);
-        return true;
     }
 
     /** 记录当前玩家上线阶段。 */

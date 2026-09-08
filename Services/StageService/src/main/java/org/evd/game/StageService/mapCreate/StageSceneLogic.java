@@ -2,7 +2,7 @@ package org.evd.game.StageService.mapCreate;
 
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.StageService.StageService;
-import org.evd.game.StageService.scene.BattleScene;
+import org.evd.game.StageService.scene.battle.BattleScene;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.constant.MapConst;
 import org.evd.game.common.proxy.PlayerService.PlayerMapRpcProxy;
@@ -12,6 +12,7 @@ import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
@@ -55,7 +56,7 @@ public final class StageSceneLogic {
             }
             return oldSceneId == sceneId;
         }
-        scenes.put(sceneId, new BattleScene(mapKey, sceneId));
+        scenes.put(sceneId, new BattleScene(mapKey, sceneId, owner()));
         return true;
     }
 
@@ -77,6 +78,9 @@ public final class StageSceneLogic {
             return false;
         }
         scene.addPendingRole(request);
+        log.info("StageService 玩家加入预进入队列: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
+                request.getPlayerId(), request.getTransferId(), targetInfo.getSceneId(),
+                targetInfo.getMapCfgId(), targetInfo.getGroupId());
 
         SMapInfo oldMapInfo = request.getOldMapInfo();
         if (oldMapInfo != null && oldMapInfo.getSceneId() > 0L
@@ -91,6 +95,8 @@ public final class StageSceneLogic {
                         exitResult.getErrorMessage());
                 return false;
             }
+            log.info("StageService 玩家旧地图退出成功: playerId={}, transferId={}, oldSceneId={}, targetSceneId={}",
+                    request.getPlayerId(), request.getTransferId(), oldMapInfo.getSceneId(), targetInfo.getSceneId());
         }
 
         RpcResult<Boolean> readyResult = PlayerMapRpcProxy.callReadyEnterMap(request.getPlayerService(),
@@ -101,19 +107,24 @@ public final class StageSceneLogic {
                     request.getPlayerId(), targetInfo.getSceneId(), readyResult.getErrorCode(), readyResult.getErrorMessage());
             return false;
         }
+        log.info("StageService 已通知 PlayerService 客户端加载地图: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
+                request.getPlayerId(), request.getTransferId(), targetInfo.getSceneId(),
+                targetInfo.getMapCfgId(), targetInfo.getGroupId());
         return true;
     }
 
     /** 客户端完成加载后，正式进入 SceneBattle。 */
-    public boolean enterScene(long sceneId, SPlayerMapData playerData) {
+    public void enterScene(long sceneId, SPlayerMapData playerData) {
         BattleScene scene = scenes.get(sceneId);
-        return scene != null && scene.enter(playerData);
+        if (scene != null) {
+            scene.roleEnter(playerData);
+        }
     }
 
     /** 退出一个场景中的正式玩家或预加入玩家。 */
     public boolean exitScene(long sceneId, long playerId) {
         BattleScene scene = scenes.get(sceneId);
-        return scene == null || scene.exit(playerId);
+        return scene == null || scene.roleExit(playerId);
     }
 
     /** 销毁空场景。 */

@@ -45,7 +45,7 @@ public final class SMapEnterRequest implements ISerializable {
     }
 
     public SPlayerMapSimpleData getPlayerData() {
-        return playerData == null ? null : new SPlayerMapSimpleData(playerData);
+        return playerData;
     }
 
     public void setPlayerData(SPlayerMapSimpleData playerData) {
@@ -61,7 +61,7 @@ public final class SMapEnterRequest implements ISerializable {
     }
 
     public CallPoint getPlayerService() {
-        return playerService == null ? null : new CallPoint(playerService);
+        return playerService;
     }
 
     public void setPlayerService(CallPoint playerService) {
@@ -69,7 +69,7 @@ public final class SMapEnterRequest implements ISerializable {
     }
 
     public SMapInfo getOldMapInfo() {
-        return oldMapInfo == null ? null : new SMapInfo(oldMapInfo);
+        return oldMapInfo;
     }
 
     public void setOldMapInfo(SMapInfo oldMapInfo) {
@@ -77,7 +77,7 @@ public final class SMapEnterRequest implements ISerializable {
     }
 
     public SMapInfo getTargetInfo() {
-        return targetInfo == null ? null : new SMapInfo(targetInfo);
+        return targetInfo;
     }
 
     public void setTargetInfo(SMapInfo targetInfo) {

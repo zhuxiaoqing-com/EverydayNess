@@ -885,8 +885,16 @@ public class Service extends TickCase {
         actorMailBoxRegistry.register(actorId, executionMode);
     }
 
+    protected void registerActorWithoutLocation(ActorId actorId, MailBoxType executionMode) {
+        actorMailBoxRegistry.register(actorId, executionMode, false);
+    }
+
     protected void unregisterActor(ActorId actorId) {
         actorMailBoxRegistry.unregister(actorId);
+    }
+
+    protected void unregisterActorWithoutLocation(ActorId actorId) {
+        actorMailBoxRegistry.unregister(actorId, false);
     }
 
     protected boolean hasActor(ActorId actorId) {

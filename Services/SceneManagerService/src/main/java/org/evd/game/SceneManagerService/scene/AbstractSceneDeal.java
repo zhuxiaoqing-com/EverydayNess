@@ -32,6 +32,8 @@ public abstract class AbstractSceneDeal {
         }
         SMapInfo targetInfo = request.getTargetInfo();
         SMapKey mapKey = targetInfo.toMapKey();
+        log.info("SceneManager 收到地图进入请求: playerId={}, transferId={}, targetInfo={}, oldMapInfo={}",
+                request.getPlayerId(), request.getTransferId(), targetInfo, request.getOldMapInfo());
         SMSceneInfo sceneInfo = scenes.get(mapKey);
         boolean needCreate = sceneInfo == null;
         boolean wasCreating = sceneInfo != null && sceneInfo.getState() == SMSceneState.CREATING;
@@ -44,8 +46,14 @@ public abstract class AbstractSceneDeal {
             CallPoint stage = owner.chooseStage();
             sceneInfo = new SMSceneInfo(mapKey, owner.createSceneId(), stage);
             scenes.put(mapKey, sceneInfo);
+            log.info("SceneManager 创建场景记录: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}, stage={}",
+                    request.getPlayerId(), request.getTransferId(), sceneInfo.getSceneId(),
+                    mapKey.getMapCfgId(), mapKey.getGroupId(), stage);
         }
         sceneInfo.getWaitEnterQueue().put(request.getPlayerId(), request);
+        log.info("SceneManager 玩家加入场景等待队列: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}, state={}",
+                request.getPlayerId(), request.getTransferId(), sceneInfo.getSceneId(),
+                mapKey.getMapCfgId(), mapKey.getGroupId(), sceneInfo.getState());
 
         try (ContinuationLockScope ignored = owner.awaitCoroutineLockScope(LockType.ACTOR, mapKey)) {
             sceneInfo = scenes.get(mapKey);
@@ -112,6 +120,8 @@ public abstract class AbstractSceneDeal {
                     result.getErrorCode(), result.getErrorMessage());
             return false;
         }
+        log.info("SceneManager 退出 Stage 地图成功: playerId={}, sceneId={}, mapCfgId={}, groupId={}",
+                playerId, sceneInfo.getSceneId(), mapKey.getMapCfgId(), mapKey.getGroupId());
         return true;
     }
 
@@ -128,6 +138,9 @@ public abstract class AbstractSceneDeal {
         }
 
         sceneInfo.setState(SMSceneState.CREATED);
+        log.info("SceneManager 创建场景成功: sceneId={}, mapCfgId={}, groupId={}, stage={}",
+                sceneInfo.getSceneId(), sceneInfo.getMapKey().getMapCfgId(),
+                sceneInfo.getMapKey().getGroupId(), sceneInfo.getStageCallPoint());
         return true;
     }
 
@@ -146,6 +159,9 @@ public abstract class AbstractSceneDeal {
                     request.getPlayerId(), sceneInfo.getSceneId(), result.getErrorCode(), result.getErrorMessage());
             return false;
         }
+        log.info("SceneManager 已发送 Stage 预进入请求: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
+                request.getPlayerId(), request.getTransferId(), sceneInfo.getSceneId(),
+                targetInfo.getMapCfgId(), targetInfo.getGroupId());
         return true;
     }
 

@@ -26,6 +26,7 @@ public final class PlayerOfflineManager {
         if (!sessionManager.isCurrent(userId, playerId, gate, gateSessionId)) {
             LogCore.core.error("PlayerService 下线 Session 与当前绑定不一致: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                     owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
+            return;
         }
 
         LogCore.core.info("PlayerService 开始处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",

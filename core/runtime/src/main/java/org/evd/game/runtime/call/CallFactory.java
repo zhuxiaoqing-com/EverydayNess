@@ -79,6 +79,18 @@ public final class CallFactory {
             ClientSessionRef session,
             Chunk body
     ) {
+        return buildActorClientCmd(current, addr, actorId, msgId, session, body, false);
+    }
+
+    public static ActorMessage buildActorClientCmd(
+            Service current,
+            ActorAddress addr,
+            ActorId actorId,
+            int msgId,
+            ClientSessionRef session,
+            Chunk body,
+            boolean needResult
+    ) {
         if (addr == null || addr.getCallPoint() == null) {
             throw new SysException("actor address is null: actorId={}", actorId);
         }
@@ -91,7 +103,7 @@ public final class CallFactory {
         message.setDispatchType(DispatchType.CLIENT_CMD);
         message.setMethodKey(msgId);
         message.setMethodParam(new Object[]{session, body});
-        message.setNeedResult(false);
+        message.setNeedResult(needResult);
         return message;
     }
 

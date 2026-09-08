@@ -4,7 +4,7 @@ import org.evd.game.annotation.serialize.DBDirtyEntity;
 import org.evd.game.annotation.serialize.DBDirtyTag;
 import org.evd.game.annotation.serialize.DBserialize;
 
-/** 玩家地图状态；地图转场中间态和当前地图都必须在 PlayerService 持久化。 */
+/** 玩家地图状态；地图转场中间态、当前地图和旧当前地图都必须在 PlayerService 持久化。 */
 @DBDirtyEntity(value = DBserialize.PB, table = true)
 public class DBRoleMapDataDef {
     @DBDirtyTag(value = 1, primaryKey = true)
@@ -17,4 +17,6 @@ public class DBRoleMapDataDef {
     private int stateType;
     @DBDirtyTag(5)
     private long stateStartMill;
+    @DBDirtyTag(6)
+    private DBMapInfoDef oldCurrMapInfo;
 }

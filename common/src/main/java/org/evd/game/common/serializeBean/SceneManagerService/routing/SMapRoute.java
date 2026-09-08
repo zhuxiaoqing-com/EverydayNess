@@ -37,7 +37,7 @@ public class SMapRoute implements ISerializable {
     }
 
     public CallPoint getStage() {
-        return stage == null ? null : new CallPoint(stage);
+        return stage;
     }
 
     public void setStage(CallPoint stage) {

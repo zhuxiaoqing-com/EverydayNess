@@ -6,6 +6,7 @@ import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.call.CallFactory;
+import org.evd.game.runtime.MessageSender;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -41,7 +42,7 @@ public class MessageLocationSender {
 
     @FunctionalInterface
     public interface ActorAddressCaller<T> {
-        T call(ActorAddress actorAddress, ActorId actorId);
+        T call(ActorAddress actorAddress, ActorId actorId, boolean needResult);
     }
 
     public MessageLocationSender(Service service) {
@@ -176,33 +177,25 @@ public class MessageLocationSender {
 
 
     public void send(ActorId actorId, int methodKey, Object[] params) {
-        if (ownerService.continuationRuntime().isContinuation()) {
-            _send(actorId, methodKey, params);
-        } else {
-            ownerService.launchCoroutine(() -> _send(actorId, methodKey, params));
-        }
-    }
-
-
-    public void _send(ActorId actorId, int methodKey, Object[] params) {
-        callWithRetry(actorId, (actorAddress, logicalActorId) -> {
-            requireOwnerService().getMessageSender().send(actorAddress, logicalActorId, methodKey, params);
+        callWithRetry(actorId, (actorAddress, logicalActorId, needResult) -> {
+            MessageSender messageSender = requireOwnerService().getMessageSender();
+            if (needResult) {
+                messageSender.callWait(actorAddress, logicalActorId, methodKey, params);
+            } else {
+                messageSender.send(actorAddress, logicalActorId, methodKey, params);
+            }
             return null;
-        });
+        }, true);
     }
 
     public void sendClientCmd(ActorId actorId, org.evd.game.runtime.client.ClientSessionRef session,
                               int msgId, Chunk body) {
-        if (ownerService.continuationRuntime().isContinuation()) {
-            _sendClientCmd(actorId, session, msgId, body);
-        } else {
-            ownerService.launchCoroutine(() -> _sendClientCmd(actorId, session, msgId, body));
-        }
-    }
-    public void _sendClientCmd(ActorId actorId, org.evd.game.runtime.client.ClientSessionRef session,
-                               int msgId, Chunk body) {
-        callWithRetry(actorId, (actorAddress, logicalActorId) -> {
+        callWithRetry(actorId, (actorAddress, logicalActorId, needResult) -> {
             Service current = requireOwnerService();
+            if (needResult) {
+                return current.getMessageSender().callClientCmdWait(
+                        actorAddress, logicalActorId, session, msgId, body);
+            }
             current.sendOutboundCall(CallFactory.buildActorClientCmd(
                     current,
                     actorAddress,
@@ -211,27 +204,37 @@ public class MessageLocationSender {
                      session,
                      body));
             return null;
-        });
+        }, true);
     }
 
     @SuppressWarnings({"unchecked"})
     public <T> T callWait(ActorId actorId, int methodKey, Object[] params) {
-        return callWithRetry(actorId, (actorAddress, logicalActorId) ->
-                (T) requireOwnerService().getMessageSender().callWait(actorAddress, logicalActorId, methodKey, params));
+        return callWithRetry(actorId, (actorAddress, logicalActorId, needResult) ->
+                (T) requireOwnerService().getMessageSender().callWait(actorAddress, logicalActorId, methodKey, params), false);
     }
 
     @SuppressWarnings({"unchecked"})
     public <T> T callWait(ActorId actorId, int methodKey, Object[] params, long timeoutMillis) {
-        return callWithRetry(actorId, (actorAddress, logicalActorId) ->
-                (T) requireOwnerService().getMessageSender().callWait(actorAddress, logicalActorId, methodKey, params, timeoutMillis));
+        return callWithRetry(actorId, (actorAddress, logicalActorId, needResult) ->
+                (T) requireOwnerService().getMessageSender().callWait(actorAddress, logicalActorId, methodKey, params, timeoutMillis), false);
     }
 
 
+    private <T> T callWithRetry(ActorId actorId, ActorAddressCaller<T> caller, boolean isSend) {
+        // 这里主要是场景tick里 不是协程的需要套个协程;
+        if (isSend && !ownerService.continuationRuntime().isContinuation()) {
+            ownerService.launchCoroutine(() -> callWithRetry(actorId, caller));
+            return null;
+        }
+        return callWithRetry(actorId, caller);
+    }
+
     private <T> T callWithRetry(ActorId actorId, ActorAddressCaller<T> caller) {
-        if (!ownerService.getServiceType().selfManageActorAddress()) {
-            return _callWithRetry(actorId, caller);
-        } else {
+        // 这里主要是自己管理actor的  不需要重试发送
+        if (ownerService.getServiceType().selfManageActorAddress()) {
             return singleCall(actorId, caller);
+        } else {
+            return _callWithRetry(actorId, caller);
         }
     }
 
@@ -277,7 +280,7 @@ public class MessageLocationSender {
                 }
 
                 try {
-                    return caller.call(new ActorAddress(actorAddress), new ActorId(actorId));
+                    return caller.call(new ActorAddress(actorAddress), new ActorId(actorId), true);
                 } catch (RuntimeException exception) {
                     if (!refreshIfActorNotFound(actorId, exception)) {
                         throw exception;
@@ -302,7 +305,7 @@ public class MessageLocationSender {
         }
 
         try {
-            return caller.call(new ActorAddress(actorAddress), new ActorId(actorId));
+            return caller.call(new ActorAddress(actorAddress), new ActorId(actorId), false);
         } catch (RuntimeException exception) {
             /*if (!refreshIfActorNotFound(actorId, exception)) {
                 throw exception;

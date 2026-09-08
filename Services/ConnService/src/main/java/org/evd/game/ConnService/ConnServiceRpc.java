@@ -5,6 +5,7 @@ import org.evd.game.annotation.actor.ActorType;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 
@@ -41,6 +42,16 @@ public final class ConnServiceRpc {
     @Rpc
     public int getLoginSessionCount() {
         return owner().getLoginSessionCount();
+    }
+
+    @Rpc
+    public boolean cacheStageActorAddress(long playerId, ActorAddress stageActorAddress) {
+        return owner().cacheStageActorAddress(playerId, stageActorAddress);
+    }
+
+    @Rpc
+    public void removeStageActorAddress(long playerId) {
+        owner().removeStageActorAddress(playerId);
     }
 
     private ConnService owner() {

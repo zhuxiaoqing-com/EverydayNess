@@ -5,7 +5,9 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.call.RpcCallBase;
+import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.continuation.ContinuationDebugInfo;
+import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.exception.ActorRpcCallTimeoutException;
 
 public final class MessageSender {
@@ -36,5 +38,33 @@ public final class MessageSender {
                 debugInfo,
                 timeoutWaitId -> new ActorRpcCallTimeoutException(
                         service.id, timeoutWaitId, timeoutMillis, methodKey, targetActorId, targetActorAddress));
+    }
+
+    public Object callClientCmdWait(ActorAddress actorAddress,
+                                    ActorId actorId,
+                                    ClientSessionRef session,
+                                    int msgId,
+                                    Chunk body) {
+        return callClientCmdWait(actorAddress, actorId, session, msgId, body, service.getCallWaitTimeout());
+    }
+
+    public Object callClientCmdWait(ActorAddress actorAddress,
+                                    ActorId actorId,
+                                    ClientSessionRef session,
+                                    int msgId,
+                                    Chunk body,
+                                    long timeoutMillis) {
+        ActorId targetActorId = actorId == null ? null : new ActorId(actorId);
+        ActorAddress targetActorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
+        RpcCallBase message = CallFactory.buildActorClientCmd(
+                service, actorAddress, actorId, msgId, session, body, true);
+        ContinuationDebugInfo.ActorRpcWaitDebugInfo debugInfo =
+                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(targetActorId, targetActorAddress, msgId, timeoutMillis);
+        return service.getCallTransport().awaitRpcCall(
+                message,
+                timeoutMillis,
+                debugInfo,
+                timeoutWaitId -> new ActorRpcCallTimeoutException(
+                        service.id, timeoutWaitId, timeoutMillis, msgId, targetActorId, targetActorAddress));
     }
 }

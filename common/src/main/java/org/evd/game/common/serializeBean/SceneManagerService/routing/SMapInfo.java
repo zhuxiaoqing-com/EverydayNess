@@ -52,4 +52,13 @@ public final class SMapInfo implements ISerializable {
     public SMapKey toMapKey() {
         return new SMapKey(mapCfgId, groupId);
     }
+
+    @Override
+    public String toString() {
+        return "SMapInfo{" +
+                "sceneId=" + sceneId +
+                ", mapCfgId=" + mapCfgId +
+                ", groupId=" + groupId +
+                '}';
+    }
 }

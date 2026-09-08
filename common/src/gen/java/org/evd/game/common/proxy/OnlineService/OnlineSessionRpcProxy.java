@@ -4,6 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.annotation.service.ServiceType;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 
@@ -22,12 +23,22 @@ public final class OnlineSessionRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINESESSIONRPC_CLEARPLAYERSERVICE_9 = 9;
-        public final static int ENUM_ONLINESESSIONRPC_CLEARSESSION_10 = 10;
-        public final static int ENUM_ONLINESESSIONRPC_GETUSERSTATE_11 = 11;
-        public final static int ENUM_ONLINESESSIONRPC_ISPLAYEROFFLINE_12 = 12;
-        public final static int ENUM_ONLINESESSIONRPC_REMOVEHISTORICALPLAYERSERVICE_13 = 13;
+        public final static int ENUM_ONLINESESSIONRPC_CACHESTAGEACTORADDRESS_9 = 9;
+        public final static int ENUM_ONLINESESSIONRPC_CLEARPLAYERSERVICE_10 = 10;
+        public final static int ENUM_ONLINESESSIONRPC_CLEARSESSION_11 = 11;
+        public final static int ENUM_ONLINESESSIONRPC_GETUSERSTATE_12 = 12;
+        public final static int ENUM_ONLINESESSIONRPC_ISPLAYEROFFLINE_13 = 13;
+        public final static int ENUM_ONLINESESSIONRPC_REMOVEHISTORICALPLAYERSERVICE_14 = 14;
+        public final static int ENUM_ONLINESESSIONRPC_REMOVESTAGEACTORADDRESS_15 = 15;
     }
+
+    /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Boolean> callCacheStageActorAddress(CallPoint remote, long playerId, ActorAddress stageActorAddress){
+        return RpcResult.call(() -> inst().cacheStageActorAddress(remote, playerId, stageActorAddress));
+    }
+
 
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
@@ -68,6 +79,25 @@ public final class OnlineSessionRpcProxy {
         return RpcResult.run(() -> inst().removeHistoricalPlayerService(remote, userId, expectedPlayerService));
     }
 
+    /**
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    */
+    public static RpcResult<Void> sendRemoveStageActorAddress(CallPoint remote, long playerId){
+        return RpcResult.run(() -> inst().removeStageActorAddress(remote, playerId));
+    }
+
+
+    /**
+    * 对应源方法: org.evd.game.OnlineService.session.OnlineSessionRpc#cacheStageActorAddress()
+    */
+    public boolean cacheStageActorAddress(CallPoint remote, long playerId, ActorAddress stageActorAddress){
+        Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
+        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CACHESTAGEACTORADDRESS_9, new Object[]{playerId, stageActorAddress});
+    }
+
 
     /**
     * 对应源方法: org.evd.game.OnlineService.session.OnlineSessionRpc#clearPlayerService()
@@ -77,7 +107,7 @@ public final class OnlineSessionRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CLEARPLAYERSERVICE_9, new Object[]{userId, gate, gateSessionId, expectedPlayerService});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CLEARPLAYERSERVICE_10, new Object[]{userId, gate, gateSessionId, expectedPlayerService});
     }
 
 
@@ -89,7 +119,7 @@ public final class OnlineSessionRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (CallPoint)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CLEARSESSION_10, new Object[]{userId, gate, sessionId});
+        return (CallPoint)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CLEARSESSION_11, new Object[]{userId, gate, sessionId});
     }
 
 
@@ -101,7 +131,7 @@ public final class OnlineSessionRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (SOnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_GETUSERSTATE_11, new Object[]{userId});
+        return (SOnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_GETUSERSTATE_12, new Object[]{userId});
     }
 
 
@@ -113,7 +143,7 @@ public final class OnlineSessionRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_ISPLAYEROFFLINE_12, new Object[]{userId});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_ISPLAYEROFFLINE_13, new Object[]{userId});
     }
 
 
@@ -125,7 +155,19 @@ public final class OnlineSessionRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        service.call(remote, EnumCall.ENUM_ONLINESESSIONRPC_REMOVEHISTORICALPLAYERSERVICE_13, new Object[]{userId, expectedPlayerService});
+        service.call(remote, EnumCall.ENUM_ONLINESESSIONRPC_REMOVEHISTORICALPLAYERSERVICE_14, new Object[]{userId, expectedPlayerService});
+    }
+
+
+    /**
+    * 对应源方法: org.evd.game.OnlineService.session.OnlineSessionRpc#removeStageActorAddress()
+    */
+    public void removeStageActorAddress(CallPoint remote, long playerId){
+        Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        }
+        service.call(remote, EnumCall.ENUM_ONLINESESSIONRPC_REMOVESTAGEACTORADDRESS_15, new Object[]{playerId});
     }
 
 

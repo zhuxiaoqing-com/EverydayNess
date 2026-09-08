@@ -47,12 +47,11 @@ public final class StageServiceRpcProxy {
 
 
     /**
-    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Boolean> callEnterScene(CallPoint remote, long sceneId, SPlayerMapData playerData){
-        return RpcResult.call(() -> inst().enterScene(remote, sceneId, playerData));
+    public static RpcResult<Void> sendEnterScene(CallPoint remote, long sceneId, SPlayerMapData playerData){
+        return RpcResult.run(() -> inst().enterScene(remote, sceneId, playerData));
     }
-
 
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
@@ -100,9 +99,9 @@ public final class StageServiceRpcProxy {
     /**
     * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#enterScene()
     */
-    public boolean enterScene(CallPoint remote, long sceneId, SPlayerMapData playerData){
+    public void enterScene(CallPoint remote, long sceneId, SPlayerMapData playerData){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_ENTERSCENE_6, new Object[]{sceneId, playerData});
+        service.call(remote, EnumCall.ENUM_STAGESERVICERPC_ENTERSCENE_6, new Object[]{sceneId, playerData});
     }
 
 

@@ -186,6 +186,20 @@ public class ConnService extends Service {
         return getActorAddress(actorId);
     }
 
+    /** 缓存当前玩家所在 Stage 的 ActorAddress，供网关定位地图玩家消息。 */
+    public boolean cacheStageActorAddress(long playerId, ActorAddress stageActorAddress) {
+        if (playerId <= 0L || stageActorAddress == null) {
+            return false;
+        }
+        getMessageLocationSender().cache(ActorId.mapPlayer(playerId), stageActorAddress);
+        return true;
+    }
+
+    /** 删除当前玩家所在 Stage 的 ActorAddress 缓存。 */
+    public void removeStageActorAddress(long playerId) {
+        getMessageLocationSender().remove(ActorId.mapPlayer(playerId));
+    }
+
     public void removePlayerActorAddress(long playerId) {
         if (playerId > 0L) {
             ActorId playerActorId = ActorId.player(playerId);

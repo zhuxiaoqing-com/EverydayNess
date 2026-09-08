@@ -52,8 +52,8 @@ public class LocationService extends Service {
         super(node, name, scheduledName, interval, serviceInfo);
     }
 
-    public void add(ActorId actorId, ActorAddress actorAddress) {
-        addNow(actorId, actorAddress);
+    public boolean add(ActorId actorId, ActorAddress actorAddress) {
+        return addNow(actorId, actorAddress);
     }
 
     public void remove(ActorId actorId, ActorAddress expectedActorAddress) {
@@ -108,11 +108,11 @@ public class LocationService extends Service {
         }
     }
 
-    private void addNow(ActorId actorId, ActorAddress actorAddress) {
+    private boolean addNow(ActorId actorId, ActorAddress actorAddress) {
         if (actorId == null || actorAddress == null) {
             LogCore.core.error("LocationService 添加 actor 参数非法: actorId={}, address={}",
                     actorId, actorAddress);
-            return;
+            return false;
         }
         LocationEntry current = actorLocations.get(actorId);
         if (current != null) {
@@ -124,6 +124,7 @@ public class LocationService extends Service {
         }
         actorLocations.put(actorId, new LocationEntry(actorAddress));
         LogCore.core.info("LocationService 添加actor: actorId={}, address={}", actorId, actorAddress);
+        return true;
     }
 
     private void removeNow(ActorId actorId, ActorAddress expectedActorAddress) {

@@ -6,6 +6,7 @@ import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.serializeBean.OnlineService.session.SOnlineUserState;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
 
 /** OnlineService 在线会话 RPC 入口。 */
@@ -36,6 +37,16 @@ public final class OnlineSessionRpc {
     public boolean clearPlayerService(String userId, CallPoint gate, long gateSessionId,
                                       CallPoint expectedPlayerService) {
         return logic().clearPlayerService(userId, gate, gateSessionId, expectedPlayerService);
+    }
+
+    @Rpc
+    public boolean cacheStageActorAddress(long playerId, ActorAddress stageActorAddress) {
+        return Service.getCurrent(OnlineService.class).cacheStageActorAddress(playerId, stageActorAddress);
+    }
+
+    @Rpc
+    public void removeStageActorAddress(long playerId) {
+        Service.getCurrent(OnlineService.class).removeStageActorAddress(playerId);
     }
 
     private OnlineSessionLogic logic() {

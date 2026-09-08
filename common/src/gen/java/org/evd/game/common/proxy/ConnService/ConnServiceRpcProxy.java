@@ -5,6 +5,7 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.annotation.actor.ActorType;
+import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.actor.ActorId;
 
@@ -23,13 +24,23 @@ public final class ConnServiceRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNSERVICERPC_GETLOGINSESSIONCOUNT_0 = 0;
-        public final static int ENUM_CONNSERVICERPC_GETPUBLICADDR_1 = 1;
-        public final static int ENUM_CONNSERVICERPC_PUSHTOCLIENT_2 = 2;
-        public final static int ENUM_CONNSERVICERPC_PUSHTOPLAYERID_3 = 3;
-        public final static int ENUM_CONNSERVICERPC_PUSHTOUSERID_4 = 4;
-        public final static int ENUM_CONNSERVICERPC_REDIRECTCLIENT_5 = 5;
+        public final static int ENUM_CONNSERVICERPC_CACHESTAGEACTORADDRESS_0 = 0;
+        public final static int ENUM_CONNSERVICERPC_GETLOGINSESSIONCOUNT_1 = 1;
+        public final static int ENUM_CONNSERVICERPC_GETPUBLICADDR_2 = 2;
+        public final static int ENUM_CONNSERVICERPC_PUSHTOCLIENT_3 = 3;
+        public final static int ENUM_CONNSERVICERPC_PUSHTOPLAYERID_4 = 4;
+        public final static int ENUM_CONNSERVICERPC_PUSHTOUSERID_5 = 5;
+        public final static int ENUM_CONNSERVICERPC_REDIRECTCLIENT_6 = 6;
+        public final static int ENUM_CONNSERVICERPC_REMOVESTAGEACTORADDRESS_7 = 7;
     }
+
+    /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Boolean> callCacheStageActorAddress(CallPoint remote, long playerId, ActorAddress stageActorAddress){
+        return RpcResult.call(() -> inst().cacheStageActorAddress(remote, playerId, stageActorAddress));
+    }
+
 
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
@@ -76,13 +87,29 @@ public final class ConnServiceRpcProxy {
         return RpcResult.run(() -> inst().redirectClient(remote, sessionId, packet));
     }
 
+    /**
+    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    */
+    public static RpcResult<Void> sendRemoveStageActorAddress(CallPoint remote, long playerId){
+        return RpcResult.run(() -> inst().removeStageActorAddress(remote, playerId));
+    }
+
+
+    /**
+    * 对应源方法: org.evd.game.ConnService.ConnServiceRpc#cacheStageActorAddress()
+    */
+    public boolean cacheStageActorAddress(CallPoint remote, long playerId, ActorAddress stageActorAddress){
+        Service service = Service.getCurrent();
+        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_CACHESTAGEACTORADDRESS_0, new Object[]{playerId, stageActorAddress});
+    }
+
 
     /**
     * 对应源方法: org.evd.game.ConnService.ConnServiceRpc#getLoginSessionCount()
     */
     public int getLoginSessionCount(CallPoint remote){
         Service service = Service.getCurrent();
-        return (int)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_GETLOGINSESSIONCOUNT_0, new Object[]{});
+        return (int)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_GETLOGINSESSIONCOUNT_1, new Object[]{});
     }
 
 
@@ -91,7 +118,7 @@ public final class ConnServiceRpcProxy {
     */
     public String getPublicAddr(CallPoint remote){
         Service service = Service.getCurrent();
-        return (String)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_GETPUBLICADDR_1, new Object[]{});
+        return (String)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_GETPUBLICADDR_2, new Object[]{});
     }
 
 
@@ -100,7 +127,7 @@ public final class ConnServiceRpcProxy {
     */
     public boolean pushToClient(CallPoint remote, long sessionId, ClientFrameChunk packet){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_PUSHTOCLIENT_2, new Object[]{sessionId, packet});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNSERVICERPC_PUSHTOCLIENT_3, new Object[]{sessionId, packet});
     }
 
 
@@ -109,7 +136,7 @@ public final class ConnServiceRpcProxy {
     */
     public void pushToPlayerId(long actorUniqueId, ClientFrameChunk packet){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNSERVICERPC_PUSHTOPLAYERID_3, new Object[]{packet});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNSERVICERPC_PUSHTOPLAYERID_4, new Object[]{packet});
     }
 
 
@@ -118,7 +145,7 @@ public final class ConnServiceRpcProxy {
     */
     public void pushToUserId(CallPoint remote, String userId, ClientFrameChunk packet){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNSERVICERPC_PUSHTOUSERID_4, new Object[]{userId, packet});
+        service.call(remote, EnumCall.ENUM_CONNSERVICERPC_PUSHTOUSERID_5, new Object[]{userId, packet});
     }
 
 
@@ -127,7 +154,16 @@ public final class ConnServiceRpcProxy {
     */
     public void redirectClient(CallPoint remote, long sessionId, ClientFrameChunk packet){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNSERVICERPC_REDIRECTCLIENT_5, new Object[]{sessionId, packet});
+        service.call(remote, EnumCall.ENUM_CONNSERVICERPC_REDIRECTCLIENT_6, new Object[]{sessionId, packet});
+    }
+
+
+    /**
+    * 对应源方法: org.evd.game.ConnService.ConnServiceRpc#removeStageActorAddress()
+    */
+    public void removeStageActorAddress(CallPoint remote, long playerId){
+        Service service = Service.getCurrent();
+        service.call(remote, EnumCall.ENUM_CONNSERVICERPC_REMOVESTAGEACTORADDRESS_7, new Object[]{playerId});
     }
 
 

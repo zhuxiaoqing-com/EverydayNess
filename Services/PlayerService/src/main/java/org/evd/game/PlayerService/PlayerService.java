@@ -95,6 +95,16 @@ public class PlayerService extends Service {
         return actorAddress;
     }
 
+    /** 缓存当前玩家所在 Stage 的 ActorAddress，供本服务定位地图玩家消息。 */
+    public void cacheStageActorAddress(long playerId, ActorAddress stageActorAddress) {
+        getMessageLocationSender().cache(ActorId.mapPlayer(playerId), stageActorAddress);
+    }
+
+    /** 删除当前玩家所在 Stage 的 ActorAddress 缓存。 */
+    public void removeStageActorAddress(long playerId) {
+        getMessageLocationSender().remove(ActorId.mapPlayer(playerId));
+    }
+
     /** 删除玩家 Actor 和对应的 Location 地址，由离线管理器调用。 */
     public void removePlayerActorState(long playerId) {
         ActorId actorId = ActorId.player(playerId);

@@ -23,10 +23,10 @@ public final class ConnTestRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNTESTRPC_CONNTEST1_6 = 6;
-        public final static int ENUM_CONNTESTRPC_CONNTEST2_7 = 7;
-        public final static int ENUM_CONNTESTRPC_CONNTEST3_8 = 8;
-        public final static int ENUM_CONNTESTRPC_CONNTEST4_9 = 9;
+        public final static int ENUM_CONNTESTRPC_CONNTEST1_8 = 8;
+        public final static int ENUM_CONNTESTRPC_CONNTEST2_9 = 9;
+        public final static int ENUM_CONNTESTRPC_CONNTEST3_10 = 10;
+        public final static int ENUM_CONNTESTRPC_CONNTEST4_11 = 11;
     }
 
     /**
@@ -65,7 +65,7 @@ public final class ConnTestRpcProxy {
     */
     public void connTest1(long actorUniqueId){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST1_6, new Object[]{});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST1_8, new Object[]{});
     }
 
 
@@ -74,7 +74,7 @@ public final class ConnTestRpcProxy {
     */
     public boolean connTest2(long actorUniqueId, int a, Object b, SConnInfo connInfo){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        return (boolean)Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST2_7, new Object[]{a, b, connInfo});
+        return (boolean)Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST2_9, new Object[]{a, b, connInfo});
     }
 
 
@@ -83,7 +83,7 @@ public final class ConnTestRpcProxy {
     */
     public void connTest3(CallPoint remote){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST3_8, new Object[]{});
+        service.call(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST3_10, new Object[]{});
     }
 
 
@@ -92,7 +92,7 @@ public final class ConnTestRpcProxy {
     */
     public boolean connTest4(CallPoint remote, int a, Object b, SConnInfo connInfo){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST4_9, new Object[]{a, b, connInfo});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST4_11, new Object[]{a, b, connInfo});
     }
 
 

@@ -18,7 +18,7 @@ public class SOnlinePlayerCandidate implements ISerializable {
     }
 
     public CallPoint getCallPoint() {
-        return callPoint == null ? null : new CallPoint(callPoint);
+        return callPoint;
     }
 
     public void setCallPoint(CallPoint callPoint) {

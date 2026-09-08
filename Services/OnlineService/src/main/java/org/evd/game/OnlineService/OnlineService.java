@@ -7,6 +7,8 @@ import org.evd.game.OnlineService.reconcile.OnlineStateReconcileManager;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.actor.ActorAddress;
+import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
@@ -78,6 +80,20 @@ public class OnlineService extends Service {
     /** 返回状态对账校验器，供 OnlineStateReconcileRpc 委托处理。 */
     public OnlineStateReconcileManager stateReconcileManager() {
         return stateReconcileManager;
+    }
+
+    /** 缓存当前玩家所在 Stage 的 ActorAddress，供 OnlineService 定位地图玩家消息。 */
+    public boolean cacheStageActorAddress(long playerId, ActorAddress stageActorAddress) {
+        if (playerId <= 0L || stageActorAddress == null) {
+            return false;
+        }
+        getMessageLocationSender().cache(ActorId.mapPlayer(playerId), stageActorAddress);
+        return true;
+    }
+
+    /** 删除当前玩家所在 Stage 的 ActorAddress 缓存。 */
+    public void removeStageActorAddress(long playerId) {
+        getMessageLocationSender().remove(ActorId.mapPlayer(playerId));
     }
 
     /** 清理已经超过有效期的预登录 token。 */

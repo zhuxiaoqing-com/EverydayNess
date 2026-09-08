@@ -27,7 +27,7 @@ public class SPlayerStateCheck implements ISerializable {
     public void setUserId(String userId) { this.userId = userId; }
     public long getPlayerId() { return playerId; }
     public void setPlayerId(long playerId) { this.playerId = playerId; }
-    public CallPoint getGate() { return gate == null ? null : new CallPoint(gate); }
+    public CallPoint getGate() { return gate; }
     public void setGate(CallPoint gate) { this.gate = gate == null ? null : new CallPoint(gate); }
     public long getGateSessionId() { return gateSessionId; }
     public void setGateSessionId(long gateSessionId) { this.gateSessionId = gateSessionId; }

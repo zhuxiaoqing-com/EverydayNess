@@ -3,6 +3,7 @@ package org.evd.game.PlayerService.session;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.actor.ActorAddress;
+import org.evd.game.runtime.support.LogCore;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -69,13 +70,14 @@ public final class PlayerSessionManager {
         return currentBinding.bindGateActorAddress(gateActorAddress);
     }
 
-    /** 将完成进入地图的当前绑定推进到正式在线状态。 */
-    public boolean markOnline(long playerId) {
+    /** 将当前玩家绑定推进到正式在线状态。 */
+    public void markOnline(long playerId) {
         PPlayerOnline currentBinding = onlinePlayers.get(playerId);
         if (currentBinding == null) {
-            return false;
+            LogCore.core.warn("PlayerService 玩家标记在线失败，在线绑定不存在: playerId={}", playerId);
+            return;
         }
-        return currentBinding.markOnline();
+        currentBinding.markOnline();
     }
 
     /** 删除指定玩家的在线绑定。 */

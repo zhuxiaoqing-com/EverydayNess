@@ -21,9 +21,9 @@ public final class ConnLoginRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNLOGINRPC_BINDPLAYER_10 = 10;
-        public final static int ENUM_CONNLOGINRPC_REGISTERLOGIN_11 = 11;
-        public final static int ENUM_CONNLOGINRPC_REJECTPENDINGLOGIN_12 = 12;
+        public final static int ENUM_CONNLOGINRPC_BINDPLAYER_12 = 12;
+        public final static int ENUM_CONNLOGINRPC_REGISTERLOGIN_13 = 13;
+        public final static int ENUM_CONNLOGINRPC_REJECTPENDINGLOGIN_14 = 14;
     }
 
     /**
@@ -56,7 +56,7 @@ public final class ConnLoginRpcProxy {
     */
     public ActorAddress bindPlayer(CallPoint remote, long sessionId, long playerId, ActorAddress playerActorAddress){
         Service service = Service.getCurrent();
-        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_CONNLOGINRPC_BINDPLAYER_10, new Object[]{sessionId, playerId, playerActorAddress});
+        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_CONNLOGINRPC_BINDPLAYER_12, new Object[]{sessionId, playerId, playerActorAddress});
     }
 
 
@@ -65,7 +65,7 @@ public final class ConnLoginRpcProxy {
     */
     public boolean registerLogin(CallPoint remote, long sessionId, String userId){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNLOGINRPC_REGISTERLOGIN_11, new Object[]{sessionId, userId});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNLOGINRPC_REGISTERLOGIN_13, new Object[]{sessionId, userId});
     }
 
 
@@ -74,7 +74,7 @@ public final class ConnLoginRpcProxy {
     */
     public boolean rejectPendingLogin(CallPoint remote, long sessionId, String userId, String token, ClientFrameChunk packet, int brokenTypeCode, String reason){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNLOGINRPC_REJECTPENDINGLOGIN_12, new Object[]{sessionId, userId, token, packet, brokenTypeCode, reason});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNLOGINRPC_REJECTPENDINGLOGIN_14, new Object[]{sessionId, userId, token, packet, brokenTypeCode, reason});
     }
 
 

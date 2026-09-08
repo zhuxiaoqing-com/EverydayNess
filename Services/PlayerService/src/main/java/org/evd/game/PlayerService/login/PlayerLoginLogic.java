@@ -53,12 +53,6 @@ public final class PlayerLoginLogic {
             return null;
         }
 
-        if (!sessionManager.markReadyIfCurrent(userId, playerId, session)) {
-            LogCore.core.warn("PlayerService hasOnlinePlayer完成后绑定状态失效: service={}, userId={}, playerId={}, gateSessionId={}",
-                    owner.getId(), userId, playerId, session.getSessionId());
-            return null;
-        }
-
         ActorAddress actorAddress = owner.registerPlayerActor(playerId);
         sessionManager.bindPlayerSession(userId, playerId, session, actorAddress);
         if (!sessionManager.markReadyIfCurrent(userId, playerId, session)) {
@@ -85,7 +79,7 @@ public final class PlayerLoginLogic {
                 owner.getId(), playerId, ActorId.gate(playerId), gateActorAddress);
     }
 
-    /** 完成进入地图后的玩家上线处理；地图进入本身由 PlayerMapLogic 负责。 */
+    /** 执行玩家正式上线处理；地图进入本身由 PlayerMapLogic 负责。 */
     public void onlinePlayer(String userId, long playerId, RoleData role, ClientSessionRef session) {
         PlayerService owner = owner();
         PlayerSessionManager sessionManager = owner.sessionManager();
@@ -114,6 +108,7 @@ public final class PlayerLoginLogic {
         PlayerDataRepository playerDataRepository = owner.playerDataRepository();
         playerDataRepository.loadOrCreate(playerId, role.getName(), role.getLevel());
 
+        sessionManager.markOnline(playerId);
 
         Service.getCurrent().publishEvent(RoleLoginEvent.Listener.class,
                 new RoleLoginEvent(playerId), RoleLoginEvent.Listener::onEvent);
