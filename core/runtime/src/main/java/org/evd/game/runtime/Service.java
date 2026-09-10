@@ -37,8 +37,10 @@ import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.DeadlineTimerWheelScheduler;
 import org.evd.game.runtime.util.TimerScheduler;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,7 +57,7 @@ public class Service extends TickCase {
         if (call == null) {
             throw new SysException("service call is null: service={}", id);
         }
-        calls.add(call);
+        serviceInputs.add(() -> rpcInboundDispatcher.handle(call));
     }
 
     enum ServiceStatus {
@@ -93,22 +95,10 @@ public class Service extends TickCase {
         return scheduledName;
     }
 
-    /**
-     * service的接收队列
-     */
-    private final FrameQueue<CallBase> calls = new FrameQueue<>(new ConcurrentLinkedDeque<>());
-    /**
-     * 此帧要执行的calls
-     */
-    private final List<CallBase> affirmCalls = new ArrayList<>();
-    /**
-     * 非 service 线程投递过来的任务
-     */
-    private final FrameQueue<Runnable> postedTasks = new FrameQueue<>(new ConcurrentLinkedDeque<>());
-    /**
-     * 此帧要执行的投递任务
-     */
-    private final List<Runnable> affirmPostedTasks = new ArrayList<>();
+    /** Call 和非 Service 线程投递的任务共用一个外部输入队列，保持入队顺序。 */
+    private final FrameQueue<Runnable> serviceInputs = new FrameQueue<>(new ConcurrentLinkedDeque<>());
+    /** 本帧固定要处理的 Service 输入。 */
+    private final Deque<Runnable> affirmServiceInputs = new ArrayDeque<>();
     /** 由 Service 线程按帧发布，供 Node 跨线程读取。 */
     private volatile PressureSnapshot pressureSnapshot = PressureSnapshot.EMPTY;
     /**
@@ -326,10 +316,7 @@ public class Service extends TickCase {
         try {
             pulseAffirm_st();
 
-            pulseCalls_st();
-            // 先处理已经进入 Service 的入站结果，再处理断链等 posted 事件。
-            // 这样同一帧已到达的 CallResult 不会被断链清理抢先结束。
-            pulsePostedTasks_st();
+            pulseServiceInputs_st();
             tick_st();
 
             pulseTask_st();
@@ -546,48 +533,25 @@ public class Service extends TickCase {
      * 先固定本帧开始时的数量，避免转移过程中不断吸入新任务，导致此帧执行时间不可控。
      */
     private void pulseAffirm_st() {
-        int callsToAffirm = calls.getFrameProcessNum();
-        int postedTasksToAffirm = postedTasks.getFrameProcessNum();
-        for (int i = 0; i < callsToAffirm; i++) {
-            CallBase call = calls.poll();
-            if (call == null) {
-                break;
-            }
-            affirmCalls.add(call);
-        }
-        for (int i = 0; i < postedTasksToAffirm; i++) {
-            Runnable task = postedTasks.poll();
+        int inputsToAffirm = serviceInputs.getFrameProcessNum();
+        for (int i = 0; i < inputsToAffirm; i++) {
+            Runnable task = serviceInputs.poll();
             if (task == null) {
                 break;
             }
-            affirmPostedTasks.add(task);
+            affirmServiceInputs.addLast(task);
         }
     }
 
-    private void pulsePostedTasks_st() {
-        for (Runnable postedTask : affirmPostedTasks) {
-            try {
-                postedTask.run();
-            } catch (Throwable e) {
-                rethrowFatal(e);
-                LogCore.core.error("posted service task failed: service={}", id, e);
-            }
+    private void pulseServiceInputs_st() {
+        Runnable task;
+        while ((task = affirmServiceInputs.pollFirst()) != null) {
+            task.run();
         }
-        affirmPostedTasks.clear();
     }
 
     private void drainQueuedContinuations_st() {
         continuationRuntime.drain("frame");
-    }
-
-    /**
-     * 执行call请求
-     */
-    private void pulseCalls_st() {
-        for (CallBase call : affirmCalls) {
-            rpcInboundDispatcher.handle(call);
-        }
-        affirmCalls.clear();
     }
 
     private void publishPressureSnapshot_st() {
@@ -605,7 +569,14 @@ public class Service extends TickCase {
         if (task == null) {
             throw new SysException("posted task is null: service={}", id);
         }
-        postedTasks.add(task);
+        serviceInputs.add(() -> {
+            try {
+                task.run();
+            } catch (Throwable e) {
+                rethrowFatal(e);
+                LogCore.core.error("posted service task failed: service={}", id, e);
+            }
+        });
     }
 
     public record PressureSnapshot(
