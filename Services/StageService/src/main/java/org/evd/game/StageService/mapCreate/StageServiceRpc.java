@@ -4,9 +4,11 @@ import org.evd.game.StageService.StageService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 
@@ -20,12 +22,22 @@ public final class StageServiceRpc {
     }
 
     @Rpc
+    public SRunningMapInfo getRunningMapInfo(long sceneId) {
+        return logic().getRunningMapInfo(sceneId);
+    }
+
+    @Rpc
     public boolean createScene(SMapKey mapKey, long sceneId) {
         return logic().createScene(mapKey, sceneId);
     }
 
     @Rpc
-    public boolean prepareEnterScene(SMapEnterRequest request) {
+    public boolean createScene(SMapCreateRequest request, long sceneId) {
+        return logic().createScene(request, sceneId);
+    }
+
+    @Rpc
+    public boolean prepareEnterScene(PlayerEnterRequest request) {
         return logic().prepareEnterScene(request);
     }
 

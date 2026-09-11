@@ -7,7 +7,7 @@ import org.evd.game.common.serializeBean.OnlineService.routing.SOnlineConnCandid
 import org.evd.game.common.serializeBean.OnlineService.login.SOnlineLoginAdmission;
 import org.evd.game.common.serializeBean.OnlineService.login.SOnlineTokenState;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.common.proto.S2C_Login;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.ymlconfig.LoginYml;
@@ -143,7 +143,7 @@ public final class OnlineLoginCoordinator {
                 .build();
         RpcResult<Void> result = ConnServiceRpcProxy.sendRedirectClient(
                 gate, sessionId,
-                ClientFrameChunk.wrap(MsgId.S2C_LOGIN_VALUE, response));
+                ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN_VALUE, response));
         if (!result.isSuccess()) {
             cancelPendingSession(userId, admission.getTokenState().getToken());
             LogCore.core.warn("OnlineService 发送登录准入响应失败: userId={}, gate={}, sessionId={}, errorCode={}, message={}",

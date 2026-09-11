@@ -5,7 +5,7 @@ import org.evd.game.OnlineService.session.OnlinePlayer;
 import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.common.proto.RoleData;
 import org.evd.game.common.proto.S2C_SelectRoleEnter;
 import org.evd.game.common.proxy.ConnService.ConnLoginRpcProxy;
@@ -228,7 +228,7 @@ public final class OnlinePlayerLoginLogic {
     private void push(ClientSessionRef session, S2C_SelectRoleEnter response) {
         RpcResult<Boolean> result = ConnServiceRpcProxy.callPushToClient(
                 session.getGate(), session.getSessionId(),
-                ClientFrameChunk.wrap(MsgId.S2C_SELECT_ROLE_ENTER_VALUE, response));
+                ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_SELECT_ROLE_ENTER_VALUE, response));
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             LogCore.core.warn("OnlineService 回选角响应失败: gateSessionId={}, errorCode={}, message={}",
                     session.getSessionId(), result.getErrorCode(), result.getErrorMessage());

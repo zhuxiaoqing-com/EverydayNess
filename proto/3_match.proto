@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package protocol.match;
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "MatchProto";
+
+enum MatchMsgId {
+  MATCH_MSG_ID_NONE = 0;
+
+  // 仅在末尾顺序追加；删除协议时同时 reserved 原编号和原名称。
+  C2S_MATCH_START = 3001;
+  S2C_MATCH_START = 3002;
+  C2S_MATCH_CANCEL = 3003;
+  S2C_MATCH_CANCEL = 3004;
+}
+
+message C2S_Match {
+  int32 match_type = 1;
+  repeated int32 map_cfg_ids = 2;
+  repeated int32 duty_ids = 3;
+}
+
+message S2C_Match {
+  bool success = 1;
+  string message = 2;
+}
+
+message C2S_CancelMatch {
+}
+
+message S2C_CancelMatch {
+  bool success = 1;
+  string message = 2;
+}

@@ -63,7 +63,7 @@ public class TickTimer implements ISerializable {
 	 */
 	public void start(long interval, boolean immediate) {
 		// 确定开始时间 优先取由port去心跳开始时间
-		Service service = Service.getCurrent();
+		Service service = Service.peekCurrent();
 		long now;
 		if (service != null) {
 			now = service.getTimeCurrent();

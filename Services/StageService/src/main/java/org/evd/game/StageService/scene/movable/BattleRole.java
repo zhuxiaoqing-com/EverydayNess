@@ -32,6 +32,7 @@ public final class BattleRole {
     }
 
     public SPlayerMapData getPlayerMapData() {
-        return new SPlayerMapData(playerMapData);
+        return playerMapData;
     }
+
 }

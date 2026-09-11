@@ -5,7 +5,7 @@ import org.evd.game.LobbyService.dbDef.db.bean.LBRole;
 import org.evd.game.LobbyService.dbDef.db.bean.LBUserAccount;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proto.C2S_CreateRole;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.common.proto.RoleData;
 import org.evd.game.common.proto.S2C_CreateRole;
 import org.evd.game.common.proto.S2C_RoleList;
@@ -80,7 +80,7 @@ public final class LobbyRoleLogic {
         }
         RpcResult<Boolean> result = ConnServiceRpcProxy.callPushToClient(
                 session.getGate(), session.getSessionId(),
-                ClientFrameChunk.wrap(MsgId.S2C_CREATE_ROLE_VALUE, builder.build()));
+                ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_CREATE_ROLE_VALUE, builder.build()));
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             LogCore.core.warn("LobbyService 回创建角色响应失败: gateSessionId={}, errorCode={}, message={}",
                     session.getSessionId(), result.getErrorCode(), result.getErrorMessage());
@@ -111,7 +111,7 @@ public final class LobbyRoleLogic {
                 .addAllRoles(roles)
                 .build();
         RpcResult<Boolean> result = ConnServiceRpcProxy.callPushToClient(
-                gate, gateSessionId, ClientFrameChunk.wrap(MsgId.S2C_ROLE_LIST_VALUE, response));
+                gate, gateSessionId, ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_ROLE_LIST_VALUE, response));
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             LogCore.core.warn("LobbyService 回角色列表失败: userId={}, gateSessionId={}, errorCode={}, message={}",
                     userId, gateSessionId, result.getErrorCode(), result.getErrorMessage());

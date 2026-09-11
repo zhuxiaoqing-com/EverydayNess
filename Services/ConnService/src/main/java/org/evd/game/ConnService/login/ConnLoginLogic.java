@@ -4,7 +4,7 @@ import org.evd.game.ConnService.ConnService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proto.C2S_Login;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.common.proto.S2C_Login;
 import org.evd.game.common.proxy.LobbyService.LobbyServiceRpcProxy;
 import org.evd.game.common.proxy.OnlineService.OnlineLoginRpcProxy;
@@ -115,13 +115,13 @@ public final class ConnLoginLogic {
         }
         S2C_Login response = S2C_Login.newBuilder()
                 .setSuccess(false).setMessage(message == null ? "登录失败" : message).build();
-        owner.pushToClient(session.getSessionId(), ClientFrameChunk.wrap(MsgId.S2C_LOGIN_VALUE, response));
+        owner.pushToClient(session.getSessionId(), ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN_VALUE, response));
     }
 
     private void rejectAndClose(ConnService owner, ClientSessionRef session, String reason) {
         S2C_Login response = S2C_Login.newBuilder().setSuccess(false).setMessage(reason).build();
         owner.redirectClient(session.getSessionId(),
-                ClientFrameChunk.wrap(MsgId.S2C_LOGIN_VALUE, response));
+                ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN_VALUE, response));
     }
 
     private ConnService owner() {

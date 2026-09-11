@@ -5,7 +5,7 @@ import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.ClientCmd;
 import org.evd.game.annotation.actor.ClientCmdHandler;
 import org.evd.game.common.proto.C2S_Login2;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.client.ClientSessionRef;
 
@@ -13,7 +13,7 @@ import org.evd.game.runtime.client.ClientSessionRef;
 @Actor
 @ClientCmdHandler
 public final class OnlineLoginClientCmd {
-    @ClientCmd(MsgId.C2S_LOGIN2_VALUE)
+    @ClientCmd(AuthMsgId.C2S_AUTH_LOGIN2_VALUE)
     public void login2(ClientSessionRef session, C2S_Login2 request) {
         logic().login2(session, request);
     }

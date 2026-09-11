@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package protocol.map;
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "MapProto";
+
+enum MapMsgId {
+  MAP_MSG_ID_NONE = 0;
+
+  // 仅在末尾顺序追加；删除协议时同时 reserved 原编号和原名称。
+  C2S_MAP_READY_ENTER_MAP = 2001;
+  S2C_MAP_READY_ENTER_MAP = 2002;
+  S2C_MAP_ENTER_MAP = 2003;
+}
+
+message C2S_ReadyEnterMap {
+  int64 transfer_id = 1;
+}
+
+message S2C_ReadyEnterMap {
+  bool success = 1;
+  string message = 2;
+  int64 transfer_id = 3;
+  int64 scene_id = 4;
+  int32 map_cfg_id = 5;
+  int64 group_id = 6;
+}
+
+message S2C_EnterMap {
+  bool success = 1;
+  string message = 2;
+  int64 scene_id = 3;
+  int32 map_cfg_id = 4;
+  int64 group_id = 5;
+}

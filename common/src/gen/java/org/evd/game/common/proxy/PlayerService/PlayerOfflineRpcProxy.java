@@ -20,7 +20,7 @@ public final class PlayerOfflineRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_PLAYEROFFLINERPC_ONPLAYEROFFLINE_8 = 8;
+        public final static int ENUM_PLAYEROFFLINERPC_ONPLAYEROFFLINE_12 = 12;
     }
 
     /**
@@ -36,7 +36,7 @@ public final class PlayerOfflineRpcProxy {
     */
     public void onPlayerOffline(CallPoint remote, String userId, long playerId, CallPoint gate, long gateSessionId, int brokenTypeCode){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYEROFFLINERPC_ONPLAYEROFFLINE_8, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
+        service.call(remote, EnumCall.ENUM_PLAYEROFFLINERPC_ONPLAYEROFFLINE_12, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
     }
 
 

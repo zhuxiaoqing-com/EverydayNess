@@ -221,10 +221,11 @@ public final class ContinuationRuntime implements ContinuationHost {
     }
 
     void requireServiceThread() {
-        if (Service.getCurrent() != service) {
+        Service currentService = Service.peekCurrent();
+        if (currentService != service) {
             throw new SysException(
                     "continuation runtime must run on its service thread: service={}, currentService={}",
-                    service.getId(), Service.getCurrent() == null ? null : Service.getCurrent().getId());
+                    service.getId(), currentService == null ? null : currentService.getId());
         }
     }
 

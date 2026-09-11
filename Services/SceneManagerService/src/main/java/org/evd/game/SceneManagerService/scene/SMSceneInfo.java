@@ -1,6 +1,6 @@
 package org.evd.game.SceneManagerService.scene;
 
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -11,7 +11,7 @@ import java.util.Map;
 public final class SMSceneInfo {
     private final SMapKey mapKey;
     private final long sceneId;
-    private final Map<Long, SMapEnterRequest> waitEnterQueue = new HashMap<>();
+    private final Map<Long, PlayerEnterRequest> waitEnterQueue = new HashMap<>();
     private SMSceneState state;
     private final CallPoint stageCallPoint;
 
@@ -30,7 +30,7 @@ public final class SMSceneInfo {
         return sceneId;
     }
 
-    public Map<Long, SMapEnterRequest> getWaitEnterQueue() {
+    public Map<Long, PlayerEnterRequest> getWaitEnterQueue() {
         return waitEnterQueue;
     }
 
@@ -40,6 +40,18 @@ public final class SMSceneInfo {
 
     public void setState(SMSceneState state) {
         this.state = state;
+    }
+
+    @Override
+    public String toString() {
+        return "SMSceneInfo{" +
+                "mapCfgId=" + mapKey.getMapCfgId() +
+                ", groupId=" + mapKey.getGroupId() +
+                ", sceneId=" + sceneId +
+                ", state=" + state +
+                ", waitEnterCount=" + waitEnterQueue.size() +
+                ", stageCallPoint=" + stageCallPoint +
+                '}';
     }
 
     public CallPoint getStageCallPoint() {

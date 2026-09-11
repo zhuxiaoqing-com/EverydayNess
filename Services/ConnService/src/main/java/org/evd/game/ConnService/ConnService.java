@@ -7,7 +7,7 @@ import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proto.C2S_ConnPing;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.common.proto.S2C_ConnPing;
 import org.evd.game.common.proxy.LobbyService.LobbyRoleRpcProxy;
 import org.evd.game.common.proxy.OnlineService.OnlinePlayerLoginRpcProxy;
@@ -89,7 +89,7 @@ public class ConnService extends Service {
         CallPoint lobby = getNode().getAnyCallPointByType(ServiceType.LOBBY);
         if (lobby == null) {
             throw new IllegalStateException("找不到客户端协议目标服务: service=LobbyService, msgId="
-                    + MsgId.C2S_CREATE_ROLE_VALUE);
+                    + AuthMsgId.C2S_AUTH_CREATE_ROLE_VALUE);
         }
         C2S_CreateRole forwarded = request.toBuilder().setUserId(userId).build();
         LobbyRoleRpcProxy.sendCreateRole(lobby, session, forwarded);
@@ -106,7 +106,7 @@ public class ConnService extends Service {
         CallPoint online = getNode().getAnyCallPointByType(ServiceType.ONLINE);
         if (online == null) {
             throw new IllegalStateException("找不到客户端协议目标服务: service=OnlineService, msgId="
-                    + MsgId.C2S_SELECT_ROLE_ENTER_VALUE);
+                    + AuthMsgId.C2S_AUTH_SELECT_ROLE_ENTER_VALUE);
         }
         C2S_SelectRoleEnter forwarded = request.toBuilder().setUserId(userId).build();
         OnlinePlayerLoginRpcProxy.sendSelectRoleEnter(online, session, forwarded);
@@ -226,7 +226,7 @@ public class ConnService extends Service {
                 .setClientTime(req.getClientTime())
                 .setServerTime(getTime())
                 .build();
-        pushToClient(session.getSessionId(), ClientFrameChunk.wrap(MsgId.S2C_CONN_PING_VALUE, resp));
+        pushToClient(session.getSessionId(), ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_CONN_PING_VALUE, resp));
     }
 
     void prepareClientSession(NetChannel session) {

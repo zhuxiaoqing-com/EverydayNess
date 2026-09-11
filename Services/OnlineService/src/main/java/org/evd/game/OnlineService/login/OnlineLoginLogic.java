@@ -3,7 +3,7 @@ package org.evd.game.OnlineService.login;
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proto.C2S_Login2;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.common.proto.S2C_Login2;
 import org.evd.game.common.proxy.ConnService.ConnLoginRpcProxy;
 import org.evd.game.common.proxy.ConnService.ConnOfflineRpcProxy;
@@ -196,7 +196,7 @@ public final class OnlineLoginLogic {
                 .build();
         RpcResult<Boolean> result = ConnLoginRpcProxy.callRejectPendingLogin(
                 gate, gateSessionId, userId, token,
-                ClientFrameChunk.wrap(MsgId.S2C_LOGIN2_VALUE, response),
+                ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN2_VALUE, response),
                 BrokenType.TOKEN_EXPIRE.getCode(), reason);
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             LogCore.core.warn("OnlineService 拒绝二段登录连接失败: userId={}, gate={}, gateSessionId={}, reason={}, errorCode={}, message={}, value={}",
@@ -213,7 +213,7 @@ public final class OnlineLoginLogic {
                 .setMessage(reason)
                 .build();
         RpcResult<Void> result = ConnServiceRpcProxy.sendRedirectClient(
-                gate, gateSessionId, ClientFrameChunk.wrap(MsgId.S2C_LOGIN2_VALUE, response));
+                gate, gateSessionId, ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN2_VALUE, response));
         if (!result.isSuccess()) {
             LogCore.core.warn("OnlineService 回登录失败并关闭连接时发送失败: gate={}, gateSessionId={}, reason={}, errorCode={}, message={}",
                     gate, gateSessionId, reason, result.getErrorCode(), result.getErrorMessage());

@@ -33,6 +33,10 @@ public enum ServiceType {
 
     ONLINE(10, ServiceName.ONLINE_SERVICE),
 
+    // 新枚举必须追加在已有枚举之后，避免改变已有 ServiceType 的序列化 ordinal。
+    MATCH(11, ServiceName.MATCH_SERVICE, true, NodeType.GLOBAL),
+    TEAM(12, ServiceName.TEAM_SERVICE),
+
     ;
     final int type;
     final String className;
@@ -40,6 +44,7 @@ public enum ServiceType {
     final NodeType nodeType;
 
     static ServiceType[] shutdownOrder = new ServiceType[] {
+            MATCH,
             CONN,
             SDK,
             SCENE_MANAGER,
@@ -170,4 +175,3 @@ public enum ServiceType {
         return null;
     }
 }
-

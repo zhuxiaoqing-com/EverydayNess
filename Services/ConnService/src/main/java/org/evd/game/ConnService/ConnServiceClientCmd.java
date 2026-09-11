@@ -6,7 +6,7 @@ import org.evd.game.annotation.actor.ClientCmdHandler;
 import org.evd.game.common.proto.C2S_ConnPing;
 import org.evd.game.common.proto.C2S_CreateRole;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.client.ClientSessionRef;
 
@@ -14,17 +14,17 @@ import org.evd.game.runtime.client.ClientSessionRef;
 @Actor
 @ClientCmdHandler
 public final class ConnServiceClientCmd {
-    @ClientCmd(MsgId.C2S_CREATE_ROLE_VALUE)
+    @ClientCmd(AuthMsgId.C2S_AUTH_CREATE_ROLE_VALUE)
     public void createRole(ClientSessionRef session, C2S_CreateRole request) {
         owner().createRole(session, request);
     }
 
-    @ClientCmd(MsgId.C2S_SELECT_ROLE_ENTER_VALUE)
+    @ClientCmd(AuthMsgId.C2S_AUTH_SELECT_ROLE_ENTER_VALUE)
     public void selectRoleEnter(ClientSessionRef session, C2S_SelectRoleEnter request) {
         owner().selectRoleEnter(session, request);
     }
 
-    @ClientCmd(MsgId.C2S_CONN_PING_VALUE)
+    @ClientCmd(AuthMsgId.C2S_AUTH_CONN_PING_VALUE)
     public void onConnPing(ClientSessionRef session, C2S_ConnPing request) {
         owner().onConnPing(session, request);
     }

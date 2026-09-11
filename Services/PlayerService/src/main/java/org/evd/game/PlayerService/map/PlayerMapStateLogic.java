@@ -50,6 +50,23 @@ public final class PlayerMapStateLogic {
         return true;
     }
 
+    /** 将玩家从一个已知匹配状态原子切换到地图转场状态。 */
+    public boolean transition(long playerId, PlayerMapState expectedState, PlayerMapState nextState) {
+        if (expectedState == null || nextState == null || nextState == PlayerMapState.NONE) {
+            throw new IllegalArgumentException("状态切换参数不能为空，且 nextState 不能是 NONE");
+        }
+        DBRoleMapData data = DBRoleMapDataTable.get(playerId);
+        PlayerMapState currentState = data == null ? PlayerMapState.NONE : currentState(data);
+        if (currentState != expectedState) {
+            log.warn("玩家状态切换失败，当前状态不匹配: playerId={}, expectedState={}, nextState={}, currentState={}",
+                    playerId, expectedState, nextState, currentState);
+            return false;
+        }
+        data.setStateType(nextState.getId());
+        data.setStateStartMill(Service.getTime());
+        return true;
+    }
+
     public boolean isIn(long playerId, PlayerMapState expectedState) {
         DBRoleMapData data = DBRoleMapDataTable.get(playerId);
         return data != null && currentState(data) == expectedState;

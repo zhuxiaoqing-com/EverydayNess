@@ -12,7 +12,9 @@ public final class MapConst {
 
     /** 地图配置对应的 Deal 类型。 */
     public enum MapType {
-        NORMAL(1);
+        NORMAL(1),
+        MULTI_MATCH(2),
+        CAMP(3);
 
         private final int type;
 

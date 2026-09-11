@@ -9,15 +9,20 @@ import org.evd.game.PlayerService.dbDef.db.table.DBRoleMapDataTable;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.constant.MapConst;
+import org.evd.game.common.constant.MatchConst;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proxy.LocationService.LocationServiceRpcProxy;
+import org.evd.game.common.proxy.MatchService.MatchRpcProxy;
 import org.evd.game.common.proxy.OnlineService.OnlineSessionRpcProxy;
 import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
 import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerEnterParam;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.MatchPlayerEnterMapParam;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapSimpleData;
+import org.evd.game.common.serializeBean.MatchService.match.SMatchRequest;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
@@ -26,7 +31,11 @@ import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.common.proto.C2S_ReadyEnterMap;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.C2S_Match;
+import org.evd.game.common.proto.MapMsgId;
+import org.evd.game.common.proto.MatchMsgId;
+import org.evd.game.common.proto.S2C_CancelMatch;
+import org.evd.game.common.proto.S2C_Match;
 import org.evd.game.common.proto.S2C_ReadyEnterMap;
 
 /** PlayerService 独立的地图转场逻辑。 */
@@ -49,25 +58,130 @@ public final class PlayerMapLogic {
                 return;
             }
         }
-        startTransfer(playerId, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID);
+        enterMap(playerId, new SMapInfo(0L, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID), null);
     }
 
-    /** 发起一次普通地图转场。 */
-    public void enterMap(long playerId, int mapCfgId, long groupId) {
-        startTransfer(playerId, mapCfgId, groupId);
+    /** 普通地图进入，不涉及匹配状态。 */
+    public boolean enterMap(long playerId, SMapInfo targetInfo,
+                            SPlayerEnterParam enterParam) {
+        return startTransfer(playerId, targetInfo, enterParam);
     }
 
-    private void startTransfer(long playerId, int mapCfgId, long groupId) {
+    /** 单人匹配入口：先占用玩家匹配状态，再提交 MatchService。 */
+    public void startSingleMatch(ClientSessionRef session, C2S_Match request) {
+        if (session == null || session.getPlayerId() <= 0L) {
+            log.warn("PlayerService 发起单人匹配失败：玩家会话非法，session={}", session);
+            return;
+        }
+        long playerId = session.getPlayerId();
+        if (request == null) {
+            log.warn("PlayerService 发起单人匹配失败：请求为空，playerId={}", playerId);
+            pushResult(MatchMsgId.S2C_MATCH_START_VALUE, playerId, false, "匹配请求为空");
+            return;
+        }
+        if (!owner().sessionManager().hasOnlinePlayer(playerId)) {
+            log.warn("PlayerService 发起单人匹配失败：玩家不在线，playerId={}", playerId);
+            pushResult(MatchMsgId.S2C_MATCH_START_VALUE, playerId, false, "玩家不在线");
+            return;
+        }
+        CallPoint matchService = MatchConst.getMatchCallPoint();
+        if (!stateLogic().enter(playerId, PlayerMapState.MATCHING)) {
+            log.warn("PlayerService 发起单人匹配失败：玩家当前状态不允许匹配，playerId={}, state={}",
+                    playerId, stateLogic().getState(playerId));
+            pushResult(MatchMsgId.S2C_MATCH_START_VALUE, playerId, false, "玩家当前不能匹配");
+            return;
+        }
+
+        SMatchRequest matchRequest = new SMatchRequest(
+                playerId, request.getMatchType(), request.getMapCfgIdsList(), owner().getCallPoint());
+        matchRequest.setDutyIds(request.getDutyIdsList());
+        RpcResult<Boolean> result = MatchRpcProxy.callMatch(matchService, matchRequest);
+        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
+            log.warn("PlayerService 发起单人匹配失败：MatchService 拒绝请求，playerId={}, matchType={}, errorCode={}, message={}",
+                    playerId, request.getMatchType(), result.getErrorCode(), result.getErrorMessage());
+            if (!stateLogic().exit(playerId, PlayerMapState.MATCHING)) {
+                log.error("PlayerService 回滚单人匹配状态失败: playerId={}", playerId);
+            }
+            pushResult(MatchMsgId.S2C_MATCH_START_VALUE, playerId, false, "匹配失败");
+            return;
+        }
+        log.info("PlayerService 单人匹配请求已提交: playerId={}, matchType={}, mapCfgIds={}",
+                playerId, request.getMatchType(), request.getMapCfgIdsList());
+        pushResult(MatchMsgId.S2C_MATCH_START_VALUE, playerId, true, "匹配已开始");
+    }
+
+    /** 单人匹配取消入口；组队取消时由 MatchService 根据 playerId 反查整队。 */
+    public void cancelMatch(ClientSessionRef session) {
+        if (session == null || session.getPlayerId() <= 0L) {
+            log.warn("PlayerService 取消匹配失败：玩家会话非法，session={}", session);
+            return;
+        }
+        long playerId = session.getPlayerId();
+        RpcResult<Boolean> result = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
+        if (!result.isSuccess()) {
+            log.warn("PlayerService 取消匹配失败：MatchService RPC 调用失败，playerId={}, errorCode={}, message={}",
+                    playerId, result.getErrorCode(), result.getErrorMessage());
+            pushResult(MatchMsgId.S2C_MATCH_CANCEL_VALUE, playerId, false, "取消匹配失败");
+            return;
+        }
+        if (!Boolean.TRUE.equals(result.getValue())) {
+            log.warn("PlayerService 取消匹配失败：玩家不在 MatchService 匹配队列，playerId={}", playerId);
+            if (stateLogic().isIn(playerId, PlayerMapState.MATCHING)) {
+                stateLogic().exit(playerId, PlayerMapState.MATCHING);
+            }
+            pushResult(MatchMsgId.S2C_MATCH_CANCEL_VALUE, playerId, false, "玩家当前未在匹配");
+            return;
+        }
+        log.info("PlayerService 取消匹配成功: playerId={}", playerId);
+    }
+
+    /** 匹配成功进入地图：先退出匹配状态，再进入地图状态。 */
+    public void matchEnterMap(long playerId, SMapInfo targetInfo,
+                              MatchPlayerEnterMapParam matchParam) {
+        if (targetInfo == null || targetInfo.getMapCfgId() <= 0 || targetInfo.getGroupId() <= 0L) {
+            log.warn("PlayerService 匹配进图参数非法: playerId={}, targetInfo={}", playerId, targetInfo);
+            return;
+        }
+        if (!startTransfer(playerId, targetInfo, new SPlayerEnterParam(matchParam))) {
+            log.warn("PlayerService 匹配进图转场启动失败: playerId={}, targetInfo={}",
+                    playerId, targetInfo);
+        }
+    }
+
+    /** MatchService 已确定匹配结果后，只清理匹配状态，不发送客户端取消协议。 */
+    public void clearMatchState(long playerId) {
+        PlayerMapState currentState = stateLogic().getState(playerId);
+        if (currentState != PlayerMapState.MATCHING && currentState != PlayerMapState.TEAM_MATCHING) {
+            return;
+        }
+        stateLogic().exit(playerId, currentState);
+    }
+
+    private void pushResult(int messageId, long playerId, boolean success, String message) {
+        RpcResult<Void> result = ConnServiceRpcProxy.callPushToPlayerId(
+                playerId, ClientFrameChunk.wrap(messageId, messageId == MatchMsgId.S2C_MATCH_START_VALUE
+                        ? S2C_Match.newBuilder().setSuccess(success).setMessage(message).build()
+                        : S2C_CancelMatch.newBuilder().setSuccess(success).setMessage(message).build()));
+        if (!result.isSuccess()) {
+            log.warn("PlayerService 通知客户端匹配结果失败: playerId={}, errorCode={}, message={}",
+                    playerId, result.getErrorCode(), result.getErrorMessage());
+        }
+    }
+
+    public boolean startTransfer(long playerId, SMapInfo targetInfo,
+                                 SPlayerEnterParam enterParam) {
+        int mapCfgId = targetInfo.getMapCfgId();
+        long groupId = targetInfo.getGroupId();
         PlayerService owner = owner();
         if(!owner.sessionManager().hasOnlinePlayer(playerId)) {
             log.warn("PlayerService 玩家不在线，忽略地图进入请求: playerId={}", playerId);
-            return;
+            return false;
         }
         DBRoleMapData roleMapData = getOrCreateRoleMapData(playerId);
         if (!stateLogic().enter(playerId, PlayerMapState.ENTER_MAP)) {
             log.warn("PlayerService 玩家当前状态不允许进入地图: playerId={}, state={}",
                     playerId, stateLogic().getState(playerId));
-            return;
+            return false;
         }
         DBTransferContext oldTransferContext = roleMapData.getTransferContext();
         DBMapInfo oldTarget = oldTransferContext == null ? null : oldTransferContext.getTargetInfo();
@@ -86,7 +200,7 @@ public final class PlayerMapLogic {
         SMapInfo oldMapInfo = currMapInfo == null
                 ? new SMapInfo()
                 : toCommon(currMapInfo);
-        SMapInfo targetInfo = new SMapInfo(0L, mapCfgId, groupId);
+        targetInfo = new SMapInfo(targetInfo);
         DBTransferContext transferContext = new DBTransferContext();
         transferContext.setTransferId(transferId);
         transferContext.setStart(true);
@@ -104,7 +218,8 @@ public final class PlayerMapLogic {
          */
 
         SPlayerMapSimpleData simpleData = dataLogic().getSimpleData(playerId);
-        SMapEnterRequest request = new SMapEnterRequest(simpleData, transferId, owner.getCallPoint(), oldMapInfo, targetInfo);
+        PlayerEnterRequest request = new PlayerEnterRequest(simpleData, transferId, owner.getCallPoint(),
+                oldMapInfo, targetInfo, enterParam);
         CallPoint sceneManager = MapConst.getSceneManagerCallPoint(mapCfgId);
         RpcResult<Boolean> result = SceneManagerRpcProxy.callEnterMap(sceneManager, request);
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
@@ -112,10 +227,24 @@ public final class PlayerMapLogic {
                     playerId, transferId, mapCfgId, groupId, result.getErrorCode(), result.getErrorMessage());
             roleMapData.setTransferContext(new DBTransferContext());
             stateLogic().exit(playerId, PlayerMapState.ENTER_MAP);
-            return;
+            return false;
         }
         log.info("PlayerService SceneManager 已接受地图转场: playerId={}, transferId={}, mapCfgId={}, groupId={}",
                 playerId, transferId, mapCfgId, groupId);
+        return true;
+    }
+
+    /** 取消匹配时只清理匹配状态，不触碰玩家当前地图。 */
+    public boolean cancelMatch(long playerId) {
+        PlayerMapState currentState = stateLogic().getState(playerId);
+        if (currentState != PlayerMapState.MATCHING && currentState != PlayerMapState.TEAM_MATCHING) {
+            pushResult(MatchMsgId.S2C_MATCH_CANCEL_VALUE, playerId, false, "玩家当前未在匹配");
+            return false;
+        }
+        boolean success = stateLogic().exit(playerId, currentState);
+        pushResult(MatchMsgId.S2C_MATCH_CANCEL_VALUE, playerId, success,
+                success ? "已取消匹配" : "取消匹配失败");
+        return success;
     }
 
     /** Stage 完成旧场景退出后调用，通知客户端开始加载目标地图。 */
@@ -147,7 +276,7 @@ public final class PlayerMapLogic {
                 .setGroupId(targetInfo.getGroupId())
                 .build();
         RpcResult<Void> result = ConnServiceRpcProxy.callPushToPlayerId(playerId,
-                ClientFrameChunk.wrap(MsgId.S2C_READY_ENTER_MAP_VALUE, message));
+                ClientFrameChunk.wrap(MapMsgId.S2C_MAP_READY_ENTER_MAP_VALUE, message));
         if (!result.isSuccess()) {
             log.warn("PlayerService 通知客户端加载地图失败: playerId={}, transferId={}, errorCode={}, message={}",
                     playerId, transferId, result.getErrorCode(), result.getErrorMessage());

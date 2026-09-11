@@ -5,7 +5,7 @@ import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.ClientCmd;
 import org.evd.game.annotation.actor.ClientCmdHandler;
 import org.evd.game.common.proto.C2S_Login;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.client.ClientSessionRef;
 
@@ -13,7 +13,7 @@ import org.evd.game.runtime.client.ClientSessionRef;
 @Actor
 @ClientCmdHandler
 public final class ConnLoginClientCmd {
-    @ClientCmd(MsgId.C2S_LOGIN_VALUE)
+    @ClientCmd(AuthMsgId.C2S_AUTH_LOGIN_VALUE)
     public void login(ClientSessionRef session, C2S_Login request) {
         Service.getCurrent(ConnService.class).getActor(ConnLoginLogic.class).login(session, request);
     }

@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package protocol.auth;
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "AuthProto";
+
+enum AuthMsgId {
+  AUTH_MSG_ID_NONE = 0;
+
+  // 仅在末尾顺序追加；删除协议时同时 reserved 原编号和原名称。
+  C2S_AUTH_LOGIN = 1001;
+  S2C_AUTH_LOGIN = 1002;
+  C2S_AUTH_LOGIN2 = 1003;
+  S2C_AUTH_LOGIN2 = 1004;
+  C2S_AUTH_LOGIN3 = 1005;
+  C2S_AUTH_CREATE_ROLE = 1006;
+  S2C_AUTH_CREATE_ROLE = 1007;
+  C2S_AUTH_SELECT_ROLE_ENTER = 1008;
+  S2C_AUTH_SELECT_ROLE_ENTER = 1009;
+  S2C_AUTH_ROLE_LIST = 1010;
+  C2S_AUTH_CONN_PING = 1011;
+  S2C_AUTH_CONN_PING = 1012;
+}
+
+message C2S_Login {
+  string user_id = 1;
+  string sdk_token = 2;
+}
+
+message S2C_Login {
+  bool success = 1;
+  string message = 2;
+  string gate_addr = 3;
+  string token = 4;
+  int64 token_expire_at = 5;
+}
+
+message C2S_Login2 {
+  string token = 1;
+  string user_id = 2;
+}
+
+message S2C_Login2 {
+  bool success = 1;
+  string message = 2;
+  repeated RoleData roles = 3;
+}
+
+message RoleData {
+  int64 player_id = 1;
+  string name = 2;
+  int32 level = 3;
+  int32 character_id = 4;
+}
+
+message C2S_CreateRole {
+  string name = 1;
+  string user_id = 2;
+  int32 character_id = 3;
+}
+
+message S2C_CreateRole {
+  bool success = 1;
+  string message = 2;
+  RoleData role = 3;
+}
+
+message C2S_SelectRoleEnter {
+  int64 player_id = 1;
+  string user_id = 2;
+}
+
+message S2C_SelectRoleEnter {
+  bool success = 1;
+  string message = 2;
+  int64 player_id = 3;
+}
+
+message S2C_RoleList {
+  bool success = 1;
+  string message = 2;
+  repeated RoleData roles = 3;
+}
+
+message C2S_ConnPing {
+  int64 clientTime = 1;
+}
+
+message S2C_ConnPing {
+  int64 clientTime = 1;
+  int64 serverTime = 2;
+}

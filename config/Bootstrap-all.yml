@@ -42,6 +42,8 @@ nodes:
         - serviceType: STAGE
           name: stage
           num: 2
+        - serviceType: TEAM
+          name: team
 
   - nodeId: 1
     name: 大跨服节点
@@ -54,4 +56,6 @@ nodes:
         - serviceType: GSTAGE
           name: gStage
           num: 2
+        - serviceType: MATCH
+          name: match
       - name: io  #线程池

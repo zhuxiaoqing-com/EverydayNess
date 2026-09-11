@@ -21,11 +21,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class NetChannel {
     private static final int CMD_LOGIN = 1001;
-    private static final int CMD_CONN_PING = 1002;
     private static final int CMD_LOGIN2 = 1003;
-    private static final int CMD_LOGIN3 = 1004;
-    private static final int CMD_CREATE_ROLE = 1005;
-    private static final int CMD_SELECT_ROLE_ENTER = 1006;
+    private static final int CMD_LOGIN3 = 1005;
+    private static final int CMD_CREATE_ROLE = 1006;
+    private static final int CMD_SELECT_ROLE_ENTER = 1008;
+    private static final int CMD_CONN_PING = 1011;
 
     public static final int MESSAGE_GW_TIME = 30;
     public static final int MESSAGE_GW_COUNT = 150;

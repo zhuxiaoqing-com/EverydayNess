@@ -4,13 +4,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.evd.game.StageService.StageService;
 import org.evd.game.StageService.scene.battle.BattleScene;
 import org.evd.game.annotation.actor.Actor;
-import org.evd.game.common.constant.MapConst;
 import org.evd.game.common.proxy.PlayerService.PlayerMapRpcProxy;
 import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
+import org.evd.game.common.config.table.MapConfig;
+import org.evd.game.common.config.table.MapConfigs;
+import org.evd.game.common.constant.MapConst;
+import org.evd.game.StageService.scene.battle.CampScene;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
@@ -31,8 +36,28 @@ public final class StageSceneLogic {
         return scenes.size();
     }
 
+    public SRunningMapInfo getRunningMapInfo(long sceneId) {
+        BattleScene scene = scenes.get(sceneId);
+        return scene == null ? null : scene.getRunningMapInfo();
+    }
+
     /** 创建 BattleScene；相同 sceneId 重复创建时保持幂等。 */
     public boolean createScene(SMapKey mapKey, long sceneId) {
+        return createScene(new SMapCreateRequest(mapKey, null), sceneId);
+    }
+
+    public boolean createScene(SMapCreateRequest request, long sceneId) {
+        if (request == null || request.getMapKey() == null
+                || sceneId <= 0L) {
+            return false;
+        }
+        SMapKey mapKey = request.getMapKey();
+        MapConfig mapConfig = MapConfigs.get(mapKey.getMapCfgId());
+        if (mapConfig == null) {
+            log.error("StageService 创建地图时找不到地图配置: mapCfgId={}, sceneId={}",
+                    mapKey.getMapCfgId(), sceneId);
+            return false;
+        }
         if (mapKey == null || mapKey.getMapCfgId() <= 0 || sceneId <= 0L) {
             return false;
         }
@@ -56,12 +81,21 @@ public final class StageSceneLogic {
             }
             return oldSceneId == sceneId;
         }
-        scenes.put(sceneId, new BattleScene(mapKey, sceneId, owner()));
+        scenes.put(sceneId, createSceneObject(request, sceneId, mapConfig.getType()));
         return true;
     }
 
+    private BattleScene createSceneObject(SMapCreateRequest request, long sceneId, int mapType) {
+        return switch (mapType) {
+            case 1 -> new BattleScene(request.getMapKey(), sceneId, owner());
+            case 2, 3 -> new CampScene(request.getMapKey(), sceneId, owner(),
+                    request.getMatchParams());
+            default -> throw new IllegalArgumentException("不支持的地图类型: " + mapType);
+        };
+    }
+
     /** 进入目标 BattleScene 的预加入流程，然后退出旧场景。 */
-    public boolean prepareEnterScene(SMapEnterRequest request) {
+    public boolean prepareEnterScene(PlayerEnterRequest request) {
         if (request == null || request.getTargetInfo() == null) {
             log.warn("StageService 收到空的预进入请求");
             return false;

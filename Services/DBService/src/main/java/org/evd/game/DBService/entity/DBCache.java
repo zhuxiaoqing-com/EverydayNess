@@ -37,9 +37,6 @@ public class DBCache {
             throw new IllegalArgumentException("cacheFlushMs must be greater than 0: " + flushIntervalMs);
         }
         this.cacheOwner = Service.getCurrent();
-        if (cacheOwner == null) {
-            throw new IllegalStateException("DBCache must be created from a Service");
-        }
         this.storageEngine = storageEngine;
         this.tickTimerId = cacheOwner.timerScheduler().scheduleRepeated(
                 cacheOwner.getTimeCurrent(), flushIntervalMs, false, this::tick);

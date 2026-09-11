@@ -44,6 +44,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.BiConsumer;
@@ -177,15 +178,25 @@ public class Service extends TickCase {
     private final static ThreadLocal<Service> threadLocal = new ThreadLocal<>();
 
     public static Service getCurrent() {
+        Service current = threadLocal.get();
+        if (current == null) {
+            throw new SysException("current service is null");
+        }
+        return current;
+    }
+
+    /**
+     * 读取当前线程绑定的 Service；允许当前线程没有 Service。
+     */
+    public static Service peekCurrent() {
         return threadLocal.get();
     }
 
     public static <T extends Service> T getCurrent(Class<T> serviceType) {
-        Service current = threadLocal.get();
-        if (current == null) {
-            return null;
+        if (serviceType == null) {
+            throw new SysException("service type is null");
         }
-        return serviceType.cast(current);
+        return serviceType.cast(getCurrent());
     }
 
     /**
@@ -463,7 +474,7 @@ public class Service extends TickCase {
 
 
     public final <T> T getActor(Class<T> actorType) {
-        return actorManager().getActor(actorType);
+        return Objects.requireNonNull(actorManager().getActor(actorType));
     }
 
     public final Map<Class<?>, Object> getActorMap() {
@@ -603,6 +614,14 @@ public class Service extends TickCase {
                 LogCore.core.error("service coroutine failed: service={}", id, e);
             }
         }, null, Task.Reason.NORMAL, null);
+    }
+
+    /**
+     * 使用当前线程的 Service 启动业务协程。
+     */
+    public static void launchCurrentCoroutine(Runnable task) {
+        Service service = getCurrent();
+        service.launchCoroutine(task);
     }
 
     /**

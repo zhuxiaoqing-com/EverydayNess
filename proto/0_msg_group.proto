@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package protocol;
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "MsgGroupProto";
+
+enum MsgGroup {
+  MSG_GROUP_NONE = 0;
+
+  // 已使用的业务组编号不得修改或复用。
+  AUTH = 1;
+  MAP = 2;
+  MATCH = 3;
+}

@@ -3,9 +3,12 @@ package org.evd.game.SceneManagerService.scene;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.SceneManagerService.SceneManagerService;
 import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
+import org.evd.game.common.constant.MapConst;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.LockType;
@@ -13,6 +16,8 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /** 所有地图 Deal 的公共场景创建和转发逻辑。 */
 @Slf4j
@@ -24,7 +29,7 @@ public abstract class AbstractSceneDeal {
         this.owner = owner;
     }
 
-    public boolean enter(SMapEnterRequest request) {
+    public boolean enter(PlayerEnterRequest request) {
         if (request == null || request.getPlayerId() <= 0L || request.getTargetInfo() == null
                 || request.getTargetInfo().getMapCfgId() <= 0) {
             log.warn("SceneManager 收到非法进入地图请求: request={}", request);
@@ -55,7 +60,7 @@ public abstract class AbstractSceneDeal {
                 request.getPlayerId(), request.getTransferId(), sceneInfo.getSceneId(),
                 mapKey.getMapCfgId(), mapKey.getGroupId(), sceneInfo.getState());
 
-        try (ContinuationLockScope ignored = owner.awaitCoroutineLockScope(LockType.ACTOR, mapKey)) {
+        try (ContinuationLockScope ignored = owner.awaitCoroutineLockScope(LockType.MAP_SCENE, mapKey)) {
             sceneInfo = scenes.get(mapKey);
             if (sceneInfo == null) {
                 if (sceneExistedBeforeLock) {
@@ -72,7 +77,8 @@ public abstract class AbstractSceneDeal {
                         request.getPlayerId(), request.getTransferId(), mapKey.getMapCfgId(), mapKey.getGroupId());
                 return false;
             }
-            if (needCreate && !createScene(sceneInfo)) {
+            if (needCreate && !createStageScene(sceneInfo, new SMapCreateRequest(
+                    mapKey, null), sceneInfo.getSceneId())) {
                 return false;
             }
             if (sceneInfo.getWaitEnterQueue().get(request.getPlayerId()) != request) {
@@ -91,6 +97,43 @@ public abstract class AbstractSceneDeal {
             return false;
         }
         return sendPrepareEnter(sceneInfo, request);
+    }
+
+    public SMapInfo createScene(SMapCreateRequest request) {
+        if (request == null || request.getMapKey() == null) {
+            log.error("SceneManager 收到非法地图创建请求: request={}", request);
+            return null;
+        }
+        SMapKey mapKey = request.getMapKey();
+        SMSceneInfo current = scenes.get(mapKey);
+        if (current != null) {
+            log.error("SceneManager 地图已存在，拒绝重复创建: sceneId={}, mapCfgId={}, groupId={}, state={}",
+                    current.getSceneId(), mapKey.getMapCfgId(), mapKey.getGroupId(), current.getState());
+            return null;
+        }
+        long sceneId = owner.createSceneId();
+        SMSceneInfo sceneInfo = new SMSceneInfo(mapKey, sceneId, owner.chooseStage());
+        scenes.put(mapKey, sceneInfo);
+        try (ContinuationLockScope ignored = owner.awaitCoroutineLockScope(LockType.MAP_SCENE, mapKey)) {
+            /*
+             * sceneInfo 在加锁前已经写入 scenes，同一个 mapKey 又使用同一把创建锁，
+             * 当前流程理论上不会出现记录被删除或替换的情况。
+             */
+            SMSceneInfo currentSceneInfo = scenes.get(mapKey);
+            if (currentSceneInfo != sceneInfo) {
+                log.error("SceneManager 获取创建锁后地图创建记录不一致，取消创建: newSceneInfo={}, oldSceneInfo={}",
+                        sceneInfo, currentSceneInfo);
+                return null;
+            }
+            SMapCreateRequest stageRequest = new SMapCreateRequest(mapKey,
+                    request.getMatchParams());
+            if (!createStageScene(sceneInfo, stageRequest, sceneId)) {
+                log.error("SceneManager Stage 创建地图失败，取消创建: sceneId={}, mapCfgId={}, groupId={}",
+                        sceneId, mapKey.getMapCfgId(), mapKey.getGroupId());
+                return null;
+            }
+        }
+        return new SMapInfo(sceneInfo.getSceneId(), mapKey.getMapCfgId(), mapKey.getGroupId());
     }
 
     /** 退出地图；优先取消仍在进入等待队列的请求，否则退出 Stage 中的玩家。 */
@@ -125,9 +168,9 @@ public abstract class AbstractSceneDeal {
         return true;
     }
 
-    private boolean createScene(SMSceneInfo sceneInfo) {
-        RpcResult<Boolean> result = StageServiceRpcProxy.callCreateScene(sceneInfo.getStageCallPoint(),
-                sceneInfo.getMapKey(), sceneInfo.getSceneId());
+    private boolean createStageScene(SMSceneInfo sceneInfo, SMapCreateRequest request, long sceneId) {
+        RpcResult<Boolean> result = StageServiceRpcProxy.callCreateScene(
+                sceneInfo.getStageCallPoint(), request, sceneId);
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             sceneInfo.setState(SMSceneState.DESTROYED);
             scenes.remove(sceneInfo.getMapKey());
@@ -144,7 +187,7 @@ public abstract class AbstractSceneDeal {
         return true;
     }
 
-    private boolean sendPrepareEnter(SMSceneInfo sceneInfo, SMapEnterRequest request) {
+    private boolean sendPrepareEnter(SMSceneInfo sceneInfo, PlayerEnterRequest request) {
         SMapInfo targetInfo = request.getTargetInfo();
         if (targetInfo == null) {
             log.error("SceneManager 预进入请求缺少目标地图: playerId={}, sceneId={}",
@@ -172,6 +215,24 @@ public abstract class AbstractSceneDeal {
             }
         }
         return null;
+    }
+
+    public List<SRunningMapInfo> getRunningMaps(int mapCfgId) {
+        List<SRunningMapInfo> result = new ArrayList<>();
+        for (SMSceneInfo sceneInfo : scenes.values()) {
+            if (sceneInfo.getState() != SMSceneState.CREATED) continue;
+            if (sceneInfo.getMapKey().getMapCfgId() != mapCfgId) continue;
+            RpcResult<SRunningMapInfo> room = StageServiceRpcProxy.callGetRunningMapInfo(
+                    sceneInfo.getStageCallPoint(), sceneInfo.getSceneId());
+            if (!room.isSuccess() || room.getValue() == null) {
+                log.error("SceneManager 查询运行中地图失败: sceneId={}, mapCfgId={}, groupId={}, errorCode={}, message={}",
+                        sceneInfo.getSceneId(), sceneInfo.getMapKey().getMapCfgId(),
+                        sceneInfo.getMapKey().getGroupId(), room.getErrorCode(), room.getErrorMessage());
+                continue;
+            }
+            result.add(room.getValue());
+        }
+        return result;
     }
 
 }

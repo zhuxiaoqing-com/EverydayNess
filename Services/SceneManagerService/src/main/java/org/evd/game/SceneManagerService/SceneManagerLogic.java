@@ -1,15 +1,19 @@
 package org.evd.game.SceneManagerService;
 
 import org.evd.game.annotation.actor.Actor;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.exception.SysException;
+
+import java.util.List;
 
 /** SceneManager 独立的地图分发逻辑。 */
     @Actor
 public final class SceneManagerLogic {
-    public boolean enterMap(SMapEnterRequest request) {
+    public boolean enterMap(PlayerEnterRequest request) {
         if (request == null || request.getTargetInfo() == null) {
             throw new SysException("进入地图请求缺少目标地图");
         }
@@ -21,6 +25,14 @@ public final class SceneManagerLogic {
             throw new SysException("退出地图请求缺少地图信息");
         }
         return owner().sceneDealManager().getDeal(mapInfo.getMapCfgId()).exitMap(mapInfo.toMapKey(), playerId);
+    }
+
+    public SMapInfo createScene(SMapCreateRequest request) {
+        return owner().sceneDealManager().createScene(request);
+    }
+
+    public List<SRunningMapInfo> getRunningMaps(int mapCfgId) {
+        return owner().sceneDealManager().getDeal(mapCfgId).getRunningMaps(mapCfgId);
     }
 
     private SceneManagerService owner() {

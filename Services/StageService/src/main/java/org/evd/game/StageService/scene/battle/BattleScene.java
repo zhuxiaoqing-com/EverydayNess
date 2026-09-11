@@ -2,14 +2,17 @@ package org.evd.game.StageService.scene.battle;
 
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.StageService.StageService;
-import org.evd.game.common.proto.MsgId;
+import org.evd.game.common.proto.MapMsgId;
 import org.evd.game.common.proto.S2C_EnterMap;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
 import org.evd.game.common.proxy.PlayerService.PlayerMapRpcProxy;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapEnterRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
+import org.evd.game.common.serializeBean.MatchService.match.SMatchRobot;
+import org.evd.game.common.config.table.MapConfigs;
 import org.evd.game.StageService.scene.movable.BattleRole;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -19,6 +22,7 @@ import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 /** Stage 上所有具体场景的父类，负责预进入队列和正式玩家集合。 */
 @Slf4j
@@ -26,7 +30,7 @@ public class BattleScene {
     private final SMapKey mapKey;
     private final long sceneId;
     private final StageService owner;
-    private final Map<Long, SMapEnterRequest> pendingRoleMap = new HashMap<>();
+    private final Map<Long, PlayerEnterRequest> pendingRoleMap = new HashMap<>();
     private final Map<Long, BattleRole> roleMap = new HashMap<>();
 
     public BattleScene(SMapKey mapKey, long sceneId, StageService owner) {
@@ -35,7 +39,7 @@ public class BattleScene {
         this.owner = owner;
     }
 
-    public boolean canEnter(SMapEnterRequest request) {
+    public boolean canEnter(PlayerEnterRequest request) {
         if (request == null) {
             log.warn("BattleScene 拒绝进入：请求为空, sceneId={}", sceneId);
             return false;
@@ -72,7 +76,7 @@ public class BattleScene {
         return true;
     }
 
-    public void addPendingRole(SMapEnterRequest request) {
+    public void addPendingRole(PlayerEnterRequest request) {
         pendingRoleMap.put(request.getPlayerId(), request);
     }
 
@@ -93,13 +97,13 @@ public class BattleScene {
                     playerId, sceneId);
             return;
         }
-        SMapEnterRequest request = pendingRoleMap.get(playerId);
+        PlayerEnterRequest request = pendingRoleMap.get(playerId);
         if (request == null) {
             log.warn("BattleScene 拒绝进入：玩家不在预进入队列中, playerId={}, sceneId={}",
                     playerId, sceneId);
             return;
         }
-        pendingRoleMap.remove(playerId);
+        PlayerEnterRequest enterRequest = pendingRoleMap.remove(playerId);
         BattleRole battleRole = new BattleRole(playerData);
         roleMap.put(playerId, battleRole);
         owner.getMessageLocationSender().cache(ActorId.gate(playerId), playerData.getGateActorAddress());
@@ -123,7 +127,7 @@ public class BattleScene {
                 .setGroupId(mapKey.getGroupId())
                 .build();
         RpcResult<Void> enterMapResult = ConnServiceRpcProxy.callPushToPlayerId(
-                playerId, ClientFrameChunk.wrap(MsgId.S2C_ENTER_MAP_VALUE, message));
+                playerId, ClientFrameChunk.wrap(MapMsgId.S2C_MAP_ENTER_MAP_VALUE, message));
         if (!enterMapResult.isSuccess()) {
             log.error("BattleScene 通知客户端正式进入地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     playerId, sceneId, enterMapResult.getErrorCode(), enterMapResult.getErrorMessage());
@@ -150,7 +154,7 @@ public class BattleScene {
         if (playerId <= 0L) {
             return false;
         }
-        SMapEnterRequest request = pendingRoleMap.get(playerId);
+        PlayerEnterRequest request = pendingRoleMap.get(playerId);
         BattleRole battleRole = roleMap.get(playerId);
         if (battleRole == null && request == null) {
             log.warn("BattleScene 玩家退出失败，找不到玩家状态: playerId={}, sceneId={}", playerId, sceneId);
@@ -200,7 +204,39 @@ public class BattleScene {
         return pendingRoleMap.isEmpty() && roleMap.isEmpty();
     }
 
+    public SRunningMapInfo getRunningMapInfo() {
+        int hostRoleNum = 0;
+        int guestRoleNum = 0;
+        for (BattleRole role : roleMap.values()) {
+            int camp = getPlayerCamp(role.getPlayerId());
+            if (camp == 1) hostRoleNum++;
+            if (camp == 2) guestRoleNum++;
+        }
+        for (PlayerEnterRequest request : pendingRoleMap.values()) {
+            int camp = getPlayerCamp(request.getPlayerId());
+            if (camp == 1) hostRoleNum++;
+            if (camp == 2) guestRoleNum++;
+        }
+        var robots = getSceneRobots();
+        for (var robot : robots) {
+                if (robot.getCamp() == 1) hostRoleNum++;
+                if (robot.getCamp() == 2) guestRoleNum++;
+        }
+        var mapConfig = MapConfigs.get(mapKey.getMapCfgId());
+        int sideLimit = mapConfig == null ? 0 : mapConfig.getPlayerLimit() / 2;
+        return new SRunningMapInfo(new SMapInfo(sceneId, mapKey.getMapCfgId(), mapKey.getGroupId()),
+                hostRoleNum, guestRoleNum, sideLimit);
+    }
+
     public SMapKey getMapKey() {
         return new SMapKey(mapKey.getMapCfgId(), mapKey.getGroupId());
+    }
+
+    protected int getPlayerCamp(long playerId) {
+        return 0;
+    }
+
+    protected List<SMatchRobot> getSceneRobots() {
+        return List.of();
     }
 }

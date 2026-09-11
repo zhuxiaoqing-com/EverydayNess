@@ -13,6 +13,7 @@ public enum LockType {
     LOGIN(7), // 登录流程锁
     TABLE(8), // MDB 表级锁
     MDB_PLAYER(9), // 玩家 MDB load/flush 生命周期锁
+    MAP_SCENE(10), // 地图场景创建和玩家进入锁
 
     ;
 

@@ -122,9 +122,6 @@ public final class DBProxy implements NodeDbExecutor {
             return mono.block(Duration.ofMillis(awaitTimeoutMillis));
         }
         Service service = Service.getCurrent();
-        if (service == null) {
-            throw new IllegalStateException("DBProxy must be called from a Service coroutine");
-        }
         return service.awaitCompletionStage(mono.toFuture(), awaitTimeoutMillis);
     }
 
