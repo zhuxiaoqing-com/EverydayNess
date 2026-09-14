@@ -13,7 +13,12 @@ import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapD
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.common.serializeBean.MatchService.match.SMatchRobot;
 import org.evd.game.common.config.table.MapConfigs;
+import org.evd.game.common.config.table.MapConfig;
 import org.evd.game.StageService.scene.movable.BattleRole;
+import org.evd.game.StageService.scene.movable.Monster;
+import org.evd.game.StageService.scene.logic.BuffLogic;
+import org.evd.game.StageService.scene.logic.MonsterLogic;
+import org.evd.game.StageService.scene.logic.SkillLogic;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
@@ -32,11 +37,34 @@ public class BattleScene {
     private final StageService owner;
     private final Map<Long, PlayerEnterRequest> pendingRoleMap = new HashMap<>();
     private final Map<Long, BattleRole> roleMap = new HashMap<>();
+    private final Map<Long, Monster> monsterMap = new HashMap<>();
+    private long nextMonsterId = 1L;
+    private final BuffLogic buffLogic;
+    private final SkillLogic skillLogic;
 
     public BattleScene(SMapKey mapKey, long sceneId, StageService owner) {
         this.mapKey = new SMapKey(mapKey.getMapCfgId(), mapKey.getGroupId());
         this.sceneId = sceneId;
         this.owner = owner;
+        this.buffLogic = owner.getActor(BuffLogic.class);
+        this.skillLogic = owner.getActor(SkillLogic.class);
+        MonsterLogic monsterLogic = owner.getActor(MonsterLogic.class);
+        monsterLogic.loadConfiguredMonsters(this, mapKey.getMapCfgId());
+    }
+
+    public long allocateMonsterId() { return nextMonsterId++; }
+
+    public void addMonster(Monster monster) { monsterMap.put(monster.getId(), monster); }
+
+    public BattleUnit findUnit(long unitId) {
+        BattleRole role = roleMap.get(unitId);
+        return role != null ? role : monsterMap.get(unitId);
+    }
+
+    public void tick(long now) {
+        roleMap.values().forEach(role -> role.update(now));
+        monsterMap.values().forEach(monster -> monster.update(now));
+        monsterMap.values().removeIf(monster -> !monster.isAlive());
     }
 
     public boolean canEnter(PlayerEnterRequest request) {
@@ -73,6 +101,14 @@ public class BattleScene {
             log.info("BattleScene 拒绝进入：玩家已在预进入队列中, playerId={}, sceneId={}", playerId, sceneId);
             return false;
         }
+        MapConfig mapConfig = MapConfigs.get(mapKey.getMapCfgId());
+        if (mapConfig != null && mapConfig.getPlayerLimit() > 0
+                && roleMap.size() + pendingRoleMap.size() + getSceneRobots().size()
+                >= mapConfig.getPlayerLimit()) {
+            log.info("BattleScene 拒绝进入：地图人数已满, playerId={}, sceneId={}, limit={}",
+                    playerId, sceneId, mapConfig.getPlayerLimit());
+            return false;
+        }
         return true;
     }
 
@@ -103,8 +139,8 @@ public class BattleScene {
                     playerId, sceneId);
             return;
         }
-        PlayerEnterRequest enterRequest = pendingRoleMap.remove(playerId);
-        BattleRole battleRole = new BattleRole(playerData);
+        pendingRoleMap.remove(playerId);
+        BattleRole battleRole = new BattleRole(playerData, buffLogic, skillLogic);
         roleMap.put(playerId, battleRole);
         owner.getMessageLocationSender().cache(ActorId.gate(playerId), playerData.getGateActorAddress());
         owner.getMessageLocationSender().cache(ActorId.player(playerId), playerData.getPlayerActorAddress());
@@ -117,6 +153,7 @@ public class BattleScene {
         if (!notifyResult.isSuccess() || !Boolean.TRUE.equals(notifyResult.getValue())) {
             log.error("BattleScene 通知 PlayerService 玩家进入地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     playerId, sceneId, notifyResult.getErrorCode(), notifyResult.getErrorMessage());
+            roleExit(playerId);
             return;
         }
         S2C_EnterMap message = S2C_EnterMap.newBuilder()
@@ -131,6 +168,7 @@ public class BattleScene {
         if (!enterMapResult.isSuccess()) {
             log.error("BattleScene 通知客户端正式进入地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     playerId, sceneId, enterMapResult.getErrorCode(), enterMapResult.getErrorMessage());
+            roleExit(playerId);
             return;
         }
         if (!roleMap.containsKey(playerId)) {
@@ -201,7 +239,7 @@ public class BattleScene {
     }
 
     public boolean isEmpty() {
-        return pendingRoleMap.isEmpty() && roleMap.isEmpty();
+        return pendingRoleMap.isEmpty() && roleMap.isEmpty() && monsterMap.isEmpty();
     }
 
     public SRunningMapInfo getRunningMapInfo() {
@@ -230,6 +268,10 @@ public class BattleScene {
 
     public SMapKey getMapKey() {
         return new SMapKey(mapKey.getMapCfgId(), mapKey.getGroupId());
+    }
+
+    public long getSceneId() {
+        return sceneId;
     }
 
     protected int getPlayerCamp(long playerId) {

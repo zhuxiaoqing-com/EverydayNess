@@ -19,4 +19,6 @@ public class DBRoleMapDataDef {
     private long stateStartMill;
     @DBDirtyTag(6)
     private DBMapInfoDef oldCurrMapInfo;
+    @DBDirtyTag(7)
+    private DBMatchContextDef matchContext;
 }

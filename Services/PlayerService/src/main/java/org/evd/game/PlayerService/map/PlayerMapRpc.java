@@ -31,19 +31,19 @@ public final class PlayerMapRpc {
     @Rpc
     public void matchEnterMap(long playerId, SMapInfo targetInfo,
                               MatchPlayerEnterMapParam matchParam) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
+        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
                 .matchEnterMap(playerId, targetInfo, matchParam);
     }
 
     @Rpc
     public boolean cancelMatch(long playerId) {
-        return Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
+        return Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
                 .cancelMatch(playerId);
     }
 
     @Rpc
     public void clearMatchState(long playerId) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
+        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
                 .clearMatchState(playerId);
     }
 

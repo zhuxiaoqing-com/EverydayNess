@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package protocol.team;
+
+option java_multiple_files = true;
+option java_package = "org.evd.game.common.proto";
+option java_outer_classname = "TeamProto";
+
+enum TeamMsgId {
+  TEAM_MSG_ID_NONE = 0;
+
+  // 仅在末尾顺序追加；删除协议时同时 reserved 原编号和原名称。
+  C2S_TEAM_CREATE = 4001;
+  C2S_TEAM_INVITE = 4002;
+  C2S_TEAM_ACCEPT = 4003;
+  C2S_TEAM_LEAVE = 4004;
+  C2S_TEAM_KICK = 4005;
+  C2S_TEAM_DISBAND = 4006;
+  C2S_TEAM_MATCH = 4007;
+  C2S_TEAM_CANCEL_MATCH = 4008;
+  S2C_TEAM_INFO = 4009;
+  S2C_TEAM_RESULT = 4010;
+  S2C_TEAM_MATCH_RESULT = 4011;
+}
+
+message C2S_TeamInvite {
+  int64 player_id = 1;
+}
+
+message C2S_TeamCreate {
+}
+
+message C2S_TeamAccept {
+  int64 team_id = 1;
+}
+
+message C2S_TeamKick {
+  int64 player_id = 1;
+}
+
+message C2S_TeamLeave {
+}
+
+message C2S_TeamDisband {
+}
+
+message C2S_TeamMatch {
+  int32 match_type = 1;
+  repeated int32 map_cfg_ids = 2;
+  repeated int32 duty_ids = 3;
+}
+
+message C2S_TeamCancelMatch {
+}
+
+message S2C_TeamInfo {
+  bool success = 1;
+  string message = 2;
+  int64 team_id = 3;
+  int64 leader_id = 4;
+  repeated int64 member_ids = 5;
+  bool matching = 6;
+}
+
+message S2C_TeamResult {
+  bool success = 1;
+  string message = 2;
+}
+
+message S2C_TeamMatchResult {
+  bool success = 1;
+  string message = 2;
+  int32 match_type = 3;
+  int64 scene_id = 4;
+  int32 map_cfg_id = 5;
+  int64 group_id = 6;
+}

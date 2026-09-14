@@ -1,5 +1,6 @@
 package org.evd.game.StageService;
 
+import org.evd.game.StageService.mapCreate.StageSceneLogic;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.MailBoxType;
@@ -11,6 +12,11 @@ import org.evd.game.runtime.ymlconfig.ServiceInfo;
 public class StageService extends Service {
     public StageService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
+    }
+
+    @Override
+    public void tick() {
+        getActor(StageSceneLogic.class).tick(getTime());
     }
 
     public ActorAddress registerMapPlayerActor(long playerId) {

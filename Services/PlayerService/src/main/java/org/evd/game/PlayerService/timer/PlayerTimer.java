@@ -11,7 +11,6 @@ import org.evd.game.PlayerService.event.SystemHalfHourEvent;
 import org.evd.game.PlayerService.event.SystemHourEvent;
 import org.evd.game.PlayerService.event.SystemMinuteEvent;
 import org.evd.game.PlayerService.event.SystemSecondEvent;
-import org.evd.game.PlayerService.map.PlayerMapStateLogic;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.runtime.util.TimeUtils;
 
@@ -46,8 +45,6 @@ public final class PlayerTimer {
         if (currentSecond != lastSecond) {
             lastSecond = currentSecond;
 
-            expirePlayerMapStates(currentMill);
-
             owner.publishEvent(SystemSecondEvent.Listener.class,
                     SystemSecondEvent.INSTANCE, SystemSecondEvent.Listener::onEvent);
         }
@@ -77,13 +74,6 @@ public final class PlayerTimer {
             }
         }
 
-    }
-
-    private void expirePlayerMapStates(long currentMill) {
-        PlayerMapStateLogic stateLogic = owner.getActor(PlayerMapStateLogic.class);
-        for (PPlayerOnline player : owner.sessionManager().onlinePlayers()) {
-            stateLogic.expire(player.getPlayerId(), currentMill);
-        }
     }
 
     private void publishPlayerMidnightEvent(long currentMill) {

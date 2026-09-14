@@ -1,3 +1,3 @@
 # 怪物配置
-id,name,level,hp,attack,defense,dropItems
+id,name,level,hp,attack,defense,dropItems,skillIds
 # 数据行从这里开始

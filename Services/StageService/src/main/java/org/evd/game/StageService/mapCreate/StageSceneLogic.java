@@ -17,7 +17,6 @@ import org.evd.game.common.config.table.MapConfigs;
 import org.evd.game.common.constant.MapConst;
 import org.evd.game.StageService.scene.battle.CampScene;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
@@ -36,6 +35,14 @@ public final class StageSceneLogic {
         return scenes.size();
     }
 
+    public void tick(long now) {
+        scenes.values().forEach(scene -> scene.tick(now));
+    }
+
+    public BattleScene getScene(long sceneId) {
+        return scenes.get(sceneId);
+    }
+
     public SRunningMapInfo getRunningMapInfo(long sceneId) {
         BattleScene scene = scenes.get(sceneId);
         return scene == null ? null : scene.getRunningMapInfo();
@@ -52,13 +59,13 @@ public final class StageSceneLogic {
             return false;
         }
         SMapKey mapKey = request.getMapKey();
+        if (mapKey.getMapCfgId() <= 0) {
+            return false;
+        }
         MapConfig mapConfig = MapConfigs.get(mapKey.getMapCfgId());
         if (mapConfig == null) {
             log.error("StageService 创建地图时找不到地图配置: mapCfgId={}, sceneId={}",
                     mapKey.getMapCfgId(), sceneId);
-            return false;
-        }
-        if (mapKey == null || mapKey.getMapCfgId() <= 0 || sceneId <= 0L) {
             return false;
         }
         BattleScene current = scenes.get(sceneId);
@@ -71,7 +78,7 @@ public final class StageSceneLogic {
             }
             return true;
         }
-        Long oldSceneId = sceneIds.putIfAbsent(mapKey, sceneId);
+        Long oldSceneId = sceneIds.get(mapKey);
         if (oldSceneId != null) {
             BattleScene oldScene = scenes.get(oldSceneId);
             if (oldScene == null) {
@@ -81,17 +88,21 @@ public final class StageSceneLogic {
             }
             return oldSceneId == sceneId;
         }
-        scenes.put(sceneId, createSceneObject(request, sceneId, mapConfig.getType()));
+        BattleScene createdScene = createSceneObject(request, sceneId, mapConfig.getType());
+        scenes.put(sceneId, createdScene);
+        sceneIds.put(mapKey, sceneId);
         return true;
     }
 
     private BattleScene createSceneObject(SMapCreateRequest request, long sceneId, int mapType) {
-        return switch (mapType) {
-            case 1 -> new BattleScene(request.getMapKey(), sceneId, owner());
-            case 2, 3 -> new CampScene(request.getMapKey(), sceneId, owner(),
-                    request.getMatchParams());
-            default -> throw new IllegalArgumentException("不支持的地图类型: " + mapType);
-        };
+        if (mapType == MapConst.MapType.NORMAL.getType()) {
+            return new BattleScene(request.getMapKey(), sceneId, owner());
+        }
+        if (mapType == MapConst.MapType.MULTI_MATCH.getType()
+                || mapType == MapConst.MapType.CAMP.getType()) {
+            return new CampScene(request.getMapKey(), sceneId, owner(), request.getMatchParams());
+        }
+        throw new IllegalArgumentException("不支持的地图类型: " + mapType);
     }
 
     /** 进入目标 BattleScene 的预加入流程，然后退出旧场景。 */

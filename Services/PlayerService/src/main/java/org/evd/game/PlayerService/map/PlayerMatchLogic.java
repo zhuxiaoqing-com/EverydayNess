@@ -1,0 +1,251 @@
+package org.evd.game.PlayerService.map;
+
+import lombok.extern.slf4j.Slf4j;
+import org.evd.game.PlayerService.PlayerService;
+import org.evd.game.PlayerService.dbDef.db.bean.DBMapInfo;
+import org.evd.game.PlayerService.dbDef.db.bean.DBMatchContext;
+import org.evd.game.PlayerService.dbDef.db.bean.DBRoleMapData;
+import org.evd.game.PlayerService.dbDef.db.bean.DBTransferContext;
+import org.evd.game.PlayerService.dbDef.db.table.DBRoleMapDataTable;
+import org.evd.game.annotation.actor.Actor;
+import org.evd.game.common.constant.MatchConst;
+import org.evd.game.common.proto.C2S_Match;
+import org.evd.game.common.proto.MatchMsgId;
+import org.evd.game.common.proto.S2C_CancelMatch;
+import org.evd.game.common.proto.S2C_Match;
+import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
+import org.evd.game.common.proxy.MatchService.MatchRpcProxy;
+import org.evd.game.common.serializeBean.MatchService.match.SMatchRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.MatchPlayerEnterMapParam;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerEnterParam;
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+import org.evd.game.runtime.serializeBean.ClientFrameChunk;
+
+/** 玩家匹配生命周期：入队、取消、超时校正及匹配结果进图。 */
+@Slf4j
+@Actor
+public final class PlayerMatchLogic {
+    /** 单人匹配入口：先校正旧快照，再占用状态并提交 MatchService。 */
+    public void startSingleMatch(ClientSessionRef session, C2S_Match request) {
+        if (session == null || session.getPlayerId() <= 0L) {
+            log.warn("PlayerService 发起单人匹配失败：玩家会话非法，session={}", session);
+            return;
+        }
+        long playerId = session.getPlayerId();
+        if (request == null) {
+            log.warn("PlayerService 发起单人匹配失败：请求为空，playerId={}", playerId);
+            pushStartResult(playerId, false, "匹配请求为空");
+            return;
+        }
+        if (!owner().sessionManager().hasOnlinePlayer(playerId)) {
+            log.warn("PlayerService 发起单人匹配失败：玩家不在线，playerId={}", playerId);
+            pushStartResult(playerId, false, "玩家不在线");
+            return;
+        }
+        if (!reconcileBeforeStart(playerId)) {
+            log.warn("PlayerService 发起单人匹配失败：旧匹配状态尚未清理，playerId={}", playerId);
+            pushStartResult(playerId, false, "旧匹配状态清理失败");
+            return;
+        }
+        DBRoleMapData roleMapData = enterMatchState(playerId);
+        if (roleMapData == null) {
+            log.warn("PlayerService 发起单人匹配失败：玩家当前状态不允许匹配，playerId={}, state={}",
+                    playerId, stateLogic().getState(playerId));
+            pushStartResult(playerId, false, "玩家当前不能匹配");
+            return;
+        }
+
+        DBMatchContext matchContext = new DBMatchContext();
+        matchContext.setMatchType(request.getMatchType());
+        matchContext.getMapCfgIds().addAll(request.getMapCfgIdsList());
+        matchContext.getDutyIds().addAll(request.getDutyIdsList());
+        matchContext.setMatchStartMill(Service.getTime());
+        roleMapData.setMatchContext(matchContext);
+
+        SMatchRequest matchRequest = new SMatchRequest(
+                playerId, request.getMatchType(), request.getMapCfgIdsList(), owner().getCallPoint());
+        matchRequest.setDutyIds(request.getDutyIdsList());
+        RpcResult<Boolean> result = MatchRpcProxy.callMatch(
+                MatchConst.getMatchCallPoint(), matchRequest);
+        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
+            log.warn("PlayerService 发起单人匹配失败：MatchService RPC 或业务拒绝，playerId={}, matchType={}, errorCode={}, message={}",
+                    playerId, request.getMatchType(), result.getErrorCode(), result.getErrorMessage());
+            clearMatchContext(playerId);
+            exitMatchingState(playerId);
+            pushStartResult(playerId, false, "匹配失败");
+            return;
+        }
+        log.info("PlayerService 单人匹配请求已提交: playerId={}, matchType={}, mapCfgIds={}",
+                playerId, request.getMatchType(), request.getMapCfgIdsList());
+        pushStartResult(playerId, true, "匹配已开始");
+    }
+
+    /** 客户端取消匹配：先取消远端队列，再清理本地匹配状态并通知客户端。 */
+    public void cancelMatch(ClientSessionRef session) {
+        if (session == null || session.getPlayerId() <= 0L) {
+            log.warn("PlayerService 取消匹配失败：玩家会话非法，session={}", session);
+            return;
+        }
+        cancelMatch(session.getPlayerId(), true);
+    }
+
+    /** 取消远端匹配并清理本地状态；客户端入口和离线入口只通过通知开关区分。 */
+    private void cancelMatch(long playerId, boolean notifyClient) {
+        DBMatchContext context = getMatchContext(playerId);
+        PlayerMapState state = stateLogic().getState(playerId);
+        boolean matching = state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING;
+        boolean cancelSuccess = true;
+        String cancelMessage = "已取消匹配";
+        if (isActive(context)) {
+            RpcResult<Boolean> result = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
+            if (!result.isSuccess()) {
+                cancelSuccess = false;
+                cancelMessage = "取消匹配失败";
+                log.warn("PlayerService 取消远端匹配失败，playerId={}, errorCode={}, message={}",
+                        playerId, result.getErrorCode(), result.getErrorMessage());
+            }
+            clearMatchContext(playerId);
+        }
+
+        state = stateLogic().getState(playerId);
+        if (state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING) {
+            stateLogic().exit(playerId, state);
+        }
+        if (notifyClient && matching) {
+            push(playerId, MatchMsgId.S2C_MATCH_CANCEL_VALUE,
+                    S2C_CancelMatch.newBuilder().setSuccess(cancelSuccess).setMessage(cancelMessage).build());
+            log.info("PlayerService 取消匹配完成: playerId={}, success={}", playerId, cancelSuccess);
+        }
+    }
+
+    /** 匹配成功进入地图：匹配状态已经由 MatchService 清理，再进入地图转场。 */
+    public void matchEnterMap(long playerId, SMapInfo targetInfo,
+                              MatchPlayerEnterMapParam matchParam) {
+        if (targetInfo == null || targetInfo.getMapCfgId() <= 0 || targetInfo.getGroupId() <= 0L) {
+            log.warn("PlayerService 匹配进图参数非法: playerId={}, targetInfo={}", playerId, targetInfo);
+            return;
+        }
+        if (!owner().getActor(PlayerMapLogic.class).startTransfer(
+                playerId, targetInfo, new SPlayerEnterParam(matchParam))) {
+            log.warn("PlayerService 匹配进图转场启动失败: playerId={}, targetInfo={}", playerId, targetInfo);
+        }
+    }
+
+    /** MatchService 已确定匹配结果，只清理匹配状态和当前匹配快照。 */
+    public void clearMatchState(long playerId) {
+        PlayerMapState currentState = stateLogic().getState(playerId);
+        if (currentState == PlayerMapState.MATCHING || currentState == PlayerMapState.TEAM_MATCHING) {
+            stateLogic().exit(playerId, currentState);
+        }
+        clearMatchContext(playerId);
+    }
+
+    /** MatchService 取消队列后的回调；玩家已超时或下线时也允许只清理快照。 */
+    public boolean cancelMatch(long playerId) {
+        PlayerMapState currentState = stateLogic().getState(playerId);
+        DBMatchContext matchContext = getMatchContext(playerId);
+        boolean hasMatch = currentState == PlayerMapState.MATCHING
+                || currentState == PlayerMapState.TEAM_MATCHING
+                || isActive(matchContext);
+        if (currentState == PlayerMapState.MATCHING || currentState == PlayerMapState.TEAM_MATCHING) {
+            stateLogic().exit(playerId, currentState);
+        }
+        if (isActive(matchContext)) {
+            clearMatchContext(playerId);
+        }
+        return hasMatch;
+    }
+
+    /** 下线时先按有效匹配快照取消远端队列，再清理本地匹配状态。 */
+    public void cancelOnOffline(long playerId) {
+        cancelMatch(playerId, false);
+    }
+
+    private boolean reconcileBeforeStart(long playerId) {
+        DBMatchContext context = getMatchContext(playerId);
+        PlayerMapState state = stateLogic().getState(playerId);
+        if (state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING) {
+            return false;
+        }
+        if (!isActive(context)) {
+            return true;
+        }
+        RpcResult<Boolean> result = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
+        if (!result.isSuccess()) {
+            log.error("PlayerService 再次匹配前取消旧匹配失败: playerId={}, errorCode={}, message={}",
+                    playerId, result.getErrorCode(), result.getErrorMessage());
+            return false;
+        }
+        clearMatchContext(playerId);
+        return true;
+    }
+
+    private DBRoleMapData enterMatchState(long playerId) {
+        if (stateLogic().getState(playerId) == PlayerMapState.NONE) {
+            DBRoleMapData oldData = DBRoleMapDataTable.get(playerId);
+            if (hasOldMapData(oldData)) {
+                owner().getActor(PlayerMapLogic.class).leaveMap(playerId);
+            }
+        }
+        return stateLogic().enter(playerId, PlayerMapState.MATCHING);
+    }
+
+    private boolean hasOldMapData(DBRoleMapData data) {
+        if (data == null) {
+            return false;
+        }
+        DBMapInfo current = data.getCurrMapInfo();
+        DBTransferContext transfer = data.getTransferContext();
+        return current != null && current.getMapCfgId() > 0
+                || transfer != null && transfer.getTargetInfo() != null
+                && transfer.getTargetInfo().getMapCfgId() > 0;
+    }
+
+    private void exitMatchingState(long playerId) {
+        PlayerMapState state = stateLogic().getState(playerId);
+        if (state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING) {
+            stateLogic().exit(playerId, state);
+        }
+    }
+
+    private DBMatchContext getMatchContext(long playerId) {
+        DBRoleMapData data = DBRoleMapDataTable.get(playerId);
+        return data == null ? null : data.getMatchContext();
+    }
+
+    private void clearMatchContext(long playerId) {
+        DBRoleMapData data = DBRoleMapDataTable.get(playerId);
+        if (data != null) {
+            data.setMatchContext(new DBMatchContext());
+        }
+    }
+
+    private boolean isActive(DBMatchContext context) {
+        return context != null && context.getMatchStartMill() > 0L;
+    }
+
+    private void pushStartResult(long playerId, boolean success, String message) {
+        push(playerId, MatchMsgId.S2C_MATCH_START_VALUE,
+                S2C_Match.newBuilder().setSuccess(success).setMessage(message).build());
+    }
+
+    private void push(long playerId, int messageId, com.google.protobuf.Message message) {
+        RpcResult<Void> result = ConnServiceRpcProxy.callPushToPlayerId(
+                playerId, ClientFrameChunk.wrap(messageId, message));
+        if (!result.isSuccess()) {
+            log.warn("PlayerService 通知客户端匹配结果失败: playerId={}, messageId={}, errorCode={}, message={}",
+                    playerId, messageId, result.getErrorCode(), result.getErrorMessage());
+        }
+    }
+
+    private PlayerService owner() {
+        return Service.getCurrent(PlayerService.class);
+    }
+
+    private PlayerMapStateLogic stateLogic() {
+        return owner().getActor(PlayerMapStateLogic.class);
+    }
+}

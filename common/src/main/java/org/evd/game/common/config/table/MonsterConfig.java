@@ -4,6 +4,7 @@ import org.evd.game.annotation.config.Config;
 import lombok.Getter;
 
 import java.util.Map;
+import java.util.List;
 
 /** 怪物基础属性和掉落配置。 */
 @Config(file = "monster.csv", keys = {"id"})
@@ -23,4 +24,6 @@ public class MonsterConfig {
     private int defense;
     /** 掉落道具及数量，格式为 itemId&count#itemId&count。 */
     private Map<Integer, Integer> dropItems;
+    /** 怪物可使用的技能配置 ID 列表，使用 # 分隔。 */
+    private List<Integer> skillIds;
 }

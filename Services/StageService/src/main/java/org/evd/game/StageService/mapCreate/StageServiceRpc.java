@@ -1,6 +1,9 @@
 package org.evd.game.StageService.mapCreate;
 
 import org.evd.game.StageService.StageService;
+import org.evd.game.StageService.scene.logic.BuffLogic;
+import org.evd.game.StageService.scene.logic.MonsterLogic;
+import org.evd.game.StageService.scene.logic.SkillLogic;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
@@ -10,7 +13,6 @@ import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateR
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.actor.ActorAddress;
 
 /** StageService 地图创建和进入 RPC 入口。 */
 @Actor
@@ -19,6 +21,22 @@ public final class StageServiceRpc {
     @Rpc
     public int getMapCount() {
         return logic().getMapCount();
+    }
+
+    @Rpc
+    public long spawnMonster(long sceneId, int monsterConfigId) {
+        return monsterLogic().spawnMonster(sceneId, monsterConfigId);
+    }
+
+    @Rpc
+    public boolean useSkill(long sceneId, long casterId, int skillId, int level, long targetId) {
+        return skillLogic().useSkill(logic().getScene(sceneId), casterId, skillId, level, targetId,
+                Service.getTime());
+    }
+
+    @Rpc
+    public boolean addBuff(long sceneId, long targetId, int buffId) {
+        return buffLogic().addBuff(logic().getScene(sceneId), targetId, buffId, Service.getTime());
     }
 
     @Rpc
@@ -58,5 +76,17 @@ public final class StageServiceRpc {
 
     private StageSceneLogic logic() {
         return Service.getCurrent(StageService.class).getActor(StageSceneLogic.class);
+    }
+
+    private MonsterLogic monsterLogic() {
+        return Service.getCurrent(StageService.class).getActor(MonsterLogic.class);
+    }
+
+    private SkillLogic skillLogic() {
+        return Service.getCurrent(StageService.class).getActor(SkillLogic.class);
+    }
+
+    private BuffLogic buffLogic() {
+        return Service.getCurrent(StageService.class).getActor(BuffLogic.class);
     }
 }

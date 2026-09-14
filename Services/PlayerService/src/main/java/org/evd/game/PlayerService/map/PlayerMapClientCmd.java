@@ -25,13 +25,13 @@ public final class PlayerMapClientCmd {
 
     @ClientCmd(value = MatchMsgId.C2S_MATCH_START_VALUE, actorType = ActorType.PLAYER)
     public void match(ClientSessionRef session, C2S_Match request) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
+        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
                 .startSingleMatch(session, request);
     }
 
     @ClientCmd(value = MatchMsgId.C2S_MATCH_CANCEL_VALUE, actorType = ActorType.PLAYER)
     public void cancelMatch(ClientSessionRef session, C2S_CancelMatch request) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
+        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
                 .cancelMatch(session);
     }
 }

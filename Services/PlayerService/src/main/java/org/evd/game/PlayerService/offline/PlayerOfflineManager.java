@@ -4,8 +4,7 @@ import org.evd.game.PlayerService.PlayerService;
 import org.evd.game.PlayerService.event.RoleLogoutEvent;
 import org.evd.game.PlayerService.map.PlayerMapLogic;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
-import org.evd.game.common.constant.MatchConst;
-import org.evd.game.common.proxy.MatchService.MatchRpcProxy;
+import org.evd.game.PlayerService.map.PlayerMatchLogic;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
@@ -33,11 +32,7 @@ public final class PlayerOfflineManager {
         LogCore.core.info("PlayerService 开始处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                 owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
 
-        var matchCancelResult = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
-        if (!matchCancelResult.isSuccess()) {
-            LogCore.core.warn("PlayerService 通知 MatchService 取消匹配失败: service={}, playerId={}, errorCode={}, message={}",
-                    owner.getId(), playerId, matchCancelResult.getErrorCode(), matchCancelResult.getErrorMessage());
-        }
+        owner.getActor(PlayerMatchLogic.class).cancelOnOffline(playerId);
 
         try {
             owner.getActor(PlayerMapLogic.class).leaveMap(playerId);

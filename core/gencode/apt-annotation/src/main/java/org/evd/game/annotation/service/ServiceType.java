@@ -35,7 +35,7 @@ public enum ServiceType {
 
     // 新枚举必须追加在已有枚举之后，避免改变已有 ServiceType 的序列化 ordinal。
     MATCH(11, ServiceName.MATCH_SERVICE, true, NodeType.GLOBAL),
-    TEAM(12, ServiceName.TEAM_SERVICE),
+    TEAM(12, ServiceName.TEAM_SERVICE, true),
 
     ;
     final int type;

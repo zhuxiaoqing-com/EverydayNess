@@ -1,0 +1,3 @@
+# Buff 配置
+id,name,durationMs,attackDelta,defenseDelta,damagePerTick,tickIntervalMs
+# 数据行从这里开始

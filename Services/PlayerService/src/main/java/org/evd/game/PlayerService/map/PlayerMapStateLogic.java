@@ -11,7 +11,7 @@ import org.evd.game.runtime.Service;
 @Actor
 @Slf4j
 public final class PlayerMapStateLogic {
-    public boolean enter(long playerId, PlayerMapState nextState) {
+    public DBRoleMapData enter(long playerId, PlayerMapState nextState) {
         if (nextState == null || nextState == PlayerMapState.NONE) {
             throw new IllegalArgumentException("进入状态不能为空且不能是 NONE");
         }
@@ -23,7 +23,7 @@ public final class PlayerMapStateLogic {
             if (!currentState.isTimeout(data.getStateStartMill(), currentMill)) {
                 log.warn("玩家已有地图状态，不能进入新状态: playerId={}, currentState={}, nextState={}, stateStartMill={}",
                         playerId, currentState, nextState, data.getStateStartMill());
-                return false;
+                return null;
             }
             log.warn("玩家地图状态已超时，进入新状态前清理旧状态: playerId={}, state={}, stateStartMill={}, currentMill={}",
                     playerId, currentState, data.getStateStartMill(), currentMill);
@@ -32,7 +32,7 @@ public final class PlayerMapStateLogic {
 
         data.setStateType(nextState.getId());
         data.setStateStartMill(currentMill);
-        return true;
+        return data;
     }
 
     public boolean exit(long playerId, PlayerMapState expectedState) {
@@ -72,23 +72,6 @@ public final class PlayerMapStateLogic {
         return data != null && currentState(data) == expectedState;
     }
 
-    /** 检查并清理当前状态；返回被清理的状态，未超时返回 NONE。 */
-    public PlayerMapState expire(long playerId, long currentMill) {
-        DBRoleMapData data = DBRoleMapDataTable.get(playerId);
-        if (data == null) {
-            return PlayerMapState.NONE;
-        }
-        PlayerMapState currentState = currentState(data);
-        if (!currentState.isTimeout(data.getStateStartMill(), currentMill)) {
-            return PlayerMapState.NONE;
-        }
-        long stateStartMill = data.getStateStartMill();
-        clear(data);
-        log.warn("玩家地图状态超时并已清理: playerId={}, state={}, stateStartMill={}, currentMill={}",
-                playerId, currentState, stateStartMill, currentMill);
-        return currentState;
-    }
-
     public PlayerMapState getState(long playerId) {
         DBRoleMapData data = DBRoleMapDataTable.get(playerId);
         return data == null ? PlayerMapState.NONE : currentState(data);
@@ -110,7 +93,14 @@ public final class PlayerMapStateLogic {
     }
 
     private PlayerMapState currentState(DBRoleMapData data) {
-        return PlayerMapState.fromId(data.getStateType());
+        PlayerMapState state = PlayerMapState.fromId(data.getStateType());
+        if (!state.isTimeout(data.getStateStartMill(), Service.getTime())) {
+            return state;
+        }
+        log.warn("玩家访问地图状态时发现已超时，立即清理: playerId={}, state={}, stateStartMill={}",
+                data.getPlayerId(), state, data.getStateStartMill());
+        clear(data);
+        return PlayerMapState.NONE;
     }
 
     private void clear(DBRoleMapData data) {
