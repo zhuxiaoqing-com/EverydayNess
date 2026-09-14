@@ -11,7 +11,7 @@ import org.evd.game.runtime.Service;
 @Actor
 @Slf4j
 public final class PlayerMapStateLogic {
-    public DBRoleMapData enter(long playerId, PlayerMapState nextState) {
+    public boolean enter(long playerId, PlayerMapState nextState) {
         if (nextState == null || nextState == PlayerMapState.NONE) {
             throw new IllegalArgumentException("进入状态不能为空且不能是 NONE");
         }
@@ -23,7 +23,7 @@ public final class PlayerMapStateLogic {
             if (!currentState.isTimeout(data.getStateStartMill(), currentMill)) {
                 log.warn("玩家已有地图状态，不能进入新状态: playerId={}, currentState={}, nextState={}, stateStartMill={}",
                         playerId, currentState, nextState, data.getStateStartMill());
-                return null;
+                return false;
             }
             log.warn("玩家地图状态已超时，进入新状态前清理旧状态: playerId={}, state={}, stateStartMill={}, currentMill={}",
                     playerId, currentState, data.getStateStartMill(), currentMill);
@@ -32,7 +32,7 @@ public final class PlayerMapStateLogic {
 
         data.setStateType(nextState.getId());
         data.setStateStartMill(currentMill);
-        return data;
+        return true;
     }
 
     public boolean exit(long playerId, PlayerMapState expectedState) {

@@ -5,11 +5,8 @@ import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.ActorType;
 import org.evd.game.annotation.actor.ClientCmd;
 import org.evd.game.annotation.actor.ClientCmdHandler;
-import org.evd.game.common.proto.C2S_CancelMatch;
-import org.evd.game.common.proto.C2S_Match;
 import org.evd.game.common.proto.C2S_ReadyEnterMap;
 import org.evd.game.common.proto.MapMsgId;
-import org.evd.game.common.proto.MatchMsgId;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.client.ClientSessionRef;
 
@@ -23,15 +20,4 @@ public final class PlayerMapClientCmd {
                 .confirmReadyEnterMap(session, request);
     }
 
-    @ClientCmd(value = MatchMsgId.C2S_MATCH_START_VALUE, actorType = ActorType.PLAYER)
-    public void match(ClientSessionRef session, C2S_Match request) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
-                .startSingleMatch(session, request);
-    }
-
-    @ClientCmd(value = MatchMsgId.C2S_MATCH_CANCEL_VALUE, actorType = ActorType.PLAYER)
-    public void cancelMatch(ClientSessionRef session, C2S_CancelMatch request) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
-                .cancelMatch(session);
-    }
 }

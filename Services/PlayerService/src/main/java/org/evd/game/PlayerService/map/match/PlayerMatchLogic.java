@@ -1,12 +1,14 @@
-package org.evd.game.PlayerService.map;
+package org.evd.game.PlayerService.map.match;
 
+import com.google.protobuf.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.PlayerService.PlayerService;
-import org.evd.game.PlayerService.dbDef.db.bean.DBMapInfo;
 import org.evd.game.PlayerService.dbDef.db.bean.DBMatchContext;
 import org.evd.game.PlayerService.dbDef.db.bean.DBRoleMapData;
-import org.evd.game.PlayerService.dbDef.db.bean.DBTransferContext;
 import org.evd.game.PlayerService.dbDef.db.table.DBRoleMapDataTable;
+import org.evd.game.PlayerService.map.PlayerMapLogic;
+import org.evd.game.PlayerService.map.PlayerMapState;
+import org.evd.game.PlayerService.map.PlayerMapStateLogic;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.constant.MatchConst;
 import org.evd.game.common.proto.C2S_Match;
@@ -28,7 +30,7 @@ import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 @Slf4j
 @Actor
 public final class PlayerMatchLogic {
-    /** 单人匹配入口：先校正旧快照，再占用状态并提交 MatchService。 */
+    /** 单人匹配入口：校正旧快照、占用匹配状态，再提交 MatchService。 */
     public void startSingleMatch(ClientSessionRef session, C2S_Match request) {
         if (session == null || session.getPlayerId() <= 0L) {
             log.warn("PlayerService 发起单人匹配失败：玩家会话非法，session={}", session);
@@ -45,31 +47,30 @@ public final class PlayerMatchLogic {
             pushStartResult(playerId, false, "玩家不在线");
             return;
         }
-        if (!reconcileBeforeStart(playerId)) {
-            log.warn("PlayerService 发起单人匹配失败：旧匹配状态尚未清理，playerId={}", playerId);
-            pushStartResult(playerId, false, "旧匹配状态清理失败");
+        PlayerMapState currentState = stateLogic().getState(playerId);
+        if (isMatchingState(currentState)) {
+            log.warn("PlayerService 发起单人匹配忽略：玩家已经在匹配中，playerId={}, state={}",
+                    playerId, currentState);
             return;
         }
-        DBRoleMapData roleMapData = enterMatchState(playerId);
-        if (roleMapData == null) {
+        DBMatchContext context = getMatchContext(playerId);
+        if (isActiveMatch(context)) {
+            log.info("PlayerService 发起单人匹配前清理旧匹配，playerId={}, matchType={}, matchStartMill={}",
+                    playerId, context.getMatchType(), context.getMatchStartMill());
+            cancelAndClearMatchContext(playerId);
+        }
+
+        if (!stateLogic().enter(playerId, PlayerMapState.MATCHING)) {
             log.warn("PlayerService 发起单人匹配失败：玩家当前状态不允许匹配，playerId={}, state={}",
                     playerId, stateLogic().getState(playerId));
             pushStartResult(playerId, false, "玩家当前不能匹配");
             return;
         }
 
-        DBMatchContext matchContext = new DBMatchContext();
-        matchContext.setMatchType(request.getMatchType());
-        matchContext.getMapCfgIds().addAll(request.getMapCfgIdsList());
-        matchContext.getDutyIds().addAll(request.getDutyIdsList());
-        matchContext.setMatchStartMill(Service.getTime());
-        roleMapData.setMatchContext(matchContext);
-
-        SMatchRequest matchRequest = new SMatchRequest(
-                playerId, request.getMatchType(), request.getMapCfgIdsList(), owner().getCallPoint());
-        matchRequest.setDutyIds(request.getDutyIdsList());
+        DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
+        roleMapData.setMatchContext(createMatchContext(request));
         RpcResult<Boolean> result = MatchRpcProxy.callMatch(
-                MatchConst.getMatchCallPoint(), matchRequest);
+                MatchConst.getMatchCallPoint(), createMatchRequest(playerId, request));
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             log.warn("PlayerService 发起单人匹配失败：MatchService RPC 或业务拒绝，playerId={}, matchType={}, errorCode={}, message={}",
                     playerId, request.getMatchType(), result.getErrorCode(), result.getErrorMessage());
@@ -89,35 +90,40 @@ public final class PlayerMatchLogic {
             log.warn("PlayerService 取消匹配失败：玩家会话非法，session={}", session);
             return;
         }
-        cancelMatch(session.getPlayerId(), true);
+        cancelRemoteMatchAndClear(session.getPlayerId(), true);
+    }
+
+    /** 下线时先按有效匹配快照取消远端队列，再清理本地匹配状态。 */
+    public void cancelOnOffline(long playerId) {
+        cancelRemoteMatchAndClear(playerId, false);
     }
 
     /** 取消远端匹配并清理本地状态；客户端入口和离线入口只通过通知开关区分。 */
-    private void cancelMatch(long playerId, boolean notifyClient) {
+    private void cancelRemoteMatchAndClear(long playerId, boolean notifyClient) {
+        boolean wasMatching = isMatchingState(stateLogic().getState(playerId));
         DBMatchContext context = getMatchContext(playerId);
-        PlayerMapState state = stateLogic().getState(playerId);
-        boolean matching = state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING;
-        boolean cancelSuccess = true;
-        String cancelMessage = "已取消匹配";
-        if (isActive(context)) {
-            RpcResult<Boolean> result = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
-            if (!result.isSuccess()) {
-                cancelSuccess = false;
-                cancelMessage = "取消匹配失败";
-                log.warn("PlayerService 取消远端匹配失败，playerId={}, errorCode={}, message={}",
-                        playerId, result.getErrorCode(), result.getErrorMessage());
-            }
-            clearMatchContext(playerId);
+
+        if (isActiveMatch(context)) {
+            cancelAndClearMatchContext(playerId);
         }
 
-        state = stateLogic().getState(playerId);
-        if (state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING) {
-            stateLogic().exit(playerId, state);
-        }
-        if (notifyClient && matching) {
+        exitMatchingState(playerId);
+        if (notifyClient && wasMatching) {
             push(playerId, MatchMsgId.S2C_MATCH_CANCEL_VALUE,
-                    S2C_CancelMatch.newBuilder().setSuccess(cancelSuccess).setMessage(cancelMessage).build());
-            log.info("PlayerService 取消匹配完成: playerId={}, success={}", playerId, cancelSuccess);
+                    S2C_CancelMatch.newBuilder().setSuccess(true).setMessage("已取消匹配").build());
+            log.info("PlayerService 取消匹配完成: playerId={}", playerId);
+        }
+    }
+
+    /** 接收 MatchService 的匹配结果；组队匹配由 TeamService 通知客户端。 */
+    public void onMatchResult(long playerId, boolean success, boolean isTeamMatch) {
+        exitMatchingState(playerId);
+
+        if (isActiveMatch(getMatchContext(playerId))) {
+            clearMatchContext(playerId);
+        }
+        if (!isTeamMatch) {
+            pushMatchResult(playerId, success);
         }
     }
 
@@ -134,81 +140,40 @@ public final class PlayerMatchLogic {
         }
     }
 
-    /** MatchService 已确定匹配结果，只清理匹配状态和当前匹配快照。 */
-    public void clearMatchState(long playerId) {
-        PlayerMapState currentState = stateLogic().getState(playerId);
-        if (currentState == PlayerMapState.MATCHING || currentState == PlayerMapState.TEAM_MATCHING) {
-            stateLogic().exit(playerId, currentState);
-        }
-        clearMatchContext(playerId);
-    }
 
-    /** MatchService 取消队列后的回调；玩家已超时或下线时也允许只清理快照。 */
-    public boolean cancelMatch(long playerId) {
-        PlayerMapState currentState = stateLogic().getState(playerId);
-        DBMatchContext matchContext = getMatchContext(playerId);
-        boolean hasMatch = currentState == PlayerMapState.MATCHING
-                || currentState == PlayerMapState.TEAM_MATCHING
-                || isActive(matchContext);
-        if (currentState == PlayerMapState.MATCHING || currentState == PlayerMapState.TEAM_MATCHING) {
-            stateLogic().exit(playerId, currentState);
-        }
-        if (isActive(matchContext)) {
-            clearMatchContext(playerId);
-        }
-        return hasMatch;
-    }
 
-    /** 下线时先按有效匹配快照取消远端队列，再清理本地匹配状态。 */
-    public void cancelOnOffline(long playerId) {
-        cancelMatch(playerId, false);
-    }
 
-    private boolean reconcileBeforeStart(long playerId) {
-        DBMatchContext context = getMatchContext(playerId);
-        PlayerMapState state = stateLogic().getState(playerId);
-        if (state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING) {
-            return false;
-        }
-        if (!isActive(context)) {
-            return true;
-        }
-        RpcResult<Boolean> result = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
+    private void cancelAndClearMatchContext(long playerId) {
+        RpcResult<Void> result = MatchRpcProxy.sendCancel(MatchConst.getMatchCallPoint(), playerId);
         if (!result.isSuccess()) {
-            log.error("PlayerService 再次匹配前取消旧匹配失败: playerId={}, errorCode={}, message={}",
+            log.error("PlayerService 发送取消远端匹配消息失败，playerId={}, errorCode={}, message={}",
                     playerId, result.getErrorCode(), result.getErrorMessage());
-            return false;
         }
         clearMatchContext(playerId);
-        return true;
     }
 
-    private DBRoleMapData enterMatchState(long playerId) {
-        if (stateLogic().getState(playerId) == PlayerMapState.NONE) {
-            DBRoleMapData oldData = DBRoleMapDataTable.get(playerId);
-            if (hasOldMapData(oldData)) {
-                owner().getActor(PlayerMapLogic.class).leaveMap(playerId);
-            }
-        }
-        return stateLogic().enter(playerId, PlayerMapState.MATCHING);
+    private DBMatchContext createMatchContext(C2S_Match request) {
+        DBMatchContext context = new DBMatchContext();
+        context.setMatchType(request.getMatchType());
+        context.getMapCfgIds().addAll(request.getMapCfgIdsList());
+        context.getDutyIds().addAll(request.getDutyIdsList());
+        context.setMatchStartMill(Service.getTime());
+        return context;
     }
 
-    private boolean hasOldMapData(DBRoleMapData data) {
-        if (data == null) {
-            return false;
-        }
-        DBMapInfo current = data.getCurrMapInfo();
-        DBTransferContext transfer = data.getTransferContext();
-        return current != null && current.getMapCfgId() > 0
-                || transfer != null && transfer.getTargetInfo() != null
-                && transfer.getTargetInfo().getMapCfgId() > 0;
+    private SMatchRequest createMatchRequest(long playerId, C2S_Match request) {
+        SMatchRequest matchRequest = new SMatchRequest(
+                playerId, request.getMatchType(), request.getMapCfgIdsList(), owner().getCallPoint());
+        matchRequest.setDutyIds(request.getDutyIdsList());
+        return matchRequest;
     }
 
     private void exitMatchingState(long playerId) {
         PlayerMapState state = stateLogic().getState(playerId);
-        if (state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING) {
-            stateLogic().exit(playerId, state);
+        if (!isMatchingState(state)) {
+            return;
         }
+        stateLogic().exit(playerId, state);
     }
 
     private DBMatchContext getMatchContext(long playerId) {
@@ -223,7 +188,12 @@ public final class PlayerMatchLogic {
         }
     }
 
-    private boolean isActive(DBMatchContext context) {
+
+    private boolean isMatchingState(PlayerMapState state) {
+        return state == PlayerMapState.MATCHING || state == PlayerMapState.TEAM_MATCHING;
+    }
+
+    private boolean isActiveMatch(DBMatchContext context) {
         return context != null && context.getMatchStartMill() > 0L;
     }
 
@@ -232,7 +202,12 @@ public final class PlayerMatchLogic {
                 S2C_Match.newBuilder().setSuccess(success).setMessage(message).build());
     }
 
-    private void push(long playerId, int messageId, com.google.protobuf.Message message) {
+    private void pushMatchResult(long playerId, boolean success) {
+        push(playerId, MatchMsgId.S2C_MATCH_START_VALUE,
+                S2C_Match.newBuilder().setSuccess(success).build());
+    }
+
+    private void push(long playerId, int messageId, Message message) {
         RpcResult<Void> result = ConnServiceRpcProxy.callPushToPlayerId(
                 playerId, ClientFrameChunk.wrap(messageId, message));
         if (!result.isSuccess()) {

@@ -68,12 +68,12 @@ public final class PlayerMapLogic {
             log.warn("PlayerService 玩家不在线，忽略地图进入请求: playerId={}", playerId);
             return false;
         }
-        DBRoleMapData roleMapData = stateLogic().enter(playerId, PlayerMapState.ENTER_MAP);
-        if (roleMapData == null) {
+        if (!stateLogic().enter(playerId, PlayerMapState.ENTER_MAP)) {
             log.warn("PlayerService 玩家当前状态不允许进入地图: playerId={}, state={}",
                     playerId, stateLogic().getState(playerId));
             return false;
         }
+        DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
         DBTransferContext oldTransferContext = roleMapData.getTransferContext();
         DBMapInfo oldTarget = oldTransferContext == null ? null : oldTransferContext.getTargetInfo();
         if (oldTarget != null && oldTarget.getMapCfgId() > 0) {

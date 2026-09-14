@@ -5,7 +5,7 @@ import org.evd.game.MatchService.entity.team.MatchTeam;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.config.table.MapConfigs;
 import org.evd.game.common.constant.MapConst;
-import org.evd.game.common.proxy.PlayerService.PlayerMapRpcProxy;
+import org.evd.game.common.proxy.PlayerService.PlayerMatchRpcProxy;
 import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
 import org.evd.game.common.serializeBean.MatchService.match.SMatchEnterParams;
 import org.evd.game.common.serializeBean.MatchService.match.SMatchPlayer;
@@ -92,7 +92,7 @@ public final class MatchSceneLogic {
                 if (player.isRobot()) {
                     continue;
                 }
-                RpcResult<Void> result = PlayerMapRpcProxy.sendMatchEnterMap(
+                RpcResult<Void> result = PlayerMatchRpcProxy.sendMatchEnterMap(
                         player.getPlayerService(), player.getPlayerId(), targetInfo,
                         new MatchPlayerEnterMapParam(
                                 teamCamps.getOrDefault(team.getTeamId(), 0),

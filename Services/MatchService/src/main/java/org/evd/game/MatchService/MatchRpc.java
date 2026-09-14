@@ -22,13 +22,13 @@ public final class MatchRpc {
     }
 
     @Rpc
-    public boolean cancel(long playerId) {
-        return logic().cancel(playerId);
+    public void cancel(long playerId) {
+        logic().cancel(playerId);
     }
 
     @Rpc
-    public boolean cancelTeam(long teamId) {
-        return logic().cancelTeam(teamId);
+    public void cancelTeam(long teamId, long leaderId) {
+        logic().cancelTeam(teamId, leaderId);
     }
 
     @Rpc

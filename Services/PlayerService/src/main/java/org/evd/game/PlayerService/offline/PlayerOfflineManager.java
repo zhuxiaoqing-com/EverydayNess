@@ -4,7 +4,7 @@ import org.evd.game.PlayerService.PlayerService;
 import org.evd.game.PlayerService.event.RoleLogoutEvent;
 import org.evd.game.PlayerService.map.PlayerMapLogic;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
-import org.evd.game.PlayerService.map.PlayerMatchLogic;
+import org.evd.game.PlayerService.map.match.PlayerMatchLogic;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;

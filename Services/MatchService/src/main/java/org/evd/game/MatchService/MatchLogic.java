@@ -7,7 +7,7 @@ import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.config.table.MapConfigs;
 import org.evd.game.common.constant.MatchType;
 import org.evd.game.common.constant.TeamConst;
-import org.evd.game.common.proxy.PlayerService.PlayerMapRpcProxy;
+import org.evd.game.common.proxy.PlayerService.PlayerMatchRpcProxy;
 import org.evd.game.common.proxy.TeamService.TeamMatchRpcProxy;
 import org.evd.game.common.serializeBean.MatchService.match.SMatchPlayer;
 import org.evd.game.common.serializeBean.MatchService.match.SMatchRequest;
@@ -70,27 +70,31 @@ public final class MatchLogic {
         return addTeam(request.getMatchType(), MatchTeam.team(request));
     }
 
-    public boolean cancel(long playerId) {
+    public void cancel(long playerId) {
         MatchPlayerData data = player2Data.get(playerId);
         if (data == null) {
             log.warn("MatchService 取消匹配失败：玩家不在匹配队列，playerId={}", playerId);
-            return false;
+            return;
         }
-        removeTeam(data.getMatchType(), data.getTeam());
+        removeTeamAndNotify(data.getMatchType(), data.getTeam(), false, null);
         log.info("MatchService 玩家取消匹配: playerId={}, teamId={}", playerId, data.getTeam().getTeamId());
-        return true;
     }
 
-    public boolean cancelTeam(long teamId) {
-        MatchPlayerData data = player2Data.values().stream()
-                .filter(item -> item.getTeam().getTeamId() == teamId)
-                .findFirst().orElse(null);
+    public void cancelTeam(long teamId, long leaderId) {
+        MatchPlayerData data = player2Data.get(leaderId);
         if (data == null) {
-            log.warn("MatchService 取消组队匹配失败：队伍不在匹配队列，teamId={}", teamId);
-            return false;
+            log.warn("MatchService 取消组队匹配失败：队长不在匹配队列，teamId={}, leaderId={}", teamId, leaderId);
+            return;
         }
-        removeTeam(data.getMatchType(), data.getTeam());
-        return true;
+        MatchTeam team = data.getTeam();
+        if (team.getTeamId() != teamId || !team.isTeamMatch() || team.getTeamId() <= 0L
+                || team.getMembers().isEmpty()
+                || team.getMembers().getFirst().getPlayerId() != leaderId) {
+            log.warn("MatchService 取消组队匹配失败：队伍信息不匹配，teamId={}, leaderId={}, actualTeamId={}, isTeamMatch={}, memberCount={}",
+                    teamId, leaderId, team.getTeamId(), team.isTeamMatch(), team.getMembers().size());
+            return;
+        }
+        removeTeamAndNotify(data.getMatchType(), team, false, null);
     }
 
     public int getMatchPlayerNum(int matchType, int mapCfgId) {
@@ -135,17 +139,14 @@ public final class MatchLogic {
         return true;
     }
 
-    private void removeTeam(Integer matchType, MatchTeam team) {
-        if (matchType == null) return;
-        matchingLogic().removeTeam(matchType, team);
-        cancelPlayerState(team);
-        notifyTeamMatchResult(List.of(team), matchType, false, null);
-    }
-
-    public void removeMatchedTeams(List<MatchTeam> teams) {
-        for (MatchTeam team : teams) {
-            removeTeamData(team);
+    public void removeTeamAndNotify(Integer matchType, MatchTeam team,
+                                    boolean success, SMapInfo mapInfo) {
+        if (matchType == null) {
+            return;
         }
+        matchingLogic().removeTeam(matchType, team);
+        removeTeamData(team);
+        notifyMatchResult(team, matchType, success, mapInfo);
     }
 
     public void notifyTeamMatchResult(List<MatchTeam> teams, int matchType,
@@ -165,21 +166,30 @@ public final class MatchLogic {
         }
     }
 
-    public void clearMatchState(List<MatchTeam> teams) {
+    /** 将匹配结果通知各玩家服，由玩家服负责清理状态并推送客户端。 */
+    public void notifyPlayerMatchResult(List<MatchTeam> teams, boolean success) {
         for (MatchTeam team : teams) {
             for (SMatchPlayer member : team.getMembers()) {
                 if (member.isRobot()) {
                     continue;
                 }
-                RpcResult<Void> result = PlayerMapRpcProxy.sendClearMatchState(
-                        member.getPlayerService(), member.getPlayerId());
+                RpcResult<Void> result = PlayerMatchRpcProxy.sendOnMatchResult(
+                        member.getPlayerService(), member.getPlayerId(), success, team.isTeamMatch());
                 if (!result.isSuccess()) {
-                    log.warn("MatchService 清理玩家匹配状态失败: playerId={}, teamId={}, errorCode={}, message={}",
+                    log.warn("MatchService 通知玩家匹配结果失败: playerId={}, teamId={}, success={}, isTeamMatch={}, errorCode={}, message={}",
                             member.getPlayerId(), team.getTeamId(),
+                            success,
+                            team.isTeamMatch(),
                             result.getErrorCode(), result.getErrorMessage());
                 }
             }
         }
+    }
+
+    public void notifyMatchResult(MatchTeam team, int matchType,
+                                  boolean success, SMapInfo mapInfo) {
+        notifyTeamMatchResult(List.of(team), matchType, success, mapInfo);
+        notifyPlayerMatchResult(List.of(team), success);
     }
 
     private void removeTeamData(MatchTeam team) {
@@ -187,17 +197,6 @@ public final class MatchLogic {
             MatchPlayerData current = player2Data.get(member.getPlayerId());
             if (current != null && current.getTeam() == team) {
                 player2Data.remove(member.getPlayerId());
-            }
-        }
-    }
-
-    private void cancelPlayerState(MatchTeam team) {
-        for (SMatchPlayer member : team.getMembers()) {
-            RpcResult<Boolean> result = PlayerMapRpcProxy.callCancelMatch(
-                    member.getPlayerService(), member.getPlayerId());
-            if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
-                log.warn("MatchService 清理玩家匹配状态失败: playerId={}, teamId={}, errorCode={}, message={}",
-                        member.getPlayerId(), team.getTeamId(), result.getErrorCode(), result.getErrorMessage());
             }
         }
     }

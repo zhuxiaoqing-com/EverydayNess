@@ -25,11 +25,7 @@ public abstract class AbstractMatchingPool {
     }
 
     public void addTeam(MatchTeam team) { poolObj.addTeam(team); }
-    public void removeTeam(MatchTeam team) {
-        poolObj.removeTeam(team);
-        Service.getCurrent(MatchService.class).getActor(MatchLogic.class)
-                .removeMatchedTeams(List.of(team));
-    }
+    public void removeTeam(MatchTeam team) { poolObj.removeTeam(team); }
     public int getMatchPlayerNum(int mapCfgId) {
         MatchDungeonObj dungeon = poolObj.getMatchDungeonObj(mapCfgId);
         return dungeon == null ? 0 : dungeon.getRoleNum();
@@ -51,10 +47,9 @@ public abstract class AbstractMatchingPool {
     protected void removeMatchAndNotify(SMapInfo matchInfo, List<MatchTeam> teams) {
         MatchService service = Service.getCurrent(MatchService.class);
         for (MatchTeam team : teams) {
-            removeTeam(team);
+            service.getActor(MatchLogic.class)
+                    .removeTeamAndNotify(matchType, team, true, matchInfo);
         }
-        service.getActor(MatchLogic.class).notifyTeamMatchResult(teams, matchType, true, matchInfo);
-        service.getActor(MatchLogic.class).clearMatchState(teams);
     }
 
     protected void createAndEnterMap(SMapInfo matchInfo, List<MatchTeam> teams,

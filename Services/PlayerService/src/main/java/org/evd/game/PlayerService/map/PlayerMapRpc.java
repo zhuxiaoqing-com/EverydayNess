@@ -6,7 +6,6 @@ import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerEnterParam;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.MatchPlayerEnterMapParam;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 
@@ -26,25 +25,6 @@ public final class PlayerMapRpc {
                             SPlayerEnterParam enterParam) {
         return Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
                 .enterMap(playerId, targetInfo, enterParam);
-    }
-
-    @Rpc
-    public void matchEnterMap(long playerId, SMapInfo targetInfo,
-                              MatchPlayerEnterMapParam matchParam) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
-                .matchEnterMap(playerId, targetInfo, matchParam);
-    }
-
-    @Rpc
-    public boolean cancelMatch(long playerId) {
-        return Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
-                .cancelMatch(playerId);
-    }
-
-    @Rpc
-    public void clearMatchState(long playerId) {
-        Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
-                .clearMatchState(playerId);
     }
 
     @Rpc
