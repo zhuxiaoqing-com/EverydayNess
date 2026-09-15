@@ -183,7 +183,7 @@ public final class TeamLogic {
         if (team == null || !team.isMatching()) {
             return fail(playerId, "队伍当前未在匹配");
         }
-        RpcResult<Void> result = MatchRpcProxy.sendCancelTeam(
+        RpcResult<Boolean> result = MatchRpcProxy.callCancelTeam(
                 MatchConst.getMatchCallPoint(), team.getTeamId(), team.getLeaderId());
         if (!result.isSuccess()) {
             log.warn("TeamService 取消组队匹配失败: playerId={}, errorCode={}, message={}",

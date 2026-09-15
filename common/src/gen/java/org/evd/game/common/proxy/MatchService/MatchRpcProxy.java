@@ -30,18 +30,20 @@ public final class MatchRpcProxy {
     }
 
     /**
-    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<Void> sendCancel(CallPoint remote, long playerId){
-        return RpcResult.run(() -> inst().cancel(remote, playerId));
+    public static RpcResult<Boolean> callCancel(CallPoint remote, long playerId){
+        return RpcResult.call(() -> inst().cancel(remote, playerId));
     }
 
+
     /**
-    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
     */
-    public static RpcResult<Void> sendCancelTeam(CallPoint remote, long teamId, long leaderId){
-        return RpcResult.run(() -> inst().cancelTeam(remote, teamId, leaderId));
+    public static RpcResult<Boolean> callCancelTeam(CallPoint remote, long teamId, long leaderId){
+        return RpcResult.call(() -> inst().cancelTeam(remote, teamId, leaderId));
     }
+
 
     /**
     * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
@@ -71,24 +73,24 @@ public final class MatchRpcProxy {
     /**
     * 对应源方法: org.evd.game.MatchService.MatchRpc#cancel()
     */
-    public void cancel(CallPoint remote, long playerId){
+    public boolean cancel(CallPoint remote, long playerId){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.MATCH);
         }
-        service.call(remote, EnumCall.ENUM_MATCHRPC_CANCEL_0, new Object[]{playerId});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_MATCHRPC_CANCEL_0, new Object[]{playerId});
     }
 
 
     /**
     * 对应源方法: org.evd.game.MatchService.MatchRpc#cancelTeam()
     */
-    public void cancelTeam(CallPoint remote, long teamId, long leaderId){
+    public boolean cancelTeam(CallPoint remote, long teamId, long leaderId){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.MATCH);
         }
-        service.call(remote, EnumCall.ENUM_MATCHRPC_CANCELTEAM_1, new Object[]{teamId, leaderId});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_MATCHRPC_CANCELTEAM_1, new Object[]{teamId, leaderId});
     }
 
 

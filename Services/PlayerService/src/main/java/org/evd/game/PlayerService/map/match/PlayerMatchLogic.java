@@ -31,40 +31,45 @@ import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 @Actor
 public final class PlayerMatchLogic {
     /** 单人匹配入口：校正旧快照、占用匹配状态，再提交 MatchService。 */
-    public void startSingleMatch(ClientSessionRef session, C2S_Match request) {
+    public boolean startSingleMatch(ClientSessionRef session, C2S_Match request) {
         if (session == null || session.getPlayerId() <= 0L) {
             log.warn("PlayerService 发起单人匹配失败：玩家会话非法，session={}", session);
-            return;
+            return false;
         }
         long playerId = session.getPlayerId();
         if (request == null) {
             log.warn("PlayerService 发起单人匹配失败：请求为空，playerId={}", playerId);
             pushStartResult(playerId, false, "匹配请求为空");
-            return;
+            return false;
         }
         if (!owner().sessionManager().hasOnlinePlayer(playerId)) {
             log.warn("PlayerService 发起单人匹配失败：玩家不在线，playerId={}", playerId);
             pushStartResult(playerId, false, "玩家不在线");
-            return;
+            return false;
         }
         PlayerMapState currentState = stateLogic().getState(playerId);
         if (isMatchingState(currentState)) {
             log.warn("PlayerService 发起单人匹配忽略：玩家已经在匹配中，playerId={}, state={}",
                     playerId, currentState);
-            return;
-        }
-        DBMatchContext context = getMatchContext(playerId);
-        if (isActiveMatch(context)) {
-            log.info("PlayerService 发起单人匹配前清理旧匹配，playerId={}, matchType={}, matchStartMill={}",
-                    playerId, context.getMatchType(), context.getMatchStartMill());
-            cancelAndClearMatchContext(playerId);
+            return false;
         }
 
         if (!stateLogic().enter(playerId, PlayerMapState.MATCHING)) {
             log.warn("PlayerService 发起单人匹配失败：玩家当前状态不允许匹配，playerId={}, state={}",
                     playerId, stateLogic().getState(playerId));
             pushStartResult(playerId, false, "玩家当前不能匹配");
-            return;
+            return false;
+        }
+        DBMatchContext context = getMatchContext(playerId);
+        if (isActiveMatch(context)) {
+            log.info("PlayerService 发起单人匹配前清理旧匹配，playerId={}, matchType={}, matchStartMill={}",
+                    playerId, context.getMatchType(), context.getMatchStartMill());
+            if (!cancelAndClearMatchContext(playerId)) {
+                log.error("PlayerService 发起单人匹配前取消旧匹配失败，保留原匹配状态: playerId={}", playerId);
+                pushStartResult(playerId, false, "取消旧匹配失败");
+                stateLogic().exit(playerId, PlayerMapState.MATCHING);
+                return false;
+            }
         }
 
         DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
@@ -75,13 +80,15 @@ public final class PlayerMatchLogic {
             log.warn("PlayerService 发起单人匹配失败：MatchService RPC 或业务拒绝，playerId={}, matchType={}, errorCode={}, message={}",
                     playerId, request.getMatchType(), result.getErrorCode(), result.getErrorMessage());
             clearMatchContext(playerId);
-            exitMatchingState(playerId);
+            stateLogic().exit(playerId, PlayerMapState.MATCHING);
             pushStartResult(playerId, false, "匹配失败");
-            return;
+            return false;
         }
         log.info("PlayerService 单人匹配请求已提交: playerId={}, matchType={}, mapCfgIds={}",
                 playerId, request.getMatchType(), request.getMapCfgIdsList());
         pushStartResult(playerId, true, "匹配已开始");
+
+        return true;
     }
 
     /** 客户端取消匹配：先取消远端队列，再清理本地匹配状态并通知客户端。 */
@@ -104,7 +111,14 @@ public final class PlayerMatchLogic {
         DBMatchContext context = getMatchContext(playerId);
 
         if (isActiveMatch(context)) {
-            cancelAndClearMatchContext(playerId);
+            if (!cancelAndClearMatchContext(playerId)) {
+                log.error("PlayerService 取消匹配失败，保留本地匹配状态: playerId={}", playerId);
+                if (notifyClient && wasMatching) {
+                    push(playerId, MatchMsgId.S2C_MATCH_CANCEL_VALUE,
+                            S2C_CancelMatch.newBuilder().setSuccess(false).setMessage("取消匹配失败").build());
+                }
+            }
+            return;
         }
 
         exitMatchingState(playerId);
@@ -115,7 +129,12 @@ public final class PlayerMatchLogic {
         }
     }
 
-    /** 接收 MatchService 的匹配结果；组队匹配由 TeamService 通知客户端。 */
+    /**
+     * 接收 MatchService 的匹配结果；组队匹配由 TeamService 通知客户端。
+     *
+     * 这里如果是主动取消的 不能退出
+     *
+     */
     public void onMatchResult(long playerId, boolean success, boolean isTeamMatch) {
         exitMatchingState(playerId);
 
@@ -143,13 +162,15 @@ public final class PlayerMatchLogic {
 
 
 
-    private void cancelAndClearMatchContext(long playerId) {
-        RpcResult<Void> result = MatchRpcProxy.sendCancel(MatchConst.getMatchCallPoint(), playerId);
+    private boolean cancelAndClearMatchContext(long playerId) {
+        RpcResult<Boolean> result = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
         if (!result.isSuccess()) {
             log.error("PlayerService 发送取消远端匹配消息失败，playerId={}, errorCode={}, message={}",
                     playerId, result.getErrorCode(), result.getErrorMessage());
+            return false;
         }
         clearMatchContext(playerId);
+        return true;
     }
 
     private DBMatchContext createMatchContext(C2S_Match request) {

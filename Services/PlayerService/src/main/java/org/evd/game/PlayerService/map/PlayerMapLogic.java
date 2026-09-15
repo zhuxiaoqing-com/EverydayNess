@@ -79,7 +79,12 @@ public final class PlayerMapLogic {
         if (oldTarget != null && oldTarget.getMapCfgId() > 0) {
             log.info("PlayerService 清理未完成地图转场: playerId={}, transferId={}, mapCfgId={}, groupId={}",
                     playerId, oldTransferContext.getTransferId(), oldTarget.getMapCfgId(), oldTarget.getGroupId());
-            removeFromScene(playerId, oldTarget);
+            if (!removeFromScene(playerId, oldTarget)) {
+                log.error("PlayerService 清理未完成地图转场失败，保留原转场状态: playerId={}, transferId={}",
+                        playerId, oldTransferContext.getTransferId());
+                stateLogic().exit(playerId, PlayerMapState.ENTER_MAP);
+                return false;
+            }
         }
         roleMapData.setTransferContext(new DBTransferContext());
 
@@ -135,14 +140,12 @@ public final class PlayerMapLogic {
                     playerId, transferId);
             return false;
         }
-        context.setTargetInfo(toDb(targetInfo));
         stateLogic().exit(playerId, PlayerMapState.ENTER_MAP);
 
         PPlayerOnline online = owner().sessionManager().get(playerId);
         if (online == null || online.getGate() == null || online.getGateSessionId() <= 0L) {
             log.warn("PlayerService 玩家会话不存在，无法通知客户端加载地图: playerId={}, transferId={}",
                     playerId, transferId);
-            roleMapData.setTransferContext(new DBTransferContext());
             return false;
         }
         S2C_ReadyEnterMap message = S2C_ReadyEnterMap.newBuilder()
@@ -322,15 +325,22 @@ public final class PlayerMapLogic {
         DBTransferContext transferContext = roleMapData.getTransferContext();
         if (transferContext != null) {
             DBMapInfo target = transferContext.getTargetInfo();
-            if (target != null && target.getMapCfgId() > 0) {
-                removeFromScene(playerId, target);
+            if (target != null && target.getMapCfgId() > 0
+                    && !removeFromScene(playerId, target)) {
+                log.error("PlayerService 下线清理目标场景失败，保留地图状态: playerId={}, sceneId={}",
+                        playerId, target.getSceneId());
+                return;
             }
             roleMapData.setTransferContext(new DBTransferContext());
         }
 
         DBMapInfo current = roleMapData.getCurrMapInfo();
         if (current != null && current.getMapCfgId() > 0) {
-            removeFromScene(playerId, current);
+            if (!removeFromScene(playerId, current)) {
+                log.error("PlayerService 下线清理当前场景失败，保留地图状态: playerId={}, sceneId={}",
+                        playerId, current.getSceneId());
+                return;
+            }
         }
         PlayerMapState state = stateLogic().getState(playerId);
         if (state != PlayerMapState.NONE) {
@@ -338,14 +348,16 @@ public final class PlayerMapLogic {
         }
     }
 
-    private void removeFromScene(long playerId,
-                                 DBMapInfo current) {
+    private boolean removeFromScene(long playerId,
+                                    DBMapInfo current) {
         CallPoint sceneManager = MapConst.getSceneManagerCallPoint(current.getMapCfgId());
         RpcResult<Boolean> result = SceneManagerRpcProxy.callExitMap(sceneManager, toCommon(current), playerId);
-        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
+        if (!result.isSuccess()) {
             log.warn("PlayerService 离开当前场景失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     playerId, current.getSceneId(), result.getErrorCode(), result.getErrorMessage());
+            return false;
         }
+        return true;
     }
 
     private DBMapInfo toDb(SMapInfo info) {

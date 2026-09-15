@@ -70,21 +70,23 @@ public final class MatchLogic {
         return addTeam(request.getMatchType(), MatchTeam.team(request));
     }
 
-    public void cancel(long playerId) {
+    public boolean cancel(long playerId) {
         MatchPlayerData data = player2Data.get(playerId);
         if (data == null) {
-            log.warn("MatchService 取消匹配失败：玩家不在匹配队列，playerId={}", playerId);
-            return;
+            log.info("MatchService 取消匹配幂等成功：玩家不在匹配队列，playerId={}", playerId);
+            return false;
         }
         removeTeamAndNotify(data.getMatchType(), data.getTeam(), false, null);
         log.info("MatchService 玩家取消匹配: playerId={}, teamId={}", playerId, data.getTeam().getTeamId());
+        return true;
     }
 
-    public void cancelTeam(long teamId, long leaderId) {
+    public boolean cancelTeam(long teamId, long leaderId) {
         MatchPlayerData data = player2Data.get(leaderId);
         if (data == null) {
-            log.warn("MatchService 取消组队匹配失败：队长不在匹配队列，teamId={}, leaderId={}", teamId, leaderId);
-            return;
+            log.info("MatchService 取消组队匹配幂等成功：队长不在匹配队列，teamId={}, leaderId={}",
+                    teamId, leaderId);
+            return false;
         }
         MatchTeam team = data.getTeam();
         if (team.getTeamId() != teamId || !team.isTeamMatch() || team.getTeamId() <= 0L
@@ -92,9 +94,10 @@ public final class MatchLogic {
                 || team.getMembers().getFirst().getPlayerId() != leaderId) {
             log.warn("MatchService 取消组队匹配失败：队伍信息不匹配，teamId={}, leaderId={}, actualTeamId={}, isTeamMatch={}, memberCount={}",
                     teamId, leaderId, team.getTeamId(), team.isTeamMatch(), team.getMembers().size());
-            return;
+           return false;
         }
         removeTeamAndNotify(data.getMatchType(), team, false, null);
+        return true;
     }
 
     public int getMatchPlayerNum(int matchType, int mapCfgId) {
