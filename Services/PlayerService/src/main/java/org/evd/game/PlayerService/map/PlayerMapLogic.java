@@ -6,6 +6,7 @@ import org.evd.game.PlayerService.dbDef.db.bean.DBMapInfo;
 import org.evd.game.PlayerService.dbDef.db.bean.DBRoleMapData;
 import org.evd.game.PlayerService.dbDef.db.bean.DBTransferContext;
 import org.evd.game.PlayerService.dbDef.db.table.DBRoleMapDataTable;
+import org.evd.game.PlayerService.offline.PlayerOfflineLogic;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.constant.MapConst;
@@ -38,19 +39,23 @@ public final class PlayerMapLogic {
     private static final long LOGIN_GROUP_ID = 0L;
     private static final long LOGIN_STATE_WAIT_MILL = 2_000L;
 
-    /** 登录进入默认地图；已有状态即将超时时短暂等待，避免本次登录无意义失败。 */
+    /** 登录进入默认地图；已有状态时最多等待 2 秒，避免本次登录无意义失败。 */
     public void enterMapOnLogin(long playerId) {
         long remainingMill = stateLogic().getRemainingMill(playerId);
-        if (remainingMill > 0L && remainingMill <= LOGIN_STATE_WAIT_MILL) {
-            log.info("PlayerService 登录等待玩家地图状态超时: playerId={}, remainingMill={}",
-                    playerId, remainingMill);
-            Service.getCurrent().sleep(remainingMill);
+        if (remainingMill > 0L) {
+            long waitMill = Math.min(remainingMill, LOGIN_STATE_WAIT_MILL);
+            log.info("PlayerService 登录等待玩家地图状态超时: playerId={}, remainingMill={}, waitMill={}",
+                    playerId, remainingMill, waitMill);
+            Service.getCurrent().sleep(waitMill);
             if (!owner().sessionManager().hasOnlinePlayer(playerId)) {
                 log.warn("PlayerService 登录等待地图状态期间玩家已离线: playerId={}", playerId);
                 return;
             }
         }
-        enterMap(playerId, new SMapInfo(0L, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID), null);
+        if (!enterMap(playerId, new SMapInfo(0L, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID), null)) {
+            log.error("PlayerService 登录进入地图失败，踢出玩家: playerId={}", playerId);
+            owner().getActor(PlayerOfflineLogic.class).kickPlayer(playerId, "登录进入地图失败");
+        }
     }
 
     /** 普通地图进入，不涉及匹配状态。 */

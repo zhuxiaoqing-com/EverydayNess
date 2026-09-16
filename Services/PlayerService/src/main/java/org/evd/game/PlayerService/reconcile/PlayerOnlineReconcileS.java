@@ -1,7 +1,7 @@
 package org.evd.game.PlayerService.reconcile;
 
 import org.evd.game.PlayerService.PlayerService;
-import org.evd.game.PlayerService.offline.PlayerOfflineManager;
+import org.evd.game.PlayerService.offline.PlayerOfflineLogic;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.common.proxy.OnlineService.OnlineStateReconcileRpcProxy;
@@ -20,13 +20,10 @@ public final class PlayerOnlineReconcileS {
 
     private final PlayerService owner;
     private final PlayerSessionManager sessionManager;
-    private final PlayerOfflineManager offlineManager;
 
-    public PlayerOnlineReconcileS(PlayerService owner, PlayerSessionManager sessionManager,
-                                  PlayerOfflineManager offlineManager) {
+    public PlayerOnlineReconcileS(PlayerService owner, PlayerSessionManager sessionManager) {
         this.owner = owner;
         this.sessionManager = sessionManager;
-        this.offlineManager = offlineManager;
     }
 
     /** 将 PlayerService 当前运行态交给 Online 校验，并按原会话精确清理失效玩家。 */
@@ -83,7 +80,7 @@ public final class PlayerOnlineReconcileS {
             LogCore.core.warn("PlayerService 对账连续两轮发现异常，按原 Session 清理: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, relation={}",
                     owner.getId(), entry.getUserId(), entry.getPlayerId(), entry.getGate(), entry.getGateSessionId(),
                     "Online");
-            offlineManager.onPlayerOffline(entry.getUserId(), entry.getPlayerId(),
+            owner.getActor(PlayerOfflineLogic.class).onPlayerOffline(entry.getUserId(), entry.getPlayerId(),
                     entry.getGate(), entry.getGateSessionId(),
                     BrokenType.STATE_RECONCILE.getCode());
         }

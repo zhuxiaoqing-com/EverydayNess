@@ -6,7 +6,6 @@ import org.evd.game.PlayerService.dbDef.db.table.DBPlayerDataTable;
 import org.evd.game.PlayerService.event.RoleLoginEvent;
 import org.evd.game.PlayerService.event.RoleMidnightEvent;
 import org.evd.game.PlayerService.map.PlayerMapLogic;
-import org.evd.game.PlayerService.player.PlayerDataRepository;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proto.RoleData;
@@ -105,14 +104,21 @@ public final class PlayerLoginLogic {
             return;
         }
 
-        PlayerDataRepository playerDataRepository = owner.playerDataRepository();
-        playerDataRepository.loadOrCreate(playerId, role.getName(), role.getLevel());
+        DBPlayerData dbPlayerData = DBPlayerDataTable.get(playerId);
+        if (dbPlayerData == null) {
+            dbPlayerData = new DBPlayerData();
+            dbPlayerData.setId(playerId);
+            dbPlayerData.setName(role.getName());
+            dbPlayerData.setLv(role.getLevel());
+            DBPlayerDataTable.add(playerId, dbPlayerData, true);
+            LogCore.core.info("PlayerService 创建玩家基础数据: playerId={}, name={}, level={}",
+                    playerId, dbPlayerData.getName(), dbPlayerData.getLv());
+        }
 
         sessionManager.markOnline(playerId);
 
         Service.getCurrent().publishEvent(RoleLoginEvent.Listener.class,
                 new RoleLoginEvent(playerId), RoleLoginEvent.Listener::onEvent);
-        DBPlayerData dbPlayerData = DBPlayerDataTable.get(playerId);
         long currMill = Service.getTime();
         if (!TimeUtils.isSameDay(dbPlayerData.getLastMidnightMill(), currMill)) {
             dbPlayerData.setLastMidnightMill(currMill);
@@ -125,7 +131,6 @@ public final class PlayerLoginLogic {
         } catch (RuntimeException e) {
             LogCore.core.warn("PlayerService 玩家进入地图失败: service={}, userId={}, playerId={}, message={}",
                     owner.getId(), userId, playerId, e.getMessage());
-            return;
         }
     }
 

@@ -128,3 +128,10 @@
 20.TimerScheduler 现在很乱，我看里面实现默认是没有调用协程的;但是有些回调里默认会直接去调用RPC，而RPC是需要开启协程的，怎么办;但是有很多又是不需要开启协程的
            加两个方法 默认会给callback里嵌套上一层callback，然后在里面抛协程;然后再让codex帮我检查下 哪些需要改成调用这个方法的; 这可以抛协程的延迟事件，放在Service这一层
            org.evd.game.runtime.Service#newOnceTimer   org.evd.game.runtime.Service#newRepeatedTimer 这两个加一个可以抛协程的
+
+16.加一个MatchService 匹配用
+19.进入地图流程和退出地图流程其实还没走完;因为还要改变location 和改变playerService GwService 还有 OnlineService;
+
+4.切换地图流程;其实也就是游戏玩法基础流程;
+
+

@@ -5,23 +5,17 @@
 2.ymal改成注册中心;
 
 
-
-
-4.切换地图流程;其实也就是游戏玩法基础流程;
-
-
 13.location是不是也可以弄多个，然后里面是不是应该只保存playerId，还是scene也保存，而且还需要加一个sceneManager，地图管理类;
     location也保存scene，的话就是cache可以缓存;
 
 15.location架构迎来了大动荡;加了跨服玩法以后Location就失效了;具体方案在1.txt
-
-16.加一个MatchService 匹配用
 
 17.考虑各种service断开以后需要处理的事情，等scene弄好以后就可以弄个这个饿了，因为主要也就这几个service需要处理;
          应该就是online和playerService断开以后需要将玩家下线;
 
 18.考虑各个service单独断开以后是否能单独重启;状态会不会有问题
 
-19.进入地图流程和退出地图流程其实还没走完;因为还要改变location 和改变playerService GwService 还有 OnlineService;
+21.MatchService 考虑加一个MatchManagerService 默认匹配服用作全服玩法;
+
 
 

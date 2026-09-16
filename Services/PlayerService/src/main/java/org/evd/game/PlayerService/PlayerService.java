@@ -1,7 +1,5 @@
 package org.evd.game.PlayerService;
 
-import org.evd.game.PlayerService.offline.PlayerOfflineManager;
-import org.evd.game.PlayerService.player.PlayerDataRepository;
 import org.evd.game.PlayerService.reconcile.PlayerOnlineReconcileS;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.PlayerService.timer.PlayerTimer;
@@ -20,8 +18,6 @@ import java.util.List;
 
 public class PlayerService extends Service {
     private final PlayerSessionManager sessionManager;
-    private final PlayerDataRepository playerDataRepository;
-    private final PlayerOfflineManager offlineManager;
     private final PlayerOnlineReconcileS playerOnlineReconcileS;
     private final PlayerTimer playerTimer;
 
@@ -29,9 +25,7 @@ public class PlayerService extends Service {
     public PlayerService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
         this.sessionManager = new PlayerSessionManager();
-        this.playerDataRepository = new PlayerDataRepository();
-        this.offlineManager = new PlayerOfflineManager(this, sessionManager);
-        this.playerOnlineReconcileS = new PlayerOnlineReconcileS(this, sessionManager, this.offlineManager);
+        this.playerOnlineReconcileS = new PlayerOnlineReconcileS(this, sessionManager);
         this.playerTimer = new PlayerTimer(this);
     }
 
@@ -60,19 +54,9 @@ public class PlayerService extends Service {
         super.tick();
     }
 
-    /** 返回玩家会话状态，供登录 RPC Actor 和离线管理器共同使用。 */
+    /** 返回玩家会话状态，供登录和离线逻辑共同使用。 */
     public PlayerSessionManager sessionManager() {
         return sessionManager;
-    }
-
-    /** 返回玩家数据仓库，供登录 RPC Actor 加载玩家数据。 */
-    public PlayerDataRepository playerDataRepository() {
-        return playerDataRepository;
-    }
-
-    /** 返回玩家离线流程管理器，供离线 Actor 委托业务处理。 */
-    public PlayerOfflineManager offlineManager() {
-        return offlineManager;
     }
 
     public PlayerOnlineReconcileS playerOnlineReconcileS() {
