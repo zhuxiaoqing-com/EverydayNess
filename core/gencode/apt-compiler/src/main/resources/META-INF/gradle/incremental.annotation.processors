@@ -2,7 +2,7 @@ org.evd.game.gencode.actor.ActorProcessor,aggregating
 org.evd.game.gencode.client.ClientCmdProcessor,aggregating
 org.evd.game.gencode.db.DbDirtyEntityProcessor,isolating
 org.evd.game.gencode.db.DbDirtyTableRegistryProcessor,aggregating
-org.evd.game.gencode.rpc.RpcProcessor,isolating
+org.evd.game.gencode.rpc.RpcProcessor,aggregating
 org.evd.game.gencode.rpc.RpcImplProcessor,aggregating
 org.evd.game.gencode.serialize.SerializeIoProcessor,isolating
 org.evd.game.gencode.serialize.SerializeProcessor,aggregating

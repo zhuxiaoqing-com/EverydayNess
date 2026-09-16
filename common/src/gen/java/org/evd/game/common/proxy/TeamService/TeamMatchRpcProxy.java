@@ -21,14 +21,35 @@ public final class TeamMatchRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_TEAMMATCHRPC_MATCHRESULT_0 = 0;
+        public final static int ENUM_TEAMMATCHRPC_CANCELMATCH_0 = 0;
+        public final static int ENUM_TEAMMATCHRPC_MATCHRESULT_1 = 1;
     }
+
+    /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<Boolean> callCancelMatch(CallPoint remote, long teamId){
+        return RpcResult.call(() -> inst().cancelMatch(remote, teamId));
+    }
+
 
     /**
     * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
     public static RpcResult<Void> sendMatchResult(CallPoint remote, long teamId, int matchType, boolean success, SMapInfo mapInfo){
         return RpcResult.run(() -> inst().matchResult(remote, teamId, matchType, success, mapInfo));
+    }
+
+
+    /**
+    * 对应源方法: org.evd.game.TeamService.TeamMatchRpc#cancelMatch()
+    */
+    public boolean cancelMatch(CallPoint remote, long teamId){
+        Service service = Service.getCurrent();
+        if (remote == null) {
+            remote = service.getNode().getAnyCallPointByType(ServiceType.TEAM);
+        }
+        return (boolean)service.callWait(remote, EnumCall.ENUM_TEAMMATCHRPC_CANCELMATCH_0, new Object[]{teamId});
     }
 
 
@@ -40,7 +61,7 @@ public final class TeamMatchRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.TEAM);
         }
-        service.call(remote, EnumCall.ENUM_TEAMMATCHRPC_MATCHRESULT_0, new Object[]{teamId, matchType, success, mapInfo});
+        service.call(remote, EnumCall.ENUM_TEAMMATCHRPC_MATCHRESULT_1, new Object[]{teamId, matchType, success, mapInfo});
     }
 
 

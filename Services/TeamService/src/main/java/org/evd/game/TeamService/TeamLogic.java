@@ -190,6 +190,22 @@ public final class TeamLogic {
                     playerId, result.getErrorCode(), result.getErrorMessage());
             return fail(playerId, "取消组队匹配失败");
         }
+        if (!Boolean.TRUE.equals(result.getValue())) {
+            log.info("TeamService 取消组队匹配幂等完成：MatchService 中不存在队伍，teamId={}, playerId={}",
+                    team.getTeamId(), playerId);
+            team.setMatching(false);
+            pushTeamInfo(team, true, "组队匹配已取消");
+        }
+        return true;
+    }
+
+    /** MatchService 主动取消组队匹配时，只清理队伍匹配状态。 */
+    public boolean cancelMatchState(long teamId) {
+        TeamData team = teams.get(teamId);
+        if (team == null || !team.isMatching()) {
+            log.info("TeamService 取消组队匹配幂等完成：队伍当前未在匹配，teamId={}", teamId);
+            return true;
+        }
         team.setMatching(false);
         pushTeamInfo(team, true, "组队匹配已取消");
         return true;

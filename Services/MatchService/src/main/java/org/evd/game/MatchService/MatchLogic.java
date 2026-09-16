@@ -76,13 +76,16 @@ public final class MatchLogic {
             log.info("MatchService 取消匹配幂等成功：玩家不在匹配队列，playerId={}", playerId);
             return false;
         }
-        removeTeamAndNotify(data.getMatchType(), data.getTeam(), false, null);
-        log.info("MatchService 玩家取消匹配: playerId={}, teamId={}", playerId, data.getTeam().getTeamId());
+        MatchTeam team = data.getTeam();
+        matchingLogic().removeTeam(data.getMatchType(), team);
+        removeTeamData(team);
+        notifyTeamCancelState(team);
+        log.info("MatchService 玩家取消匹配: playerId={}, teamId={}", playerId, team.getTeamId());
         return true;
     }
 
     public boolean cancelTeam(long teamId, long leaderId) {
-        MatchPlayerData data = player2Data.get(leaderId);
+        /*MatchPlayerData data = player2Data.get(leaderId);
         if (data == null) {
             log.info("MatchService 取消组队匹配幂等成功：队长不在匹配队列，teamId={}, leaderId={}",
                     teamId, leaderId);
@@ -96,7 +99,7 @@ public final class MatchLogic {
                     teamId, leaderId, team.getTeamId(), team.isTeamMatch(), team.getMembers().size());
            return false;
         }
-        removeTeamAndNotify(data.getMatchType(), team, false, null);
+        removeTeamAndNotify(data.getMatchType(), team, false, null);*/
         return true;
     }
 
@@ -169,6 +172,21 @@ public final class MatchLogic {
         }
     }
 
+    /** 主动取消组队匹配时，只清理 TeamService 的匹配状态，不发送匹配结果。 */
+    private void notifyTeamCancelState(MatchTeam team) {
+        if (!team.isTeamMatch() || team.isRobot()) {
+            return;
+        }
+        RpcResult<Boolean> result = TeamMatchRpcProxy.callCancelMatch(
+                TeamConst.getTeamCallPoint(), team.getTeamId());
+        if (!result.isSuccess()) {
+            log.error("MatchService 通知 TeamService 清理组队匹配状态失败: teamId={}, errorCode={}, message={}",
+                    team.getTeamId(), result.getErrorCode(), result.getErrorMessage());
+            /*throw new SysException(result.getErrorCode(),
+                    "通知 TeamService 清理组队匹配状态失败: teamId=" + team.getTeamId());*/
+        }
+    }
+
     /** 将匹配结果通知各玩家服，由玩家服负责清理状态并推送客户端。 */
     public void notifyPlayerMatchResult(List<MatchTeam> teams, boolean success) {
         for (MatchTeam team : teams) {
@@ -177,7 +195,8 @@ public final class MatchLogic {
                     continue;
                 }
                 RpcResult<Void> result = PlayerMatchRpcProxy.sendOnMatchResult(
-                        member.getPlayerService(), member.getPlayerId(), success, team.isTeamMatch());
+                        member.getPlayerService(), member.getPlayerId(), success,
+                        team.isTeamMatch());
                 if (!result.isSuccess()) {
                     log.warn("MatchService 通知玩家匹配结果失败: playerId={}, teamId={}, success={}, isTeamMatch={}, errorCode={}, message={}",
                             member.getPlayerId(), team.getTeamId(),
@@ -191,8 +210,8 @@ public final class MatchLogic {
 
     public void notifyMatchResult(MatchTeam team, int matchType,
                                   boolean success, SMapInfo mapInfo) {
-        notifyTeamMatchResult(List.of(team), matchType, success, mapInfo);
         notifyPlayerMatchResult(List.of(team), success);
+        notifyTeamMatchResult(List.of(team), matchType, success, mapInfo);
     }
 
     private void removeTeamData(MatchTeam team) {

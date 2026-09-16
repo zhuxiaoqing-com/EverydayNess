@@ -64,10 +64,10 @@ public final class PlayerMatchLogic {
         if (isActiveMatch(context)) {
             log.info("PlayerService 发起单人匹配前清理旧匹配，playerId={}, matchType={}, matchStartMill={}",
                     playerId, context.getMatchType(), context.getMatchStartMill());
-            if (!cancelAndClearMatchContext(playerId)) {
+            if (!cancelAndClearMatchContext(playerId, false, false)) {
                 log.error("PlayerService 发起单人匹配前取消旧匹配失败，保留原匹配状态: playerId={}", playerId);
-                pushStartResult(playerId, false, "取消旧匹配失败");
                 stateLogic().exit(playerId, PlayerMapState.MATCHING);
+                pushStartResult(playerId, false, "取消旧匹配失败");
                 return false;
             }
         }
@@ -97,44 +97,22 @@ public final class PlayerMatchLogic {
             log.warn("PlayerService 取消匹配失败：玩家会话非法，session={}", session);
             return;
         }
-        cancelRemoteMatchAndClear(session.getPlayerId(), true);
+        boolean success = cancelAndClearMatchContext(session.getPlayerId(), true, true);
+        if (!success) {
+            // 主动取消的 不管怎么样 都发一个协议，让客户端关闭匹配框
+            log.warn("PlayerService 主动取消匹配失败，仍通知客户端关闭匹配框: playerId={}",
+                    session.getPlayerId());
+            push(session.getPlayerId(), MatchMsgId.S2C_MATCH_CANCEL_VALUE,
+                    S2C_CancelMatch.newBuilder().setSuccess(true).setMessage("已取消匹配").build());
+        }
     }
 
     /** 下线时先按有效匹配快照取消远端队列，再清理本地匹配状态。 */
     public void cancelOnOffline(long playerId) {
-        cancelRemoteMatchAndClear(playerId, false);
+        cancelAndClearMatchContext(playerId, true, false);
     }
 
-    /** 取消远端匹配并清理本地状态；客户端入口和离线入口只通过通知开关区分。 */
-    private void cancelRemoteMatchAndClear(long playerId, boolean notifyClient) {
-        boolean wasMatching = isMatchingState(stateLogic().getState(playerId));
-        DBMatchContext context = getMatchContext(playerId);
-
-        if (isActiveMatch(context)) {
-            if (!cancelAndClearMatchContext(playerId)) {
-                log.error("PlayerService 取消匹配失败，保留本地匹配状态: playerId={}", playerId);
-                if (notifyClient && wasMatching) {
-                    push(playerId, MatchMsgId.S2C_MATCH_CANCEL_VALUE,
-                            S2C_CancelMatch.newBuilder().setSuccess(false).setMessage("取消匹配失败").build());
-                }
-            }
-            return;
-        }
-
-        exitMatchingState(playerId);
-        if (notifyClient && wasMatching) {
-            push(playerId, MatchMsgId.S2C_MATCH_CANCEL_VALUE,
-                    S2C_CancelMatch.newBuilder().setSuccess(true).setMessage("已取消匹配").build());
-            log.info("PlayerService 取消匹配完成: playerId={}", playerId);
-        }
-    }
-
-    /**
-     * 接收 MatchService 的匹配结果；组队匹配由 TeamService 通知客户端。
-     *
-     * 这里如果是主动取消的 不能退出
-     *
-     */
+    /** 接收 MatchService 的匹配结果；重新匹配取消只清理旧队列，不结束当前匹配状态。 */
     public void onMatchResult(long playerId, boolean success, boolean isTeamMatch) {
         exitMatchingState(playerId);
 
@@ -142,7 +120,8 @@ public final class PlayerMatchLogic {
             clearMatchContext(playerId);
         }
         if (!isTeamMatch) {
-            pushMatchResult(playerId, success);
+            push(playerId, MatchMsgId.S2C_MATCH_START_VALUE,
+                    S2C_Match.newBuilder().setSuccess(success).build());
         }
     }
 
@@ -162,14 +141,34 @@ public final class PlayerMatchLogic {
 
 
 
-    private boolean cancelAndClearMatchContext(long playerId) {
-        RpcResult<Boolean> result = MatchRpcProxy.callCancel(MatchConst.getMatchCallPoint(), playerId);
+    /**
+     * 取消远端匹配并清理本地匹配上下文。
+     *
+     * @param clearMatchingState 远端取消成功后是否退出玩家匹配状态
+     * @param notifyCancelResult 是否通知客户端取消匹配结果
+     */
+    private boolean cancelAndClearMatchContext(long playerId,
+                                               boolean clearMatchingState,
+                                               boolean notifyCancelResult) {
+        RpcResult<Boolean> result = MatchRpcProxy.callCancel(
+                MatchConst.getMatchCallPoint(), playerId);
         if (!result.isSuccess()) {
             log.error("PlayerService 发送取消远端匹配消息失败，playerId={}, errorCode={}, message={}",
                     playerId, result.getErrorCode(), result.getErrorMessage());
             return false;
         }
+        if (!Boolean.TRUE.equals(result.getValue())) {
+            log.warn("PlayerService 远程匹配中不存在玩家，继续清理本地匹配状态: playerId={}", playerId);
+        }
         clearMatchContext(playerId);
+        if (clearMatchingState) {
+            exitMatchingState(playerId);
+        }
+        if (notifyCancelResult) {
+            push(playerId, MatchMsgId.S2C_MATCH_CANCEL_VALUE,
+                    S2C_CancelMatch.newBuilder().setSuccess(true).setMessage("已取消匹配").build());
+            log.info("PlayerService 取消匹配完成: playerId={}", playerId);
+        }
         return true;
     }
 
@@ -221,11 +220,6 @@ public final class PlayerMatchLogic {
     private void pushStartResult(long playerId, boolean success, String message) {
         push(playerId, MatchMsgId.S2C_MATCH_START_VALUE,
                 S2C_Match.newBuilder().setSuccess(success).setMessage(message).build());
-    }
-
-    private void pushMatchResult(long playerId, boolean success) {
-        push(playerId, MatchMsgId.S2C_MATCH_START_VALUE,
-                S2C_Match.newBuilder().setSuccess(success).build());
     }
 
     private void push(long playerId, int messageId, Message message) {

@@ -106,6 +106,21 @@ final class RpcSupport {
         return classMap;
     }
 
+    Set<TypeElement> resolveServiceOwnersForCleanup(RoundEnvironment roundEnv) {
+        Set<TypeElement> owners = new LinkedHashSet<>();
+        collectServiceOwners(roundEnv.getElementsAnnotatedWith(RpcHandler.class), owners);
+        collectServiceOwners(roundEnv.getElementsAnnotatedWith(Actor.class), owners);
+        return owners;
+    }
+
+    private void collectServiceOwners(Set<? extends Element> elements, Set<TypeElement> owners) {
+        for (Element element : elements) {
+            if (element instanceof TypeElement typeElement) {
+                owners.add(serviceOwnerResolver.resolve(typeElement));
+            }
+        }
+    }
+
     RpcGenerationContext buildContext(RoundEnvironment roundEnv) {
         List<MethodStruct<Rpc>> structList = buildRpcMethodStructs(roundEnv);
         if (structList.isEmpty()) {

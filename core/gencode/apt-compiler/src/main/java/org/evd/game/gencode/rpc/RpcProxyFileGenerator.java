@@ -10,8 +10,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -21,19 +19,21 @@ final class RpcProxyFileGenerator {
     private static final String SERVICE_PACKAGE_PREFIX = "org.evd.game.";
 
     private final RpcSupport support;
-    private final Set<Path> cleanedServiceProxyDirs = new HashSet<>();
 
     RpcProxyFileGenerator(RpcSupport support) {
         this.support = support;
     }
 
+    String generatedProxyFileName(TypeElement typeElement) {
+        return typeElement.getSimpleName() + "Proxy.java";
+    }
+
     void generate(TypeElement typeElement, List<MethodStruct<Rpc>> methods) {
         try {
-            String generatedClassName = typeElement.getSimpleName() + "Proxy.java";
+            String generatedClassName = generatedProxyFileName(typeElement);
             Path proxyRootDir = resolveProxyRootDir();
             Path serviceProxyDir = resolveServiceProxyDir(proxyRootDir, typeElement);
-            prepareServiceProxyDir(serviceProxyDir);
-            cleanupMisplacedOwnerProxyDir(proxyRootDir, serviceProxyDir, typeElement);
+            Files.createDirectories(serviceProxyDir);
 
             String content = support.renderTemplate(RpcSupport.TEMPLATE_RPC_PROXY, support.buildProxyRootMap(methods));
             writeIfChanged(serviceProxyDir.resolve(generatedClassName), content);
@@ -44,20 +44,32 @@ final class RpcProxyFileGenerator {
         }
     }
 
-    private void prepareServiceProxyDir(Path serviceProxyDir) throws IOException {
-        Files.createDirectories(serviceProxyDir);
-        Path normalizedDir = serviceProxyDir.toAbsolutePath().normalize();
-        if (cleanedServiceProxyDirs.add(normalizedDir)) {
-            cleanupServiceProxyDir(normalizedDir);
+    void cleanupStaleServiceProxies(TypeElement ownerType, Set<String> expectedProxyFiles) {
+        try {
+            Path proxyRootDir = resolveProxyRootDir();
+            Path serviceProxyDir = resolveServiceProxyDir(proxyRootDir, ownerType);
+            Files.createDirectories(serviceProxyDir);
+            cleanupStaleProxyFiles(serviceProxyDir, expectedProxyFiles);
+            cleanupMisplacedOwnerProxyDir(proxyRootDir, serviceProxyDir, ownerType);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("清理Rpc代理目录失败", e);
         }
     }
 
-    private void cleanupServiceProxyDir(Path serviceProxyDir) throws IOException {
-        try (Stream<Path> pathStream = Files.walk(serviceProxyDir)) {
-            pathStream
-                    .sorted(Comparator.reverseOrder())
-                    .filter(path -> !path.equals(serviceProxyDir))
-                    .forEach(this::deleteQuietly);
+    private void cleanupStaleProxyFiles(Path serviceProxyDir, Set<String> expectedProxyFiles)
+            throws IOException {
+        List<Path> staleFiles;
+        try (Stream<Path> pathStream = Files.list(serviceProxyDir)) {
+            staleFiles = pathStream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith("Proxy.java"))
+                    .filter(path -> !expectedProxyFiles.contains(path.getFileName().toString()))
+                    .toList();
+        }
+        for (Path staleFile : staleFiles) {
+            deleteQuietly(staleFile);
         }
     }
 
@@ -66,8 +78,12 @@ final class RpcProxyFileGenerator {
         if (misplacedOwnerDir.equals(serviceProxyDir.toAbsolutePath().normalize()) || !Files.exists(misplacedOwnerDir)) {
             return;
         }
-        cleanupServiceProxyDir(misplacedOwnerDir);
-        deleteQuietly(misplacedOwnerDir);
+        cleanupStaleProxyFiles(misplacedOwnerDir, Set.of());
+        try (Stream<Path> remaining = Files.list(misplacedOwnerDir)) {
+            if (remaining.findAny().isEmpty()) {
+                deleteQuietly(misplacedOwnerDir);
+            }
+        }
     }
 
     private void writeIfChanged(Path filePath, String content) throws IOException {

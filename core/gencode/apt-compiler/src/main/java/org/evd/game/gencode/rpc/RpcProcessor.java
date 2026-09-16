@@ -1,14 +1,16 @@
 package org.evd.game.gencode.rpc;
 
 import com.google.auto.service.AutoService;
+import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
+import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.gencode.ProcessorBase;
 import org.evd.game.gencode.struct.MethodStruct;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.TypeElement;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,7 +22,10 @@ public class RpcProcessor extends ProcessorBase {
 
     @Override
     protected Set<String> supportAnnotation() {
-        return Collections.singleton(Rpc.class.getCanonicalName());
+        return Set.of(
+                Rpc.class.getCanonicalName(),
+                RpcHandler.class.getCanonicalName(),
+                Actor.class.getCanonicalName());
     }
 
     @Override
@@ -36,12 +41,20 @@ public class RpcProcessor extends ProcessorBase {
 
         RpcGenerationContext context = support.buildContext(roundEnv);
         if (context == null) {
+            for (TypeElement ownerType : support.resolveServiceOwnersForCleanup(roundEnv)) {
+                proxyFileGenerator.cleanupStaleServiceProxies(ownerType, Set.of());
+            }
             return;
         }
 
-        Map<String, List<MethodStruct<Rpc>>> classMap = support.groupRpcMethodsByClass(context.ownerMethods);
+        // RpcProcessor 是 aggregating：先按本轮完整 RPC 集合生成，再清理旧 Proxy 差集。
+        Map<String, List<MethodStruct<Rpc>>> classMap = context.classMap;
+        Set<String> expectedProxyFiles = new HashSet<>(classMap.size());
         for (List<MethodStruct<Rpc>> classMethods : classMap.values()) {
+            expectedProxyFiles.add(proxyFileGenerator.generatedProxyFileName(
+                    classMethods.getFirst().getTypeElement()));
             proxyFileGenerator.generate(classMethods.getFirst().getTypeElement(), classMethods);
         }
+        proxyFileGenerator.cleanupStaleServiceProxies(context.ownerType, expectedProxyFiles);
     }
 }

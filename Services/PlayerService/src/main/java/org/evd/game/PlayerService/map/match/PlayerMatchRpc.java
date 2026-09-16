@@ -19,7 +19,7 @@ public final class PlayerMatchRpc {
                 .matchEnterMap(playerId, targetInfo, matchParam);
     }
 
-    /** 接收 MatchService 的匹配结果，由 PlayerService 转发给客户端。 */
+    /** 接收 MatchService 的匹配结果。 */
     @Rpc
     public void onMatchResult(long playerId, boolean success, boolean isTeamMatch) {
         Service.getCurrent(PlayerService.class).getActor(PlayerMatchLogic.class)
