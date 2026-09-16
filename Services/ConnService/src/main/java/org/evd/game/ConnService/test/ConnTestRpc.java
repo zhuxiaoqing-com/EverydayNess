@@ -1,4 +1,4 @@
-package org.evd.game.ConnService;
+package org.evd.game.ConnService.test;
 
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.RpcHandler;
@@ -7,13 +7,10 @@ import org.evd.game.common.serializeBean.ConnService.test.SConnInfo;
 import org.evd.game.annotation.actor.ActorType;
 import org.evd.game.runtime.actor.ActorId;
 
-/**
- * @author zhuxiaoqing
- * @Description: ConnTestRpc
- * @Date 2026/5/14 13:55
- **/
+/** RPC generator and serialization test entry points. */
 @Actor
 @RpcHandler
+@SuppressWarnings("unused")
 public class ConnTestRpc {
     @Rpc(actorType = ActorType.GATE)
     public void connTest1(ActorId actorId) {

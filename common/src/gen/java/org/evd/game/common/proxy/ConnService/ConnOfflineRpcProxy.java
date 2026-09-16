@@ -19,8 +19,8 @@ public final class ConnOfflineRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNOFFLINERPC_CLOSESESSION_15 = 15;
-        public final static int ENUM_CONNOFFLINERPC_KICKSESSION_16 = 16;
+        public final static int ENUM_CONNOFFLINERPC_CLOSESESSION_11 = 11;
+        public final static int ENUM_CONNOFFLINERPC_KICKSESSION_12 = 12;
     }
 
     /**
@@ -43,7 +43,7 @@ public final class ConnOfflineRpcProxy {
     */
     public void closeSession(CallPoint remote, long sessionId, int brokenTypeCode, String reason){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNOFFLINERPC_CLOSESESSION_15, new Object[]{sessionId, brokenTypeCode, reason});
+        service.call(remote, EnumCall.ENUM_CONNOFFLINERPC_CLOSESESSION_11, new Object[]{sessionId, brokenTypeCode, reason});
     }
 
 
@@ -52,7 +52,7 @@ public final class ConnOfflineRpcProxy {
     */
     public void kickSession(CallPoint remote, long sessionId, int brokenTypeCode, String reason){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNOFFLINERPC_KICKSESSION_16, new Object[]{sessionId, brokenTypeCode, reason});
+        service.call(remote, EnumCall.ENUM_CONNOFFLINERPC_KICKSESSION_12, new Object[]{sessionId, brokenTypeCode, reason});
     }
 
 

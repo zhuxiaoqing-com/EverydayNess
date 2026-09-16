@@ -36,7 +36,7 @@ public final class ConnLoginLogic {
     public boolean rejectPendingLogin(long sessionId, String userId, String token,
                                       ClientFrameChunk packet, int brokenTypeCode, String reason) {
         return owner().loginManager().rejectPendingLogin(
-                owner().findClientChannel(sessionId), sessionId, userId, token, packet,
+                owner().clientConnection().findClientChannel(sessionId), sessionId, userId, token, packet,
                 BrokenType.fromCode(brokenTypeCode), reason);
     }
 
@@ -115,12 +115,13 @@ public final class ConnLoginLogic {
         }
         S2C_Login response = S2C_Login.newBuilder()
                 .setSuccess(false).setMessage(message == null ? "登录失败" : message).build();
-        owner.pushToClient(session.getSessionId(), ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN_VALUE, response));
+        owner.clientConnection().pushToClient(
+                session.getSessionId(), ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN_VALUE, response));
     }
 
     private void rejectAndClose(ConnService owner, ClientSessionRef session, String reason) {
         S2C_Login response = S2C_Login.newBuilder().setSuccess(false).setMessage(reason).build();
-        owner.redirectClient(session.getSessionId(),
+        owner.clientConnection().redirectClient(session.getSessionId(),
                 ClientFrameChunk.wrap(AuthMsgId.S2C_AUTH_LOGIN_VALUE, response));
     }
 

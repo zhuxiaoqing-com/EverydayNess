@@ -6,7 +6,6 @@ import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.actor.ActorAddress;
-import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.support.LogCore;
 
 /** ConnService 的登录登记、角色绑定和待登录失败处理。 */
@@ -31,7 +30,7 @@ public final class ConnLoginManager {
 
     /** 校验网关会话并登记 OnlineService 已确认登录的用户。 */
     public boolean registerLogin(long sessionId, String userId) {
-        NetChannel session = owner.findClientChannel(sessionId);
+        NetChannel session = owner.clientConnection().findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.info("ConnService GW 登录失败，session 不存在: service={}, sessionId={}, userId={}",
                     owner.getId(), sessionId, userId);
@@ -68,7 +67,7 @@ public final class ConnLoginManager {
 
     /** 校验当前用户会话并绑定玩家。 */
     public ActorAddress bindPlayer(long sessionId, long playerId, ActorAddress playerActorAddress) {
-        NetChannel session = owner.findClientChannel(sessionId);
+        NetChannel session = owner.clientConnection().findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.warn("ConnService 玩家绑定失败，session 不存在: service={}, sessionId={}, playerId={}",
                     owner.getId(), sessionId, playerId);
@@ -103,10 +102,7 @@ public final class ConnLoginManager {
         }
         session.setPlayerId(playerId);
         sessionRegistry.bindPlayerSession(playerId, sessionId);
-        ActorId actorId = ActorId.player(playerId);
-        owner.getMessageLocationSender().cache(actorId, playerActorAddress);
-        LogCore.core.info("ConnService 缓存 PlayerActorAddress: playerId={}, actorId={}, actorAddress={}",
-                playerId, actorId, playerActorAddress);
+        owner.playerActorAddressRegistry().cachePlayerActorAddress(playerId, playerActorAddress);
         session.setSessionState(NetChannel.SessionState.PLAYER_LOGIN_READY);
         LogCore.core.info("ConnService 玩家绑定成功: service={}, sessionId={}, userId={}, playerId={}, state={}",
                 owner.getId(), sessionId, session.getUserId(), playerId, session.getSessionState());
@@ -130,7 +126,7 @@ public final class ConnLoginManager {
             return false;
         }
         session.setBrokenType(brokenType);
-        owner.writeClientPacket(sessionId, packet, true);
+        owner.clientConnection().writeClientPacket(sessionId, packet, true);
         LogCore.core.info("ConnService 拒绝预登录连接: service={}, sessionId={}, userId={}, brokenType={}, reason={}",
                 owner.getId(), sessionId, userId, brokenType, reason);
         return true;

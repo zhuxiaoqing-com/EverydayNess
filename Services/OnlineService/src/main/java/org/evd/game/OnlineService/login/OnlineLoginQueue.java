@@ -32,7 +32,7 @@ public final class OnlineLoginQueue {
 
     /** 将登录请求加入队尾，必要时替换同一用户的旧请求。 */
     public boolean offer(String userId, CallPoint gate, long sessionId,
-                         OnlineLoginCoordinator login) {
+                         OnlineLoginLogic login) {
         QueuedLogin old = requestsByUser.remove(userId);
         if (old != null) {
             requests.remove(old);
@@ -76,7 +76,7 @@ public final class OnlineLoginQueue {
     }
 
     /** 按当前秒的放行额度处理队首请求。 */
-    public void pump(long now, OnlineLoginCoordinator login) {
+    public void pump(long now, OnlineLoginLogic login) {
         long nowSecond = now / 1_000L;
         if (nowSecond != releaseSecond) {
             releaseSecond = nowSecond;
@@ -85,17 +85,12 @@ public final class OnlineLoginQueue {
         int releaseBudget = admissionsPerSecond - releasedThisSecond;
         while (releaseBudget > 0 && !requests.isEmpty()) {
             QueuedLogin request = requests.peek();
-            if (!login.canAdmit(request.userId())) {
+            if (login.isAdmissionBlocked(request.userId())) {
                 return;
             }
             requests.poll();
             requestsByUser.remove(request.userId(), request);
             SOnlineLoginAdmission admission = login.createAdmission(request.userId(), now);
-         /*   if (admission == null || admission.getTokenState() == null) {
-                requests.addFirst(request);
-                requestsByUser.put(request.userId(), request);
-                return;
-            }*/
             releasedThisSecond++;
             releaseBudget--;
             login.onAdmissionReady(request, admission);

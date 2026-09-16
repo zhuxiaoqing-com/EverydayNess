@@ -19,7 +19,7 @@ public final class ConnOfflineManager {
     }
 
     public void kickSession(long sessionId, int brokenTypeCode, String reason) {
-        NetChannel session = owner.findClientChannel(sessionId);
+        NetChannel session = owner.clientConnection().findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.info("ConnService 踢出连接时目标已不存在: service={}, sessionId={}, brokenType={}, reason={}",
                     owner.getId(), sessionId, BrokenType.fromCode(brokenTypeCode), reason);
@@ -29,7 +29,7 @@ public final class ConnOfflineManager {
     }
 
     public void closeSession(long sessionId, int brokenTypeCode, String reason) {
-        NetChannel session = owner.findClientChannel(sessionId);
+        NetChannel session = owner.clientConnection().findClientChannel(sessionId);
         if (session == null) {
             LogCore.core.info("ConnService 关闭连接时目标不存在: service={}, sessionId={}, brokenType={}, reason={}",
                     owner.getId(), sessionId, BrokenType.fromCode(brokenTypeCode), reason);

@@ -36,17 +36,17 @@ public final class OnlineSessionRpc {
     @Rpc
     public boolean clearPlayerService(String userId, CallPoint gate, long gateSessionId,
                                       CallPoint expectedPlayerService) {
-        return logic().clearPlayerService(userId, gate, gateSessionId, expectedPlayerService);
+        return logic().clearPlayerServiceWithLock(userId, gate, gateSessionId, expectedPlayerService);
     }
 
     @Rpc
     public boolean cacheStageActorAddress(long playerId, ActorAddress stageActorAddress) {
-        return Service.getCurrent(OnlineService.class).cacheStageActorAddress(playerId, stageActorAddress);
+        return logic().cacheStageActorAddress(playerId, stageActorAddress);
     }
 
     @Rpc
     public void removeStageActorAddress(long playerId) {
-        Service.getCurrent(OnlineService.class).removeStageActorAddress(playerId);
+        logic().removeStageActorAddress(playerId);
     }
 
     private OnlineSessionLogic logic() {

@@ -15,23 +15,22 @@ import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 public final class ConnServiceRpc {
     @Rpc
     public boolean pushToClient(long sessionId, ClientFrameChunk packet) {
-        owner().pushToClient(sessionId, packet);
-        return true;
+        return owner().clientConnection().pushToClient(sessionId, packet);
     }
 
     @Rpc
     public void pushToUserId(String userId, ClientFrameChunk packet) {
-        owner().pushToUserId(userId, packet);
+        owner().clientConnection().pushToUserId(userId, packet);
     }
 
     @Rpc(actorType = ActorType.GATE)
     public void pushToPlayerId(ActorId actorId, ClientFrameChunk packet) {
-        owner().pushToPlayerId(actorId.getUniqueId(), packet);
+        owner().clientConnection().pushToPlayerId(actorId.getUniqueId(), packet);
     }
 
     @Rpc
     public void redirectClient(long sessionId, ClientFrameChunk packet) {
-        owner().redirectClient(sessionId, packet);
+        owner().clientConnection().redirectClient(sessionId, packet);
     }
 
     @Rpc
@@ -41,17 +40,17 @@ public final class ConnServiceRpc {
 
     @Rpc
     public int getLoginSessionCount() {
-        return owner().getLoginSessionCount();
+        return owner().clientConnection().getLoginSessionCount();
     }
 
     @Rpc
     public boolean cacheStageActorAddress(long playerId, ActorAddress stageActorAddress) {
-        return owner().cacheStageActorAddress(playerId, stageActorAddress);
+        return owner().playerActorAddressRegistry().cacheStageActorAddress(playerId, stageActorAddress);
     }
 
     @Rpc
     public void removeStageActorAddress(long playerId) {
-        owner().removeStageActorAddress(playerId);
+        owner().playerActorAddressRegistry().removeStageActorAddress(playerId);
     }
 
     private ConnService owner() {

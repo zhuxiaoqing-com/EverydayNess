@@ -37,7 +37,7 @@ public final class OnlinePlayerRegistry {
         return playersById.get(onlinePlayer.getPlayerId()) == onlinePlayer;
     }
 
-    /** 移除当前玩家对象；会话匹配由 OnlineSessionCoordinator 负责。 */
+    /** 移除当前玩家对象；会话匹配由 OnlineSessionLogic 负责。 */
     public OnlinePlayer remove(long playerId) {
         OnlinePlayer onlinePlayer = get(playerId);
         if (!isCurrent(onlinePlayer)) {

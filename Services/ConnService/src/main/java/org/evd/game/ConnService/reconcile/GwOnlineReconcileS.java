@@ -24,7 +24,7 @@ public final class GwOnlineReconcileS {
 
     public void reconcile() {
         Map<String, SConnStateCheck> entries = new HashMap<>();
-        for (NetChannel channel : owner.clientChannelManager().getChannelMap().values()) {
+        for (NetChannel channel : owner.clientConnection().channelManager().getChannelMap().values()) {
             if (channel.getPlayerId() <= 0L || channel.getUserId().isBlank()
                     || channel.getSessionState() != NetChannel.SessionState.PLAYER_LOGIN_READY) {
                 continue;
@@ -45,13 +45,13 @@ public final class GwOnlineReconcileS {
     private void processRelation(Map<String, SConnStateCheck> entries,
                                  List<SConnStateCheck> mismatches) {
         for (SConnStateCheck entry : entries.values()) {
-            NetChannel current = owner.findClientChannel(entry.getGateSessionId());
+            NetChannel current = owner.clientConnection().findClientChannel(entry.getGateSessionId());
             if (current != null && !containsSameSession(mismatches, entry)) {
                 current.clearOnlineReconcileMismatch();
             }
         }
         for (SConnStateCheck entry : mismatches) {
-            NetChannel current = owner.findClientChannel(entry.getGateSessionId());
+            NetChannel current = owner.clientConnection().findClientChannel(entry.getGateSessionId());
             if (current == null || current.getSessionState() == NetChannel.SessionState.CLOSING) {
                 continue;
             }

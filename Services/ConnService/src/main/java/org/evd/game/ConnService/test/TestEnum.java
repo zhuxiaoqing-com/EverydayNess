@@ -1,4 +1,4 @@
-package org.evd.game.ConnService;
+package org.evd.game.ConnService.test;
 
 import org.evd.game.annotation.serialize.SerializeClass;
 

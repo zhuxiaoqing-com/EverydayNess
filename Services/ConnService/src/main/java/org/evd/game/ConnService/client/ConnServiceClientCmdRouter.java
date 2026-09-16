@@ -1,4 +1,4 @@
-package org.evd.game.ConnService;
+package org.evd.game.ConnService.client;
 
 import org.evd.game.annotation.service.ServiceName;
 import org.evd.game.runtime.serializeBean.Chunk;
@@ -13,18 +13,18 @@ final class ConnServiceClientCmdRouter {
     private static final String ROUTE_REGISTRY_SUFFIX = "ClientCmdRouteRegistry";
     private static final String REGISTER_METHOD_NAME = "register";
 
-    private final ConnService owner;
+    private final ConnClientConnection connection;
     private final ClientCmdRouteTable routeTable = new ClientCmdRouteTable();
 
-    ConnServiceClientCmdRouter(ConnService owner) {
-        this.owner = owner;
+    ConnServiceClientCmdRouter(ConnClientConnection connection) {
+        this.connection = connection;
         registerAllRoutes();
     }
 
     void forward(NetChannel session, int cmd, Chunk body) {
-        owner.prepareClientSession(session);
+        connection.prepareClientSession(session);
         ClientSessionRef sessionRef = session.getSessionRef();
-        routeTable.forward(owner, sessionRef, cmd, body);
+        routeTable.forward(connection.owner(), sessionRef, cmd, body);
     }
 
     private void registerAllRoutes() {

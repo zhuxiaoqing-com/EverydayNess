@@ -1,4 +1,4 @@
-package org.evd.game.ConnService;
+package org.evd.game.ConnService.client;
 
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.netty.ChannelManager;
@@ -9,11 +9,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class ConnServiceHeartbeatScanner {
-    private final ConnService owner;
+    private final ConnClientConnection connection;
     private final ChannelManager channelManager;
 
-    ConnServiceHeartbeatScanner(ConnService owner, ChannelManager channelManager) {
-        this.owner = owner;
+    ConnServiceHeartbeatScanner(ConnClientConnection connection, ChannelManager channelManager) {
+        this.connection = connection;
         this.channelManager = channelManager;
     }
 
@@ -30,7 +30,7 @@ final class ConnServiceHeartbeatScanner {
             timeoutChannels.add(channel);
         }
         for (NetChannel channel : timeoutChannels) {
-            owner.closeSession(channel.getChannelId(), BrokenType.HEARTBEAT_TIMEOUT.getCode(),
+            connection.owner().closeSession(channel.getChannelId(), BrokenType.HEARTBEAT_TIMEOUT.getCode(),
                     "heartbeat timeout after " + timeoutMillis + "ms");
         }
     }

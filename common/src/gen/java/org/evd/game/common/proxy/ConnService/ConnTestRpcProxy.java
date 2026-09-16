@@ -23,10 +23,10 @@ public final class ConnTestRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_CONNTESTRPC_CONNTEST1_8 = 8;
-        public final static int ENUM_CONNTESTRPC_CONNTEST2_9 = 9;
-        public final static int ENUM_CONNTESTRPC_CONNTEST3_10 = 10;
-        public final static int ENUM_CONNTESTRPC_CONNTEST4_11 = 11;
+        public final static int ENUM_CONNTESTRPC_CONNTEST1_13 = 13;
+        public final static int ENUM_CONNTESTRPC_CONNTEST2_14 = 14;
+        public final static int ENUM_CONNTESTRPC_CONNTEST3_15 = 15;
+        public final static int ENUM_CONNTESTRPC_CONNTEST4_16 = 16;
     }
 
     /**
@@ -61,38 +61,38 @@ public final class ConnTestRpcProxy {
 
 
     /**
-    * 对应源方法: org.evd.game.ConnService.ConnTestRpc#connTest1()
+    * 对应源方法: org.evd.game.ConnService.test.ConnTestRpc#connTest1()
     */
     public void connTest1(long actorUniqueId){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST1_8, new Object[]{});
+        Service.getCurrent().getMessageLocationSender().send(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST1_13, new Object[]{});
     }
 
 
     /**
-    * 对应源方法: org.evd.game.ConnService.ConnTestRpc#connTest2()
+    * 对应源方法: org.evd.game.ConnService.test.ConnTestRpc#connTest2()
     */
     public boolean connTest2(long actorUniqueId, int a, Object b, SConnInfo connInfo){
         ActorId actorId = new ActorId(ActorType.GATE, actorUniqueId);
-        return (boolean)Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST2_9, new Object[]{a, b, connInfo});
+        return (boolean)Service.getCurrent().getMessageLocationSender().callWait(actorId, EnumCall.ENUM_CONNTESTRPC_CONNTEST2_14, new Object[]{a, b, connInfo});
     }
 
 
     /**
-    * 对应源方法: org.evd.game.ConnService.ConnTestRpc#connTest3()
+    * 对应源方法: org.evd.game.ConnService.test.ConnTestRpc#connTest3()
     */
     public void connTest3(CallPoint remote){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST3_10, new Object[]{});
+        service.call(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST3_15, new Object[]{});
     }
 
 
     /**
-    * 对应源方法: org.evd.game.ConnService.ConnTestRpc#connTest4()
+    * 对应源方法: org.evd.game.ConnService.test.ConnTestRpc#connTest4()
     */
     public boolean connTest4(CallPoint remote, int a, Object b, SConnInfo connInfo){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST4_11, new Object[]{a, b, connInfo});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_CONNTESTRPC_CONNTEST4_16, new Object[]{a, b, connInfo});
     }
 
 

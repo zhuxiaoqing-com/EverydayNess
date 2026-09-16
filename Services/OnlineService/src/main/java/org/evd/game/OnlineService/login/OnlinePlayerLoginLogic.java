@@ -2,7 +2,8 @@ package org.evd.game.OnlineService.login;
 
 import org.evd.game.OnlineService.OnlineService;
 import org.evd.game.OnlineService.session.OnlinePlayer;
-import org.evd.game.OnlineService.session.OnlineSessionCoordinator;
+import org.evd.game.OnlineService.routing.OnlineRoutingLogic;
+import org.evd.game.OnlineService.session.OnlineSessionLogic;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proto.C2S_SelectRoleEnter;
 import org.evd.game.common.proto.AuthMsgId;
@@ -39,16 +40,16 @@ public final class OnlinePlayerLoginLogic {
         }
 
         // 1. 先确认当前连接仍是 Online 记录的有效会话，并拒绝重复选角。
-        OnlineSessionCoordinator sessionCoordinator = owner.sessionCoordinator();
-        SOnlineUserState userState = sessionCoordinator.getUserState(userId);
-        if (!sessionCoordinator.matchesSession(userId, session.getGate(), session.getSessionId())) {
+        OnlineSessionLogic sessionLogic = owner.getActor(OnlineSessionLogic.class);
+        SOnlineUserState userState = sessionLogic.getUserState(userId);
+        if (!sessionLogic.matchesSession(userId, session.getGate(), session.getSessionId())) {
             LogCore.core.warn("OnlineService 选角请求 Session 已失效: userId={}, playerId={}, gate={}, gateSessionId={}, currentState={}",
                     userId, playerId, session.getGate(), session.getSessionId(), userState);
             return;
         }
-        if (sessionCoordinator.getOnlinePlayer(userId) != null) {
+        if (sessionLogic.getOnlinePlayer(userId) != null) {
             LogCore.core.warn("OnlineService 当前 Session 已经选择玩家，忽略重复选角: userId={}, playerId={}, gateSessionId={}, currentPlayer={}",
-                    userId, playerId, session.getSessionId(), sessionCoordinator.getOnlinePlayer(userId));
+                    userId, playerId, session.getSessionId(), sessionLogic.getOnlinePlayer(userId));
             return;
         }
 
@@ -60,7 +61,7 @@ public final class OnlinePlayerLoginLogic {
             return;
         }
         if (role == null) {
-            if (sessionCoordinator.getOnlinePlayer(userId) != null) {
+            if (sessionLogic.getOnlinePlayer(userId) != null) {
                 LogCore.core.warn("OnlineService Lobby 加载角色失败，但玩家已被其他流程登记: userId={}, playerId={}, gateSessionId={}",
                         userId, playerId, session.getSessionId());
                 return;
@@ -76,7 +77,7 @@ public final class OnlinePlayerLoginLogic {
         }
 
         // 3. 选择承载该玩家的 PlayerService，优先使用当前负载较低的服务。
-        SOnlinePlayerCandidate candidate = owner.serviceSelector()
+        SOnlinePlayerCandidate candidate = owner.getActor(OnlineRoutingLogic.class)
                 .selectLeastLoadedPlayer(userId);
         CallPoint playerService = candidate == null ? null : candidate.getCallPoint();
         if (playerService == null) {
@@ -89,7 +90,7 @@ public final class OnlinePlayerLoginLogic {
         }
 
         // 4. 先登记 OnlinePlayer，再调用 PlayerService；断线时 Online 可以直接找到并回滚它。
-        OnlinePlayer onlinePlayer = sessionCoordinator.beginOnlinePlayer(
+        OnlinePlayer onlinePlayer = sessionLogic.beginOnlinePlayer(
                 userId, session.getGate(), session.getSessionId(), playerId, playerService);
         if (onlinePlayer == null) {
             LogCore.core.warn("OnlineService 玩家已经被其他上线流程登记: userId={}, playerId={}, gateSessionId={}",
@@ -126,7 +127,7 @@ public final class OnlinePlayerLoginLogic {
                     userId, playerId, session.getSessionId());
             return;
         }
-        if (!sessionCoordinator.bindPlayerActorAddress(onlinePlayer, playerActorAddress)) {
+        if (!sessionLogic.bindPlayerActorAddress(onlinePlayer, playerActorAddress)) {
             LogCore.core.warn("OnlineService PlayerService 返回后 OnlinePlayer 已由离线流程清理: userId={}, playerId={}, gateSessionId={}",
                     userId, playerId, session.getSessionId());
             return;
@@ -150,7 +151,7 @@ public final class OnlinePlayerLoginLogic {
         }
 
         // 7. 先同步 GW ActorAddress，PlayerService 需要它完成进入地图前置校验。
-        sessionCoordinator.bindGateActorAddress(onlinePlayer, gateActorAddress);
+        sessionLogic.bindGateActorAddress(onlinePlayer, gateActorAddress);
         RpcResult<Void> gatePlayerBound = PlayerLoginRpcProxy.sendBindGateActorAddress(
                 playerService, playerId, gateActorAddress);
         if (!gatePlayerBound.isSuccess()) {
@@ -210,7 +211,7 @@ public final class OnlinePlayerLoginLogic {
 
     /** 检查 SOnlineUserState 是否仍对应本次选角请求。 */
     private boolean isCurrentSession(OnlineService owner, String userId, ClientSessionRef session) {
-        return owner.sessionCoordinator().matchesSession(
+        return owner.getActor(OnlineSessionLogic.class).matchesSession(
                 userId, session.getGate(), session.getSessionId());
     }
 
