@@ -1,0 +1,49 @@
+哪些服务器需要在断线后处理的
+AdminService    不需要处理
+ConnService
+    断线：
+        和LocationService断开连接;不管，向LocationService发送消息的时候会报错;
+        OnlineService将该gw上的人全部踢掉;
+        PlayerService将该gw上属于PlayerService的全部踢掉;
+
+LobbyService
+LocationService
+    断线：
+        直接清空LocationService的数据;
+    上线：
+        获取ConnService的玩家地址;
+         PlayerService的玩家地址;
+         StageService的玩家地址;
+MatchService
+    断线：
+        将所有的玩家的匹配状态踢下线;
+OnlineService
+    断线：
+        和gw断线，踢掉所有属于gw的玩家,
+        和PlayerService断线，踢掉所有属于Player的玩家;
+        PlayerService的缓存状态，等n分钟后清理(UserIdPlayerServiceMap 已经实现了);
+
+    上线：
+        获取PlayerService当前Mdb的玩家在线状态;用来恢复PlayerService缓存(UserIdPlayerServiceMap 已经实现了);
+
+PlayerService
+    断线：
+        和gw断线，提交所有属于gw的玩家,
+        和OnlineService断线，提交所有的玩家;
+        和MatchService 默认取消所有在该匹配服匹配的玩家;
+        和StageService断线，将所有的玩家都离开所属于该StageService的地图;(如果没有玩家所在地图数据的话 就存一下，应该是在在线玩家数据里有的)然后离开地图，
+            默认进入主城;默认主城所在的StageService也不在的话，那就直接踢下线;
+    上线：
+
+
+SceneManagerService
+    断线： 清理本地缓存;
+    上线：当Stage连上以后，获取其当前存活的Stage数据，重新初始化到内存里;
+
+StageService
+    断线：
+        PlayerService将其属于Player的玩家都离开地图;
+        OnlineService将其所有的场景玩家数据全部下线;
+        GW将其属于GW的玩家都离开地图;
+
+TeamService

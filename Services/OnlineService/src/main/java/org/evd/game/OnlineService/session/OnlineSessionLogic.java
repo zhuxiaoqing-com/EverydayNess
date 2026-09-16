@@ -78,9 +78,14 @@ public final class OnlineSessionLogic {
         historicalPlayerServiceMap.onServiceConnectReady(serviceList);
     }
 
-    /** 接收服务断开事件，删除断开的 PlayerService 历史绑定。 */
+    /** 接收服务断开事件，设置断开的 PlayerService 历史绑定过期时间。 */
     public void onServiceDisconnect(Collection<RegisteredService> serviceList) {
         historicalPlayerServiceMap.onServiceDisconnect(serviceList);
+    }
+
+    /** 周期清理已经超过保留时间的 PlayerService 历史绑定。 */
+    public void tick(long currentTime) {
+        historicalPlayerServiceMap.expire(currentTime);
     }
 
     /** 创建新正式会话；网关 actor 和 Location 等选定 playerId 后再注册。 */

@@ -31,19 +31,41 @@ public final class PlayerOfflineLogic {
         LogCore.core.info("PlayerService 开始处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                 owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
 
-        owner.getActor(PlayerMatchLogic.class).cancelOnOffline(playerId);
-
         try {
-            owner.getActor(PlayerMapLogic.class).leaveMap(playerId);
             Service.getCurrent().publishEvent(RoleLogoutEvent.Listener.class, new RoleLogoutEvent(playerId), RoleLogoutEvent.Listener::onEvent);
         } catch (Exception e) {
-            LogCore.core.error("PlayerService 玩家离线地图或事件清理失败: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
+            LogCore.core.error("PlayerService 玩家离线事件清理失败: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                     owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode, e);
         }
 
+
+
         // 先标记 MDB 下线，后续 Actor/Location 清理可能等待 RPC，不能延迟 flush 计时。
-        owner.getMdb().playerLogout(playerId);
-        owner.removePlayerActorState(playerId);
+        try {
+            owner.getActor(PlayerMapLogic.class).leaveMap(playerId);
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService 玩家离线离开地图失败: service={}, userId={}, playerId={}",
+                    owner.getId(), userId, playerId, e);
+        }
+        try {
+            owner.getActor(PlayerMatchLogic.class).cancelOnOffline(playerId);
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService 玩家离线取消匹配失败: service={}, userId={}, playerId={}",
+                    owner.getId(), userId, playerId, e);
+        }
+        try {
+            owner.getMdb().playerLogout(playerId);
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService 玩家离线标记 MDB 下线失败: service={}, userId={}, playerId={}",
+                    owner.getId(), userId, playerId, e);
+        }
+        try {
+            owner.removePlayerActorState(playerId);
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService 玩家离线删除 Actor 状态失败: service={}, userId={}, playerId={}",
+                    owner.getId(), userId, playerId, e);
+        }
+
         sessionManager.remove(playerId);
 
         LogCore.core.info("PlayerService 结束处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenType={}",

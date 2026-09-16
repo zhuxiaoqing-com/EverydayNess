@@ -16,10 +16,10 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /** 集中管理玩家 MDB 的 load、保留和 flush 生命周期。 */
-final class MdbPlayerManager {
+public final class MdbPlayerManager {
     private static final Logger logger = LoggerFactory.getLogger(MdbPlayerManager.class);
     private static final long TICK_INTERVAL_MILLIS = 10 * TimeUtils.SEC;
-    private static final long FLUSH_DELAY_MILLIS = 20 * TimeUtils.MIN;
+    public static final long FLUSH_DELAY_MILLIS = 20 * TimeUtils.MIN;
 
     private final Mdb mdb;
     private final Service service;

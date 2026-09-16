@@ -31,6 +31,12 @@ public class OnlineService extends Service {
     }
 
     @Override
+    public void tick() {
+        super.tick();
+        getActor(OnlineSessionLogic.class).tick(getTimeCurrent());
+    }
+
+    @Override
     protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
         super.onServiceConnectReady(serviceList);
         getActor(OnlineSessionLogic.class).onServiceConnectReady(serviceList);
