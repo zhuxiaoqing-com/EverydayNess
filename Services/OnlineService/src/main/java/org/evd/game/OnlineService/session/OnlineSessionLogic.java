@@ -73,11 +73,6 @@ public final class OnlineSessionLogic {
         return historicalPlayerServiceMap.get(userId);
     }
 
-    /** 接收已经进入正式路由的 Service，恢复 PlayerService 的 MDB 历史绑定。 */
-    public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
-        historicalPlayerServiceMap.onServiceConnectReady(serviceList);
-    }
-
     /** 接收服务断开事件，设置断开的 PlayerService 历史绑定过期时间。 */
     public void onServiceDisconnect(Collection<RegisteredService> serviceList) {
         historicalPlayerServiceMap.onServiceDisconnect(serviceList);
@@ -135,6 +130,21 @@ public final class OnlineSessionLogic {
         return true;
     }
 
+    /** 删除仍指向指定 PlayerService 的历史绑定。 */
+    public void removeHistoricalPlayerService(String userId, CallPoint expectedPlayerService) {
+        if (!historicalPlayerServiceMap.remove(userId, expectedPlayerService)) {
+            LogCore.core.info("OnlineService 历史 PlayerService 绑定已变化，跳过过期回调删除: userId={}, playerService={}",
+                    userId, expectedPlayerService);
+        }
+    }
+
+    /** 接收 PlayerService 当前 MDB 中仍保留的玩家，覆盖该服务的历史绑定。 */
+    public void restoreHistoricalPlayerServices(Collection<String> userIds, CallPoint playerService) {
+        int restored = historicalPlayerServiceMap.bindAll(userIds, playerService);
+        LogCore.core.info("OnlineService 恢复 PlayerService 历史绑定: playerService={}, requested={}, restored={}",
+                playerService, userIds == null ? 0 : userIds.size(), restored);
+    }
+
     /** 将 GW 返回的玩家 ActorAddress 登记到当前在线状态。 */
     public void bindGateActorAddress(OnlinePlayer onlinePlayer, ActorAddress actorAddress) {
         SOnlineUserState userState = userStates.get(onlinePlayer.getUserId());
@@ -181,14 +191,6 @@ public final class OnlineSessionLogic {
         LogCore.core.info("OnlineService 清理 PlayerService 绑定: userId={}, gateSessionId={}, playerService={}",
                 userId, gateSessionId, expectedPlayerService);
         return true;
-    }
-
-    /** 删除仍指向指定 PlayerService 的历史绑定。 */
-    public void removeHistoricalPlayerService(String userId, CallPoint expectedPlayerService) {
-        if (!historicalPlayerServiceMap.remove(userId, expectedPlayerService)) {
-            LogCore.core.info("OnlineService 历史 PlayerService 绑定已变化，跳过过期回调删除: userId={}, playerService={}",
-                    userId, expectedPlayerService);
-        }
     }
 
     /** 摘除已经由调用方完成会话校验的正式在线状态。 */
@@ -261,4 +263,5 @@ public final class OnlineSessionLogic {
     private OnlineService owner() {
         return Service.getCurrent(OnlineService.class);
     }
+
 }

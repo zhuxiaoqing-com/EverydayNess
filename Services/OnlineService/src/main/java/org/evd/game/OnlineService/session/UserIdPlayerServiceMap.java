@@ -1,11 +1,9 @@
 package org.evd.game.OnlineService.session;
 
 import org.evd.game.annotation.service.ServiceType;
-import org.evd.game.common.proxy.PlayerService.PlayerServiceRpcProxy;
 import org.evd.game.runtime.Db.table.MdbPlayerManager;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.util.TimeUtils;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
@@ -13,7 +11,6 @@ import org.evd.game.runtime.ymlconfig.RegisteredService;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -60,7 +57,13 @@ public final class UserIdPlayerServiceMap {
 
     private final Map<String, Binding> bindings = new HashMap<>();
 
-    /** 建立或刷新用户到 PlayerService 的历史绑定，并取消离线过期。 */
+    /**
+     * 建立或刷新用户到 PlayerService 的历史绑定，并取消离线过期。
+     * 这里还不能主动给离线时间;因为万一那个PlayerService序列化进入一直失败呢？
+     * 如果PlayerService离线期间，那没办法;必须要删除一下;毕竟再次上线也会重新获取的;
+     * 那playerService离线直接就删了，不就好吗;好像没啥问题啊;
+     * 不能删，删了，玩家不就立马选其他PlayerService运行了吗;
+     */
     public void bind(String userId, CallPoint playerService) {
         if (userId == null || userId.isBlank() || playerService == null) {
             return;
@@ -74,25 +77,36 @@ public final class UserIdPlayerServiceMap {
         binding.setExpireAt(NO_EXPIRE);
     }
 
-    /** PlayerService 进入正式路由后，从其 MDB 恢复仍保留的历史绑定。 */
-    public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
-        for (RegisteredService service : serviceList) {
-            if (service.getServiceType() != ServiceType.PLAYER) {
-                continue;
-            }
-            CallPoint playerService = service.getCallPoint();
-            RpcResult<List<String>> result = PlayerServiceRpcProxy.callGetMdbPlayerUserIds(playerService);
-            if (!result.isSuccess()) {
-                LogCore.core.error("OnlineService 恢复 PlayerService 历史绑定失败: playerService={}, errorCode={}, message={}",
-                        playerService, result.getErrorCode(), result.getErrorMessage());
-                continue;
-            }
-            for (String userId : result.getValue()) {
-                bind(userId, playerService);
-            }
-            LogCore.core.info("OnlineService 恢复 PlayerService 历史绑定: playerService={}, count={}",
-                    playerService, result.getValue().size());
+    /** 批量恢复 PlayerService 当前 MDB 中仍保留的玩家历史绑定。 */
+    public int bindAll(Collection<String> userIds, CallPoint playerService) {
+        if (playerService == null) {
+            return 0;
         }
+
+        for (Iterator<Map.Entry<String, Binding>> iterator = bindings.entrySet().iterator();
+             iterator.hasNext(); ) {
+            Map.Entry<String, Binding> entry = iterator.next();
+            if (playerService.equals(entry.getValue().service())) {
+                iterator.remove();
+                LogCore.core.info("OnlineService 删除 PlayerService 历史绑定: userId={}, playerService={}",
+                        entry.getKey(), playerService);
+            }
+        }
+
+        if (userIds == null) {
+            return 0;
+        }
+        int bound = 0;
+        for (String userId : userIds) {
+            if (userId == null || userId.isBlank()) {
+                continue;
+            }
+            bind(userId, playerService);
+            LogCore.core.info("OnlineService 绑定 PlayerService 历史用户: userId={}, playerService={}",
+                    userId, playerService);
+            bound++;
+        }
+        return bound;
     }
 
     /** PlayerService 断开后，设置指向该服务的历史绑定过期时间，不立即删除。 */
@@ -121,8 +135,10 @@ public final class UserIdPlayerServiceMap {
         for (Iterator<Map.Entry<String, Binding>> iterator = bindings.entrySet().iterator();
              iterator.hasNext(); ) {
             Map.Entry<String, Binding> entry = iterator.next();
-            if (entry.getValue().expireAt() != NO_EXPIRE
-                    && entry.getValue().expireAt() <= currentTime) {
+            Binding binding = entry.getValue();
+            if (binding.expireAt() != NO_EXPIRE && binding.expireAt() <= currentTime) {
+                LogCore.core.info("OnlineService 清理过期 PlayerService 历史绑定: userId={}, playerService={}, expireAt={}, currentTime={}",
+                        entry.getKey(), binding.service(), binding.expireAt(), currentTime);
                 iterator.remove();
                 expiredCount++;
             }

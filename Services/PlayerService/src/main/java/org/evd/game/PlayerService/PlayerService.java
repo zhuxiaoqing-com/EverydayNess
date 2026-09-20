@@ -1,6 +1,8 @@
 package org.evd.game.PlayerService;
 
 import org.evd.game.PlayerService.reconcile.PlayerOnlineReconcileS;
+import org.evd.game.PlayerService.disconnect.PlayerServiceConnectLogic;
+import org.evd.game.PlayerService.disconnect.PlayerServiceDisconnectLogic;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.PlayerService.timer.PlayerTimer;
 import org.evd.game.common.proxy.OnlineService.OnlineSessionRpcProxy;
@@ -11,9 +13,11 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
+import java.util.Collection;
 import java.util.List;
 
 public class PlayerService extends Service {
@@ -52,6 +56,18 @@ public class PlayerService extends Service {
     @Override
     public void tick() {
         super.tick();
+    }
+
+    @Override
+    protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        LogCore.core.info("PlayerService 开始处理关联服务断开: service={}, count={}", id, serviceList.size());
+        getActor(PlayerServiceDisconnectLogic.class).onServiceDisconnect(serviceList);
+        LogCore.core.info("PlayerService 完成关联服务断开处理: service={}, count={}", id, serviceList.size());
+    }
+
+    @Override
+    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+        getActor(PlayerServiceConnectLogic.class).onServiceConnectReady(serviceList);
     }
 
     /** 返回玩家会话状态，供登录和离线逻辑共同使用。 */
@@ -108,7 +124,7 @@ public class PlayerService extends Service {
         return sessionManager.getOnlineCount();
     }
 
-    /** 返回 MDB 当前仍保留的玩家，用于 OnlineService 重启后恢复历史绑定。 */
+    /** 返回 MDB 当前仍保留的玩家，用于 PlayerService 上线时向 OnlineService 恢复历史绑定。 */
     public List<String> getMdbPlayerUserIds() {
         return getMdb().getPlayerUserIds();
     }

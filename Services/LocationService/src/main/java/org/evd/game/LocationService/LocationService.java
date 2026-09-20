@@ -12,8 +12,10 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
+import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RpcService(LocationInterface.class)
@@ -48,12 +50,48 @@ public class LocationService extends Service {
     private final Map<ActorId, LockInfo> lockInfos = new HashMap<>();
     private long nextLockRevision = 1L;
 
+    /** 只移除失联宿主的地址，并结束该宿主持有的定位锁。 */
+    @Override
+    protected void onServiceDisconnect(java.util.Collection<org.evd.game.runtime.ymlconfig.RegisteredService> services) {
+        for (var service : services) {
+            var callPoint = service.getCallPoint();
+            int addressCountBefore = actorLocations.size();
+            int lockCountBefore = lockInfos.size();
+            actorLocations.values().removeIf(entry -> callPoint.equals(entry.actorAddress.getCallPoint()));
+            for (ActorId actorId : java.util.List.copyOf(lockInfos.keySet())) {
+                LockInfo lock = lockInfos.get(actorId);
+                if (lock != null && callPoint.equals(lock.lockActorAddress.getCallPoint())) {
+                    // 不能直接清空锁表：unlock 负责取消定时器并唤醒等待协程。
+                    LocationEntry current = actorLocations.get(actorId);
+                    unlock(actorId, lock.lockActorAddress, current == null ? null : current.actorAddress);
+                }
+            }
+            LogCore.core.info("LocationService 完成关联服务断开清理: disconnectedService={}, addressesRemoved={}, locksReleased={}",
+                    callPoint, addressCountBefore - actorLocations.size(), lockCountBefore - lockInfos.size());
+        }
+    }
+
     public LocationService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {
         super(node, name, scheduledName, interval, serviceInfo);
     }
 
-    public boolean add(ActorId actorId, ActorAddress actorAddress) {
-        return addNow(actorId, actorAddress);
+    public void add(ActorId actorId, ActorAddress actorAddress) {
+        addNow(actorId, actorAddress);
+    }
+
+    public void addBatch(List<SLocationAddress> addresses) {
+        if (addresses == null || addresses.isEmpty()) {
+            LogCore.core.info("LocationService 批量添加 actor 地址: requested=0, added=0");
+            return;
+        }
+        int added = 0;
+        for (SLocationAddress address : addresses) {
+            if (address != null && addNow(address.getActorId(), address.getActorAddress())) {
+                added++;
+            }
+        }
+        LogCore.core.info("LocationService 批量添加 actor 地址完成: requested={}, added={}",
+                addresses.size(), added);
     }
 
     public void remove(ActorId actorId, ActorAddress expectedActorAddress) {
@@ -116,11 +154,9 @@ public class LocationService extends Service {
         }
         LocationEntry current = actorLocations.get(actorId);
         if (current != null) {
-         /*   LogCore.core.error("LocationService 添加 actor 冲突，拒绝覆盖已有地址: actorId={}, address={}, currentAddress={}",
+            LogCore.core.error("LocationService 添加 actor 冲突，拒绝覆盖已有地址: actorId={}, address={}, currentAddress={}",
                     actorId, actorAddress, current.actorAddress);
-            return false;*/
-            LogCore.core.warn("LocationService 添加 actor 冲突，已有地址: actorId={}, address={}, currentAddress={}",
-                    actorId, actorAddress, current.actorAddress);
+            return false;
         }
         actorLocations.put(actorId, new LocationEntry(actorAddress));
         LogCore.core.info("LocationService 添加actor: actorId={}, address={}", actorId, actorAddress);

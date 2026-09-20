@@ -479,7 +479,7 @@ public class Node extends TickCase{
         }
         if (!readyList.isEmpty()) {
             rebuildServiceRouteMaps_nt();
-            notifyServiceEvent_nt(readyList, "service connect ready", Service::onServiceConnectReady);
+            notifyServiceEvent_nt(readyList, "service connect ready", Service::_onServiceConnectReady);
         }
 
         List<RegisteredService> expiredList = new ArrayList<>();
@@ -496,7 +496,7 @@ public class Node extends TickCase{
                 }
             }
         }
-        notifyServiceEvent_nt(expiredList, "service offline expired", Service::onServiceOfflineExpired);
+        notifyServiceEvent_nt(expiredList, "service offline expired", Service::_onServiceOfflineExpired);
     }
 
     @Override
@@ -1159,8 +1159,8 @@ public class Node extends TickCase{
         allServiceMap = Map.copyOf(newAllServiceMap);
         rebuildServiceRouteMaps_nt();
 
-        notifyServiceEvent_nt(addList, "service connect", Service::onServiceConnect);
-        notifyServiceEvent_nt(removeList, "service disconnect", Service::onServiceDisconnect);
+        notifyServiceEvent_nt(addList, "service connect", Service::_onServiceConnect);
+        notifyServiceEvent_nt(removeList, "service disconnect", Service::_onServiceDisconnect);
     }
 
     /** 从当前所有 Service 中构建已经结束 Pending 的三个正式路由索引。 */

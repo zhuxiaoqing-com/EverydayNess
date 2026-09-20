@@ -9,7 +9,9 @@ import org.evd.game.PlayerService.dbDef.db.table.DBRoleMapDataTable;
 import org.evd.game.PlayerService.map.PlayerMapLogic;
 import org.evd.game.PlayerService.map.PlayerMapState;
 import org.evd.game.PlayerService.map.PlayerMapStateLogic;
+import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.annotation.actor.Actor;
+import java.util.ArrayList;
 import org.evd.game.common.constant.MatchConst;
 import org.evd.game.common.proto.C2S_Match;
 import org.evd.game.common.proto.MatchMsgId;
@@ -150,15 +152,18 @@ public final class PlayerMatchLogic {
     private boolean cancelAndClearMatchContext(long playerId,
                                                boolean clearMatchingState,
                                                boolean notifyCancelResult) {
+        PPlayerOnline online = owner().sessionManager().get(playerId);
+        String userId = online == null ? "" : online.getUserId();
         RpcResult<Boolean> result = MatchRpcProxy.callCancel(
                 MatchConst.getMatchCallPoint(), playerId);
         if (!result.isSuccess()) {
-            log.error("PlayerService 发送取消远端匹配消息失败，playerId={}, errorCode={}, message={}",
-                    playerId, result.getErrorCode(), result.getErrorMessage());
+            log.error("PlayerService 发送取消远端匹配消息失败，userId={}, playerId={}, errorCode={}, message={}",
+                    userId, playerId, result.getErrorCode(), result.getErrorMessage());
             return false;
         }
         if (!Boolean.TRUE.equals(result.getValue())) {
-            log.warn("PlayerService 远程匹配中不存在玩家，继续清理本地匹配状态: playerId={}", playerId);
+            log.warn("PlayerService 远程匹配中不存在玩家，继续清理本地匹配状态: userId={}, playerId={}",
+                    userId, playerId);
         }
         clearMatchContext(playerId);
         if (clearMatchingState) {
@@ -167,7 +172,7 @@ public final class PlayerMatchLogic {
         if (notifyCancelResult) {
             push(playerId, MatchMsgId.S2C_MATCH_CANCEL_VALUE,
                     S2C_CancelMatch.newBuilder().setSuccess(true).setMessage("已取消匹配").build());
-            log.info("PlayerService 取消匹配完成: playerId={}", playerId);
+            log.info("PlayerService 取消匹配完成: userId={}, playerId={}", userId, playerId);
         }
         return true;
     }

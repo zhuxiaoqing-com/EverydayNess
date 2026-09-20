@@ -10,6 +10,7 @@ public final class PlayerEnterRequest implements ISerializable {
     private SPlayerMapSimpleData playerData;
     private long transferId;
     private CallPoint playerService;
+    private CallPoint gateService;
     private SMapInfo oldMapInfo;
     private SMapInfo targetInfo;
     private SPlayerEnterParam enterParam;
@@ -18,10 +19,12 @@ public final class PlayerEnterRequest implements ISerializable {
     }
 
     public PlayerEnterRequest(SPlayerMapSimpleData playerData, long transferId, CallPoint playerService,
-                              SMapInfo oldMapInfo, SMapInfo targetInfo, SPlayerEnterParam enterParam) {
+                              CallPoint gateService, SMapInfo oldMapInfo,
+                              SMapInfo targetInfo, SPlayerEnterParam enterParam) {
         this.playerData = playerData == null ? null : new SPlayerMapSimpleData(playerData);
         this.transferId = transferId;
         this.playerService = playerService == null ? null : new CallPoint(playerService);
+        this.gateService = gateService == null ? null : new CallPoint(gateService);
         this.oldMapInfo = oldMapInfo == null ? null : new SMapInfo(oldMapInfo);
         this.targetInfo = targetInfo == null ? null : new SMapInfo(targetInfo);
         this.enterParam = enterParam == null ? null : new SPlayerEnterParam(enterParam);
@@ -31,9 +34,18 @@ public final class PlayerEnterRequest implements ISerializable {
         this(other == null ? null : other.playerData,
                 other == null ? 0L : other.transferId,
                 other == null ? null : other.playerService,
+                other == null ? null : other.gateService,
                 other == null ? null : other.oldMapInfo,
                 other == null ? null : other.targetInfo,
                 other == null ? null : other.enterParam);
+    }
+
+    public CallPoint getGateService() {
+        return gateService;
+    }
+
+    public void setGateService(CallPoint gateService) {
+        this.gateService = gateService == null ? null : new CallPoint(gateService);
     }
 
     public long getPlayerId() {

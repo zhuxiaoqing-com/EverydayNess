@@ -75,6 +75,17 @@ public final class OnlineLoginQueue {
         return requests.size();
     }
 
+    /** 删除断开网关的排队请求，同时释放用户索引。 */
+    public void removeGate(CallPoint gate) {
+        requests.removeIf(request -> {
+            if (!gate.equals(request.gate())) {
+                return false;
+            }
+            requestsByUser.remove(request.userId(), request);
+            return true;
+        });
+    }
+
     /** 按当前秒的放行额度处理队首请求。 */
     public void pump(long now, OnlineLoginLogic login) {
         long nowSecond = now / 1_000L;

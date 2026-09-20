@@ -2,7 +2,6 @@ package org.evd.game.LobbyService;
 
 import org.evd.game.LobbyService.account.LobbyUserAccountRepository;
 import org.evd.game.LobbyService.dbDef.db.bean.LBRole;
-import org.evd.game.LobbyService.routing.LobbyLoadBalancerLogic;
 import org.evd.game.common.serializeBean.LobbyService.role.SLobbyRoleSnapshot;
 import org.evd.game.common.serializeBean.LobbyService.login.SLobbyUserAccessResult;
 import org.evd.game.runtime.Node;
@@ -28,10 +27,6 @@ public class LobbyService extends Service {
     /** 校验用户账号；首登用户创建账号，封禁账号不得进入 OnlineService。 */
     public SLobbyUserAccessResult validateOrCreateUser(String userId) {
         return userAccountRepository.validateOrCreate(userId, getTimeCurrent());
-    }
-
-    public LobbyLoadBalancerLogic loadBalancerLogic() {
-        return getActor(LobbyLoadBalancerLogic.class);
     }
 
     public SLobbyRoleSnapshot getRole(String userId) {

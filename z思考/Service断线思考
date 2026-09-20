@@ -1,49 +1,84 @@
+下面的断线：指的是这些Service和自己断链后自己的处理, 上线同理
+比如
+A
+    断线:B，C，D
+指的是A检测到B,C,D和自己断线后，A服务器的处理
+
+这里的离线和上线恢复最好全部用send,不要有call回调;
+    比如Location，我可以在该服务器连接上其他service的时候，去获取其他service当前缓存的location,但是这是有问题的;
+        比如我Location获取playerService的，Loc->(在这里插入了新的玩家进入player,)player->loc 这个时候这个新的玩家进入player发送了send，其实是比call回调早的，
+        call回调回来就会覆盖掉旧数据覆盖新数据;好像这样子也没问题诶;按流程来说，call获取到的也是原子的数据，中间插入了新的话，那call也会获取新的，就是会重复覆盖一次;
+        那就先不管了，还是可以call;但是其实也有问题;我call的时候 对面的真的已经加入到service了吗;
+        但是用send，感觉更标准一点 我改一下;
+
 哪些服务器需要在断线后处理的
 AdminService    不需要处理
 ConnService
     断线：
         和LocationService断开连接;不管，向LocationService发送消息的时候会报错;
-        OnlineService将该gw上的人全部踢掉;
-        PlayerService将该gw上属于PlayerService的全部踢掉;
+        OnlineService将该gw上的人全部踢掉;直接本地踢掉;
+        PlayerService将该gw上属于PlayerService的全部踢掉;会回调给online;
+    上线：
+        location,发送自己的actorAddress重新注册给location;
 
 LobbyService
 LocationService
     断线：
-        直接清空LocationService的数据;
+        和GW断线清理GW的;
+        和Player断线清理Player的;
+        和Stage断线清理Stage的;
+        和Online不需要处理，因为上面离开的时候会将location的数据清理的;
     上线：
-        获取ConnService的玩家地址;
-         PlayerService的玩家地址;
-         StageService的玩家地址;
+
 MatchService
     断线：
-        将所有的玩家的匹配状态踢下线;
+        和Player断线清理属于player的;
+        和Online断线不需要处理，因为没和player断线的话，匹配就会继续，如果online和Player也断线的话，player就会执行下线吧匹配状态清理掉;
+
 OnlineService
     断线：
-        和gw断线，踢掉所有属于gw的玩家,
-        和PlayerService断线，踢掉所有属于Player的玩家;
-        PlayerService的缓存状态，等n分钟后清理(UserIdPlayerServiceMap 已经实现了);
+        和gw断线，踢掉所有属于gw的玩家,会回调给playerService;
+        和PlayerService断线，踢掉所有属于Player的玩家;发给GW踢;
+        PlayerService的缓存状态，等n分钟后清理(UserIdPlayerServiceMap 已经实现了);这个缓存是用来处理玩家n分钟内上线后复用的;
+        清理playerService和ConnService的负载均衡数据
+        清理tokenMap和排队数据;
 
     上线：
-        获取PlayerService当前Mdb的玩家在线状态;用来恢复PlayerService缓存(UserIdPlayerServiceMap 已经实现了);
+        获取PlayerService当前Mdb的玩家在线状态;用来恢复PlayerService缓存(UserIdPlayerServiceMap 已经实现了); 废弃！！！
 
 PlayerService
     断线：
-        和gw断线，提交所有属于gw的玩家,
-        和OnlineService断线，提交所有的玩家;
+        和gw断线，踢掉所有属于gw的玩家, 同时通知 OnlineService 删除在线状态。OnlineService 如果不拥有玩家在线状态，就不需要参与。
+        和OnlineService断线，踢掉所有的玩家;本地踢掉
         和MatchService 默认取消所有在该匹配服匹配的玩家;
         和StageService断线，将所有的玩家都离开所属于该StageService的地图;(如果没有玩家所在地图数据的话 就存一下，应该是在在线玩家数据里有的)然后离开地图，
             默认进入主城;默认主城所在的StageService也不在的话，那就直接踢下线;
     上线：
-
+        location,发送自己的actorAddress重新注册给location;
+        获取PlayerService当前Mdb的玩家在线状态;用来恢复PlayerService缓存(UserIdPlayerServiceMap),发给Online; online直接清空历史的处于该playerService的数据，然后将新的数据覆盖进去;
 
 SceneManagerService
-    断线： 清理本地缓存;
+    断线： stage断线，清理属于该stage的数据;
     上线：当Stage连上以后，获取其当前存活的Stage数据，重新初始化到内存里;
 
 StageService
     断线：
         PlayerService将其属于Player的玩家都离开地图;
-        OnlineService将其所有的场景玩家数据全部下线;
-        GW将其属于GW的玩家都离开地图;
+        OnlineService将其所有的场景玩家数据全部下线;(这里可以不管，毕竟Online和stage断线,online那里也没相应的处理; )
+        GW将其属于GW的玩家都离开地图;(这需要吗？怎么感觉不需要 只要管player的就好了吧;gw的掉线 是不是应该player正式退出地图会管的，不然的话，退出地图感觉有些东西没有通知到啊)
+                其实我感觉应该是不需要的，毕竟Stage只对StageManager和PlayerService负责吧，其他服务器的话都是间接负责
+         上线：
+                location,发送自己的actorAddress重新注册给location;
 
 TeamService
+
+RankService
+    后续会做成，每个排行榜都会在相应的自己的服务器有缓存，也会存到数据库,然后定期合并上报给某个服务器;
+
+
+
+还有个问题 现在进入地图，离开地图，都是经过SceneManager的，那就是说进入地图和离开地图会出问题;
+Mdb的缓存问题;
+    应该是要有一个地方有过期时间的吧;简单点，正式上线
+
+

@@ -49,6 +49,7 @@ public final class PlayerOnlineReconcileR {
 
         for (SOnlineUserState onlineState : statesToRepair) {
             offline.kickGateway(
+                    onlineState.getUserId(), onlineState.getActivePlayerId(),
                     onlineState.getActiveGate(), onlineState.getActiveGateSessionId(),
                     BrokenType.STATE_RECONCILE, "player state reconcile mismatch");
             offline.offlineSession(onlineState.getUserId(),

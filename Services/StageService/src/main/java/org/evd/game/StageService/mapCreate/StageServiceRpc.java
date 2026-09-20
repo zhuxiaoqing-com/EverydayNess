@@ -9,15 +9,22 @@ import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.runtime.Service;
+import java.util.List;
 
 /** StageService 地图创建和进入 RPC 入口。 */
 @Actor
 @RpcHandler
 public final class StageServiceRpc {
+    @Rpc
+    public List<SMapInfo> getMaps() {
+        return logic().getMaps();
+    }
+
     @Rpc
     public int getMapCount() {
         return logic().getMapCount();

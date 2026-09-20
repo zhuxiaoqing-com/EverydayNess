@@ -4,6 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.evd.game.MatchService.entity.team.MatchPlayerData;
 import org.evd.game.MatchService.entity.team.MatchTeam;
 import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.service.ServiceType;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
+import java.util.ArrayList;
 import org.evd.game.common.config.table.MapConfigs;
 import org.evd.game.common.constant.MatchType;
 import org.evd.game.common.constant.TeamConst;
@@ -77,15 +80,13 @@ public final class MatchLogic {
             return false;
         }
         MatchTeam team = data.getTeam();
-        matchingLogic().removeTeam(data.getMatchType(), team);
-        removeTeamData(team);
-        notifyTeamCancelState(team);
+        removeTeamAndNotify(data.getMatchType(), team, false, null, false, true);
         log.info("MatchService 玩家取消匹配: playerId={}, teamId={}", playerId, team.getTeamId());
         return true;
     }
 
     public boolean cancelTeam(long teamId, long leaderId) {
-        /*MatchPlayerData data = player2Data.get(leaderId);
+      /*  MatchPlayerData data = player2Data.get(leaderId);
         if (data == null) {
             log.info("MatchService 取消组队匹配幂等成功：队长不在匹配队列，teamId={}, leaderId={}",
                     teamId, leaderId);
@@ -101,6 +102,34 @@ public final class MatchLogic {
         }
         removeTeamAndNotify(data.getMatchType(), team, false, null);*/
         return true;
+    }
+
+    /** 断开的玩家服涉及的整队退出匹配，队伍服断开只影响组队匹配。 */
+    public void onServiceDisconnect(RegisteredService service) {
+        log.info("MatchService 开始处理关联服务断开匹配清理: service={}, queuedPlayers={}",
+                service.getCallPoint(), player2Data.size());
+        Set<MatchTeam> removedTeams = new HashSet<>();
+        List<MatchPlayerData> removeList = new ArrayList<>();
+        for (MatchPlayerData data : player2Data.values()) {
+            MatchTeam team = data.getTeam();
+            boolean affected = service.getServiceType() == ServiceType.TEAM
+                    && team.isTeamMatch() && service.getCallPoint().equals(TeamConst.getTeamCallPoint());
+            if (service.getServiceType() == ServiceType.PLAYER) {
+                affected = team.getMembers().stream().anyMatch(member ->
+                        service.getCallPoint().equals(member.getPlayerService()));
+            }
+            if (affected && removedTeams.add(team)) {
+                removeList.add(data);
+            }
+        }
+        // 这里全部不通知，应该由team player那边自己处理;
+        for (MatchPlayerData data : removeList) {
+            removeTeamAndNotify(data.getMatchType(), data.getTeam(), false, null,
+                    false,
+                    false);
+        }
+        log.info("MatchService 完成关联服务断开匹配清理: service={}, teamsRemoved={}, queuedPlayers={}",
+                service.getCallPoint(), removedTeams.size(), player2Data.size());
     }
 
     public int getMatchPlayerNum(int matchType, int mapCfgId) {
@@ -147,12 +176,35 @@ public final class MatchLogic {
 
     public void removeTeamAndNotify(Integer matchType, MatchTeam team,
                                     boolean success, SMapInfo mapInfo) {
+        removeTeamAndNotify(matchType, team, success, mapInfo, true, true);
+    }
+
+    public void removeTeamAndNotify(Integer matchType, MatchTeam team,
+                                    boolean success, SMapInfo mapInfo,
+                                    boolean notifyPlayer, boolean notifyTeam) {
         if (matchType == null) {
             return;
         }
+        List<Long> playerIds = team.getMembers().stream()
+                .map(SMatchPlayer::getPlayerId)
+                .toList();
+        List<CallPoint> playerServices = team.getMembers().stream()
+                .map(SMatchPlayer::getPlayerService)
+                .toList();
+        log.info("MatchService 清理匹配队伍: matchType={}, teamId={}, teamMatch={}, robot={}, "
+                        + "memberCount={}, playerIds={}, playerServices={}, mapCfgIds={}, matchTime={}, "
+                        + "success={}, mapInfo={}, notifyPlayer={}, notifyTeam={}",
+                matchType, team.getTeamId(), team.isTeamMatch(), team.isRobot(),
+                team.getMemberSize(), playerIds, playerServices, team.getMapCfgIds(),
+                team.getMatchTime(), success, mapInfo, notifyPlayer, notifyTeam);
         matchingLogic().removeTeam(matchType, team);
         removeTeamData(team);
-        notifyMatchResult(team, matchType, success, mapInfo);
+        if (notifyPlayer) {
+            notifyPlayerMatchResult(List.of(team), success);
+        }
+        if (notifyTeam) {
+            notifyTeamMatchResult(List.of(team), matchType, success, mapInfo);
+        }
     }
 
     public void notifyTeamMatchResult(List<MatchTeam> teams, int matchType,
@@ -206,12 +258,6 @@ public final class MatchLogic {
                 }
             }
         }
-    }
-
-    public void notifyMatchResult(MatchTeam team, int matchType,
-                                  boolean success, SMapInfo mapInfo) {
-        notifyPlayerMatchResult(List.of(team), success);
-        notifyTeamMatchResult(List.of(team), matchType, success, mapInfo);
     }
 
     private void removeTeamData(MatchTeam team) {

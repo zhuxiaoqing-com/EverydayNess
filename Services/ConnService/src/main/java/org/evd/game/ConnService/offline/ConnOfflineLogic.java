@@ -4,7 +4,7 @@ import org.evd.game.ConnService.ConnService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.runtime.Service;
 
-/** ConnService 的离线业务逻辑。 */
+/** ConnService 的客户端离线业务逻辑。 */
 @Actor
 public final class ConnOfflineLogic {
     /** 按断开类型关闭指定网关会话，并触发离线通知。 */

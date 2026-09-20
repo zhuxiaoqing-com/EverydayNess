@@ -597,23 +597,38 @@ public class Service extends TickCase {
 
     /**
      * 在当前service线程里启动一个独立业务协程。
-     * 适合从同步tick/普通回调里触发需要callWait/sleep的业务流程。
+     * 默认加入当前 Service 的协程队列，适合从同步 tick/普通回调里触发需要
+     * callWait/sleep 的业务流程。
      */
     public final void launchCoroutine(Runnable task) {
+        launchCoroutine(task, false);
+    }
+
+    /**
+     * 在当前 Service 线程里启动一个独立业务协程。
+     *
+     * @param immediate true 表示立即执行，false 表示加入当前 Service 的协程队列
+     */
+    public final void launchCoroutine(Runnable task, boolean immediate) {
         if (task == null) {
             throw new SysException("launch coroutine task is null: service={}", id);
         }
         if (getCurrent() != this) {
             throw new SysException("launchCoroutine must run on its service thread; use postCoroutine instead: service={}", id);
         }
-        continuationRuntime.createAndEnterQueue(() -> {
+        Runnable guardedTask = () -> {
             try {
                 task.run();
             } catch (Throwable e) {
                 rethrowFatal(e);
                 LogCore.core.error("service coroutine failed: service={}", id, e);
             }
-        }, null, Task.Reason.NORMAL, null);
+        };
+        if (immediate) {
+            continuationRuntime.createAndRun(guardedTask, null);
+        } else {
+            continuationRuntime.createAndEnterQueue(guardedTask, null, Task.Reason.NORMAL, null);
+        }
     }
 
     /**
@@ -622,6 +637,12 @@ public class Service extends TickCase {
     public static void launchCurrentCoroutine(Runnable task) {
         Service service = getCurrent();
         service.launchCoroutine(task);
+    }
+
+    /** 使用当前线程的 Service 按指定策略启动业务协程。 */
+    public static void launchCurrentCoroutine(Runnable task, boolean immediate) {
+        Service service = getCurrent();
+        service.launchCoroutine(task, immediate);
     }
 
     /**
@@ -979,25 +1000,50 @@ public class Service extends TickCase {
         return true;
     }
 
-    /** 发现新的 Service，可能包含自己；此时 Service 还没有进入正式路由索引。 */
+    /**
+     * 发现新的 Service，可能包含自己；此时 Service 还没有进入正式路由索引。
+     *
+     * <p>Node 只调用带下划线的生命周期入口，保证 Service 的公共处理一定执行，
+     * 再通过不带下划线的方法分发给子类。</p>
+     */
+    protected final void _onServiceConnect(Collection<RegisteredService> serviceList) {
+        onServiceConnect(serviceList);
+    }
+
+    /** 子类处理新的 Service 发现事件。 */
     protected void onServiceConnect(Collection<RegisteredService> serviceList) {
     }
 
     /** 新 Service 已结束稳定等待，并已经进入正式路由索引。 */
-    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+    protected final void _onServiceConnectReady(Collection<RegisteredService> serviceList) {
         if (mdb != null) {
             mdb.connectService(serviceList);
         }
+        onServiceConnectReady(serviceList);
+    }
+
+    /** 子类处理已经进入正式路由的 Service。 */
+    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
     }
 
     /** Service 从最新注册快照消失，可能包含自己。 */
-    protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+    protected final void _onServiceDisconnect(Collection<RegisteredService> serviceList) {
         if (mdb != null) {
             mdb.disconnectService(serviceList);
         }
+        onServiceDisconnect(serviceList);
+    }
+
+    /** 子类处理 Service 断开事件。 */
+    protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
     }
 
     /** Service 已离线超过保留时间并从 offlineServices 中彻底清理。 */
+    protected final void _onServiceOfflineExpired(Collection<RegisteredService> serviceList) {
+        onServiceOfflineExpired(serviceList);
+    }
+
+    /** 子类处理 Service 离线超时清理事件。 */
     protected void onServiceOfflineExpired(Collection<RegisteredService> serviceList) {
     }
 

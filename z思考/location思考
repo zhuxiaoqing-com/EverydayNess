@@ -36,3 +36,28 @@ PlayerService弄成% 就可以不管离线数据;因为都是%的 所以就无�
 假设我要弄%的话，那也是重写MessageLocationSender，让其发送ActorId.Player的消息的时候，用%来找，或者不需要ActorId.Player,而是自动写PlayerServiceProxy接口的时候，
 里面自动%就行了;
 
+
+其实location服务器也不知协程框架可以用，你可以简单的用大厅服务器转发消息，也可以用
+核心是为每个目标维护一个 RouteState：
+class RouteState {
+    Queue<Message> queue;
+    Address address;
+    boolean running;
+}
+
+发送逻辑可以简化成：
+send(playerId, msg):
+    获取该玩家的 RouteState
+    synchronized(state):
+        消息入队
+        如果 running == true:
+            return
+        running = true
+    启动异步队列消费
+消费流程：
+1. 如果没有地址，异步查询 Location
+2. 获得地址后，开始消费队列
+3. 按 FIFO 顺序将消息提交到有序发送通道
+4. 消费结束，设置 running = false;
+
+就是协程相关的，其实都可以用list先把消息缓存起来 来实现;

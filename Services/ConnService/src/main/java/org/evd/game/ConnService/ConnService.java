@@ -1,6 +1,8 @@
 package org.evd.game.ConnService;
 
 import org.evd.game.ConnService.client.ConnClientConnection;
+import org.evd.game.ConnService.disconnect.ConnServiceConnectLogic;
+import org.evd.game.ConnService.disconnect.ConnServiceDisconnectLogic;
 import org.evd.game.ConnService.login.ConnLoginManager;
 import org.evd.game.ConnService.offline.ConnOfflineManager;
 import org.evd.game.ConnService.reconcile.GwOnlineReconcileS;
@@ -14,6 +16,9 @@ import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
+
+import java.util.Collection;
 
 public class ConnService extends Service {
     private static final long HEARTBEAT_SCAN_INTERVAL_MILLIS = 5_000L;
@@ -47,6 +52,18 @@ public class ConnService extends Service {
         return serviceInfo == null ? "" : serviceInfo.getPublicAddr();
     }
 
+    @Override
+    protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        LogCore.core.info("ConnService 开始处理关联服务断开: service={}, count={}", id, serviceList.size());
+        getActor(ConnServiceDisconnectLogic.class).onServiceDisconnect(serviceList);
+        LogCore.core.info("ConnService 完成关联服务断开处理: service={}, count={}", id, serviceList.size());
+    }
+
+    @Override
+    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+        getActor(ConnServiceConnectLogic.class).onServiceConnectReady(serviceList);
+    }
+
     /** 在 GW 注册玩家 mailbox，并将其 ActorAddress 发布到全局 LocationService。 */
     public ActorAddress registerPlayerMailbox(long playerId) {
         if (playerId <= 0L) {
@@ -61,6 +78,11 @@ public class ConnService extends Service {
         return getActorAddress(actorId);
     }
 
+    /** 返回玩家当前已注册的 GW mailbox 地址，不自动创建 mailbox。 */
+    public ActorAddress getGateActorAddress(long playerId) {
+        return playerId <= 0L ? null : getActorAddress(ActorId.gate(playerId));
+    }
+
     /** 删除玩家的 GW mailbox 和关联的 PlayerService ActorAddress 缓存。 */
     public void removePlayerActorAddress(long playerId) {
         if (playerId <= 0L) {
@@ -68,6 +90,7 @@ public class ConnService extends Service {
         }
         ActorId playerActorId = ActorId.player(playerId);
         getMessageLocationSender().remove(playerActorId);
+        getMessageLocationSender().remove(ActorId.mapPlayer(playerId));
         LogCore.core.info("ConnService 删除 PlayerActorAddress 缓存: playerId={}, playerActorId={}",
                 playerId, playerActorId);
         ActorId gateActorId = ActorId.gate(playerId);

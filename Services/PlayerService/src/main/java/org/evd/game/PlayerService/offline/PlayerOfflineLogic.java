@@ -8,11 +8,13 @@ import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.proxy.ConnService.ConnOfflineRpcProxy;
+import org.evd.game.common.proxy.TeamService.TeamOfflineRpcProxy;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.BrokenType;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
+
 
 /** PlayerService 的玩家离线业务逻辑。 */
 @Actor
@@ -28,8 +30,34 @@ public final class PlayerOfflineLogic {
             return;
         }
 
+        PPlayerOnline pPlayerOnline = sessionManager.get(playerId);
+        /*
+         * 这里的离线不全是send,有call,所以需要一个离线状态来标识下，防止重复离线;
+         */
+        if (pPlayerOnline.getStatus() == PPlayerOnline.Status.PRE_OFFLINE) {
+            LogCore.core.info("PlayerService 玩家已处于预下线状态，跳过重复离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, status={}",
+                    owner.getId(), userId, playerId, gate, gateSessionId, pPlayerOnline.getStatus());
+            return;
+        }
+
+
         LogCore.core.info("PlayerService 开始处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenTypeCode={}",
                 owner.getId(), userId, playerId, gate, gateSessionId, brokenTypeCode);
+
+        pPlayerOnline.markPreOffline();
+
+        try {
+            RpcResult<Void> teamResult = TeamOfflineRpcProxy.sendOnPlayerOffline(
+                    null, playerId, owner.getCallPoint());
+            if (!teamResult.isSuccess()) {
+                LogCore.core.warn("PlayerService 通知 TeamService 玩家离线失败: service={}, userId={}, playerId={}, errorCode={}, message={}",
+                        owner.getId(), userId, playerId, teamResult.getErrorCode(), teamResult.getErrorMessage());
+            }
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService 通知 TeamService 玩家离线异常: service={}, userId={}, playerId={}",
+                    owner.getId(), userId, playerId, e);
+        }
+
 
         try {
             Service.getCurrent().publishEvent(RoleLogoutEvent.Listener.class, new RoleLogoutEvent(playerId), RoleLogoutEvent.Listener::onEvent);
@@ -66,6 +94,11 @@ public final class PlayerOfflineLogic {
                     owner.getId(), userId, playerId, e);
         }
 
+
+
+
+
+
         sessionManager.remove(playerId);
 
         LogCore.core.info("PlayerService 结束处理玩家离线: service={}, userId={}, playerId={}, gate={}, gateSessionId={}, brokenType={}",
@@ -73,19 +106,29 @@ public final class PlayerOfflineLogic {
                 BrokenType.fromCode(brokenTypeCode));
     }
 
+    private void tryCatchOffline(Runnable runnable, String userId, long playerId, String reason) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            LogCore.core.error("PlayerService 玩家离线删除 Actor 状态失败: userId={}, playerId={}  reason={}", userId, playerId, reason, e);
+        }
+    }
+
     /** 关闭玩家当前网关会话，触发统一的离线清理流程。 */
     public void kickPlayer(long playerId, String reason) {
         PPlayerOnline online = owner().sessionManager().get(playerId);
+        String userId = online == null ? "" : online.getUserId();
         if (online == null || online.getGate() == null || online.getGateSessionId() <= 0L) {
-            LogCore.core.warn("PlayerService 踢出玩家时找不到玩家会话: playerId={}, reason={}", playerId, reason);
+            LogCore.core.warn("PlayerService 踢出玩家时找不到玩家会话: userId={}, playerId={}, reason={}",
+                    userId, playerId, reason);
             return;
         }
         RpcResult<Void> result = ConnOfflineRpcProxy.sendCloseSession(
                 online.getGate(), online.getGateSessionId(),
                 BrokenType.SERVER_KICK.getCode(), reason);
         if (!result.isSuccess()) {
-            LogCore.core.warn("PlayerService 踢出玩家失败: playerId={}, gate={}, gateSessionId={}, reason={}, errorCode={}, message={}",
-                    playerId, online.getGate(), online.getGateSessionId(), reason,
+            LogCore.core.warn("PlayerService 踢出玩家失败: userId={}, playerId={}, gate={}, gateSessionId={}, reason={}, errorCode={}, message={}",
+                    userId, playerId, online.getGate(), online.getGateSessionId(), reason,
                     result.getErrorCode(), result.getErrorMessage());
         }
     }

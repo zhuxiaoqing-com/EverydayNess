@@ -16,6 +16,7 @@ import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Collection;
 
 /** OnlineService 负载选择业务逻辑。 */
 @Actor
@@ -25,6 +26,22 @@ public final class OnlineRoutingLogic {
 
     private final Map<CallPoint, ConnLoad> connLoads = new HashMap<>();
     private final Map<CallPoint, Integer> playerLoads = new HashMap<>();
+
+    /** 立即移除离线服务，避免下一次定时刷新前仍被新登录选中。 */
+    public void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        int removed = 0;
+        for (RegisteredService service : serviceList) {
+            if (connLoads.remove(service.getCallPoint()) != null) {
+                removed++;
+            }
+            if (playerLoads.remove(service.getCallPoint()) != null) {
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            LogCore.core.info("OnlineService 清理断开服务负载候选: removed={}", removed);
+        }
+    }
 
     /** 返回当前负载最低的 ConnService。 */
     public SOnlineConnCandidate selectLeastLoadedConn() {
@@ -115,6 +132,8 @@ public final class OnlineRoutingLogic {
             }
             latest.put(callPoint, new ConnLoad(publicAddr, loginCountResult.getValue()));
         }
+        // 拉取负载期间会挂起协程，不能把期间断开的服务重新写回候选。
+        latest.keySet().retainAll(owner().getNode().getCallPointByType(ServiceType.CONN));
         connLoads.clear();
         connLoads.putAll(latest);
     }
@@ -131,6 +150,7 @@ public final class OnlineRoutingLogic {
             }
             latest.put(callPoint, onlineCountResult.getValue());
         }
+        latest.keySet().retainAll(owner().getNode().getCallPointByType(ServiceType.PLAYER));
         playerLoads.clear();
         playerLoads.putAll(latest);
     }

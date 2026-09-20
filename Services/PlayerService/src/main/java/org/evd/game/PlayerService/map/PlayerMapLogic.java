@@ -38,22 +38,23 @@ public final class PlayerMapLogic {
     private static final int LOGIN_MAP_CFG_ID = 1;
     private static final long LOGIN_GROUP_ID = 0L;
     private static final long LOGIN_STATE_WAIT_MILL = 2_000L;
-
     /** 登录进入默认地图；已有状态时最多等待 2 秒，避免本次登录无意义失败。 */
     public void enterMapOnLogin(long playerId) {
+        PPlayerOnline online = owner().sessionManager().get(playerId);
+        String userId = online == null ? "" : online.getUserId();
         long remainingMill = stateLogic().getRemainingMill(playerId);
         if (remainingMill > 0L) {
             long waitMill = Math.min(remainingMill, LOGIN_STATE_WAIT_MILL);
-            log.info("PlayerService 登录等待玩家地图状态超时: playerId={}, remainingMill={}, waitMill={}",
-                    playerId, remainingMill, waitMill);
+            log.info("PlayerService 登录等待玩家地图状态超时: userId={}, playerId={}, remainingMill={}, waitMill={}",
+                    userId, playerId, remainingMill, waitMill);
             Service.getCurrent().sleep(waitMill);
             if (!owner().sessionManager().hasOnlinePlayer(playerId)) {
-                log.warn("PlayerService 登录等待地图状态期间玩家已离线: playerId={}", playerId);
+                log.warn("PlayerService 登录等待地图状态期间玩家已离线: userId={}, playerId={}", userId, playerId);
                 return;
             }
         }
         if (!enterMap(playerId, new SMapInfo(0L, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID), null)) {
-            log.error("PlayerService 登录进入地图失败，踢出玩家: playerId={}", playerId);
+            log.error("PlayerService 登录进入地图失败，踢出玩家: userId={}, playerId={}", userId, playerId);
             owner().getActor(PlayerOfflineLogic.class).kickPlayer(playerId, "登录进入地图失败");
         }
     }
@@ -69,7 +70,8 @@ public final class PlayerMapLogic {
         int mapCfgId = targetInfo.getMapCfgId();
         long groupId = targetInfo.getGroupId();
         PlayerService owner = owner();
-        if(!owner.sessionManager().hasOnlinePlayer(playerId)) {
+        PPlayerOnline online = owner.sessionManager().get(playerId);
+        if (online == null) {
             log.warn("PlayerService 玩家不在线，忽略地图进入请求: playerId={}", playerId);
             return false;
         }
@@ -120,7 +122,7 @@ public final class PlayerMapLogic {
 
         SPlayerMapSimpleData simpleData = dataLogic().getSimpleData(playerId);
         PlayerEnterRequest request = new PlayerEnterRequest(simpleData, transferId, owner.getCallPoint(),
-                oldMapInfo, targetInfo, enterParam);
+                online.getGate(), oldMapInfo, targetInfo, enterParam);
         CallPoint sceneManager = MapConst.getSceneManagerCallPoint(mapCfgId);
         RpcResult<Boolean> result = SceneManagerRpcProxy.callEnterMap(sceneManager, request);
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
@@ -145,14 +147,19 @@ public final class PlayerMapLogic {
                     playerId, transferId);
             return false;
         }
-        stateLogic().exit(playerId, PlayerMapState.ENTER_MAP);
-
         PPlayerOnline online = owner().sessionManager().get(playerId);
         if (online == null || online.getGate() == null || online.getGateSessionId() <= 0L) {
             log.warn("PlayerService 玩家会话不存在，无法通知客户端加载地图: playerId={}, transferId={}",
                     playerId, transferId);
             return false;
         }
+
+        if (!stateLogic().exit(playerId, PlayerMapState.ENTER_MAP)) {
+            log.warn("PlayerService 客户端地图加载通知成功但状态已变化: playerId={}, transferId={}",
+                    playerId, transferId);
+            return false;
+        }
+
         S2C_ReadyEnterMap message = S2C_ReadyEnterMap.newBuilder()
                 .setSuccess(true)
                 .setMessage("ok")
@@ -302,17 +309,8 @@ public final class PlayerMapLogic {
                     onlineAddResult.getErrorCode(), onlineAddResult.getErrorMessage());
             return false;
         }
-        RpcResult<Boolean> addResult = LocationServiceRpcProxy.callAdd(
-                null, ActorId.mapPlayer(playerId), stageActorAddress);
-        if (!addResult.isSuccess() || !Boolean.TRUE.equals(addResult.getValue())) {
-            log.error("PlayerService 注册玩家 StageActorAddress 失败: playerId={}, transferId={}, sceneId={}, errorCode={}, message={}",
-                    playerId, transferId, targetInfo.getSceneId(),
-                    addResult.getErrorCode(), addResult.getErrorMessage());
-            return false;
-        }
-
         /*
-         * 以后启用 Location 锁时，正式进入地图并完成上面的地址注册后再解锁：
+         * 以后启用 Location 锁时，正式进入地图并完成上面的状态同步后再解锁：
          * LocationServiceRpcProxy.sendUnlock(null, ActorId.mapPlayer(playerId), oldStageActorAddress, stageActorAddress);
          */
         log.info("PlayerService 玩家正式进入地图: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
@@ -322,6 +320,8 @@ public final class PlayerMapLogic {
 
     /** 玩家离线时从当前场景移除。 */
     public void leaveMap(long playerId) {
+        PPlayerOnline online = owner().sessionManager().get(playerId);
+        String userId = online == null ? "" : online.getUserId();
         DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
         if (roleMapData == null) {
             return;
@@ -332,8 +332,8 @@ public final class PlayerMapLogic {
             DBMapInfo target = transferContext.getTargetInfo();
             if (target != null && target.getMapCfgId() > 0
                     && !removeFromScene(playerId, target)) {
-                log.error("PlayerService 下线清理目标场景失败，保留地图状态: playerId={}, sceneId={}",
-                        playerId, target.getSceneId());
+                log.error("PlayerService 下线清理目标场景失败，保留地图状态: userId={}, playerId={}, sceneId={}",
+                        userId, playerId, target.getSceneId());
                 return;
             }
             roleMapData.setTransferContext(new DBTransferContext());
@@ -342,8 +342,8 @@ public final class PlayerMapLogic {
         DBMapInfo current = roleMapData.getCurrMapInfo();
         if (current != null && current.getMapCfgId() > 0) {
             if (!removeFromScene(playerId, current)) {
-                log.error("PlayerService 下线清理当前场景失败，保留地图状态: playerId={}, sceneId={}",
-                        playerId, current.getSceneId());
+                log.error("PlayerService 下线清理当前场景失败，保留地图状态: userId={}, playerId={}, sceneId={}",
+                        userId, playerId, current.getSceneId());
                 return;
             }
         }
@@ -355,11 +355,13 @@ public final class PlayerMapLogic {
 
     private boolean removeFromScene(long playerId,
                                     DBMapInfo current) {
+        PPlayerOnline online = owner().sessionManager().get(playerId);
+        String userId = online == null ? "" : online.getUserId();
         CallPoint sceneManager = MapConst.getSceneManagerCallPoint(current.getMapCfgId());
         RpcResult<Boolean> result = SceneManagerRpcProxy.callExitMap(sceneManager, toCommon(current), playerId);
-        if (!result.isSuccess()) {
-            log.warn("PlayerService 离开当前场景失败: playerId={}, sceneId={}, errorCode={}, message={}",
-                    playerId, current.getSceneId(), result.getErrorCode(), result.getErrorMessage());
+        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
+            log.warn("PlayerService 离开当前场景失败: userId={}, playerId={}, sceneId={}, errorCode={}, message={}",
+                    userId, playerId, current.getSceneId(), result.getErrorCode(), result.getErrorMessage());
             return false;
         }
         return true;

@@ -29,18 +29,37 @@ public final class PlayerSessionManager {
     /** 校验当前登录流程仍持有同一个玩家会话。 */
     public boolean isCurrent(String userId, long playerId, ClientSessionRef session) {
         PPlayerOnline currentBinding = onlinePlayers.get(playerId);
-        return currentBinding != null && session != null
-                && userId != null && userId.equals(currentBinding.getUserId())
-                && session.getGate() != null && session.getGate().equals(currentBinding.getGate())
-                && session.getSessionId() == currentBinding.getGateSessionId();
+        if (currentBinding == null || session == null) {
+            return false;
+        }
+        if (userId == null || !userId.equals(currentBinding.getUserId())) {
+            return false;
+        }
+        if (session.getGate() == null || !session.getGate().equals(currentBinding.getGate())) {
+            return false;
+        }
+        if (session.getSessionId() != currentBinding.getGateSessionId()) {
+            return false;
+        }
+        return true;
     }
 
     /** 校验指定玩家是否仍持有当前网关会话。 */
     public boolean isCurrent(String userId, long playerId, CallPoint gate, long gateSessionId) {
         PPlayerOnline currentBinding = onlinePlayers.get(playerId);
-        return currentBinding != null && userId != null && userId.equals(currentBinding.getUserId())
-                && gate != null && gate.equals(currentBinding.getGate())
-                && gateSessionId == currentBinding.getGateSessionId();
+        if (currentBinding == null) {
+            return false;
+        }
+        if (userId == null || !userId.equals(currentBinding.getUserId())) {
+            return false;
+        }
+        if (gate == null || !gate.equals(currentBinding.getGate())) {
+            return false;
+        }
+        if (gateSessionId != currentBinding.getGateSessionId()) {
+            return false;
+        }
+        return true;
     }
 
     /** 建立已完成参数和重复上线检查的玩家在线绑定。 */

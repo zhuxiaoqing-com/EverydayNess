@@ -3,24 +3,20 @@ package org.evd.game.StageService.mapCreate;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.StageService.StageService;
 import org.evd.game.StageService.scene.battle.BattleScene;
+import org.evd.game.StageService.scene.battle.CampScene;
 import org.evd.game.annotation.actor.Actor;
-import org.evd.game.common.proxy.PlayerService.PlayerMapRpcProxy;
-import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.common.config.table.MapConfig;
 import org.evd.game.common.config.table.MapConfigs;
 import org.evd.game.common.constant.MapConst;
-import org.evd.game.StageService.scene.battle.CampScene;
+import org.evd.game.common.proxy.PlayerService.PlayerMapRpcProxy;
+import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.*;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** StageService 的地图创建和进入业务逻辑。 */
@@ -29,6 +25,11 @@ import java.util.Map;
 public final class StageSceneLogic {
     private final Map<Long, BattleScene> scenes = new HashMap<>();
     private final Map<SMapKey, Long> sceneIds = new HashMap<>();
+
+    public List<SMapInfo> getMaps() {
+        return scenes.values().stream().map(scene -> new SMapInfo(scene.getSceneId(),
+                scene.getMapKey().getMapCfgId(), scene.getMapKey().getGroupId())).toList();
+    }
 
     /** 返回当前 Stage 已创建的地图数量，供 SceneManager 做负载均衡。 */
     public int getMapCount() {
@@ -134,7 +135,7 @@ public final class StageSceneLogic {
             RpcResult<Boolean> exitResult = SceneManagerRpcProxy.callExitMap(sceneManager, oldMapInfo,
                     request.getPlayerId());
             if (!exitResult.isSuccess() || !Boolean.TRUE.equals(exitResult.getValue())) {
-                scene.cancelPending(request.getPlayerId());
+                scene.cancelPending(request);
                 log.error("StageService 请求 SceneManager 退出旧地图失败: playerId={}, oldSceneId={}, errorCode={}, message={}",
                         request.getPlayerId(), oldMapInfo.getSceneId(), exitResult.getErrorCode(),
                         exitResult.getErrorMessage());
@@ -144,10 +145,15 @@ public final class StageSceneLogic {
                     request.getPlayerId(), request.getTransferId(), oldMapInfo.getSceneId(), targetInfo.getSceneId());
         }
 
+        if (!scene.hasPendingRole(request)) {
+            log.warn("预进入玩家已因对端失联被移除: playerId={}, transferId={}",
+                    request.getPlayerId(), request.getTransferId());
+            return false;
+        }
         RpcResult<Boolean> readyResult = PlayerMapRpcProxy.callReadyEnterMap(request.getPlayerService(),
                 request.getPlayerId(), request.getTransferId(), targetInfo);
         if (!readyResult.isSuccess() || !Boolean.TRUE.equals(readyResult.getValue())) {
-            scene.cancelPending(request.getPlayerId());
+            scene.cancelPending(request);
             log.error("StageService 通知 PlayerService 客户端加载地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     request.getPlayerId(), targetInfo.getSceneId(), readyResult.getErrorCode(), readyResult.getErrorMessage());
             return false;
@@ -184,6 +190,10 @@ public final class StageSceneLogic {
         scenes.remove(sceneId);
         sceneIds.remove(scene.getMapKey());
         return true;
+    }
+
+    public Map<Long, BattleScene> getScenes() {
+        return scenes;
     }
 
     private StageService owner() {

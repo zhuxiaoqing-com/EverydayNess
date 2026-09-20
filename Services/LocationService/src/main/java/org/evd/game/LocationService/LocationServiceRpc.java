@@ -6,14 +6,22 @@ import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
+
+import java.util.List;
 
 /** LocationService 地址和锁 RPC 入口。 */
 @Actor
 @RpcHandler
 public final class LocationServiceRpc {
     @Rpc
-    public boolean add(ActorId actorId, ActorAddress actorAddress) {
-        return owner().add(actorId, actorAddress);
+    public void add(ActorId actorId, ActorAddress actorAddress) {
+        owner().add(actorId, actorAddress);
+    }
+
+    @Rpc
+    public void addBatch(List<SLocationAddress> addresses) {
+        owner().addBatch(addresses);
     }
 
     @Rpc

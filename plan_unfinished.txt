@@ -17,5 +17,6 @@
 
 21.MatchService 考虑加一个MatchManagerService 默认匹配服用作全服玩法;
 
+22.如果Service也加int id的话，那service的name也要弄上，也要在Log上加上;同时要id,name;
 
 

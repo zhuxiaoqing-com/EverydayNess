@@ -22,9 +22,9 @@ public final class OnlineLoginRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINELOGINRPC_ADMITLOGIN_0 = 0;
-        public final static int ENUM_ONLINELOGINRPC_CANCELPENDINGSESSION_1 = 1;
-        public final static int ENUM_ONLINELOGINRPC_CANCELQUEUEDLOGIN_2 = 2;
+        public final static int ENUM_ONLINELOGINRPC_ADMITLOGIN_1 = 1;
+        public final static int ENUM_ONLINELOGINRPC_CANCELPENDINGSESSION_2 = 2;
+        public final static int ENUM_ONLINELOGINRPC_CANCELQUEUEDLOGIN_3 = 3;
     }
 
     /**
@@ -59,7 +59,7 @@ public final class OnlineLoginRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (SOnlineLoginAdmission)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_ADMITLOGIN_0, new Object[]{userId, requestGate, requestSessionId});
+        return (SOnlineLoginAdmission)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_ADMITLOGIN_1, new Object[]{userId, requestGate, requestSessionId});
     }
 
 
@@ -71,7 +71,7 @@ public final class OnlineLoginRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_CANCELPENDINGSESSION_1, new Object[]{userId, token});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_CANCELPENDINGSESSION_2, new Object[]{userId, token});
     }
 
 
@@ -83,7 +83,7 @@ public final class OnlineLoginRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        service.call(remote, EnumCall.ENUM_ONLINELOGINRPC_CANCELQUEUEDLOGIN_2, new Object[]{userId, requestGate, requestSessionId});
+        service.call(remote, EnumCall.ENUM_ONLINELOGINRPC_CANCELQUEUEDLOGIN_3, new Object[]{userId, requestGate, requestSessionId});
     }
 
 

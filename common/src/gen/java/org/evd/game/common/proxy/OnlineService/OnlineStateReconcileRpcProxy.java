@@ -25,8 +25,8 @@ public final class OnlineStateReconcileRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINESTATERECONCILERPC_RECONCILECONNSESSIONS_5 = 5;
-        public final static int ENUM_ONLINESTATERECONCILERPC_RECONCILEPLAYERSESSIONS_6 = 6;
+        public final static int ENUM_ONLINESTATERECONCILERPC_RECONCILECONNSESSIONS_6 = 6;
+        public final static int ENUM_ONLINESTATERECONCILERPC_RECONCILEPLAYERSESSIONS_7 = 7;
     }
 
     /**
@@ -55,7 +55,7 @@ public final class OnlineStateReconcileRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (List<SConnStateCheck>)service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILECONNSESSIONS_5, new Object[]{connService, entries});
+        return (List<SConnStateCheck>)service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILECONNSESSIONS_6, new Object[]{connService, entries});
     }
 
 
@@ -67,7 +67,7 @@ public final class OnlineStateReconcileRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        return (SPlayerStateCheck[])service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILEPLAYERSESSIONS_6, new Object[]{playerService, entries});
+        return (SPlayerStateCheck[])service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILEPLAYERSESSIONS_7, new Object[]{playerService, entries});
     }
 
 

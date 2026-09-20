@@ -61,6 +61,11 @@ public final class TeamData {
         memberServices.remove(playerId);
     }
 
+    public CallPoint getMemberService(long playerId) {
+        CallPoint playerService = memberServices.get(playerId);
+        return playerService == null ? null : new CallPoint(playerService);
+    }
+
     public List<SMatchPlayer> toMatchPlayers() {
         List<SMatchPlayer> result = new ArrayList<>(memberDutyIds.size());
         for (Map.Entry<Long, List<Integer>> entry : memberDutyIds.entrySet()) {

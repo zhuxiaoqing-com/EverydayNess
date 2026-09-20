@@ -1,6 +1,7 @@
 package org.evd.game.OnlineService;
 
 import org.evd.game.OnlineService.login.OnlineLoginLogic;
+import org.evd.game.OnlineService.disconnect.OnlineServiceDisconnectLogic;
 import org.evd.game.OnlineService.routing.OnlineRoutingLogic;
 import org.evd.game.OnlineService.session.OnlineSessionLogic;
 import org.evd.game.runtime.Node;
@@ -37,15 +38,8 @@ public class OnlineService extends Service {
     }
 
     @Override
-    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
-        super.onServiceConnectReady(serviceList);
-        getActor(OnlineSessionLogic.class).onServiceConnectReady(serviceList);
-    }
-
-    @Override
     protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
-        super.onServiceDisconnect(serviceList);
-        getActor(OnlineSessionLogic.class).onServiceDisconnect(serviceList);
+        getActor(OnlineServiceDisconnectLogic.class).onServiceDisconnect(serviceList);
     }
 
 }

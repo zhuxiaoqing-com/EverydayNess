@@ -248,6 +248,13 @@ public class MessageLocationSender {
          * 多个协程能并发发送
          * NotFound 后自动刷新并重试
          * 还希望尽量保持消息顺序
+         * 如果没有加锁的话，可能会有，我ABC三个消息，AB消息都是没有address，发起去location获取了,
+         *  t1 A发送,没有address，发送去location
+         *  t2 B发送,没有address，发送去location
+         *  t3 A请求的address从location返回,放到缓存里;
+         *  t4 C发送，有缓存直接发送
+         *  t5 B查询address返回回来，将消息发送到指定的address;
+         *  结果就是ACB的消息顺序，但是其实需要ABC的消息顺序
          */
         try (ContinuationLockScope ignored = ownerService.awaitCoroutineLockScope(LockType.LOCATION_CALL, actorId)) {
             /**

@@ -9,7 +9,8 @@ public final class PPlayerOnline {
     public enum Status {
         LOADING_DATA,
         READY,
-        ONLINE
+        ONLINE,
+        PRE_OFFLINE,
     }
 
     private final String userId;
@@ -92,6 +93,11 @@ public final class PPlayerOnline {
         }
         transition(Status.ONLINE);
     }
+
+    public void markPreOffline() {
+        transition(Status.PRE_OFFLINE);
+    }
+
 
     /** 记录当前玩家上线阶段。 */
     private void transition(Status next) {

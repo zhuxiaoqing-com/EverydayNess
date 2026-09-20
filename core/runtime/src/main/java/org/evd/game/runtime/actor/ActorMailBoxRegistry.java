@@ -2,7 +2,6 @@ package org.evd.game.runtime.actor;
 
 import org.evd.game.annotation.service.ServiceName;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.exception.RpcCallException;
@@ -41,10 +40,9 @@ public class ActorMailBoxRegistry {
                 boxType == MailBoxType.ORDERED ? org.evd.game.runtime.mailbox.MailBoxType.ORDERED : org.evd.game.runtime.mailbox.MailBoxType.UNORDERED);
         actors.put(key, mailBoxBean);
 
-        CallPoint callPoint = service.getCallPoint();
-        ActorAddress actorAddress = new ActorAddress(callPoint, mailBoxBean.getEpoch());
+        ActorAddress actorAddress = new ActorAddress(service.getCallPoint(), mailBoxBean.getEpoch());
         if (publishLocation) {
-            locationInterface.add(callPoint, actorId, actorAddress);
+            locationInterface.add(null, actorId, actorAddress);
         }
     }
 
@@ -58,10 +56,9 @@ public class ActorMailBoxRegistry {
             log.error("ActorMailBoxRegistry unregister is null {} ", actorId);
             return;
         }
-        CallPoint callPoint = service.getCallPoint();
-        ActorAddress actorAddress = new ActorAddress(callPoint, remove.getEpoch());
+        ActorAddress actorAddress = new ActorAddress(service.getCallPoint(), remove.getEpoch());
         if (removeLocation) {
-            locationInterface.remove(callPoint, actorId, actorAddress);
+            locationInterface.remove(null, actorId, actorAddress);
         }
     }
 

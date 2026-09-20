@@ -18,7 +18,9 @@ public enum BrokenType {
     /** 客户端心跳超时。 */
     HEARTBEAT_TIMEOUT(7),
     /** 状态对账发现连接或玩家状态不一致。 */
-    STATE_RECONCILE(8);
+    STATE_RECONCILE(8),
+    /** 关联服务断开后执行的服务级清理。 */
+    SERVICE_DISCONNECT(9);
 
     private static final BrokenType[] cacheValues = values();
 

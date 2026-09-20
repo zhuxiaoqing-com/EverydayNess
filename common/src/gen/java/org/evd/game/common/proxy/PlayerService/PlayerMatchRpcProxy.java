@@ -21,8 +21,8 @@ public final class PlayerMatchRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_PLAYERMATCHRPC_MATCHENTERMAP_9 = 9;
-        public final static int ENUM_PLAYERMATCHRPC_ONMATCHRESULT_10 = 10;
+        public final static int ENUM_PLAYERMATCHRPC_MATCHENTERMAP_8 = 8;
+        public final static int ENUM_PLAYERMATCHRPC_ONMATCHRESULT_9 = 9;
     }
 
     /**
@@ -45,7 +45,7 @@ public final class PlayerMatchRpcProxy {
     */
     public void matchEnterMap(CallPoint remote, long playerId, SMapInfo targetInfo, MatchPlayerEnterMapParam matchParam){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYERMATCHRPC_MATCHENTERMAP_9, new Object[]{playerId, targetInfo, matchParam});
+        service.call(remote, EnumCall.ENUM_PLAYERMATCHRPC_MATCHENTERMAP_8, new Object[]{playerId, targetInfo, matchParam});
     }
 
 
@@ -54,7 +54,7 @@ public final class PlayerMatchRpcProxy {
     */
     public void onMatchResult(CallPoint remote, long playerId, boolean success, boolean isTeamMatch){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYERMATCHRPC_ONMATCHRESULT_10, new Object[]{playerId, success, isTeamMatch});
+        service.call(remote, EnumCall.ENUM_PLAYERMATCHRPC_ONMATCHRESULT_9, new Object[]{playerId, success, isTeamMatch});
     }
 
 

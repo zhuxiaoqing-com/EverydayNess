@@ -27,6 +27,22 @@ public final class MapConst {
         }
     }
 
+    /** 玩家退出场景的触发原因。使用常量，避免业务状态依赖枚举序列化。 */
+    public interface RoleExitType {
+        int NORMAL = 0;
+        int ENTER_FAILED = 1;
+        int PLAYER_SERVICE_DISCONNECT = 2;
+
+        static String name(int type) {
+            return switch (type) {
+                case NORMAL -> "NORMAL";
+                case ENTER_FAILED -> "ENTER_FAILED";
+                case PLAYER_SERVICE_DISCONNECT -> "PLAYER_SERVICE_DISCONNECT";
+                default -> "UNKNOWN(" + type + ")";
+            };
+        }
+    }
+
     /** 根据地图配置选择地图管理服务；跨服地图路由统一从这里扩展。 */
     public static CallPoint getSceneManagerCallPoint(int mapCfgId) {
         if (mapCfgId <= 0) {

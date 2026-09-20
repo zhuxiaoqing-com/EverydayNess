@@ -5,6 +5,9 @@ import org.evd.game.OnlineService.offline.OnlineOfflineLogic;
 import org.evd.game.OnlineService.routing.OnlineRoutingLogic;
 import org.evd.game.OnlineService.session.OnlineSessionLogic;
 import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.service.ServiceType;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
+import java.util.Collection;
 import org.evd.game.common.proto.C2S_Login2;
 import org.evd.game.common.proto.AuthMsgId;
 import org.evd.game.common.proto.S2C_Login;
@@ -48,6 +51,21 @@ public final class OnlineLoginLogic {
                 loginConfig.getAdmissionsPerSecond(), loginConfig.getMaxQueueSize());
         LogCore.core.info("OnlineService 登录排队器初始化: maxOnline={}, admissionsPerSecond={}, maxQueueSize={}",
                 maxOnline, loginConfig.getAdmissionsPerSecond(), loginConfig.getMaxQueueSize());
+    }
+
+    /** 网关断开时释放其预登录名额和排队请求。 */
+    public void onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        for (RegisteredService service : serviceList) {
+            if (service.getServiceType() == ServiceType.CONN) {
+                CallPoint gate = service.getCallPoint();
+                int tokenCount = tokenStates.size();
+                int queueCount = admissionQueue.size();
+                tokenStates.values().removeIf(token -> gate.equals(token.getGate()));
+                admissionQueue.removeGate(gate);
+                LogCore.core.info("OnlineService 清理 ConnService 断连登录状态: gate={}, tokensRemoved={}, queueBefore={}",
+                        gate, tokenCount - tokenStates.size(), queueCount);
+            }
+        }
     }
 
     /** 清理已过期的预登录 token 并尝试释放排队中的登录请求。 */
@@ -111,7 +129,7 @@ public final class OnlineLoginLogic {
 
     /** 处理同一用户的新排队请求替换旧请求。 */
     public void onReplaced(OnlineLoginQueue.QueuedLogin request) {
-        offline().kickGateway(request.gate(), request.sessionId(),
+        offline().kickGateway(request.userId(), 0L, request.gate(), request.sessionId(),
                 BrokenType.LOGIN_REPLACE, "duplicate login queued");
     }
 
@@ -387,7 +405,8 @@ public final class OnlineLoginLogic {
                 oldUserState.getActiveGate(), oldUserState.getActiveGateSessionId(),
                 BrokenType.LOGIN_REPLACE.getCode(), "duplicate login");
         if (!result.isSuccess()) {
-            LogCore.core.warn("OnlineService 踢旧 GW 失败: gate={}, gateSessionId={}, errorCode={}, message={}, value={}",
+            LogCore.core.warn("OnlineService 踢旧 GW 失败: userId={}, playerId={}, gate={}, gateSessionId={}, errorCode={}, message={}, value={}",
+                    oldUserState.getUserId(), oldUserState.getActivePlayerId(),
                     oldUserState.getActiveGate(), oldUserState.getActiveGateSessionId(),
                     result.getErrorCode(), result.getErrorMessage(), result.getValue());
         }

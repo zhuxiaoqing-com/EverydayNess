@@ -154,7 +154,7 @@ public class Mdb {
         mdbPlayerManager.setPlayerCacheExpiredCallback(callback);
     }
 
-    /** 返回当前 MDB 中仍保留的玩家 userId，用于 OnlineService 重启后恢复历史绑定。 */
+    /** 返回当前 MDB 中仍保留的玩家 userId，用于 PlayerService 上线时向 OnlineService 恢复历史绑定。 */
     public List<String> getPlayerUserIds() {
         return mdbPlayerManager.getPlayerUserIds();
     }

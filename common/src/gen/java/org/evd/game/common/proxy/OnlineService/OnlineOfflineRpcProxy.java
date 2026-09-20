@@ -21,7 +21,7 @@ public final class OnlineOfflineRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINEOFFLINERPC_ONSESSIONOFFLINE_4 = 4;
+        public final static int ENUM_ONLINEOFFLINERPC_ONSESSIONOFFLINE_5 = 5;
     }
 
     /**
@@ -40,7 +40,7 @@ public final class OnlineOfflineRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        service.call(remote, EnumCall.ENUM_ONLINEOFFLINERPC_ONSESSIONOFFLINE_4, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
+        service.call(remote, EnumCall.ENUM_ONLINEOFFLINERPC_ONSESSIONOFFLINE_5, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
     }
 
 

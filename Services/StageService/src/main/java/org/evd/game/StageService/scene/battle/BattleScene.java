@@ -2,6 +2,7 @@ package org.evd.game.StageService.scene.battle;
 
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.StageService.StageService;
+import org.evd.game.common.constant.MapConst;
 import org.evd.game.common.proto.MapMsgId;
 import org.evd.game.common.proto.S2C_EnterMap;
 import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
@@ -25,9 +26,10 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 /** Stage 上所有具体场景的父类，负责预进入队列和正式玩家集合。 */
 @Slf4j
@@ -116,6 +118,10 @@ public class BattleScene {
         pendingRoleMap.put(request.getPlayerId(), request);
     }
 
+    public boolean hasPendingRole(PlayerEnterRequest request) {
+        return pendingRoleMap.get(request.getPlayerId()) == request;
+    }
+
     public final void roleEnter(SPlayerMapData playerData) {
         if (playerData == null || playerData.getPlayerId() <= 0L) {
             log.error("BattleScene 玩家正式进入场景失败：玩家数据为空或 playerId 无效, playerId={}, sceneId={}",
@@ -150,10 +156,15 @@ public class BattleScene {
         RpcResult<Boolean> notifyResult = PlayerMapRpcProxy.callOnEnterMap(
                 request.getPlayerService(), playerId, request.getTransferId(),
                 request.getTargetInfo(), stageActorAddress);
+        if (roleMap.get(playerId) != battleRole) {
+            log.warn("BattleScene 通知 PlayerService 进入地图返回后玩家已被移除，放弃后续进入处理: playerId={}, sceneId={}",
+                    playerId, sceneId);
+            return;
+        }
         if (!notifyResult.isSuccess() || !Boolean.TRUE.equals(notifyResult.getValue())) {
             log.error("BattleScene 通知 PlayerService 玩家进入地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     playerId, sceneId, notifyResult.getErrorCode(), notifyResult.getErrorMessage());
-            roleExit(playerId);
+            roleExit(playerId, MapConst.RoleExitType.ENTER_FAILED);
             return;
         }
         S2C_EnterMap message = S2C_EnterMap.newBuilder()
@@ -165,10 +176,15 @@ public class BattleScene {
                 .build();
         RpcResult<Void> enterMapResult = ConnServiceRpcProxy.callPushToPlayerId(
                 playerId, ClientFrameChunk.wrap(MapMsgId.S2C_MAP_ENTER_MAP_VALUE, message));
+        if (roleMap.get(playerId) != battleRole) {
+            log.warn("BattleScene 通知客户端进入地图返回后玩家已被移除，放弃后续进入处理: playerId={}, sceneId={}",
+                    playerId, sceneId);
+            return;
+        }
         if (!enterMapResult.isSuccess()) {
             log.error("BattleScene 通知客户端正式进入地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     playerId, sceneId, enterMapResult.getErrorCode(), enterMapResult.getErrorMessage());
-            roleExit(playerId);
+            roleExit(playerId, MapConst.RoleExitType.ENTER_FAILED);
             return;
         }
         if (!roleMap.containsKey(playerId)) {
@@ -188,19 +204,65 @@ public class BattleScene {
         pendingRoleMap.remove(playerId);
     }
 
+    public void cancelPending(PlayerEnterRequest request) {
+        pendingRoleMap.remove(request.getPlayerId(), request);
+    }
+
+    /** 对端失联只移除它的玩家，场景仍由当前 Stage 持有。 */
+    public void onPlayerServiceDisconnect(CallPoint playerService) {
+        removePlayersByPlayerServiceDisconnect(playerService);
+    }
+
+    private void removePlayersByPlayerServiceDisconnect(CallPoint playerService) {
+        int pendingBefore = pendingRoleMap.size();
+        int rolesBefore = roleMap.size();
+        // roleExit 会移除角色，且可能触发业务回调，因此先收集本轮受影响的玩家。
+        List<Long> playerIds = new ArrayList<>();
+        pendingRoleMap.values().stream()
+                .filter(request -> playerService.equals(request.getPlayerService()))
+                .map(PlayerEnterRequest::getPlayerId)
+                .forEach(playerIds::add);
+        roleMap.values().stream().filter(role ->
+            role.getPlayerMapData().getPlayerActorAddress() != null
+                    && playerService.equals(role.getPlayerMapData().getPlayerActorAddress().getCallPoint()))
+                .map(BattleRole::getPlayerId)
+                .forEach(playerIds::add);
+        for (long playerId : playerIds) {
+            roleExit(playerId, MapConst.RoleExitType.PLAYER_SERVICE_DISCONNECT);
+        }
+        int pendingRemoved = pendingBefore - pendingRoleMap.size();
+        int rolesRemoved = rolesBefore - roleMap.size();
+        if (pendingRemoved > 0 || rolesRemoved > 0) {
+            log.info("StageService 场景完成服务断开清理: sceneId={}, serviceType={}, disconnectedService={}, exitType={}, pendingRemoved={}, rolesRemoved={}",
+                    sceneId, "PLAYER", playerService,
+                    MapConst.RoleExitType.name(MapConst.RoleExitType.PLAYER_SERVICE_DISCONNECT),
+                    pendingRemoved, rolesRemoved);
+        }
+    }
+
+    public Map<Long, BattleRole> getRoleMap() {
+        return roleMap;
+    }
+
     public final boolean roleExit(long playerId) {
+        return roleExit(playerId, MapConst.RoleExitType.NORMAL);
+    }
+
+    public final boolean roleExit(long playerId, int exitType) {
         if (playerId <= 0L) {
             return false;
         }
         PlayerEnterRequest request = pendingRoleMap.get(playerId);
         BattleRole battleRole = roleMap.get(playerId);
         if (battleRole == null && request == null) {
-            log.warn("BattleScene 玩家退出失败，找不到玩家状态: playerId={}, sceneId={}", playerId, sceneId);
+            log.warn("BattleScene 玩家退出失败，找不到玩家状态: playerId={}, sceneId={}, exitType={}",
+                    playerId, sceneId, MapConst.RoleExitType.name(exitType));
             return true;
         }
         if (battleRole == null) {
             pendingRoleMap.remove(playerId);
-            log.info("BattleScene 玩家退出预进入队列: playerId={}, sceneId={}", playerId, sceneId);
+            log.info("BattleScene 玩家退出预进入队列: playerId={}, sceneId={}, exitType={}",
+                    playerId, sceneId, MapConst.RoleExitType.name(exitType));
             return true;
         }
         CallPoint playerService = battleRole.getPlayerMapData().getPlayerActorAddress().getCallPoint();
@@ -210,24 +272,25 @@ public class BattleScene {
         owner.getMessageLocationSender().remove(ActorId.gate(playerId));
         owner.getMessageLocationSender().remove(ActorId.player(playerId));
 
-        if (playerService == null) {
-            log.info("BattleScene 玩家退出场景完成: playerId={}, sceneId={}, stageActorAddress={}",
-                    playerId, sceneId, stageActorAddress);
-            return true;
+        // 这个在 onRoleExit 前面调用;防止onRoleExit里有call函数;
+        boolean notifyPlayerService = exitType != MapConst.RoleExitType.PLAYER_SERVICE_DISCONNECT;
+        if (playerService != null && notifyPlayerService) {
+            RpcResult<Void> exitResult = PlayerMapRpcProxy.sendOnExitMap(
+                    playerService, playerId, sceneId, stageActorAddress);
+            if (!exitResult.isSuccess()) {
+                log.warn("StageService 通知 PlayerService 玩家退出地图失败: playerId={}, sceneId={}, exitType={}, errorCode={}, message={}",
+                        playerId, sceneId, MapConst.RoleExitType.name(exitType),
+                        exitResult.getErrorCode(), exitResult.getErrorMessage());
+            }
         }
-        RpcResult<Void> exitResult = PlayerMapRpcProxy.sendOnExitMap(
-                playerService, playerId, sceneId, stageActorAddress);
-        if (!exitResult.isSuccess()) {
-            log.warn("StageService 通知 PlayerService 玩家退出地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
-                    playerId, sceneId, exitResult.getErrorCode(), exitResult.getErrorMessage());
-        }
-        log.info("BattleScene 玩家退出场景完成: playerId={}, sceneId={}, stageActorAddress={}",
-                playerId, sceneId, stageActorAddress);
+        log.info("BattleScene 玩家退出场景完成: playerId={}, sceneId={}, stageActorAddress={}, exitType={}, notifyPlayerService={}",
+                playerId, sceneId, stageActorAddress, MapConst.RoleExitType.name(exitType), notifyPlayerService);
+
         try {
             onRoleExit(battleRole);
         } catch (Exception e) {
-            log.error("BattleScene 玩家退出场景回调失败: playerId={}, sceneId={}",
-                    playerId, sceneId, e);
+            log.error("BattleScene 玩家退出场景回调失败: playerId={}, sceneId={}, exitType={}",
+                    playerId, sceneId, MapConst.RoleExitType.name(exitType), e);
         }
         return true;
     }

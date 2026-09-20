@@ -4,6 +4,10 @@ import lombok.extern.slf4j.Slf4j;
 import com.google.protobuf.Message;
 import org.evd.game.TeamService.entity.TeamData;
 import org.evd.game.annotation.actor.Actor;
+import org.evd.game.annotation.service.ServiceType;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
+import java.util.Collection;
+import java.util.ArrayList;
 import org.evd.game.common.constant.MatchConst;
 import org.evd.game.common.constant.MatchType;
 import org.evd.game.common.proto.S2C_TeamInfo;
@@ -19,6 +23,9 @@ import org.evd.game.common.serializeBean.TeamService.team.STeamMatchRequest;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.serializeBean.ClientFrameChunk;
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.actor.ActorAddress;
+import org.evd.game.runtime.actor.ActorId;
 
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +41,115 @@ public final class TeamLogic {
     private final AtomicLong teamId = new AtomicLong(System.currentTimeMillis() << 10);
     private final Map<Long, TeamData> teams = new HashMap<>();
     private final Map<Long, Long> playerTeamIds = new HashMap<>();
-    private final Map<Long, Long> pendingInvites = new HashMap<>();
+    private record PendingInvite(long teamId, CallPoint playerService) {
+        private PendingInvite {
+            playerService = playerService == null ? null : new CallPoint(playerService);
+        }
+    }
+
+    private final Map<Long, PendingInvite> pendingInvites = new HashMap<>();
+    /** 使断连前仍在等待返回的匹配请求失效。 */
+    private long matchConnectionVersion;
+
+    /** Match 断开只取消匹配，保留队伍成员及队长。 */
+    public void onMatchServiceDisconnect(Collection<RegisteredService> services) {
+        int affected = 0;
+        for (RegisteredService service : services) {
+            if (service.getServiceType() == ServiceType.MATCH
+                    && service.getCallPoint().equals(MatchConst.getMatchCallPoint())) {
+                matchConnectionVersion++;
+                for (TeamData team : new ArrayList<>(teams.values())) {
+                    if (team.isMatching()) {
+                        team.setMatching(false);
+                        affected++;
+                        pushTeamInfo(team, true, "匹配服务断开，已取消组队匹配");
+                    }
+                }
+            }
+        }
+        if (affected > 0) {
+            log.info("TeamService 完成 MatchService 断开清理: affected={}", affected);
+        }
+    }
+
+    /** PlayerService 断开时移除该服的队员，并使相关匹配和邀请失效。 */
+    public void onPlayerServiceDisconnect(Collection<RegisteredService> services) {
+        for (RegisteredService service : services) {
+            if (service != null && service.getServiceType() == ServiceType.PLAYER) {
+                onPlayerServiceDisconnect(service.getCallPoint());
+            }
+        }
+    }
+
+    /** 正常玩家下线时执行与服务断开相同的队伍状态收敛。 */
+    public void onPlayerOffline(long playerId, CallPoint playerService) {
+        if (playerId <= 0L || playerService == null) {
+            return;
+        }
+        TeamData team = findTeam(playerId);
+        if (team == null || !playerService.equals(team.getMemberService(playerId))) {
+            pendingInvites.remove(playerId);
+            return;
+        }
+        removeDisconnectedMembers(team, List.of(playerId), playerService);
+    }
+
+    private void onPlayerServiceDisconnect(CallPoint playerService) {
+        if (playerService == null) {
+            return;
+        }
+        for (TeamData team : new ArrayList<>(teams.values())) {
+            List<Long> disconnectedMembers = team.getMemberIds().stream()
+                    .filter(playerId -> playerService.equals(team.getMemberService(playerId)))
+                    .toList();
+            if (!disconnectedMembers.isEmpty()) {
+                removeDisconnectedMembers(team, disconnectedMembers, playerService);
+            }
+        }
+        pendingInvites.entrySet().removeIf(entry ->
+                playerService.equals(entry.getValue().playerService()));
+    }
+
+    private void removeDisconnectedMembers(TeamData team, List<Long> playerIds,
+                                           CallPoint playerService) {
+        if (team.isMatching()) {
+            cancelRemoteMatch(team);
+        }
+        clearPendingInvites(team.getTeamId());
+        for (long playerId : playerIds) {
+            team.removeMember(playerId);
+            playerTeamIds.remove(playerId, team.getTeamId());
+            pendingInvites.remove(playerId);
+        }
+        if (team.getMemberIds().isEmpty()) {
+            teams.remove(team.getTeamId(), team);
+            log.info("TeamService 玩家断线后解散空队伍: teamId={}, playerService={}, playerIds={}",
+                    team.getTeamId(), playerService, playerIds);
+            return;
+        }
+        if (!team.getMemberIds().contains(team.getLeaderId())) {
+            team.setLeaderId(team.getMemberIds().getFirst());
+        }
+        pushTeamInfo(team, true, "队伍成员已下线");
+        log.info("TeamService 玩家断线后清理队伍成员: teamId={}, playerService={}, playerIds={}, leaderId={}",
+                team.getTeamId(), playerService, playerIds, team.getLeaderId());
+    }
+
+    private void cancelRemoteMatch(TeamData team) {
+        RpcResult<Boolean> result = MatchRpcProxy.callCancelTeam(
+                MatchConst.getMatchCallPoint(), team.getTeamId(), team.getLeaderId());
+        if (!result.isSuccess()) {
+            log.warn("TeamService 玩家断线取消远端组队匹配失败，继续清理本地状态: teamId={}, errorCode={}, message={}",
+                    team.getTeamId(), result.getErrorCode(), result.getErrorMessage());
+        } else if (!Boolean.TRUE.equals(result.getValue())) {
+            log.info("TeamService 玩家断线时 MatchService 中不存在组队匹配: teamId={}", team.getTeamId());
+        }
+        team.setMatching(false);
+    }
+
+    private void clearPendingInvites(long teamId) {
+        pendingInvites.entrySet().removeIf(entry -> entry.getValue().teamId() == teamId);
+    }
 
     public boolean create(long playerId, CallPoint playerService) {
         if (playerId <= 0L || playerService == null || playerTeamIds.containsKey(playerId)) {
@@ -63,14 +178,26 @@ public final class TeamLogic {
         if (team.getMemberIds().size() >= MAX_MEMBER_NUM) {
             return fail(playerId, "队伍人数已满");
         }
-        pendingInvites.put(targetPlayerId, team.getTeamId());
+        CallPoint targetPlayerService = null;
+        try {
+            ActorAddress targetActor = owner().getMessageLocationSender()
+                    .getOrQuery(ActorId.player(targetPlayerId));
+            if (targetActor != null) {
+                targetPlayerService = targetActor.getCallPoint();
+            }
+        } catch (RuntimeException e) {
+            log.warn("TeamService 查询被邀请玩家所属 PlayerService 失败: targetPlayerId={}",
+                    targetPlayerId, e);
+        }
+        pendingInvites.put(targetPlayerId, new PendingInvite(team.getTeamId(), targetPlayerService));
         pushResult(playerId, true, "邀请已发送");
         pushResult(targetPlayerId, true, "收到队伍邀请，teamId=" + team.getTeamId());
         return true;
     }
 
     public boolean accept(long playerId, long teamId, CallPoint playerService) {
-        Long invitedTeamId = pendingInvites.get(playerId);
+        PendingInvite pendingInvite = pendingInvites.get(playerId);
+        Long invitedTeamId = pendingInvite == null ? null : pendingInvite.teamId();
         TeamData team = teams.get(teamId);
         if (invitedTeamId == null || invitedTeamId != teamId || team == null) {
             return fail(playerId, "队伍邀请不存在或已失效");
@@ -166,8 +293,12 @@ public final class TeamLogic {
         }
         matchRequest.setMembers(members);
 
+        long connectionVersion = matchConnectionVersion;
         RpcResult<Boolean> result = MatchRpcProxy.callTeamMatch(
                 MatchConst.getMatchCallPoint(), matchRequest);
+        if (connectionVersion != matchConnectionVersion) {
+            return fail(playerId, "匹配服务已断开，组队匹配已取消");
+        }
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             log.warn("TeamService 发起组队匹配失败: teamId={}, errorCode={}, message={}",
                     team.getTeamId(), result.getErrorCode(), result.getErrorMessage());
@@ -295,5 +426,9 @@ public final class TeamLogic {
             log.warn("TeamService 推送队伍消息失败: playerId={}, messageId={}, errorCode={}, message={}",
                     playerId, messageId, result.getErrorCode(), result.getErrorMessage());
         }
+    }
+
+    private TeamService owner() {
+        return Service.getCurrent(TeamService.class);
     }
 }

@@ -9,7 +9,7 @@ import org.evd.game.runtime.call.CallPoint;
  **/
 public interface LocationInterface {
 
-    boolean add(CallPoint remote, ActorId actorId, ActorAddress actorAddress);
+    void add(CallPoint remote, ActorId actorId, ActorAddress actorAddress);
 
     ActorAddress get(CallPoint remote, ActorId actorId);
 

@@ -29,6 +29,35 @@ public abstract class AbstractSceneDeal {
         this.owner = owner;
     }
 
+    public void onStageServiceDisconnect(CallPoint stage) {
+        int sceneCountBefore = scenes.size();
+        scenes.values().removeIf(info -> {
+            if (!stage.equals(info.getStageCallPoint())) {
+                return false;
+            }
+            info.setState(SMSceneState.DESTROYED);
+            info.getWaitEnterQueue().clear();
+            return true;
+        });
+        int removed = sceneCountBefore - scenes.size();
+        if (removed > 0) {
+            log.info("SceneManager Deal 清理 Stage 场景路由: stage={}, removed={}", stage, removed);
+        }
+    }
+
+    public void restoreScene(CallPoint stage, SMapInfo map) {
+        SMSceneInfo current = scenes.get(map.toMapKey());
+        if (current != null && (current.getSceneId() != map.getSceneId()
+                || !stage.equals(current.getStageCallPoint()))) {
+            throw new IllegalStateException("恢复场景路由冲突: map=" + map + ", current=" + current);
+        }
+        if (current == null) {
+            current = new SMSceneInfo(map.toMapKey(), map.getSceneId(), stage);
+            scenes.put(map.toMapKey(), current);
+        }
+        current.setState(SMSceneState.CREATED);
+    }
+
     public boolean enter(PlayerEnterRequest request) {
         if (request == null || request.getPlayerId() <= 0L || request.getTargetInfo() == null
                 || request.getTargetInfo().getMapCfgId() <= 0) {
@@ -45,6 +74,8 @@ public abstract class AbstractSceneDeal {
         if (!needCreate && !wasCreating) {
             return sendPrepareEnter(sceneInfo, request);
         }
+
+        owner.requireStageRecoveryComplete();
 
         boolean sceneExistedBeforeLock = sceneInfo != null;
         if (needCreate) {
@@ -100,6 +131,7 @@ public abstract class AbstractSceneDeal {
     }
 
     public SMapInfo createScene(SMapCreateRequest request) {
+        owner.requireStageRecoveryComplete();
         if (request == null || request.getMapKey() == null) {
             log.error("SceneManager 收到非法地图创建请求: request={}", request);
             return null;
@@ -143,6 +175,7 @@ public abstract class AbstractSceneDeal {
         }
         SMSceneInfo sceneInfo = scenes.get(mapKey);
         if (sceneInfo == null) {
+            owner.requireStageRecoveryComplete();
             return true;
         }
         if (sceneInfo.getWaitEnterQueue().remove(playerId) != null) {
@@ -171,6 +204,10 @@ public abstract class AbstractSceneDeal {
     private boolean createStageScene(SMSceneInfo sceneInfo, SMapCreateRequest request, long sceneId) {
         RpcResult<Boolean> result = StageServiceRpcProxy.callCreateScene(
                 sceneInfo.getStageCallPoint(), request, sceneId);
+        if (scenes.get(sceneInfo.getMapKey()) != sceneInfo) {
+            log.warn("场景创建返回时路由已失效: sceneId={}", sceneId);
+            return false;
+        }
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             sceneInfo.setState(SMSceneState.DESTROYED);
             scenes.remove(sceneInfo.getMapKey());
@@ -197,6 +234,11 @@ public abstract class AbstractSceneDeal {
         targetInfo.setSceneId(sceneInfo.getSceneId());
         request.setTargetInfo(targetInfo);
         RpcResult<Boolean> result = StageServiceRpcProxy.callPrepareEnterScene(sceneInfo.getStageCallPoint(), request);
+        if (scenes.get(targetInfo.toMapKey()) != sceneInfo) {
+            log.warn("SceneManager Stage 预进入返回时场景路由已失效: playerId={}, sceneId={}, mapCfgId={}, groupId={}",
+                    request.getPlayerId(), sceneInfo.getSceneId(), targetInfo.getMapCfgId(), targetInfo.getGroupId());
+            return false;
+        }
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
             log.error("SceneManager 发送 Stage 预进入请求失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     request.getPlayerId(), sceneInfo.getSceneId(), result.getErrorCode(), result.getErrorMessage());

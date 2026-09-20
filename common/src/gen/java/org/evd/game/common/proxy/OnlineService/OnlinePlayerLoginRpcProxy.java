@@ -22,7 +22,7 @@ public final class OnlinePlayerLoginRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_ONLINEPLAYERLOGINRPC_SELECTROLEENTER_3 = 3;
+        public final static int ENUM_ONLINEPLAYERLOGINRPC_SELECTROLEENTER_4 = 4;
     }
 
     /**
@@ -41,7 +41,7 @@ public final class OnlinePlayerLoginRpcProxy {
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        service.call(remote, EnumCall.ENUM_ONLINEPLAYERLOGINRPC_SELECTROLEENTER_3, new Object[]{session, request});
+        service.call(remote, EnumCall.ENUM_ONLINEPLAYERLOGINRPC_SELECTROLEENTER_4, new Object[]{session, request});
     }
 
 

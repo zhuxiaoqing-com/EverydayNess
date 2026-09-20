@@ -22,10 +22,10 @@ public final class PlayerMapRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_PLAYERMAPRPC_ENTERMAP_5 = 5;
-        public final static int ENUM_PLAYERMAPRPC_ONENTERMAP_6 = 6;
-        public final static int ENUM_PLAYERMAPRPC_ONEXITMAP_7 = 7;
-        public final static int ENUM_PLAYERMAPRPC_READYENTERMAP_8 = 8;
+        public final static int ENUM_PLAYERMAPRPC_ENTERMAP_4 = 4;
+        public final static int ENUM_PLAYERMAPRPC_ONENTERMAP_5 = 5;
+        public final static int ENUM_PLAYERMAPRPC_ONEXITMAP_6 = 6;
+        public final static int ENUM_PLAYERMAPRPC_READYENTERMAP_7 = 7;
     }
 
     /**
@@ -65,7 +65,7 @@ public final class PlayerMapRpcProxy {
     */
     public boolean enterMap(CallPoint remote, long playerId, SMapInfo targetInfo, SPlayerEnterParam enterParam){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERMAPRPC_ENTERMAP_5, new Object[]{playerId, targetInfo, enterParam});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERMAPRPC_ENTERMAP_4, new Object[]{playerId, targetInfo, enterParam});
     }
 
 
@@ -74,7 +74,7 @@ public final class PlayerMapRpcProxy {
     */
     public boolean onEnterMap(CallPoint remote, long playerId, long transferId, SMapInfo targetInfo, ActorAddress stageActorAddress){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERMAPRPC_ONENTERMAP_6, new Object[]{playerId, transferId, targetInfo, stageActorAddress});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERMAPRPC_ONENTERMAP_5, new Object[]{playerId, transferId, targetInfo, stageActorAddress});
     }
 
 
@@ -83,7 +83,7 @@ public final class PlayerMapRpcProxy {
     */
     public void onExitMap(CallPoint remote, long playerId, long sceneId, ActorAddress stageActorAddress){
         Service service = Service.getCurrent();
-        service.call(remote, EnumCall.ENUM_PLAYERMAPRPC_ONEXITMAP_7, new Object[]{playerId, sceneId, stageActorAddress});
+        service.call(remote, EnumCall.ENUM_PLAYERMAPRPC_ONEXITMAP_6, new Object[]{playerId, sceneId, stageActorAddress});
     }
 
 
@@ -92,7 +92,7 @@ public final class PlayerMapRpcProxy {
     */
     public boolean readyEnterMap(CallPoint remote, long playerId, long transferId, SMapInfo targetInfo){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERMAPRPC_READYENTERMAP_8, new Object[]{playerId, transferId, targetInfo});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_PLAYERMAPRPC_READYENTERMAP_7, new Object[]{playerId, transferId, targetInfo});
     }
 
 

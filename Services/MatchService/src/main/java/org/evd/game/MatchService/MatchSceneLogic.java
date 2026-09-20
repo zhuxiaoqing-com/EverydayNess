@@ -68,7 +68,7 @@ public final class MatchSceneLogic {
     }
 
     public void createAndEnterMap(SMapInfo matchInfo, List<MatchTeam> teams,
-                                  Map<Long, Integer> teamCamps) {
+                                   Map<Long, Integer> teamCamps) {
         Service.launchCurrentCoroutine(() -> {
             SMapInfo targetInfo = createMatchScene(
                     matchInfo.getMapCfgId(), matchInfo.getGroupId(), matchInfo.getSceneId(),

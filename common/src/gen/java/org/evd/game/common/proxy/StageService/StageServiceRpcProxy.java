@@ -6,6 +6,8 @@ import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
+import java.util.List;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 
@@ -31,10 +33,11 @@ public final class StageServiceRpcProxy {
         public final static int ENUM_STAGESERVICERPC_ENTERSCENE_8 = 8;
         public final static int ENUM_STAGESERVICERPC_EXITSCENE_9 = 9;
         public final static int ENUM_STAGESERVICERPC_GETMAPCOUNT_10 = 10;
-        public final static int ENUM_STAGESERVICERPC_GETRUNNINGMAPINFO_11 = 11;
-        public final static int ENUM_STAGESERVICERPC_PREPAREENTERSCENE_12 = 12;
-        public final static int ENUM_STAGESERVICERPC_SPAWNMONSTER_13 = 13;
-        public final static int ENUM_STAGESERVICERPC_USESKILL_14 = 14;
+        public final static int ENUM_STAGESERVICERPC_GETMAPS_11 = 11;
+        public final static int ENUM_STAGESERVICERPC_GETRUNNINGMAPINFO_12 = 12;
+        public final static int ENUM_STAGESERVICERPC_PREPAREENTERSCENE_13 = 13;
+        public final static int ENUM_STAGESERVICERPC_SPAWNMONSTER_14 = 14;
+        public final static int ENUM_STAGESERVICERPC_USESKILL_15 = 15;
     }
 
     /**
@@ -89,6 +92,14 @@ public final class StageServiceRpcProxy {
     */
     public static RpcResult<Integer> callGetMapCount(CallPoint remote){
         return RpcResult.call(() -> inst().getMapCount(remote));
+    }
+
+
+    /**
+    * 对应源方法的结果版本；远端错误、断链和超时均通过 RpcResult 返回。
+    */
+    public static RpcResult<List<SMapInfo>> callGetMaps(CallPoint remote){
+        return RpcResult.call(() -> inst().getMaps(remote));
     }
 
 
@@ -189,11 +200,21 @@ public final class StageServiceRpcProxy {
 
 
     /**
+    * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#getMaps()
+    */
+    @SuppressWarnings("unchecked")
+    public List<SMapInfo> getMaps(CallPoint remote){
+        Service service = Service.getCurrent();
+        return (List<SMapInfo>)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_GETMAPS_11, new Object[]{});
+    }
+
+
+    /**
     * 对应源方法: org.evd.game.StageService.mapCreate.StageServiceRpc#getRunningMapInfo()
     */
     public SRunningMapInfo getRunningMapInfo(CallPoint remote, long sceneId){
         Service service = Service.getCurrent();
-        return (SRunningMapInfo)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_GETRUNNINGMAPINFO_11, new Object[]{sceneId});
+        return (SRunningMapInfo)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_GETRUNNINGMAPINFO_12, new Object[]{sceneId});
     }
 
 
@@ -202,7 +223,7 @@ public final class StageServiceRpcProxy {
     */
     public boolean prepareEnterScene(CallPoint remote, PlayerEnterRequest request){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_PREPAREENTERSCENE_12, new Object[]{request});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_PREPAREENTERSCENE_13, new Object[]{request});
     }
 
 
@@ -211,7 +232,7 @@ public final class StageServiceRpcProxy {
     */
     public long spawnMonster(CallPoint remote, long sceneId, int monsterConfigId){
         Service service = Service.getCurrent();
-        return (long)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_SPAWNMONSTER_13, new Object[]{sceneId, monsterConfigId});
+        return (long)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_SPAWNMONSTER_14, new Object[]{sceneId, monsterConfigId});
     }
 
 
@@ -220,7 +241,7 @@ public final class StageServiceRpcProxy {
     */
     public boolean useSkill(CallPoint remote, long sceneId, long casterId, int skillId, int level, long targetId){
         Service service = Service.getCurrent();
-        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_USESKILL_14, new Object[]{sceneId, casterId, skillId, level, targetId});
+        return (boolean)service.callWait(remote, EnumCall.ENUM_STAGESERVICERPC_USESKILL_15, new Object[]{sceneId, casterId, skillId, level, targetId});
     }
 
 

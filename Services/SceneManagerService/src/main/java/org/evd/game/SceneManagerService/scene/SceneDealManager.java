@@ -58,4 +58,14 @@ public final class SceneDealManager {
         return null;
     }
 
+    public void onStageServiceDisconnect(CallPoint stage) {
+        for (AbstractSceneDeal deal : deals.values()) {
+            deal.onStageServiceDisconnect(stage);
+        }
+    }
+
+    public void restoreScene(CallPoint stage, SMapInfo map) {
+        getDeal(map.getMapCfgId()).restoreScene(stage, map);
+    }
+
 }
