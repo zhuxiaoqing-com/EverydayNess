@@ -1,9 +1,12 @@
 package org.evd.game.runtime.actor;
 
 import org.evd.game.annotation.service.ServiceName;
+import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.mailbox.MailBoxBean;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.exception.RpcCallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,10 +29,6 @@ public class ActorMailBoxRegistry {
     }
 
     public void register(ActorId actorId, MailBoxType boxType) {
-        register(actorId, boxType, true);
-    }
-
-    public void register(ActorId actorId, MailBoxType boxType, boolean publishLocation) {
         ActorId key = new ActorId(actorId);
         if (actors.containsKey(key)) {
             throw new IllegalStateException("ActorMailBoxRegistry actor already exists: " + actorId);
@@ -41,25 +40,35 @@ public class ActorMailBoxRegistry {
         actors.put(key, mailBoxBean);
 
         ActorAddress actorAddress = new ActorAddress(service.getCallPoint(), mailBoxBean.getEpoch());
-        if (publishLocation) {
-            locationInterface.add(null, actorId, actorAddress);
+        RpcResult<Void> result = RpcResult.run(
+                () -> locationInterface.add(locationServiceRemote(), actorId, actorAddress));
+        if (!result.isSuccess()) {
+            log.error("ActorMailBoxRegistry 注册 Location 地址失败: service={}, actorId={}, actorAddress={}, errorCode={}, message={}",
+                    service.getId(), actorId, actorAddress, result.getErrorCode(), result.getErrorMessage());
         }
     }
 
     public void unregister(ActorId actorId) {
-        unregister(actorId, true);
-    }
-
-    public void unregister(ActorId actorId, boolean removeLocation) {
         MailBoxBean remove = actors.remove(actorId);
         if(remove == null) {
             log.error("ActorMailBoxRegistry unregister is null {} ", actorId);
             return;
         }
         ActorAddress actorAddress = new ActorAddress(service.getCallPoint(), remove.getEpoch());
-        if (removeLocation) {
-            locationInterface.remove(null, actorId, actorAddress);
+        RpcResult<Void> result = RpcResult.run(
+                () -> locationInterface.remove(locationServiceRemote(), actorId, actorAddress));
+        if (!result.isSuccess()) {
+            log.error("ActorMailBoxRegistry 删除 Location 地址失败: service={}, actorId={}, actorAddress={}, errorCode={}, message={}",
+                    service.getId(), actorId, actorAddress, result.getErrorCode(), result.getErrorMessage());
         }
+    }
+
+    private CallPoint locationServiceRemote() {
+        CallPoint callPoint = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+        if (callPoint == null) {
+            throw new IllegalStateException("找不到 LocationService 服务路由: service=" + service.getId());
+        }
+        return callPoint;
     }
 
     public boolean contains(ActorId actorId) {

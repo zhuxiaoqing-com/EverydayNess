@@ -182,7 +182,7 @@ public final class PlayerMapLogic {
     }
 
     /** Stage 完成退出后通知 PlayerService 清理当前地图。 */
-    public void onExitMap(long playerId, long sceneId, ActorAddress stageActorAddress) {
+    public void onExitMap(long playerId, long sceneId) {
         DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
         DBMapInfo current = roleMapData == null ? null : roleMapData.getCurrMapInfo();
         if (current == null || current.getSceneId() != sceneId) {
@@ -192,7 +192,7 @@ public final class PlayerMapLogic {
         }
         log.info("PlayerService 清理玩家当前地图: playerId={}, sceneId={}, mapCfgId={}, groupId={}",
                 playerId, sceneId, current.getMapCfgId(), current.getGroupId());
-        if (stageActorAddress == null) {
+       /* if (stageActorAddress == null) {
             log.error("PlayerService 玩家退出地图缺少 StageActorAddress: playerId={}, sceneId={}",
                     playerId, sceneId);
             throw new IllegalStateException("玩家退出地图缺少 StageActorAddress: playerId=" + playerId
@@ -203,7 +203,7 @@ public final class PlayerMapLogic {
         if (!removeResult.isSuccess()) {
             log.warn("PlayerService 清理玩家 StageActorAddress 失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     playerId, sceneId, removeResult.getErrorCode(), removeResult.getErrorMessage());
-        }
+        }*/
         PPlayerOnline online = owner().sessionManager().get(playerId);
         owner().removeStageActorAddress(playerId);
         if (online != null) {
@@ -309,6 +309,16 @@ public final class PlayerMapLogic {
                     onlineAddResult.getErrorCode(), onlineAddResult.getErrorMessage());
             return false;
         }
+
+        /*RpcResult<Boolean> addResult = LocationServiceRpcProxy.callAdd(
+                null, ActorId.mapPlayer(playerId), stageActorAddress);
+        if (!addResult.isSuccess() || !Boolean.TRUE.equals(addResult.getValue())) {
+            log.error("PlayerService 注册玩家 StageActorAddress 失败: playerId={}, transferId={}, sceneId={}, errorCode={}, message={}",
+                    playerId, transferId, targetInfo.getSceneId(),
+                    addResult.getErrorCode(), addResult.getErrorMessage());
+            return false;
+        }*/
+
         /*
          * 以后启用 Location 锁时，正式进入地图并完成上面的状态同步后再解锁：
          * LocationServiceRpcProxy.sendUnlock(null, ActorId.mapPlayer(playerId), oldStageActorAddress, stageActorAddress);

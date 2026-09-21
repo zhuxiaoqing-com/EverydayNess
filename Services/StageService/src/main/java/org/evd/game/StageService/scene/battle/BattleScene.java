@@ -276,7 +276,7 @@ public class BattleScene {
         boolean notifyPlayerService = exitType != MapConst.RoleExitType.PLAYER_SERVICE_DISCONNECT;
         if (playerService != null && notifyPlayerService) {
             RpcResult<Void> exitResult = PlayerMapRpcProxy.sendOnExitMap(
-                    playerService, playerId, sceneId, stageActorAddress);
+                    playerService, playerId, sceneId);
             if (!exitResult.isSuccess()) {
                 log.warn("StageService 通知 PlayerService 玩家退出地图失败: playerId={}, sceneId={}, exitType={}, errorCode={}, message={}",
                         playerId, sceneId, MapConst.RoleExitType.name(exitType),

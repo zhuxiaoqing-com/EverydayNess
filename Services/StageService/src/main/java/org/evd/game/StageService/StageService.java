@@ -3,13 +3,11 @@ package org.evd.game.StageService;
 import org.evd.game.StageService.disconnect.StageServiceConnectLogic;
 import org.evd.game.StageService.disconnect.StageServiceDisconnectLogic;
 import org.evd.game.StageService.mapCreate.StageSceneLogic;
-import org.evd.game.common.proxy.LocationService.LocationServiceRpcProxy;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.MailBoxType;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 
@@ -38,20 +36,10 @@ public class StageService extends Service {
 
     public ActorAddress registerMapPlayerActor(long playerId) {
         ActorId actorId = ActorId.mapPlayer(playerId);
-        boolean created = false;
         if (!hasActor(actorId)) {
-            registerActorWithoutLocation(actorId, MailBoxType.UNORDERED);
-            created = true;
+            registerActor(actorId, MailBoxType.UNORDERED);
         }
-        ActorAddress actorAddress = getActorAddress(actorId);
-        if (created) {
-            var result = LocationServiceRpcProxy.sendAdd(null, actorId, actorAddress);
-            if (!result.isSuccess()) {
-                LogCore.core.warn("StageService 发送 MapPlayer ActorAddress 失败: service={}, playerId={}, actorAddress={}, errorCode={}, message={}",
-                        getId(), playerId, actorAddress, result.getErrorCode(), result.getErrorMessage());
-            }
-        }
-        return actorAddress;
+        return getActorAddress(actorId);
     }
 
     public ActorAddress getMapPlayerActorAddress(long playerId) {
@@ -64,12 +52,7 @@ public class StageService extends Service {
             return null;
         }
         ActorAddress actorAddress = getActorAddress(actorId);
-        var result = LocationServiceRpcProxy.sendRemove(null, actorId, actorAddress);
-        if (!result.isSuccess()) {
-            LogCore.core.warn("StageService 删除 MapPlayer ActorAddress 失败: service={}, playerId={}, actorAddress={}, errorCode={}, message={}",
-                    getId(), playerId, actorAddress, result.getErrorCode(), result.getErrorMessage());
-        }
-        unregisterActorWithoutLocation(actorId);
+        unregisterActor(actorId);
         return actorAddress;
     }
 }

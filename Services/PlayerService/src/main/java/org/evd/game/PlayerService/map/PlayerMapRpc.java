@@ -35,8 +35,8 @@ public final class PlayerMapRpc {
     }
 
     @Rpc
-    public void onExitMap(long playerId, long sceneId, ActorAddress stageActorAddress) {
+    public void onExitMap(long playerId, long sceneId) {
         Service.getCurrent(PlayerService.class).getActor(PlayerMapLogic.class)
-                .onExitMap(playerId, sceneId, stageActorAddress);
+                .onExitMap(playerId, sceneId);
     }
 }
