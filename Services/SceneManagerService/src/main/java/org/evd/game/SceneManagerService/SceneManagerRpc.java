@@ -42,4 +42,5 @@ public final class SceneManagerRpc {
         return Service.getCurrent(SceneManagerService.class).getActor(SceneManagerLogic.class)
                 .getRunningMaps(mapCfgId);
     }
+
 }

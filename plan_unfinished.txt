@@ -19,4 +19,82 @@
 
 22.如果Service也加int id的话，那service的name也要弄上，也要在Log上加上;同时要id,name;
 
+23. node的延迟离线  和延迟上线，会不会有冲突，比如延迟离线期间，有直接连上去了 会怎么样;
+
+    还没准备好的情况下，心跳需要继续，不然的话 又会掉线，看下有没有问题;
+
+24.延迟离线 和延迟上线，比如onServiceConnectReady，看起来是线性的,但是其实并不是,
+    比如我node虽然在这个Ready的时候才进行的加入serviceList,但是我的这个onReady消息在service运行的时候，
+    可能已经有其他service提前享受到了; 比如
+        t1:消息AB加入service
+        t2:node ready，onReady加入service
+        t3:消息A轮到了service处理,因为已经ready准备完成了，但是其实OnReady还在消息AB后面，还没执行到;
+    我认为是需要，每一个自己的service自己维护其他service上线下线,这样的话才能保证消息线性;
+
+25. stage和stageManager有问题，现在是stage链接上以后主动推送场景给服务器，但是有可能在stageManager的时候已经又将stage分配给其他人了;
+    而且这个场景可能是唯一性的，那在stageManage连接断开以后，是不是应该直接销毁所有地图？玩家是否应该离线？ 但是其实也没事，因为
+    stageManager也不在了，正常来说地图也不会运行了，但是如果是stage和stageManager连接断了，是不是应该直接销毁呢,
+    其实这个就看是stage挂了，那应该销毁所有地图， 如果是stageManager挂了，其实可以地图还在 不销毁;这个后面再考虑下;
+
+    stage挂了, stage和player断链了， stage和sceneManager断链了;
+    stage和sceneManager断链了，这里假设有一个活动，如果发现场景没了，那是不是要创建新的？但是旧的stage可能和playerService还连着;
+    这个时候就会创建两个;
+        整理起来其实就这几个问题；
+        1.Stage 和 StageManager 断链，Stage 实际没挂
+            Manager 删除场景记录。
+            其他玩家请求进入，发现场景不存在。
+            Manager 在 Stage-B 上重新创建场景。
+            结果 Stage-A 和 Stage-B 同时运行场景 1001。
+        2.Stage 真的挂了，Manager 不知道它是否还能恢复
+            Stage-A 进程崩溃
+                   ↓
+            StageManager 检测断链
+                   ↓
+            场景1001 = 不可进入
+                   ↓
+            一直等待 Stage-A 恢复
+        3.StageManager 自己挂了，所有场景管理记录丢失
+            StageManager 崩溃
+                   ↓
+            Stage-A 仍然运行场景1001
+                   ↓
+            StageManager 重启
+                   ↓
+            内存没有场景1001的记录
+                   ↓
+            有人请求进入活动
+                   ↓
+            可能创建第二个场景1001
+        4.Stage 恢复连接，上报场景时产生冲突
+            Stage-A 原来运行场景1001
+                   ↓
+            Stage-A 与 Manager 断链
+                   ↓
+            Manager 已经将场景1001重新分配给Stage-B
+                   ↓
+            Stage-A 恢复，上报场景1001
+
+       其实就三个核心问题
+       1. 断链不等于死亡
+           Manager 无法仅靠断链知道 Stage 是挂了，还是仅仅网络出了问题。
+           如果不删场景，可能永远不能重建；如果立即删除，可能产生两个场景。
+       2. Manager 重启后，如何知道真实的场景状态？
+           Manager 内存可能没有记录，但 Stage 实际还在运行。
+           需要考虑恢复、上报、冲突和旧实例失联。
+       3. 管理服与运行服状态不一致时，玩家怎么办？
+           Manager 标记不可进入，不代表 Stage 已停止运行。
+           已有玩家、新玩家、传送中的玩家，需要分别明确处理规则。
+
+      假设我StageManager和Stage断链以后，不删除场景数据，而是进行标记不可进状态;
+        等onServiceReady上来以后，Stage主动推送数据，将其不可进入给覆盖掉;先清理在覆盖;
+        但是有可能onServiceReady先StageManger先运行了，就又先给地图分配给Stage以后再进行onServiceReady;
+        其实可以让两个服务器的onServiceReady由自己的service触发，就是否准备好由对方的服务器触发;
+
+        这样的话
+            1.解决，因为stageManger里的场景数据没有销毁，所以不会有问题;
+            2.解决
+            3.解决
+            4.解决
+            5.拒绝分配新玩家解决;
+            6.感觉你说的没啥问题呀
 

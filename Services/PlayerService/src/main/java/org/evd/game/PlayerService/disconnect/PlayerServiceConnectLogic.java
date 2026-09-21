@@ -21,6 +21,24 @@ import java.util.List;
 /** PlayerService 关联服务连接就绪后的本地恢复逻辑。 */
 @Actor
 public final class PlayerServiceConnectLogic {
+
+    public void onServiceConnect(Collection<RegisteredService> serviceList) {
+        for (RegisteredService service : serviceList) {
+            if (service == null) {
+                continue;
+            }
+            switch (service.getServiceType()) {
+                /*
+                 * 这个应该在 onServiceConnect里,如果在onServiceConnectReady里，就可能会有我这边还没将玩家数据恢复过去,就造成该玩家被分配到其他playerService;
+                 * 这个情况会在Online服务器挂掉的时候出现，如果online没挂掉，倒是没问题，因为Online本身就有player->playerService的缓存
+                 */
+                case ONLINE -> restoreOnlineHistoricalBindings(service);
+                default -> {
+                }
+            }
+        }
+    }
+
     /** Location 和 Online 进入正式路由后，恢复本 PlayerService 的关联状态。 */
     public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
         for (RegisteredService service : serviceList) {
@@ -28,13 +46,19 @@ public final class PlayerServiceConnectLogic {
                 continue;
             }
             switch (service.getServiceType()) {
+                /*
+                    这个需要在onServiceConnectReady，如果在onServiceConnect的话，
+                    会有我恢复了，但是在 onServiceConnect和onServiceConnectReady 期间，因为service还不算连接，所以消息发送还是会失败;
+                    但是如果是在onServiceConnectReady，这边发送是线性的，这里发送以后，后面的Loc也会一起发送;
+                  */
                 case LOC -> restoreLocationAddresses(service);
-                case ONLINE -> restoreOnlineHistoricalBindings(service);
                 default -> {
                 }
             }
         }
     }
+
+
 
     /** Location 重连后只向该实例恢复当前 PlayerService 自己持有的玩家地址。 */
     private void restoreLocationAddresses(RegisteredService locationService) {
@@ -94,4 +118,5 @@ public final class PlayerServiceConnectLogic {
     private PlayerService owner() {
         return Service.getCurrent(PlayerService.class);
     }
+
 }

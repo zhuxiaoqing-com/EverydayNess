@@ -1,5 +1,6 @@
 package org.evd.game.LocationService;
 
+import org.evd.game.LocationService.disconnect.LocationServiceDisconnectLogic;
 import org.evd.game.annotation.actor.RpcService;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
@@ -9,11 +10,14 @@ import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.continuation.Task;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,25 +54,28 @@ public class LocationService extends Service {
     private final Map<ActorId, LockInfo> lockInfos = new HashMap<>();
     private long nextLockRevision = 1L;
 
-    /** 只移除失联宿主的地址，并结束该宿主持有的定位锁。 */
     @Override
-    protected void onServiceDisconnect(java.util.Collection<org.evd.game.runtime.ymlconfig.RegisteredService> services) {
-        for (var service : services) {
-            var callPoint = service.getCallPoint();
-            int addressCountBefore = actorLocations.size();
-            int lockCountBefore = lockInfos.size();
-            actorLocations.values().removeIf(entry -> callPoint.equals(entry.actorAddress.getCallPoint()));
-            for (ActorId actorId : java.util.List.copyOf(lockInfos.keySet())) {
-                LockInfo lock = lockInfos.get(actorId);
-                if (lock != null && callPoint.equals(lock.lockActorAddress.getCallPoint())) {
-                    // 不能直接清空锁表：unlock 负责取消定时器并唤醒等待协程。
-                    LocationEntry current = actorLocations.get(actorId);
-                    unlock(actorId, lock.lockActorAddress, current == null ? null : current.actorAddress);
-                }
+    protected void onServiceDisconnect(Collection<RegisteredService> services) {
+        LogCore.core.info("LocationService 开始处理关联服务断开: service={}, count={}", id, services.size());
+        getActor(LocationServiceDisconnectLogic.class).onServiceDisconnect(services);
+        LogCore.core.info("LocationService 完成关联服务断开处理: service={}, count={}", id, services.size());
+    }
+
+    /** 只移除失联宿主的地址，并结束该宿主持有的定位锁。 */
+    public void cleanupDisconnectedService(CallPoint callPoint) {
+        int addressCountBefore = actorLocations.size();
+        int lockCountBefore = lockInfos.size();
+        actorLocations.values().removeIf(entry -> callPoint.equals(entry.actorAddress.getCallPoint()));
+        for (ActorId actorId : List.copyOf(lockInfos.keySet())) {
+            LockInfo lock = lockInfos.get(actorId);
+            if (lock != null && callPoint.equals(lock.lockActorAddress.getCallPoint())) {
+                // 不能直接清空锁表：unlock 负责取消定时器并唤醒等待协程。
+                LocationEntry current = actorLocations.get(actorId);
+                unlock(actorId, lock.lockActorAddress, current == null ? null : current.actorAddress);
             }
-            LogCore.core.info("LocationService 完成关联服务断开清理: disconnectedService={}, addressesRemoved={}, locksReleased={}",
-                    callPoint, addressCountBefore - actorLocations.size(), lockCountBefore - lockInfos.size());
         }
+        LogCore.core.info("LocationService 完成关联服务断开清理: disconnectedService={}, addressesRemoved={}, locksReleased={}",
+                callPoint, addressCountBefore - actorLocations.size(), lockCountBefore - lockInfos.size());
     }
 
     public LocationService(Node node, String name, String scheduledName, int interval, ServiceInfo serviceInfo) {

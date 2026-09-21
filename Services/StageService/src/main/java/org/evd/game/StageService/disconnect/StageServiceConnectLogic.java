@@ -8,7 +8,9 @@ import org.evd.game.StageService.scene.movable.BattleRole;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.proxy.LocationService.LocationServiceRpcProxy;
+import org.evd.game.common.proxy.SceneManagerService.SceneManagerServiceConnectRpcProxy;
 import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
@@ -28,10 +30,30 @@ public final class StageServiceConnectLogic {
     /** LocationService 连接就绪后恢复 StageScene 的 Location 关联。 */
     public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
         for (RegisteredService service : serviceList) {
-            if (service != null && service.getServiceType() == ServiceType.LOC) {
-                onLocationServiceConnect(service.getCallPoint());
+            if (service == null || service.getServiceType() == null) {
+                continue;
+            }
+            switch (service.getServiceType()) {
+                case LOC -> onLocationServiceConnect(service.getCallPoint());
+                case SCENE_MANAGER -> onSceneManagerConnect(service.getCallPoint());
+                default -> {
+                }
             }
         }
+    }
+
+    private void onSceneManagerConnect(CallPoint sceneManager) {
+        StageService owner = owner();
+        List<SMapInfo> maps = owner.getActor(StageSceneLogic.class).getMaps();
+        RpcResult<Void> result = SceneManagerServiceConnectRpcProxy.sendRestoreStageMaps(
+                sceneManager, owner.getCallPoint(), maps);
+        if (!result.isSuccess()) {
+            log.error("StageService 向 SceneManager 推送地图快照失败: service={}, sceneManager={}, mapCount={}, errorCode={}, message={}",
+                    owner.getId(), sceneManager, maps.size(), result.getErrorCode(), result.getErrorMessage());
+            return;
+        }
+        log.info("StageService 向 SceneManager 推送地图快照完成: service={}, sceneManager={}, mapCount={}",
+                owner.getId(), sceneManager, maps.size());
     }
 
     public void onLocationServiceConnect(CallPoint locationService) {

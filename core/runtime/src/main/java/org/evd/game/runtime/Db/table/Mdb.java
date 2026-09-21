@@ -447,6 +447,9 @@ public class Mdb {
         if (lifecycleState != LifecycleState.RUNNING) {
             return;
         }
+        if(isLocal()) {
+            return;
+        }
         Set<CallPoint> disconnCallPointSet = collection.stream()
                 .filter(a -> a.getServiceType() == ServiceType.DB)
                 .map(RegisteredService::getCallPoint).collect(Collectors.toSet());
@@ -469,6 +472,9 @@ public class Mdb {
 
     public void connectService(Collection<RegisteredService> collection) {
         if (lifecycleState != LifecycleState.RUNNING) {
+            return;
+        }
+        if(isLocal()) {
             return;
         }
         boolean hasDBService = collection.stream()

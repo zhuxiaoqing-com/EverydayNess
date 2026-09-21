@@ -35,6 +35,9 @@ public abstract class AbstractSceneDeal {
             if (!stage.equals(info.getStageCallPoint())) {
                 return false;
             }
+            log.info("SceneManager Deal 销毁 Stage 地图: stage={}, mapKey={}, sceneId={}, state={}, waitEnterCount={}, waitEnterPlayerIds={}",
+                    stage, info.getMapKey(), info.getSceneId(), info.getState(),
+                    info.getWaitEnterQueue().size(), info.getWaitEnterQueue().keySet());
             info.setState(SMSceneState.DESTROYED);
             info.getWaitEnterQueue().clear();
             return true;
@@ -49,13 +52,17 @@ public abstract class AbstractSceneDeal {
         SMSceneInfo current = scenes.get(map.toMapKey());
         if (current != null && (current.getSceneId() != map.getSceneId()
                 || !stage.equals(current.getStageCallPoint()))) {
-            throw new IllegalStateException("恢复场景路由冲突: map=" + map + ", current=" + current);
+            log.error("SceneManager 恢复场景路由冲突，保留当前路由: stage={}, map={}, current={}",
+                    stage, map, current);
+            return;
         }
         if (current == null) {
             current = new SMSceneInfo(map.toMapKey(), map.getSceneId(), stage);
             scenes.put(map.toMapKey(), current);
         }
         current.setState(SMSceneState.CREATED);
+        log.info("SceneManager 恢复场景路由完成: stage={}, mapKey={}, sceneId={}, state={}",
+                stage, current.getMapKey(), current.getSceneId(), current.getState());
     }
 
     public boolean enter(PlayerEnterRequest request) {
@@ -74,8 +81,6 @@ public abstract class AbstractSceneDeal {
         if (!needCreate && !wasCreating) {
             return sendPrepareEnter(sceneInfo, request);
         }
-
-        owner.requireStageRecoveryComplete();
 
         boolean sceneExistedBeforeLock = sceneInfo != null;
         if (needCreate) {
@@ -131,7 +136,6 @@ public abstract class AbstractSceneDeal {
     }
 
     public SMapInfo createScene(SMapCreateRequest request) {
-        owner.requireStageRecoveryComplete();
         if (request == null || request.getMapKey() == null) {
             log.error("SceneManager 收到非法地图创建请求: request={}", request);
             return null;
@@ -175,7 +179,6 @@ public abstract class AbstractSceneDeal {
         }
         SMSceneInfo sceneInfo = scenes.get(mapKey);
         if (sceneInfo == null) {
-            owner.requireStageRecoveryComplete();
             return true;
         }
         if (sceneInfo.getWaitEnterQueue().remove(playerId) != null) {

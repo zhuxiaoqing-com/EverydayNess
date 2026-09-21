@@ -65,6 +65,14 @@ public class PlayerService extends Service {
         LogCore.core.info("PlayerService 完成关联服务断开处理: service={}, count={}", id, serviceList.size());
     }
 
+    /**
+     * 子类处理新的 Service 发现事件。
+     */
+    @Override
+    protected void onServiceConnect(Collection<RegisteredService> serviceList) {
+        getActor(PlayerServiceConnectLogic.class).onServiceConnect(serviceList);
+    }
+
     @Override
     protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
         getActor(PlayerServiceConnectLogic.class).onServiceConnectReady(serviceList);
