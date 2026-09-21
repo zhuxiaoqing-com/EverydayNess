@@ -42,7 +42,7 @@ public class Node extends TickCase{
     /** 新发现的 Service 在正式发布到路由索引前的稳定等待时间。 */
     private static final long SERVICE_PENDING_TIME = 10_000L;
     /** 离线 Service 状态巡检间隔。 */
-    private static final long OFFLINE_SERVICE_CHECK_INTERVAL = 5_000L;
+    private static final long OFFLINE_SERVICE_CHECK_INTERVAL = 1_000L;
     /** 离线 Service 保留时间。 */
     private static final long OFFLINE_SERVICE_RETENTION_TIME = 5 * 60 * 1000L;
 
@@ -66,7 +66,6 @@ public class Node extends TickCase{
     private Map<CallPoint, RegisteredService> allServiceMap = new HashMap<>();
     /** serviceType -> services缓存 */
     private volatile Map<ServiceType, List<RegisteredService>> type2ServiceMap = new HashMap<>();
-    private volatile Map<CallPoint, RegisteredService> callPoint2ServiceMap = new HashMap<>();
     private volatile Map<ServiceType, List<CallPoint>> type2CallMap = new HashMap<>();
     /** 地址 */
     private final String addr;
@@ -385,19 +384,6 @@ public class Node extends TickCase{
         return remoteNode != null && remoteNode.sendCallOnSession(result, result.getSourceSessionId());
     }
 
-    void postCallResultOnSource(CallResult result) {
-        post(() -> {
-            if (!sendCallResultOnSource(result)) {
-                LogCore.remote.warn(
-                        "远程 RPC 结果原 Session 不可写，丢弃结果: node={}, remoteNode={}, sessionId={}, waitId={}",
-                        id,
-                        result == null || result.to == null ? null : result.to.nodeId,
-                        result == null ? -1L : result.getSourceSessionId(),
-                        result == null ? 0L : result.id);
-            }
-        });
-    }
-
     /**
      * 发送RemoteCall
      * @param call
@@ -485,15 +471,22 @@ public class Node extends TickCase{
         List<RegisteredService> expiredList = new ArrayList<>();
         for (Map.Entry<CallPoint, RegisteredService> entry : offlineServices.entrySet()) {
             RegisteredService offlineService = entry.getValue();
-            boolean online = callPoint2ServiceMap.containsKey(entry.getKey());
+            /*
+             * boolean online = allServiceMap.containsKey(entry.getKey());
+             *
+             * 服务重新被发现时，refreshAllServiceMap_nt() 已经立即删除了对应的
+             * offlineServices 记录，所以这里遍历到的服务不会同时存在于 allServiceMap。
+             * 因此不再通过 online 判断“重新上线”，这里只处理真正到期的离线服务。
+             */
             boolean expired = now - offlineService.getOfflineMill() >= OFFLINE_SERVICE_RETENTION_TIME;
-            if (online || expired) {
-                LogCore.core.info("清理离线Service: node={}, callPoint={}, offlineMill={}, elapsedMill={}, reason={}",
-                        id, entry.getKey(), offlineService.getOfflineMill(),
-                        now - offlineService.getOfflineMill(), online ? "重新上线" : "离线超时");
-                if (offlineServices.remove(entry.getKey(), offlineService) && expired && !online) {
-                    expiredList.add(offlineService);
-                }
+            if (!expired) {
+                continue;
+            }
+            LogCore.core.info("清理离线Service: node={}, callPoint={}, offlineMill={}, elapsedMill={}, reason={}",
+                    id, entry.getKey(), offlineService.getOfflineMill(),
+                    now - offlineService.getOfflineMill(), "离线超时");
+            if (offlineServices.remove(entry.getKey(), offlineService)) {
+                expiredList.add(offlineService);
             }
         }
         notifyServiceEvent_nt(expiredList, "service offline expired", Service::_onServiceOfflineExpired);
@@ -517,7 +510,6 @@ public class Node extends TickCase{
         offlineServiceTimer.stop();
         offlineServices.clear();
         type2ServiceMap = Map.of();
-        callPoint2ServiceMap = Map.of();
         type2CallMap = Map.of();
         channelManager.clear();
 
@@ -940,7 +932,10 @@ public class Node extends TickCase{
                 if (callNodeServicesSync.isInit() && !node.onNodeServicesSync_nt(sourceChannel)) {
                     break;
                 }
-                syncRemoteServices_nt(remoteNodePoint, callNodeServicesSync.getServices());
+                RemoteSession sourceSession = sourceChannel == null
+                        ? null : sourceChannel.getChannel().attr(ServerAttributeKey.remoteSession).get();
+                syncRemoteServices_nt(remoteNodePoint, callNodeServicesSync.getServices(),
+                        sourceSession == null ? -1L : sourceSession.getSessionId());
             }
             break;
             case CallPing callPing: {
@@ -1049,8 +1044,16 @@ public class Node extends TickCase{
         refreshAllServiceMap_nt();
     }
 
-    private void syncRemoteServices_nt(CallPoint nodePoint, List<RegisteredService> services) {
-        remoteNodeServices.put(nodePoint, services);
+    private void syncRemoteServices_nt(CallPoint nodePoint, List<RegisteredService> services, long connectionId) {
+        List<RegisteredService> snapshot = new ArrayList<>(services.size());
+        for (RegisteredService service : services) {
+            RegisteredService copy = service == null ? null : new RegisteredService(service);
+            if (copy != null) {
+                copy.setConnectionId(connectionId);
+            }
+            snapshot.add(copy);
+        }
+        remoteNodeServices.put(nodePoint, snapshot);
         refreshAllServiceMap_nt();
     }
 
@@ -1129,6 +1132,12 @@ public class Node extends TickCase{
         Map<CallPoint, RegisteredService> newAllServiceMap = new HashMap<>();
         for (Map.Entry<CallPoint, RegisteredService> entry : currentServiceMap.entrySet()) {
             RegisteredService currentService = entry.getValue();
+            // 重新发现就说明旧的延迟离线记录失效，不必等 Pending 结束再清理。
+            RegisteredService offlineService = offlineServices.remove(entry.getKey());
+            if (offlineService != null) {
+                LogCore.core.info("Service重新发现，清理延迟离线: node={}, callPoint={}, oldConnectionId={}, newConnectionId={}",
+                        id, entry.getKey(), offlineService.getConnectionId(), currentService.getConnectionId());
+            }
             RegisteredService oldService = oldAllServiceMap.get(entry.getKey());
             if (oldService == null) {
                 currentService.setPendingStartTime(now);
@@ -1149,14 +1158,13 @@ public class Node extends TickCase{
             removeList.add(oldService);
             LogCore.core.info("Service下线: node={}, callPoint={}, service={}",
                     id, entry.getKey(), oldService);
-            if (oldService.getPendingStartTime() == 0L) {
-                RegisteredService offlineService = new RegisteredService(oldService);
-                offlineService.setOfflineMill(now);
-                offlineServices.put(entry.getKey(), offlineService);
-            }
+            // 即使旧 Service 还没完成 Pending，也要进入延迟离线列表，等待它再次上线或超时。
+            RegisteredService offlineService = new RegisteredService(oldService);
+            offlineService.setOfflineMill(now);
+            offlineServices.put(entry.getKey(), offlineService);
         }
 
-        allServiceMap = Map.copyOf(newAllServiceMap);
+        allServiceMap = newAllServiceMap;
         rebuildServiceRouteMaps_nt();
 
         notifyServiceEvent_nt(addList, "service connect", Service::_onServiceConnect);
@@ -1167,12 +1175,10 @@ public class Node extends TickCase{
     private void rebuildServiceRouteMaps_nt() {
         Map<ServiceType, List<RegisteredService>> tempType2ServiceMap = new HashMap<>();
         Map<ServiceType, List<CallPoint>> tempType2CallMap = new HashMap<>();
-        Map<CallPoint, RegisteredService> tempCallPoint2ServiceMap = new HashMap<>();
         for (RegisteredService service : allServiceMap.values()) {
             if (service.getPendingStartTime() != 0L) {
                 continue;
             }
-            tempCallPoint2ServiceMap.put(service.getCallPoint(), service);
             tempType2ServiceMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
                     .add(new RegisteredService(service));
             tempType2CallMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
@@ -1190,7 +1196,6 @@ public class Node extends TickCase{
         }
 
         type2ServiceMap = RuntimeUtils.convertModifyListMap(tempType2ServiceMap);
-        callPoint2ServiceMap = Map.copyOf(tempCallPoint2ServiceMap);
         type2CallMap = RuntimeUtils.convertModifyListMap(tempType2CallMap);
     }
 

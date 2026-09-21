@@ -23,6 +23,10 @@ public class RegisteredService implements ISerializable {
     @SerializeIgnore
     private long pendingStartTime;
 
+    /** 本地记录 Service 所属的远程连接 Session，不参与服务注册信息序列化。 */
+    @SerializeIgnore
+    private long connectionId;
+
     @SerializeIgnore
     private CallPoint callPoint;
 
@@ -44,6 +48,7 @@ public class RegisteredService implements ISerializable {
                 other.platformId, other.serverId, other.nodeId);
         this.offlineMill = other.offlineMill;
         this.pendingStartTime = other.pendingStartTime;
+        this.connectionId = other.connectionId;
     }
 
     public ServiceType getServiceType() {
@@ -122,6 +127,14 @@ public class RegisteredService implements ISerializable {
         this.pendingStartTime = pendingStartTime;
     }
 
+    public long getConnectionId() {
+        return connectionId;
+    }
+
+    public void setConnectionId(long connectionId) {
+        this.connectionId = connectionId;
+    }
+
     @Override
     public String toString() {
         return "RegisteredService{" +
@@ -132,6 +145,7 @@ public class RegisteredService implements ISerializable {
                 ", serverId=" + serverId +
                 ", nodeId=" + nodeId +
                 ", callPoint=" + callPoint +
+                ", connectionId=" + connectionId +
                 '}';
     }
 }

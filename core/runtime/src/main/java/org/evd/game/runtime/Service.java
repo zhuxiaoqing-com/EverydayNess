@@ -601,15 +601,7 @@ public class Service extends TickCase {
      * callWait/sleep 的业务流程。
      */
     public final void launchCoroutine(Runnable task) {
-        launchCoroutine(task, false);
-    }
-
-    /**
-     * 在当前 Service 线程里启动一个独立业务协程。
-     *
-     * @param immediate true 表示立即执行，false 表示加入当前 Service 的协程队列
-     */
-    public final void launchCoroutine(Runnable task, boolean immediate) {
+        boolean immediate = false;
         if (task == null) {
             throw new SysException("launch coroutine task is null: service={}", id);
         }
@@ -637,12 +629,6 @@ public class Service extends TickCase {
     public static void launchCurrentCoroutine(Runnable task) {
         Service service = getCurrent();
         service.launchCoroutine(task);
-    }
-
-    /** 使用当前线程的 Service 按指定策略启动业务协程。 */
-    public static void launchCurrentCoroutine(Runnable task, boolean immediate) {
-        Service service = getCurrent();
-        service.launchCoroutine(task, immediate);
     }
 
     /**

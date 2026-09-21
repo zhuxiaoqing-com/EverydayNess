@@ -19,9 +19,12 @@
 
 22.如果Service也加int id的话，那service的name也要弄上，也要在Log上加上;同时要id,name;
 
-23. node的延迟离线  和延迟上线，会不会有冲突，比如延迟离线期间，有直接连上去了 会怎么样;
+23. node的延迟离线  和延迟上线，会不会有冲突，比如延迟离线期间，有直接连上去了 会怎么样;直接又上线了，就进行将延迟离线删除; 连接后马上断线同理;
+    service 需不需要唯一id?因为如果按下面的方式改成ready需要目标服务器确认，需要进行确认的服务器是否是旧的服务器的判断;
 
-    还没准备好的情况下，心跳需要继续，不然的话 又会掉线，看下有没有问题;
+
+23.5 还没准备好的情况下，心跳需要继续，不然的话 又会掉线，看下有没有问题;
+    心跳看是Node之间的,service准备是service的逻辑,没有问题;
 
 24.延迟离线 和延迟上线，比如onServiceConnectReady，看起来是线性的,但是其实并不是,
     比如我node虽然在这个Ready的时候才进行的加入serviceList,但是我的这个onReady消息在service运行的时候，
@@ -29,7 +32,21 @@
         t1:消息AB加入service
         t2:node ready，onReady加入service
         t3:消息A轮到了service处理,因为已经ready准备完成了，但是其实OnReady还在消息AB后面，还没执行到;
-    我认为是需要，每一个自己的service自己维护其他service上线下线,这样的话才能保证消息线性;
+    我认为是需要，每一个自己的service自己维护其他service上线下线,这样的话才能保证消息线性;而且onReady最好是，由对方service确认以后再进行的;
+        就需要一个检测，如果对方service迟迟没有确认上线，怎么办？直接再次断开该node，不然没法弄;
+
+    实现方式：
+        传统的游戏服务器的话，应该也是有一个专门的线程处理的，连接上，离线，变化，都通知该线程，保证线性;
+        Node收到service以后，给本地的所有service发onConnectServices(),然后准备完毕后，将onReady发给对面的service;
+        怎么判断是否是同一个service呢？可以对面连上的时候，就将service里的channelId
+        既然有service上线，和service下线，那是不是在上线之前不能主动发送？那可以被动发送吗？
+
+        node连接上，
+        注册service->用post回调给service;
+
+
+
+
 
 25. stage和stageManager有问题，现在是stage链接上以后主动推送场景给服务器，但是有可能在stageManager的时候已经又将stage分配给其他人了;
     而且这个场景可能是唯一性的，那在stageManage连接断开以后，是不是应该直接销毁所有地图？玩家是否应该离线？ 但是其实也没事，因为

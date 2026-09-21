@@ -169,15 +169,11 @@ public final class CallTransport {
             return;
         }
 
-        if (call instanceof CallResult callResult && callResult.getSourceSessionId() >= 0L) {
-            node.postCallResultOnSource(callResult);
-            return;
-        }
         CallPoint toNodePoint = call.to == null ? null : call.to.nodePoint();
         Integer toNodeId = toNodePoint == null ? null : toNodePoint.nodeId;
-        boolean local = node.isLocalNode(call.to);
-        RemoteSession session = local ? null : node.captureRemoteSession(call);
-        if (!local && session == null) {
+        // 当前 RemoteNode 只有一条有效连接，普通 RPC 和 RPC 响应统一使用当前连接。
+        RemoteSession session = node.captureRemoteSession(call);
+        if (session == null) {
             LogCore.remote.warn("远程Node Service当前不可接收业务RPC，拒绝进入出站缓冲: localNode={}, remoteNode={}, service={}, callType={}",
                     node.getId(), toNodeId, call.to == null ? null : call.to.servId,
                     call.getClass().getSimpleName());
@@ -185,7 +181,7 @@ public final class CallTransport {
                     serviceId, toNodeId, call.to == null ? null : call.to.servId,
                     call.getClass().getSimpleName());
         }
-        long sessionId = local ? 0L : session.getSessionId();
+        long sessionId = session.getSessionId();
         call.setOutboundSessionId(sessionId);
         long waitId = call instanceof CallResult ? 0L : call.getId();
         if (waitId != 0L && !bindPendingRpcSession(waitId, sessionId)) {
