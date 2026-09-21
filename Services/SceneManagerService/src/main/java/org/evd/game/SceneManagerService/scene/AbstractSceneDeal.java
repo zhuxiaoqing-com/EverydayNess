@@ -7,7 +7,6 @@ import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnter
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
-import org.evd.game.common.constant.MapConst;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
@@ -15,6 +14,7 @@ import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,22 +30,35 @@ public abstract class AbstractSceneDeal {
     }
 
     public void onStageServiceDisconnect(CallPoint stage) {
-        int sceneCountBefore = scenes.size();
-        scenes.values().removeIf(info -> {
+        int unavailable = 0;
+        for (SMSceneInfo info : scenes.values()) {
             if (!stage.equals(info.getStageCallPoint())) {
-                return false;
+                continue;
             }
-            log.info("SceneManager Deal 销毁 Stage 地图: stage={}, mapKey={}, sceneId={}, state={}, waitEnterCount={}, waitEnterPlayerIds={}",
+            log.info("SceneManager Deal 标记 Stage 地图不可进入: stage={}, mapKey={}, sceneId={}, state={}, waitEnterCount={}, waitEnterPlayerIds={}",
                     stage, info.getMapKey(), info.getSceneId(), info.getState(),
                     info.getWaitEnterQueue().size(), info.getWaitEnterQueue().keySet());
-            info.setState(SMSceneState.DESTROYED);
+            info.setState(SMSceneState.UNAVAILABLE);
             info.getWaitEnterQueue().clear();
-            return true;
-        });
-        int removed = sceneCountBefore - scenes.size();
-        if (removed > 0) {
-            log.info("SceneManager Deal 清理 Stage 场景路由: stage={}, removed={}", stage, removed);
+            unavailable++;
         }
+        if (unavailable > 0) {
+            log.info("SceneManager Deal 标记 Stage 场景不可进入: stage={}, unavailable={}", stage, unavailable);
+        }
+    }
+
+    public Map<SMapKey, SMSceneInfo> clearStageScenes(CallPoint stage) {
+        Map<SMapKey, SMSceneInfo> oldScenes = new HashMap<>();
+        Iterator<Map.Entry<SMapKey, SMSceneInfo>> iterator = scenes.entrySet().iterator();
+        while (iterator.hasNext()) {
+            SMSceneInfo info = iterator.next().getValue();
+            if (!stage.equals(info.getStageCallPoint())) {
+                continue;
+            }
+            iterator.remove();
+            oldScenes.put(info.getMapKey(), info);
+        }
+        return oldScenes;
     }
 
     public void restoreScene(CallPoint stage, SMapInfo map) {
@@ -78,6 +91,12 @@ public abstract class AbstractSceneDeal {
         SMSceneInfo sceneInfo = scenes.get(mapKey);
         boolean needCreate = sceneInfo == null;
         boolean wasCreating = sceneInfo != null && sceneInfo.getState() == SMSceneState.CREATING;
+        if (sceneInfo != null && sceneInfo.getState() == SMSceneState.UNAVAILABLE) {
+            log.warn("SceneManager Stage 场景暂不可进入: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
+                    request.getPlayerId(), request.getTransferId(), sceneInfo.getSceneId(),
+                    mapKey.getMapCfgId(), mapKey.getGroupId());
+            return false;
+        }
         if (!needCreate && !wasCreating) {
             return sendPrepareEnter(sceneInfo, request);
         }
