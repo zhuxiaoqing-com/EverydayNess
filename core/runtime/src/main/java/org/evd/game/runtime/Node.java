@@ -925,6 +925,8 @@ public class Node extends TickCase{
             break;
 
             case CallNodeServicesSync callNodeServicesSync: {
+                // init=true 是主动连接方发来的首次握手。被动方在这里绑定连接并回发 init=false；
+                // 两边随后都通过下面的同步逻辑登记对方的 Service 快照。
                 RemoteNode node = remoteNodes.get(remoteNodePoint);
                 if (node == null) {
                     node = addRemoteNode(remoteNodePoint, callNodeServicesSync.getAddr(), false);
@@ -932,10 +934,7 @@ public class Node extends TickCase{
                 if (callNodeServicesSync.isInit() && !node.onNodeServicesSync_nt(sourceChannel)) {
                     break;
                 }
-                RemoteSession sourceSession = sourceChannel == null
-                        ? null : sourceChannel.getChannel().attr(ServerAttributeKey.remoteSession).get();
-                syncRemoteServices_nt(remoteNodePoint, callNodeServicesSync.getServices(),
-                        sourceSession == null ? -1L : sourceSession.getSessionId());
+                syncRemoteServices_nt(remoteNodePoint, callNodeServicesSync.getServices());
             }
             break;
             case CallPing callPing: {
@@ -1044,13 +1043,10 @@ public class Node extends TickCase{
         refreshAllServiceMap_nt();
     }
 
-    private void syncRemoteServices_nt(CallPoint nodePoint, List<RegisteredService> services, long connectionId) {
+    private void syncRemoteServices_nt(CallPoint nodePoint, List<RegisteredService> services) {
         List<RegisteredService> snapshot = new ArrayList<>(services.size());
         for (RegisteredService service : services) {
             RegisteredService copy = service == null ? null : new RegisteredService(service);
-            if (copy != null) {
-                copy.setConnectionId(connectionId);
-            }
             snapshot.add(copy);
         }
         remoteNodeServices.put(nodePoint, snapshot);
@@ -1058,6 +1054,7 @@ public class Node extends TickCase{
     }
 
     private void sendLocalServicesToRemote_nt(RemoteNode remoteNode) {
+        // 连接已经完成握手，后续本地 Service 变化只发送普通服务同步，不再发送 init=true。
         CallNodeServicesSync call = new CallNodeServicesSync();
         call.from = getNodeCallPoint();
         call.to = remoteNode.getRemoteCallPoint();
@@ -1135,8 +1132,8 @@ public class Node extends TickCase{
             // 重新发现就说明旧的延迟离线记录失效，不必等 Pending 结束再清理。
             RegisteredService offlineService = offlineServices.remove(entry.getKey());
             if (offlineService != null) {
-                LogCore.core.info("Service重新发现，清理延迟离线: node={}, callPoint={}, oldConnectionId={}, newConnectionId={}",
-                        id, entry.getKey(), offlineService.getConnectionId(), currentService.getConnectionId());
+                LogCore.core.info("Service重新发现，清理延迟离线: node={}, callPoint={}",
+                        id, entry.getKey());
             }
             RegisteredService oldService = oldAllServiceMap.get(entry.getKey());
             if (oldService == null) {

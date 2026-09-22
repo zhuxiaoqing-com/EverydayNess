@@ -311,9 +311,19 @@ public class RemoteNode {
         if (!bindChannel(channel)) {
             return;
         }
+        // 主动连接方发送首次握手；对端绑定这条连接后，会回发 init=false 的本地服务快照。
         sendNodeServicesSync(channel, true);
     }
 
+    /**
+     * 处理对端发来的初始服务握手。
+     *
+     * <p>主动连接方在连接建立后发送 init=true，并携带自己的服务快照；
+     * 被动连接方在这里绑定连接，再用 init=false 回发自己的服务快照。
+     * 对端收到这个 init=false 后，双方就都完成了对彼此 Service 的登记。
+     * init=true 只表示首次握手请求，并不是两个 Node 都要各发一次的注册标记；
+     * 后续 Service 变化也统一使用 init=false 做普通同步。</p>
+     */
     public boolean onNodeServicesSync_nt(NetChannel channel) {
         if (channel == null) {
             return false;

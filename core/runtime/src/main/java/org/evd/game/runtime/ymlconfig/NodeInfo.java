@@ -63,6 +63,7 @@ public class NodeInfo {
     }
 
     public static boolean needConnect(NodeInfo localNode, NodeInfo remoteNode) {
+        // 两个 Node 共用一条双向连接；GAME-GAME 按节点 ID 只选一侧主动建连，避免双方都发送 init=true。
         if (localNode.getNodeType() != NodeType.GAME) {
             return false;
         }

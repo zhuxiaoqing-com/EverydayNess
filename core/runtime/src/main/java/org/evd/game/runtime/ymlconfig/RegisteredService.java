@@ -1,11 +1,17 @@
 package org.evd.game.runtime.ymlconfig;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.annotation.serialize.SerializeIgnore;
 import org.evd.game.base.ISerializable;
 import org.evd.game.runtime.call.CallPoint;
 
+@Setter
+@Getter
+@ToString
 @SerializeClass
 public class RegisteredService implements ISerializable {
     private ServiceType serviceType;
@@ -14,6 +20,13 @@ public class RegisteredService implements ISerializable {
     private int platformId;
     private int serverId;
     private int nodeId;
+    /**
+     * Service 所在 Node 与目标 Node 之间的连接 ID。
+     *
+     * 例如：AService 属于 ANode，A → B，
+     * 这里保存的是 ANode 上连接 BNode 的 channelId。
+     */
+    private long channelId;
 
     /** 本地记录的离线时间，不参与服务注册信息序列化。 */
     @SerializeIgnore
@@ -22,10 +35,6 @@ public class RegisteredService implements ISerializable {
     /** 本地记录 Service 进入 Pending 的时间，不参与服务注册信息序列化。 */
     @SerializeIgnore
     private long pendingStartTime;
-
-    /** 本地记录 Service 所属的远程连接 Session，不参与服务注册信息序列化。 */
-    @SerializeIgnore
-    private long connectionId;
 
     @SerializeIgnore
     private CallPoint callPoint;
@@ -48,63 +57,6 @@ public class RegisteredService implements ISerializable {
                 other.platformId, other.serverId, other.nodeId);
         this.offlineMill = other.offlineMill;
         this.pendingStartTime = other.pendingStartTime;
-        this.connectionId = other.connectionId;
-    }
-
-    public ServiceType getServiceType() {
-        return serviceType;
-    }
-
-    public void setServiceType(ServiceType serviceType) {
-        this.serviceType = serviceType;
-    }
-
-    public String getServiceClassName() {
-        return serviceClassName;
-    }
-
-    public void setServiceClassName(String serviceClassName) {
-        this.serviceClassName = serviceClassName;
-    }
-
-    public String getServiceId() {
-        return serviceId;
-    }
-
-    public void setServiceId(String serviceId) {
-        this.serviceId = serviceId;
-    }
-
-    public int getPlatformId() {
-        return platformId;
-    }
-
-    public void setPlatformId(int platformId) {
-        this.platformId = platformId;
-    }
-
-    public int getServerId() {
-        return serverId;
-    }
-
-    public void setServerId(int serverId) {
-        this.serverId = serverId;
-    }
-
-    public int getNodeId() {
-        return nodeId;
-    }
-
-    public void setNodeId(int nodeId) {
-        this.nodeId = nodeId;
-    }
-
-    public long getOfflineMill() {
-        return offlineMill;
-    }
-
-    public void setOfflineMill(long offlineMill) {
-        this.offlineMill = offlineMill;
     }
 
     public CallPoint getCallPoint() {
@@ -114,38 +66,5 @@ public class RegisteredService implements ISerializable {
         return callPoint;
     }
 
-    public void setCallPoint(CallPoint callPoint) {
-        this.callPoint = callPoint;
-    }
 
-
-    public long getPendingStartTime() {
-        return pendingStartTime;
-    }
-
-    public void setPendingStartTime(long pendingStartTime) {
-        this.pendingStartTime = pendingStartTime;
-    }
-
-    public long getConnectionId() {
-        return connectionId;
-    }
-
-    public void setConnectionId(long connectionId) {
-        this.connectionId = connectionId;
-    }
-
-    @Override
-    public String toString() {
-        return "RegisteredService{" +
-                "serviceType=" + serviceType +
-                ", serviceClassName='" + serviceClassName + '\'' +
-                ", serviceId='" + serviceId + '\'' +
-                ", platformId=" + platformId +
-                ", serverId=" + serverId +
-                ", nodeId=" + nodeId +
-                ", callPoint=" + callPoint +
-                ", connectionId=" + connectionId +
-                '}';
-    }
 }

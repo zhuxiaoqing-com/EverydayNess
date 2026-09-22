@@ -101,11 +101,87 @@ Mdb的缓存问题;
         node连接上，
         注册service->用post回调给service;
         service收到以后，进行onReady,先发消息给service,然后通知service自己已经准备好了;
-        新增启动的service也会
+        新增启动的service也会...
+        有问题，回调的话，现在是按照node来的，只要是node新增的service就会回调给其他service,
+        但是新增的service自己不会受到回调的;
+        正常是不是应该新增的service自己会将当前已有的所有service都触发回调一次;
+        然后这个新增的需不需要保存在service里，还是说等onReady以后再保存就好了;service主动发送什么都要从自己的onReady里进行获取发送;
+
+        然后上面的说法的话，离线以后回调到service就直接删除就好了;那个node里的离线超时回调应该没啥用;
+
+        我是为了解决游戏运行中，服务器挂掉了，需要快速启动，快速恢复，如果没有明确的初始化数据交换完毕后，才算是准备完毕，可能会出现初始化数据还没到，这边已经有其他数据给他污染了，
+        比如 错误的恢复流程
+          1.StageManager 重启 内存中的场景数据丢失。 场景注册表为空
+          2.Stage-1 连接成功 开始向 StageManager 上报自己持有的场景，但数据还没到达。
+          3.其他服务器请求创建 sceneId=100  StageManager 查询本地注册表，发现不存在，于是分配给 Stage-2。
+          4.Stage-1 的初始化数据到达 Stage-1 sceneId=100  Stage-2 sceneId=100
+            此时已经出现了两个相同的场景。
+
+          还有一种
+            1.stage向stageManger同步场景数据。
+            2.stage有新的过期的场景数据。
+            3.等ack协议返回，才算数初始化完成。这个时候新的过期场景数据就有丢失了
+
+        如果按我这么说 感觉是不是应该是由stagemanager来callget 所有的数据，然后确定初始化数据都get完了 才能进行通知其他所有服务器，我已经准备好了，但是这个也不太可能呀;
+        感觉我有点死循环了;  因为service 肯定是陆陆续续链接过来的;
+
+        其实我应该管的是某一个service在我这是否已经初始化完毕了
+            我是stageManager
+                stage连接上了，stage给stagemanger发送场景数据，发完stagemaanger就可以确定stage，其已经onReady了
+            我是stage
+                stageManager连接上了，stageManager直接给stage发我已经初始化完毕了，因为我本来就没啥初始化数据要给stage;
+
+            player和loc
+                我是player将哪些玩家在player服务器的数据发给loc,然后发送我已经准备完毕;
+                我是loc loc直接发送已经准备完毕;这里有问题,需要等Player的数据发送完毕才能是算准备完毕;
+
+            这里就有问题了，一个是等数据发送完成再算准备好，一个是等数据收到才算准备好，那其实最好的还是弄个n秒？
+            其实时间到了，准备好，直接按照再抛给每个service让其存储下是不是就行了;
+
+            说弄个初始化协议好像也行?先发送初始化，给每个新的service,每个新的service都确定可以了就，发送初始化完成;
+            完成以后就将service加入自己的service;
+                这样的好处就是不需要等待5秒;
+            数据，应该是在ack里带的，还是说在发送ready里带的
+
+        5秒一次的坏处就是，我不清楚我在你那边是否已经准备好了;我只能知道我在我这边准备好了;
+        req-ack的话，是我请求你是否准备好了，你准备好了就发ack;ack回来我就把他加入准备好集合里;
+        ack的话，我发送ack的时候只是确定我在你那边准备好了，他发ack回来的时候告诉我，他那边准备好了;
+        这个也解决不了我的
+               1.stage向stageManger同步场景数据。
+               2.stage有新的过期的场景数据。
+               3.等ack协议返回，才算数初始化完成。这个时候新的过期场景数据就有丢失了
+         问题,
+         因为我stage跟着ack回stageManager，只是stage在stageManager那边准备好了，
+         但是stageManger还没在我stage这边准备好，我这场景过期了 还是同步不过去呀;
+
+        5秒，好像还有个好处就是，可以有缓冲时间？
+        就改成连接上了，就向目标服务器注册，然后注册以后跟着消息过去，
+        一个是注册以后跟着消息过去;  什么消息可以跟着过去？？？
+        一个是收到注册以后跟着消息过去; 接收方，自己可以发送一些需要增量推送的数据过去;
+    有问题其实，我注册到对方那了，但是对方还没注册过来，会造成单向连接不通;
+        要么也用node那一套，比service大小，谁小谁主动注册，然后给返回注册成功;
+        这个时候就是一起注册的了;
+
+        不能发协议注册，因为node 之间的注册消息，本来就不是同时发生的;-可以发的，因为是单链接;你能发过去，他就能回;就算以后不是单链接也没事，rpc的话正常回包都是在自己的链接上回的;
+
+    player-online
+        1.online->player 这个时候就可以进行分配player了;
+        2.player->online 同时将player的mdb数据发送过去;
+        如果1先, 2后就会出问题;online已经可以分配player了，但是Player的数据还没有同步过去;
+    要么就是req-ackreq-ack这样;
+        然后消息在req ackreq之间同步;
 
 
+  最终决定保留准备状态，然后离线延迟也不删;
+  增加service级别的其他service缓存，map<callpoint,OtherServiceInfo{RegisterService, boolean initDataSync 初始化数据是否同步}>;
+   默认到达准备状态以后，抛给service,然后service将其加入map, service离线的时候没直接将map里的数据删了;
+   然后map会在service里 每秒检测，获取当前时间-service的连上时候>30秒，就进行打error日志，说明数据还没准备好;日志1分钟打印一次就行;
 
+   逻辑其他服务器在我这到达准备状态以后，我就发个消息通知那个服务器，先将需要同步的数据发给对面的服务器，
+   然后通知对面的服务器你在我这已经准备好了，对面服务器受到以后将InitDataSync设置为true;
 
+   现在给RegisterService加了org.evd.game.runtime.ymlconfig.RegisteredService.channelId，每次对端同步node过来的时候都会将channelId，赋值;
+   对端可以通过这个来检测是否正确数据;
 
 
 
