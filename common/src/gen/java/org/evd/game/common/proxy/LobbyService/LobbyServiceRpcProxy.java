@@ -58,7 +58,7 @@ public final class LobbyServiceRpcProxy {
     public SLobbyRoleSnapshot getRole(CallPoint remote, String userId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+            remote = service.getAnyCallPointByType(ServiceType.LOBBY);
         }
         return (SLobbyRoleSnapshot)service.callWait(remote, EnumCall.ENUM_LOBBYSERVICERPC_GETROLE_2, new Object[]{userId});
     }
@@ -70,7 +70,7 @@ public final class LobbyServiceRpcProxy {
     public void playerOnline(CallPoint remote, String userId, long playerId, CallPoint gate, long gateSessionId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+            remote = service.getAnyCallPointByType(ServiceType.LOBBY);
         }
         service.call(remote, EnumCall.ENUM_LOBBYSERVICERPC_PLAYERONLINE_3, new Object[]{userId, playerId, gate, gateSessionId});
     }
@@ -82,7 +82,7 @@ public final class LobbyServiceRpcProxy {
     public SLobbyUserAccessResult validateOrCreateUser(CallPoint remote, String userId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+            remote = service.getAnyCallPointByType(ServiceType.LOBBY);
         }
         return (SLobbyUserAccessResult)service.callWait(remote, EnumCall.ENUM_LOBBYSERVICERPC_VALIDATEORCREATEUSER_4, new Object[]{userId});
     }

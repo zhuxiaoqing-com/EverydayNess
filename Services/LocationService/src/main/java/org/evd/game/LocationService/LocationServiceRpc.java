@@ -3,26 +3,18 @@ package org.evd.game.LocationService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
+import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.call.CallServiceInitDataSync;
-import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
-
-import java.util.List;
 
 /** LocationService 地址和锁 RPC 入口。 */
 @Actor
-@RpcHandler
+@RpcHandler(LocationInterface.class)
 public final class LocationServiceRpc {
     @Rpc
     public void add(ActorId actorId, ActorAddress actorAddress) {
         owner().add(actorId, actorAddress);
-    }
-
-    @Rpc
-    public void addBatch(CallServiceInitDataSync syncData, List<SLocationAddress> addresses) {
-        owner().addBatch(addresses);
     }
 
     @Rpc

@@ -7,7 +7,7 @@ import org.evd.game.StageService.scene.battle.BattleScene;
 import org.evd.game.StageService.scene.movable.BattleRole;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.service.ServiceType;
-import org.evd.game.common.proxy.LocationService.LocationServiceRpcProxy;
+import org.evd.game.common.proxy.LocationService.LocationServiceConnectRpcProxy;
 import org.evd.game.common.proxy.SceneManagerService.SceneManagerServiceConnectRpcProxy;
 import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
@@ -28,8 +28,8 @@ import java.util.Map;
 @Actor
 @Slf4j
 public final class StageServiceConnectLogic {
-    /** LocationService 连接就绪后恢复 StageScene 的 Location 关联。 */
-    public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+    /** 关联 Service 被发现后立即发送 Stage 的初始地图和 ActorAddress 数据。 */
+    public void onServiceConnect(Collection<RegisteredService> serviceList) {
         for (RegisteredService service : serviceList) {
             if (service == null || service.getServiceType() == null) {
                 continue;
@@ -78,7 +78,7 @@ public final class StageServiceConnectLogic {
                     owner().getId(), callPoint);
             return;
         }
-        RpcResult<Void> result = LocationServiceRpcProxy.sendAddBatch(callPoint, CallFactory.buildServiceInitDataSync(locationService), addresses);
+        RpcResult<Void> result = LocationServiceConnectRpcProxy.sendAddBatch(callPoint, CallFactory.buildServiceInitDataSync(locationService), addresses);
         if (!result.isSuccess()) {
             log.error("StageService 重新发送 MapPlayer ActorAddress 失败: service={}, locationService={}, requested={}, errorCode={}, message={}",
                     owner().getId(), callPoint, addresses.size(), result.getErrorCode(), result.getErrorMessage());

@@ -86,7 +86,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         Service service = Service.getCurrent();
         <#if method.autoResolveServiceRoute>
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.${method.serviceTypeName});
+            remote = service.getAnyCallPointByType(ServiceType.${method.serviceTypeName});
         }
         </#if>
         service.call(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
@@ -99,7 +99,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         Service service = Service.getCurrent();
         <#if method.autoResolveServiceRoute>
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.${method.serviceTypeName});
+            remote = service.getAnyCallPointByType(ServiceType.${method.serviceTypeName});
         }
         </#if>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}});
@@ -119,7 +119,7 @@ public final class ${generatedClassName}<#if implementsProxyInterface> implement
         Service service = Service.getCurrent();
         <#if method.autoResolveServiceRoute>
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.${method.serviceTypeName});
+            remote = service.getAnyCallPointByType(ServiceType.${method.serviceTypeName});
         }
         </#if>
         return (${method.returnType})service.callWait(remote, EnumCall.${method.enumCall}, new Object[]{${method.nameParams}}, timeoutMillis);

@@ -76,7 +76,7 @@ public final class MatchRpcProxy {
     public boolean cancel(CallPoint remote, long playerId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.MATCH);
+            remote = service.getAnyCallPointByType(ServiceType.MATCH);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_MATCHRPC_CANCEL_0, new Object[]{playerId});
     }
@@ -88,7 +88,7 @@ public final class MatchRpcProxy {
     public boolean cancelTeam(CallPoint remote, long teamId, long leaderId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.MATCH);
+            remote = service.getAnyCallPointByType(ServiceType.MATCH);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_MATCHRPC_CANCELTEAM_1, new Object[]{teamId, leaderId});
     }
@@ -100,7 +100,7 @@ public final class MatchRpcProxy {
     public int getMatchPlayerNum(CallPoint remote, int matchType, int mapCfgId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.MATCH);
+            remote = service.getAnyCallPointByType(ServiceType.MATCH);
         }
         return (int)service.callWait(remote, EnumCall.ENUM_MATCHRPC_GETMATCHPLAYERNUM_2, new Object[]{matchType, mapCfgId});
     }
@@ -112,7 +112,7 @@ public final class MatchRpcProxy {
     public boolean match(CallPoint remote, SMatchRequest request){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.MATCH);
+            remote = service.getAnyCallPointByType(ServiceType.MATCH);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_MATCHRPC_MATCH_3, new Object[]{request});
     }
@@ -124,7 +124,7 @@ public final class MatchRpcProxy {
     public boolean teamMatch(CallPoint remote, SMatchTeamRequest request){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.MATCH);
+            remote = service.getAnyCallPointByType(ServiceType.MATCH);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_MATCHRPC_TEAMMATCH_4, new Object[]{request});
     }

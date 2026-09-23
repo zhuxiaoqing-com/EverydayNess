@@ -1,15 +1,14 @@
 package org.evd.game.DBService;
 
-import org.evd.game.annotation.actor.RpcService;
+import org.evd.game.annotation.actor.ServiceOwner;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
-import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
 
-@RpcService(DBExecInterface.class)
+@ServiceOwner
 public class DBService extends Service {
     private DBProxy dbProxy;
 

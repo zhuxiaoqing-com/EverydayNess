@@ -64,7 +64,7 @@ public class ActorMailBoxRegistry {
     }
 
     private CallPoint locationServiceRemote() {
-        CallPoint callPoint = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+        CallPoint callPoint = service.getAnyInitDataSyncCallPointByType(ServiceType.LOC);
         if (callPoint == null) {
             throw new IllegalStateException("找不到 LocationService 服务路由: service=" + service.getId());
         }

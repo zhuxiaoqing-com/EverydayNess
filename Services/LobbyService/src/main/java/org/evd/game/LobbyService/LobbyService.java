@@ -69,7 +69,7 @@ public class LobbyService extends Service {
         }
 
      /*   launchCoroutine(() -> {
-            int onlineCount = PlayerServiceProxy.inst().getOnlineCount(node.getAnyCallPointByType(ServiceType.PLAYER));
+            int onlineCount = PlayerServiceProxy.inst().getOnlineCount(getAnyCallPointByType(ServiceType.PLAYER));
         });
 
         launchCoroutine(() -> {

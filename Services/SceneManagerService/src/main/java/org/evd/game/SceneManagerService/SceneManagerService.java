@@ -66,7 +66,7 @@ public class SceneManagerService extends Service {
     /** 定期读取所有 Stage 的地图数量，供 chooseStage 使用缓存。 */
     private void refreshStageMapCounts() {
         Map<CallPoint, Integer> latest = new HashMap<>();
-        for (RegisteredService registeredStage : getNode().getServicesByType(ServiceType.STAGE)) {
+        for (RegisteredService registeredStage : getServicesByType(ServiceType.STAGE)) {
             CallPoint stage = registeredStage.getCallPoint();
             RpcResult<Integer> result = StageServiceRpcProxy.callGetMapCount(stage);
             if (!result.isSuccess() || result.getValue() == null) {
@@ -77,7 +77,7 @@ public class SceneManagerService extends Service {
             latest.put(stage, result.getValue());
         }
         // 拉取地图数量期间会挂起协程，不能把期间断开的 Stage 重新写回候选。
-        latest.keySet().retainAll(getNode().getCallPointByType(ServiceType.STAGE));
+        latest.keySet().retainAll(getCallPointByType(ServiceType.STAGE));
         replaceStageMapCounts(latest);
     }
 
@@ -90,7 +90,7 @@ public class SceneManagerService extends Service {
     }
 
     public CallPoint chooseStage() {
-        List<RegisteredService> stages = new ArrayList<>(getNode().getServicesByType(ServiceType.STAGE));
+        List<RegisteredService> stages = new ArrayList<>(getServicesByType(ServiceType.STAGE));
         if (stages.isEmpty()) {
             throw new SysException("没有可用的 StageService");
         }

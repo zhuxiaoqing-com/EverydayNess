@@ -40,7 +40,7 @@ public final class OnlineServiceConnectRpcProxy {
     public void restoreHistoricalPlayerServices(CallPoint remote, CallServiceInitDataSync syncData, List<String> userIds, CallPoint playerService){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         service.call(remote, EnumCall.ENUM_ONLINESERVICECONNECTRPC_RESTOREHISTORICALPLAYERSERVICES_0, new Object[]{syncData, userIds, playerService});
     }

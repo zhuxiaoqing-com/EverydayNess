@@ -47,7 +47,7 @@ public final class TeamMatchRpcProxy {
     public boolean cancelMatch(CallPoint remote, long teamId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.TEAM);
+            remote = service.getAnyCallPointByType(ServiceType.TEAM);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_TEAMMATCHRPC_CANCELMATCH_0, new Object[]{teamId});
     }
@@ -59,7 +59,7 @@ public final class TeamMatchRpcProxy {
     public void matchResult(CallPoint remote, long teamId, int matchType, boolean success, SMapInfo mapInfo){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.TEAM);
+            remote = service.getAnyCallPointByType(ServiceType.TEAM);
         }
         service.call(remote, EnumCall.ENUM_TEAMMATCHRPC_MATCHRESULT_1, new Object[]{teamId, matchType, success, mapInfo});
     }

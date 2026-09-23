@@ -1,7 +1,7 @@
 package org.evd.game.LocationService;
 
 import org.evd.game.LocationService.disconnect.LocationServiceDisconnectLogic;
-import org.evd.game.annotation.actor.RpcService;
+import org.evd.game.annotation.actor.ServiceOwner;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
@@ -12,7 +12,6 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
-import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
@@ -22,7 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@RpcService(LocationInterface.class)
+@ServiceOwner
 public class LocationService extends Service {
     private static final class LocationEntry {
         private final ActorAddress actorAddress;

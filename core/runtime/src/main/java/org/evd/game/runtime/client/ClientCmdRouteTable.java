@@ -46,7 +46,7 @@ public final class ClientCmdRouteTable {
                         sender.dispatchLocalClientCmd(session, msgId, body);
                         return;
                     }
-                    CallPoint callPoint = sender.getNode().getAnyCallPointByType(ServiceType.byName(serviceClassName));
+                    CallPoint callPoint = sender.getAnyCallPointByType(ServiceType.byName(serviceClassName));
                     if(callPoint == null) {
                         throw new IllegalStateException("找不到客户端协议目标服务: msgId=" + msgId
                                 + ", service=" + serviceClassName);

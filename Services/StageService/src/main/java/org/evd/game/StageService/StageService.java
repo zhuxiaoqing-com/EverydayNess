@@ -30,8 +30,8 @@ public class StageService extends Service {
     }
 
     @Override
-    protected void onServiceConnectReady(Collection<RegisteredService> services) {
-        getActor(StageServiceConnectLogic.class).onServiceConnectReady(services);
+    protected void onServiceConnect(Collection<RegisteredService> services) {
+        getActor(StageServiceConnectLogic.class).onServiceConnect(services);
     }
 
     public ActorAddress registerMapPlayerActor(long playerId) {

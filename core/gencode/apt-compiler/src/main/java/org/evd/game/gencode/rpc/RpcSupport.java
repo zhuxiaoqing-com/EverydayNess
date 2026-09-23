@@ -6,7 +6,6 @@ import freemarker.core.ParseException;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.RpcHandler;
-import org.evd.game.annotation.actor.RpcService;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.gencode.AptUtils;
 import org.evd.game.gencode.GenConst;
@@ -520,11 +519,7 @@ final class RpcSupport {
     }
 
     private ProxyInterfaceMetadata resolveProxyInterface(MethodStruct<Rpc> struct) {
-        TypeElement ownerType = elementUtils.getTypeElement(struct.ownerFullClassName);
-        if (ownerType == null) {
-            return null;
-        }
-        TypeElement proxyInterfaceType = resolveRpcServiceInterface(ownerType);
+        TypeElement proxyInterfaceType = resolveRpcHandlerInterface(struct.getTypeElement());
         if (proxyInterfaceType == null) {
             return null;
         }
@@ -534,13 +529,13 @@ final class RpcSupport {
                 proxyInterfaceType);
     }
 
-    private TypeElement resolveRpcServiceInterface(TypeElement ownerType) {
-        for (var annotationMirror : elementUtils.getAllAnnotationMirrors(ownerType)) {
+    private TypeElement resolveRpcHandlerInterface(TypeElement handlerType) {
+        for (var annotationMirror : elementUtils.getAllAnnotationMirrors(handlerType)) {
             Element annotationElement = annotationMirror.getAnnotationType().asElement();
             if (!(annotationElement instanceof TypeElement annotationType)) {
                 continue;
             }
-            if (!annotationType.getQualifiedName().contentEquals(RpcService.class.getCanonicalName())) {
+            if (!annotationType.getQualifiedName().contentEquals(RpcHandler.class.getCanonicalName())) {
                 continue;
             }
             for (var entry : elementUtils.getElementValuesWithDefaults(annotationMirror).entrySet()) {
@@ -549,17 +544,17 @@ final class RpcSupport {
                 }
                 Object value = entry.getValue().getValue();
                 if (!(value instanceof TypeMirror typeMirror)) {
-                    throw new IllegalStateException("@RpcService value 不是合法类型: " + ownerType.getQualifiedName());
+                    throw new IllegalStateException("@RpcHandler value 不是合法类型: " + handlerType.getQualifiedName());
                 }
                 if (typeMirror.getKind() == TypeKind.VOID) {
                     return null;
                 }
                 Element interfaceElement = typeUtils.asElement(typeMirror);
                 if (!(interfaceElement instanceof TypeElement interfaceType)) {
-                    throw new IllegalStateException("@RpcService value 不是 TypeElement: " + ownerType.getQualifiedName());
+                    throw new IllegalStateException("@RpcHandler value 不是 TypeElement: " + handlerType.getQualifiedName());
                 }
                 if (interfaceType.getKind() != ElementKind.INTERFACE) {
-                    throw new IllegalStateException("@RpcService 要求配置 interface，实际是: "
+                    throw new IllegalStateException("@RpcHandler 要求配置 interface，实际是: "
                             + interfaceType.getQualifiedName());
                 }
                 return interfaceType;

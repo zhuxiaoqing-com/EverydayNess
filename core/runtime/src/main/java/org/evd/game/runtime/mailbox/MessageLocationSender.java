@@ -7,7 +7,6 @@ import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.MessageSender;
-import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
@@ -66,8 +65,7 @@ public class MessageLocationSender {
     }
 
     private org.evd.game.runtime.call.CallPoint locationServiceRemote() {
-        Node node = Service.getCurrent().getNode();
-        CallPoint callPoint = node.getAnyCallPointByType(ServiceType.LOC);
+        CallPoint callPoint = requireOwnerService().getAnyCallPointByType(ServiceType.LOC);
         if (callPoint == null) {
             throw new IllegalStateException(
                     "找不到 LocationService 服务路由: org.evd.game.LocationService.LocationService");

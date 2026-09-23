@@ -57,7 +57,7 @@ public final class OnlineLoginRpcProxy {
     public SOnlineLoginAdmission admitLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (SOnlineLoginAdmission)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_ADMITLOGIN_1, new Object[]{userId, requestGate, requestSessionId});
     }
@@ -69,7 +69,7 @@ public final class OnlineLoginRpcProxy {
     public boolean cancelPendingSession(CallPoint remote, String userId, String token){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINELOGINRPC_CANCELPENDINGSESSION_2, new Object[]{userId, token});
     }
@@ -81,7 +81,7 @@ public final class OnlineLoginRpcProxy {
     public void cancelQueuedLogin(CallPoint remote, String userId, CallPoint requestGate, long requestSessionId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         service.call(remote, EnumCall.ENUM_ONLINELOGINRPC_CANCELQUEUEDLOGIN_3, new Object[]{userId, requestGate, requestSessionId});
     }

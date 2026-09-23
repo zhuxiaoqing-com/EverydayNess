@@ -49,7 +49,7 @@ public final class ConnLoginLogic {
         }
         LogCore.core.info("ConnService 收到首段登录: service={}, sessionId={}, userId={} ",
                 owner.getId(), session.getSessionId(), userId);
-        CallPoint sdkRemote = owner.getNode().getAnyCallPointByType(ServiceType.SDK);
+        CallPoint sdkRemote = owner.getAnyCallPointByType(ServiceType.SDK);
         if (sdkRemote == null) {
             reject(owner, session, userId, "SdkService 未配置", true);
             return;

@@ -3,13 +3,14 @@ package org.evd.game.DBService;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
+import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Service;
 
 /** DBService 数据库执行 RPC 入口。 */
 @Actor
-@RpcHandler
+@RpcHandler(DBExecInterface.class)
 public final class DBServiceRpc {
     @Rpc
     public DBRsp dbExec(DBReq dbReq) {

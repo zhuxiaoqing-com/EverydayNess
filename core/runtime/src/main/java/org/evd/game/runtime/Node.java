@@ -3,7 +3,6 @@ package org.evd.game.runtime;
 import io.netty.buffer.ByteBuf;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.node.NodeType;
-import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.call.*;
 import org.evd.game.runtime.ymlconfig.NodeInfo;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
@@ -20,7 +19,6 @@ import org.evd.game.runtime.support.RpcErrorCodes;
 import org.evd.game.runtime.support.exception.InboundBusinessException;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
 import org.evd.game.runtime.support.exception.SysException;
-import org.evd.game.runtime.util.RuntimeUtils;
 import org.evd.game.runtime.util.id.SceneIdGenerator;
 import org.evd.game.runtime.util.id.SnowflakeIdGenerator;
 
@@ -52,9 +50,6 @@ public class Node extends TickCase{
     private final ConcurrentHashMap<CallPoint, List<RegisteredService>> remoteNodeServices = new ConcurrentHashMap<>();
     /** 当前所有已发现的 Service，仅由 Node 线程访问。 */
     private volatile Map<CallPoint, RegisteredService> allServiceMap = new HashMap<>();
-    /** serviceType -> services缓存 */
-    private volatile Map<ServiceType, List<RegisteredService>> type2ServiceMap = new HashMap<>();
-    private volatile Map<ServiceType, List<CallPoint>> type2CallMap = new HashMap<>();
     /** 地址 */
     private final String addr;
     private final NodeInfo nodeInfo;
@@ -447,8 +442,6 @@ public class Node extends TickCase{
         remoteNodes.clear();
         remoteNodeServices.clear();
         allServiceMap = Map.of();
-        type2ServiceMap = Map.of();
-        type2CallMap = Map.of();
         channelManager.clear();
 
         // JVM 退出由 Bootstrap 或 requestJvmShutdown 负责；Node 这里只完成资源收尾。
@@ -1004,7 +997,7 @@ public class Node extends TickCase{
                     id, call.to.servId, call);
             return;
         }
-        service.post(() -> service.onOtherServiceInitDataSync_nt(call));
+        service.post(() -> service.servicePeerRegistry.onInitDataSync(call));
     }
 
     private void sendLocalServicesToRemote_nt(RemoteNode remoteNode) {
@@ -1106,35 +1099,8 @@ public class Node extends TickCase{
         }
 
         allServiceMap = newAllServiceMap;
-        rebuildServiceRouteMaps_nt();
-
         notifyServiceDisconnectEvent_nt(removeList);
         notifyServiceConnectEvent_nt(addList);
-    }
-
-    /** 从当前所有已注册 Service 中构建正式路由索引。 */
-    private void rebuildServiceRouteMaps_nt() {
-        Map<ServiceType, List<RegisteredService>> tempType2ServiceMap = new HashMap<>();
-        Map<ServiceType, List<CallPoint>> tempType2CallMap = new HashMap<>();
-        for (RegisteredService service : allServiceMap.values()) {
-            tempType2ServiceMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
-                    .add(new RegisteredService(service));
-            tempType2CallMap.computeIfAbsent(service.getServiceType(), key -> new ArrayList<>())
-                    .add(service.getCallPoint());
-        }
-        for (List<RegisteredService> services : tempType2ServiceMap.values()) {
-            services.sort(Comparator.comparing(RegisteredService::getNodeId)
-                    .thenComparing(RegisteredService::getServiceId));
-        }
-        for (List<CallPoint> value : tempType2CallMap.values()) {
-            value.sort(Comparator.comparing(CallPoint::getPlatformId)
-                    .thenComparing(CallPoint::getServerId)
-                    .thenComparing(CallPoint::getNodeId)
-                    .thenComparing(CallPoint::getServId));
-        }
-
-        type2ServiceMap = RuntimeUtils.convertModifyListMap(tempType2ServiceMap);
-        type2CallMap = RuntimeUtils.convertModifyListMap(tempType2CallMap);
     }
 
     private void notifyServiceDisconnectEvent_nt(Collection<RegisteredService> serviceList) {
@@ -1207,20 +1173,11 @@ public class Node extends TickCase{
         }
     }
 
-    public List<RegisteredService> getServicesByType(ServiceType serviceType) {
-        return type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
-    }
-
     /** 返回当前注册快照中的 Service。 */
     public RegisteredService getRegisteredService(CallPoint callPoint) {
         RegisteredService registeredService = callPoint == null ? null : allServiceMap.get(callPoint);
         return registeredService == null ? null : new RegisteredService(registeredService);
     }
-
-    public List<CallPoint> getCallPointByType(ServiceType serviceType) {
-        return type2CallMap.getOrDefault(serviceType, Collections.emptyList());
-    }
-
 
     public long getRemoteSessionId(CallPoint serviceCallPoint) {
         if (serviceCallPoint == null || isLocalNode(serviceCallPoint)) {
@@ -1228,11 +1185,6 @@ public class Node extends TickCase{
         }
         RemoteNode remoteNode = remoteNodes.get(serviceCallPoint.nodePoint());
         return remoteNode == null ? -1L : remoteNode.getCurrentSessionId();
-    }
-
-    public CallPoint getAnyCallPointByType(ServiceType serviceType) {
-        List<RegisteredService> registeredServices = type2ServiceMap.getOrDefault(serviceType,Collections.emptyList());
-        return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
     }
 
     public ConcurrentHashMap<Object, Service> getServices() {

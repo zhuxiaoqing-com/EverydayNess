@@ -93,7 +93,7 @@ public final class OnlineSessionRpcProxy {
     public boolean cacheStageActorAddress(CallPoint remote, long playerId, ActorAddress stageActorAddress){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CACHESTAGEACTORADDRESS_8, new Object[]{playerId, stageActorAddress});
     }
@@ -105,7 +105,7 @@ public final class OnlineSessionRpcProxy {
     public boolean clearPlayerService(CallPoint remote, String userId, CallPoint gate, long gateSessionId, CallPoint expectedPlayerService){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CLEARPLAYERSERVICE_9, new Object[]{userId, gate, gateSessionId, expectedPlayerService});
     }
@@ -117,7 +117,7 @@ public final class OnlineSessionRpcProxy {
     public CallPoint clearSession(CallPoint remote, String userId, CallPoint gate, long sessionId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (CallPoint)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_CLEARSESSION_10, new Object[]{userId, gate, sessionId});
     }
@@ -129,7 +129,7 @@ public final class OnlineSessionRpcProxy {
     public SOnlineUserState getUserState(CallPoint remote, String userId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (SOnlineUserState)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_GETUSERSTATE_11, new Object[]{userId});
     }
@@ -141,7 +141,7 @@ public final class OnlineSessionRpcProxy {
     public boolean isPlayerOffline(CallPoint remote, String userId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_ONLINESESSIONRPC_ISPLAYEROFFLINE_12, new Object[]{userId});
     }
@@ -153,7 +153,7 @@ public final class OnlineSessionRpcProxy {
     public void removeHistoricalPlayerService(CallPoint remote, String userId, CallPoint expectedPlayerService){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         service.call(remote, EnumCall.ENUM_ONLINESESSIONRPC_REMOVEHISTORICALPLAYERSERVICE_13, new Object[]{userId, expectedPlayerService});
     }
@@ -165,7 +165,7 @@ public final class OnlineSessionRpcProxy {
     public void removeStageActorAddress(CallPoint remote, long playerId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         service.call(remote, EnumCall.ENUM_ONLINESESSIONRPC_REMOVESTAGEACTORADDRESS_14, new Object[]{playerId});
     }

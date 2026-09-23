@@ -38,7 +38,7 @@ public final class TeamOfflineRpcProxy {
     public void onPlayerOffline(CallPoint remote, long playerId, CallPoint playerService){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.TEAM);
+            remote = service.getAnyCallPointByType(ServiceType.TEAM);
         }
         service.call(remote, EnumCall.ENUM_TEAMOFFLINERPC_ONPLAYEROFFLINE_2, new Object[]{playerId, playerService});
     }

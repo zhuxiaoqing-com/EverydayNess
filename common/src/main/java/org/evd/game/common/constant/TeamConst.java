@@ -10,6 +10,6 @@ public final class TeamConst {
     }
 
     public static CallPoint getTeamCallPoint() {
-        return Service.getCurrent().getNode().getAnyCallPointByType(ServiceType.TEAM);
+        return Service.getCurrent().getAnyCallPointByType(ServiceType.TEAM);
     }
 }

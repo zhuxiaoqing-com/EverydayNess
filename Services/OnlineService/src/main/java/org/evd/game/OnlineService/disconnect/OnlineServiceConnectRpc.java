@@ -19,6 +19,9 @@ public final class OnlineServiceConnectRpc {
             CallServiceInitDataSync syncData,
             List<String> userIds,
             CallPoint playerService) {
+        if (!Service.checkSyncValid(syncData, "restoreHistoricalPlayerServices")) {
+            return;
+        }
         logic().restoreHistoricalPlayerServices(userIds, playerService);
     }
 

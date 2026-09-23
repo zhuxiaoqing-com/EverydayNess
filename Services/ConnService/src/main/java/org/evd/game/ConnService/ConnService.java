@@ -60,8 +60,8 @@ public class ConnService extends Service {
     }
 
     @Override
-    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
-        getActor(ConnServiceConnectLogic.class).onServiceConnectReady(serviceList);
+    protected void onServiceConnect(Collection<RegisteredService> serviceList) {
+        getActor(ConnServiceConnectLogic.class).onServiceConnect(serviceList);
     }
 
     /** 在 GW 注册玩家 mailbox，并将其 ActorAddress 发布到全局 LocationService。 */

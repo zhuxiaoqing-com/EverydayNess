@@ -48,7 +48,7 @@ public final class LobbyRoleRpcProxy {
     public void createRole(CallPoint remote, ClientSessionRef session, C2S_CreateRole request){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+            remote = service.getAnyCallPointByType(ServiceType.LOBBY);
         }
         service.call(remote, EnumCall.ENUM_LOBBYROLERPC_CREATEROLE_0, new Object[]{session, request});
     }
@@ -60,7 +60,7 @@ public final class LobbyRoleRpcProxy {
     public void roleList(CallPoint remote, CallPoint gate, long gateSessionId, String userId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+            remote = service.getAnyCallPointByType(ServiceType.LOBBY);
         }
         service.call(remote, EnumCall.ENUM_LOBBYROLERPC_ROLELIST_1, new Object[]{gate, gateSessionId, userId});
     }

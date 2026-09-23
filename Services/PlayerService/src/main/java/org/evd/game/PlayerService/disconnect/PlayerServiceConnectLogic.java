@@ -4,7 +4,7 @@ import org.evd.game.PlayerService.PlayerService;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.service.ServiceType;
-import org.evd.game.common.proxy.LocationService.LocationServiceRpcProxy;
+import org.evd.game.common.proxy.LocationService.LocationServiceConnectRpcProxy;
 import org.evd.game.common.proxy.OnlineService.OnlineServiceConnectRpcProxy;
 import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 import org.evd.game.runtime.Service;
@@ -19,42 +19,20 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-/** PlayerService 关联服务连接就绪后的本地恢复逻辑。 */
+/** PlayerService 关联服务连接后的初始化数据同步逻辑。 */
 @Actor
 public final class PlayerServiceConnectLogic {
 
     public void onServiceConnect(Collection<RegisteredService> serviceList) {
         for (RegisteredService service : serviceList) {
-            if (service == null) {
-                continue;
-            }
-            switch (service.getServiceType()) {
-                /*
-                 * 这个应该在 onServiceConnect里,如果在onServiceConnectReady里，就可能会有我这边还没将玩家数据恢复过去,就造成该玩家被分配到其他playerService;
-                 * 这个情况会在Online服务器挂掉的时候出现，如果online没挂掉，倒是没问题，因为Online本身就有player->playerService的缓存
-                 */
-                case ONLINE -> restoreOnlineHistoricalBindings(service);
-                default -> {
-                }
+            if (service != null && service.getServiceType() == ServiceType.ONLINE) {
+                // 在线玩家历史绑定必须早于新 PlayerService 的负载分配。
+                restoreOnlineHistoricalBindings(service);
             }
         }
-    }
-
-    /** Location 和 Online 进入正式路由后，恢复本 PlayerService 的关联状态。 */
-    public void onServiceConnectReady(Collection<RegisteredService> serviceList) {
         for (RegisteredService service : serviceList) {
-            if (service == null) {
-                continue;
-            }
-            switch (service.getServiceType()) {
-                /*
-                    这个需要在onServiceConnectReady，如果在onServiceConnect的话，
-                    会有我恢复了，但是在 onServiceConnect和onServiceConnectReady 期间，因为service还不算连接，所以消息发送还是会失败;
-                    但是如果是在onServiceConnectReady，这边发送是线性的，这里发送以后，后面的Loc也会一起发送;
-                  */
-                case LOC -> restoreLocationAddresses(service);
-                default -> {
-                }
+            if (service != null && service.getServiceType() == ServiceType.LOC) {
+                restoreLocationAddresses(service);
             }
         }
     }
@@ -80,7 +58,7 @@ public final class PlayerServiceConnectLogic {
             LogCore.core.info("PlayerService 批量发送 Player ActorAddress: service={}, locationService={}, actorId={}, actorAddress={}",
                     owner.getId(), locationService.getCallPoint(), address.getActorId(), address.getActorAddress());
         }
-        RpcResult<Void> result = LocationServiceRpcProxy.sendAddBatch(locationService.getCallPoint(), CallFactory.buildServiceInitDataSync(locationService), addresses);
+        RpcResult<Void> result = LocationServiceConnectRpcProxy.sendAddBatch(locationService.getCallPoint(), CallFactory.buildServiceInitDataSync(locationService), addresses);
         if (!result.isSuccess()) {
             LogCore.core.warn("PlayerService 批量重新发送 Player ActorAddress 失败: service={}, locationService={}, requested={}, errorCode={}, message={}",
                     owner.getId(), locationService.getCallPoint(), addresses.size(),

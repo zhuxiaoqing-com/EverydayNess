@@ -80,7 +80,7 @@ public final class SceneManagerRpcProxy {
     public SMapInfo createScene(CallPoint remote, SMapCreateRequest request){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
+            remote = service.getAnyCallPointByType(ServiceType.SCENE_MANAGER);
         }
         return (SMapInfo)service.callWait(remote, EnumCall.ENUM_SCENEMANAGERRPC_CREATESCENE_0, new Object[]{request});
     }
@@ -92,7 +92,7 @@ public final class SceneManagerRpcProxy {
     public boolean enterMap(CallPoint remote, PlayerEnterRequest request){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
+            remote = service.getAnyCallPointByType(ServiceType.SCENE_MANAGER);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_SCENEMANAGERRPC_ENTERMAP_1, new Object[]{request});
     }
@@ -104,7 +104,7 @@ public final class SceneManagerRpcProxy {
     public boolean exitMap(CallPoint remote, SMapInfo mapInfo, long playerId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
+            remote = service.getAnyCallPointByType(ServiceType.SCENE_MANAGER);
         }
         return (boolean)service.callWait(remote, EnumCall.ENUM_SCENEMANAGERRPC_EXITMAP_2, new Object[]{mapInfo, playerId});
     }
@@ -117,7 +117,7 @@ public final class SceneManagerRpcProxy {
     public List<SRunningMapInfo> getRunningMaps(CallPoint remote, int mapCfgId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
+            remote = service.getAnyCallPointByType(ServiceType.SCENE_MANAGER);
         }
         return (List<SRunningMapInfo>)service.callWait(remote, EnumCall.ENUM_SCENEMANAGERRPC_GETRUNNINGMAPS_3, new Object[]{mapCfgId});
     }
@@ -129,7 +129,7 @@ public final class SceneManagerRpcProxy {
     public CallPoint getSceneStage(CallPoint remote, long sceneId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
+            remote = service.getAnyCallPointByType(ServiceType.SCENE_MANAGER);
         }
         return (CallPoint)service.callWait(remote, EnumCall.ENUM_SCENEMANAGERRPC_GETSCENESTAGE_4, new Object[]{sceneId});
     }

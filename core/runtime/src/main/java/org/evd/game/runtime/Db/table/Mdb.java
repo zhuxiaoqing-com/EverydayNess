@@ -518,7 +518,7 @@ public class Mdb {
         if (service.getNode().hasNodeDbExecutor()) {
             return List.of(service.getNode().getNodeDbCallPoint());
         }
-        return service.getNode().getCallPointByType(ServiceType.DB);
+        return service.getCallPointByType(ServiceType.DB);
     }
 
 }

@@ -7,9 +7,6 @@ import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.rpcProxyInterface.LocationInterface;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.actor.ActorAddress;
-import org.evd.game.runtime.call.CallServiceInitDataSync;
-import java.util.List;
-import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 
 /**
 * 根据LocationServiceRpcService生成的代理类
@@ -27,11 +24,10 @@ public final class LocationServiceRpcProxy implements LocationInterface {
 
     public final static class EnumCall{
         public final static int ENUM_LOCATIONSERVICERPC_ADD_0 = 0;
-        public final static int ENUM_LOCATIONSERVICERPC_ADDBATCH_1 = 1;
-        public final static int ENUM_LOCATIONSERVICERPC_GET_2 = 2;
-        public final static int ENUM_LOCATIONSERVICERPC_LOCK_3 = 3;
-        public final static int ENUM_LOCATIONSERVICERPC_REMOVE_4 = 4;
-        public final static int ENUM_LOCATIONSERVICERPC_UNLOCK_5 = 5;
+        public final static int ENUM_LOCATIONSERVICERPC_GET_1 = 1;
+        public final static int ENUM_LOCATIONSERVICERPC_LOCK_2 = 2;
+        public final static int ENUM_LOCATIONSERVICERPC_REMOVE_3 = 3;
+        public final static int ENUM_LOCATIONSERVICERPC_UNLOCK_4 = 4;
     }
 
     /**
@@ -39,13 +35,6 @@ public final class LocationServiceRpcProxy implements LocationInterface {
     */
     public static RpcResult<Void> sendAdd(CallPoint remote, ActorId actorId, ActorAddress actorAddress){
         return RpcResult.run(() -> inst().add(remote, actorId, actorAddress));
-    }
-
-    /**
-    * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
-    */
-    public static RpcResult<Void> sendAddBatch(CallPoint remote, CallServiceInitDataSync syncData, List<SLocationAddress> addresses){
-        return RpcResult.run(() -> inst().addBatch(remote, syncData, addresses));
     }
 
     /**
@@ -84,21 +73,9 @@ public final class LocationServiceRpcProxy implements LocationInterface {
     public void add(CallPoint remote, ActorId actorId, ActorAddress actorAddress){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+            remote = service.getAnyCallPointByType(ServiceType.LOC);
         }
         service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_ADD_0, new Object[]{actorId, actorAddress});
-    }
-
-
-    /**
-    * 对应源方法: org.evd.game.LocationService.LocationServiceRpc#addBatch()
-    */
-    public void addBatch(CallPoint remote, CallServiceInitDataSync syncData, List<SLocationAddress> addresses){
-        Service service = Service.getCurrent();
-        if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
-        }
-        service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_ADDBATCH_1, new Object[]{syncData, addresses});
     }
 
 
@@ -108,9 +85,9 @@ public final class LocationServiceRpcProxy implements LocationInterface {
     public ActorAddress get(CallPoint remote, ActorId actorId){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+            remote = service.getAnyCallPointByType(ServiceType.LOC);
         }
-        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_LOCATIONSERVICERPC_GET_2, new Object[]{actorId});
+        return (ActorAddress)service.callWait(remote, EnumCall.ENUM_LOCATIONSERVICERPC_GET_1, new Object[]{actorId});
     }
 
 
@@ -120,9 +97,9 @@ public final class LocationServiceRpcProxy implements LocationInterface {
     public void lock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, int timeMillis){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+            remote = service.getAnyCallPointByType(ServiceType.LOC);
         }
-        service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_LOCK_3, new Object[]{actorId, oldActorAddress, timeMillis});
+        service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_LOCK_2, new Object[]{actorId, oldActorAddress, timeMillis});
     }
 
 
@@ -132,9 +109,9 @@ public final class LocationServiceRpcProxy implements LocationInterface {
     public void remove(CallPoint remote, ActorId actorId, ActorAddress expectedActorAddress){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+            remote = service.getAnyCallPointByType(ServiceType.LOC);
         }
-        service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_REMOVE_4, new Object[]{actorId, expectedActorAddress});
+        service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_REMOVE_3, new Object[]{actorId, expectedActorAddress});
     }
 
 
@@ -144,9 +121,9 @@ public final class LocationServiceRpcProxy implements LocationInterface {
     public void unlock(CallPoint remote, ActorId actorId, ActorAddress oldActorAddress, ActorAddress newActorAddress){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.LOC);
+            remote = service.getAnyCallPointByType(ServiceType.LOC);
         }
-        service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_UNLOCK_5, new Object[]{actorId, oldActorAddress, newActorAddress});
+        service.call(remote, EnumCall.ENUM_LOCATIONSERVICERPC_UNLOCK_4, new Object[]{actorId, oldActorAddress, newActorAddress});
     }
 
 

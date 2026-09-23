@@ -38,7 +38,7 @@ public final class OnlineOfflineRpcProxy {
     public void onSessionOffline(CallPoint remote, String userId, long playerId, CallPoint gate, long gateSessionId, int brokenTypeCode){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         service.call(remote, EnumCall.ENUM_ONLINEOFFLINERPC_ONSESSIONOFFLINE_5, new Object[]{userId, playerId, gate, gateSessionId, brokenTypeCode});
     }

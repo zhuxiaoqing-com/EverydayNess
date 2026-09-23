@@ -208,7 +208,7 @@ public class Service extends TickCase {
     /** 本次 Service 启动实例的唯一身份；Service 重启后必须变化。 */
     private final long serviceInstanceId = SceneIdGenerator.nextId();
     /** 其他 Service 的连接和初始化数据同步状态。 */
-    private final OtherServiceRegistry otherServiceRegistry;
+    public final ServicePeerRegistry servicePeerRegistry;
     Mdb mdb;
 
     public Service(Node node, String name, String scheduledName, long tickInterval, ServiceInfo serviceInfo) {
@@ -217,7 +217,7 @@ public class Service extends TickCase {
         this.scheduledName = scheduledName;
         this.scope = new ContinuationScope(name);
         this.callPoint = node.getCallPoint(name);
-        this.otherServiceRegistry = new OtherServiceRegistry(this);
+        this.servicePeerRegistry = new ServicePeerRegistry(this);
         this.callTransport = new CallTransport(node, this, timerScheduler);
         this.messageSender = new MessageSender(this);
         this.processInnerSender = new ProcessInnerSender(this);
@@ -281,7 +281,7 @@ public class Service extends TickCase {
          * 而且一般rpc操作也都是要等onServiceConnect上来以后才进行的吧; 直接rpc也没service给你访问呀;
          */
         init();
-        otherServiceRegistry.start();
+        servicePeerRegistry.start();
 
         // 直接在这里标识,目前看没什么问题
         node.attachToNode(this);
@@ -915,6 +915,11 @@ public class Service extends TickCase {
         return messageLocationSender;
     }
 
+    public static boolean checkSyncValid(CallServiceInitDataSync call, String reason) {
+        Service current = Service.getCurrent();
+        return current.servicePeerRegistry.checkSyncValid(call, reason);
+    }
+
     /**
      * 关服逻辑要写这里，等这个方法结束就结束，协程运行
      */
@@ -990,61 +995,75 @@ public class Service extends TickCase {
         return true;
     }
 
-    /**
-     * 发现新的 Service，可能包含自己；此时 Service 还没有进入正式路由索引。
-     *
-     * <p>Node 只调用带下划线的生命周期入口，保证 Service 的公共处理一定执行，
-     * 再通过不带下划线的方法分发给子类。</p>
-     */
+    /** Node 发现其他 Service 后，同步本地状态并发送本 Service 的初始化数据完成标记。 */
     protected final void _onServiceConnect(Collection<RegisteredService> serviceList) {
-        otherServiceRegistry.onServiceConnect(serviceList);
-        onServiceConnect(serviceList);
+        servicePeerRegistry.onServiceConnect(serviceList);
+        try {
+            onServiceConnect(serviceList);
+        } catch (RuntimeException e) {
+            LogCore.core.error("处理Service连接回调失败: service={}, serviceList={}", id, serviceList, e);
+        }
+        servicePeerRegistry.sendInitDataSync(serviceList);
     }
 
     /** 子类处理新的 Service 发现事件。 */
     protected void onServiceConnect(Collection<RegisteredService> serviceList) {
     }
 
-    /** 其他 Service 已结束稳定等待并进入通信 Ready。 */
-    void onServiceConnectReady_nt(Collection<RegisteredService> serviceList) {
-        if (mdb != null) {
-            mdb.connectService(serviceList);
+    /** 对端初始化数据同步完成后执行本 Service 的扩展处理和 MDB 路由更新。 */
+    protected final void _onServiceInitDataSync(RegisteredService sourceService) {
+        try {
+            onServiceInitDataSync(sourceService);
+        } catch (RuntimeException e) {
+            LogCore.core.error("处理Service初始化数据同步回调失败: service={}, sourceService={}", id, sourceService, e);
         }
-        onServiceConnectReady(serviceList);
-        otherServiceRegistry.sendInitDataSync(serviceList);
-    }
-
-    /** 子类处理已经进入正式路由的 Service。 */
-    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
+        if (mdb != null) {
+            mdb.connectService(List.of(sourceService));
+        }
     }
 
     /**
      * 对端发来的初始化同步标记已经按本 Service 队列应用完成后调用。
-     * 业务层如果有独立的入站初始化动作，可在这里执行；抛出异常时不会标记同步完成。
+     * 业务层如果有独立的入站初始化动作，可在这里执行；
      */
     protected void onServiceInitDataSync(RegisteredService sourceService) {
     }
 
     /** Service 从最新注册快照消失，可能包含自己。 */
     protected final void _onServiceDisconnect(Collection<RegisteredService> serviceList) {
-        otherServiceRegistry.onServiceDisconnect(serviceList);
+        servicePeerRegistry.onServiceDisconnect(serviceList);
         if (mdb != null) {
             mdb.disconnectService(serviceList);
         }
-        onServiceDisconnect(serviceList);
+        try {
+            onServiceDisconnect(serviceList);
+        } catch (RuntimeException e) {
+            LogCore.core.error("处理Service断开回调失败: service={}, serviceList={}", id, serviceList, e);
+        }
     }
 
     /** 子类处理 Service 断开事件。 */
     protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
     }
 
-    /** 返回本 Service 当前缓存的其他 Service 初始化同步状态。 */
-    public Map<CallPoint, OtherServiceInfo> getOtherServiceMap() {
-        return otherServiceRegistry.getOtherServiceMap();
+    /** 返回本 Service 已完成初始化数据同步的同类型 Service。 */
+    public List<RegisteredService> getServicesByType(ServiceType serviceType) {
+        return servicePeerRegistry.getServicesByType(serviceType);
     }
 
-    void onOtherServiceInitDataSync_nt(CallServiceInitDataSync call) {
-        otherServiceRegistry.onInitDataSync(call);
+    /** 返回本 Service 已完成初始化数据同步的同类型 Service 调用点。 */
+    public List<CallPoint> getCallPointByType(ServiceType serviceType) {
+        return servicePeerRegistry.getCallPointByType(serviceType);
+    }
+
+    /** 返回本 Service 已完成初始化数据同步的任一同类型 Service 调用点。 */
+    public CallPoint getAnyCallPointByType(ServiceType serviceType) {
+        return servicePeerRegistry.getAnyCallPointByType(serviceType);
+    }
+
+    /** 初始化和增量数据同步使用；普通业务消息必须通过 initData 路由索引。 */
+    public CallPoint getAnyInitDataSyncCallPointByType(ServiceType serviceType) {
+        return servicePeerRegistry.getAnyInitDataSyncCallPointByType(serviceType);
     }
 
     @Override

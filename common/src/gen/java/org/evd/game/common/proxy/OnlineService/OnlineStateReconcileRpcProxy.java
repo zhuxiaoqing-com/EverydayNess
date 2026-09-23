@@ -53,7 +53,7 @@ public final class OnlineStateReconcileRpcProxy {
     public List<SConnStateCheck> reconcileConnSessions(CallPoint remote, CallPoint connService, Map<String,SConnStateCheck> entries){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (List<SConnStateCheck>)service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILECONNSESSIONS_6, new Object[]{connService, entries});
     }
@@ -65,7 +65,7 @@ public final class OnlineStateReconcileRpcProxy {
     public SPlayerStateCheck[] reconcilePlayerSessions(CallPoint remote, CallPoint playerService, List<SPlayerStateCheck> entries){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         return (SPlayerStateCheck[])service.callWait(remote, EnumCall.ENUM_ONLINESTATERECONCILERPC_RECONCILEPLAYERSESSIONS_7, new Object[]{playerService, entries});
     }

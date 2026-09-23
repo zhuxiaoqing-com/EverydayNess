@@ -73,11 +73,6 @@ public class PlayerService extends Service {
         getActor(PlayerServiceConnectLogic.class).onServiceConnect(serviceList);
     }
 
-    @Override
-    protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
-        getActor(PlayerServiceConnectLogic.class).onServiceConnectReady(serviceList);
-    }
-
     /** 返回玩家会话状态，供登录和离线逻辑共同使用。 */
     public PlayerSessionManager sessionManager() {
         return sessionManager;

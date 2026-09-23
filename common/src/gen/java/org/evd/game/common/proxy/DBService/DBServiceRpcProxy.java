@@ -41,7 +41,7 @@ public final class DBServiceRpcProxy implements DBExecInterface {
     public DBRsp dbExec(CallPoint remote, DBReq dbReq){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.DB);
+            remote = service.getAnyCallPointByType(ServiceType.DB);
         }
         return (DBRsp)service.callWait(remote, EnumCall.ENUM_DBSERVICERPC_DBEXEC_0, new Object[]{dbReq});
     }

@@ -107,7 +107,7 @@ public final class OnlineRoutingLogic {
 
     private void refreshConnLoads() {
         Map<CallPoint, ConnLoad> latest = new HashMap<>();
-        for (RegisteredService service : owner().getNode().getServicesByType(ServiceType.CONN)) {
+        for (RegisteredService service : owner().getServicesByType(ServiceType.CONN)) {
             CallPoint callPoint = service.getCallPoint();
             RpcResult<String> publicAddrResult = ConnServiceRpcProxy.callGetPublicAddr(callPoint);
             RpcResult<Integer> loginCountResult = ConnServiceRpcProxy.callGetLoginSessionCount(callPoint);
@@ -124,14 +124,14 @@ public final class OnlineRoutingLogic {
             latest.put(callPoint, new ConnLoad(publicAddr, loginCountResult.getValue()));
         }
         // 拉取负载期间会挂起协程，不能把期间断开的服务重新写回候选。
-        latest.keySet().retainAll(owner().getNode().getCallPointByType(ServiceType.CONN));
+        latest.keySet().retainAll(owner().getCallPointByType(ServiceType.CONN));
         connLoads.clear();
         connLoads.putAll(latest);
     }
 
     private void refreshPlayerLoads() {
         Map<CallPoint, Integer> latest = new HashMap<>();
-        for (RegisteredService service : owner().getNode().getServicesByType(ServiceType.PLAYER)) {
+        for (RegisteredService service : owner().getServicesByType(ServiceType.PLAYER)) {
             CallPoint callPoint = service.getCallPoint();
             RpcResult<Integer> onlineCountResult = PlayerServiceRpcProxy.callGetOnlineCount(callPoint);
             if (!onlineCountResult.isSuccess()) {
@@ -141,7 +141,7 @@ public final class OnlineRoutingLogic {
             }
             latest.put(callPoint, onlineCountResult.getValue());
         }
-        latest.keySet().retainAll(owner().getNode().getCallPointByType(ServiceType.PLAYER));
+        latest.keySet().retainAll(owner().getCallPointByType(ServiceType.PLAYER));
         playerLoads.clear();
         playerLoads.putAll(latest);
     }

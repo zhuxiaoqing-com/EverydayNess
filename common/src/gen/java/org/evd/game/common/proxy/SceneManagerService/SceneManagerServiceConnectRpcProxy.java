@@ -41,7 +41,7 @@ public final class SceneManagerServiceConnectRpcProxy {
     public void restoreStageMaps(CallPoint remote, CallServiceInitDataSync syncData, CallPoint stage, List<SMapInfo> maps){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
+            remote = service.getAnyCallPointByType(ServiceType.SCENE_MANAGER);
         }
         service.call(remote, EnumCall.ENUM_SCENEMANAGERSERVICECONNECTRPC_RESTORESTAGEMAPS_5, new Object[]{syncData, stage, maps});
     }

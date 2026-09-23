@@ -28,7 +28,7 @@ public final class ConnClientLogic {
             throw new IllegalStateException("ConnService 创角请求没有已登录用户: sessionId="
                     + session.getSessionId());
         }
-        CallPoint lobby = owner.getNode().getAnyCallPointByType(ServiceType.LOBBY);
+        CallPoint lobby = owner.getAnyCallPointByType(ServiceType.LOBBY);
         if (lobby == null) {
             throw new IllegalStateException("找不到客户端协议目标服务: service=LobbyService, msgId="
                     + AuthMsgId.C2S_AUTH_CREATE_ROLE_VALUE);
@@ -46,7 +46,7 @@ public final class ConnClientLogic {
             throw new IllegalStateException("ConnService 选角请求没有已登录用户: sessionId="
                     + session.getSessionId());
         }
-        CallPoint online = owner.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+        CallPoint online = owner.getAnyCallPointByType(ServiceType.ONLINE);
         if (online == null) {
             throw new IllegalStateException("找不到客户端协议目标服务: service=OnlineService, msgId="
                     + AuthMsgId.C2S_AUTH_SELECT_ROLE_ENTER_VALUE);

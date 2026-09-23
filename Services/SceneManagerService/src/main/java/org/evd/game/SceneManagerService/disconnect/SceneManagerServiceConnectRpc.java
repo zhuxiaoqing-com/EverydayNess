@@ -17,6 +17,9 @@ import java.util.List;
 public final class SceneManagerServiceConnectRpc {
     @Rpc
     public void restoreStageMaps(CallServiceInitDataSync syncData, CallPoint stage, List<SMapInfo> maps) {
+        if (!Service.checkSyncValid(syncData, "restoreStageMaps")) {
+            return;
+        }
         Service.getCurrent(SceneManagerService.class)
                 .getActor(SceneManagerServiceConnectLogic.class)
                 .restoreStageMaps(stage, maps);

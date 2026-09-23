@@ -39,7 +39,7 @@ public final class OnlinePlayerLoginRpcProxy {
     public void selectRoleEnter(CallPoint remote, ClientSessionRef session, C2S_SelectRoleEnter request){
         Service service = Service.getCurrent();
         if (remote == null) {
-            remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
+            remote = service.getAnyCallPointByType(ServiceType.ONLINE);
         }
         service.call(remote, EnumCall.ENUM_ONLINEPLAYERLOGINRPC_SELECTROLEENTER_4, new Object[]{session, request});
     }

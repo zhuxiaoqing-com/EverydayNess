@@ -48,6 +48,6 @@ public final class MapConst {
         if (mapCfgId <= 0) {
             throw new SysException("地图配置 ID 非法: mapCfgId={}", mapCfgId);
         }
-        return Service.getCurrent().getNode().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
+        return Service.getCurrent().getAnyCallPointByType(ServiceType.SCENE_MANAGER);
     }
 }
