@@ -14,6 +14,7 @@ import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
@@ -34,32 +35,34 @@ public final class StageServiceConnectLogic {
                 continue;
             }
             switch (service.getServiceType()) {
-                case LOC -> onLocationServiceConnect(service.getCallPoint());
-                case SCENE_MANAGER -> onSceneManagerConnect(service.getCallPoint());
+                case LOC -> onLocationServiceConnect(service);
+                case SCENE_MANAGER -> onSceneManagerConnect(service);
                 default -> {
                 }
             }
         }
     }
 
-    private void onSceneManagerConnect(CallPoint sceneManager) {
+    private void onSceneManagerConnect(RegisteredService sceneManager) {
+        CallPoint callPoint = sceneManager.getCallPoint();
         StageService owner = owner();
         List<SMapInfo> maps = owner.getActor(StageSceneLogic.class).getMaps();
         RpcResult<Void> result = SceneManagerServiceConnectRpcProxy.sendRestoreStageMaps(
-                sceneManager, owner.getCallPoint(), maps);
+                callPoint, CallFactory.buildServiceInitDataSync(sceneManager), owner.getCallPoint(), maps);
         if (!result.isSuccess()) {
             log.error("StageService 向 SceneManager 推送地图快照失败: service={}, sceneManager={}, mapCount={}, errorCode={}, message={}",
-                    owner.getId(), sceneManager, maps.size(), result.getErrorCode(), result.getErrorMessage());
+                    owner.getId(), callPoint, maps.size(), result.getErrorCode(), result.getErrorMessage());
             return;
         }
         log.info("StageService 向 SceneManager 推送地图快照完成: service={}, sceneManager={}, mapCount={}",
-                owner.getId(), sceneManager, maps.size());
+                owner.getId(), callPoint, maps.size());
     }
 
-    public void onLocationServiceConnect(CallPoint locationService) {
+    public void onLocationServiceConnect(RegisteredService locationService) {
+        CallPoint callPoint = locationService.getCallPoint();
         Map<Long, BattleScene> scenes = owner().getActor(StageSceneLogic.class).getScenes();
         log.info("StageService 开始处理 LocationService 重连: service={}, locationService={}, sceneCount={}",
-                owner().getId(), locationService, scenes.size());
+                owner().getId(), callPoint, scenes.size());
         List<SLocationAddress> addresses = new ArrayList<>();
         for (BattleScene scene : scenes.values()) {
             for (Map.Entry<Long, BattleRole> entry : scene.getRoleMap().entrySet()) {
@@ -72,17 +75,17 @@ public final class StageServiceConnectLogic {
         }
         if (addresses.isEmpty()) {
             log.info("StageService 无须恢复 Location 地址: service={}, locationService={}",
-                    owner().getId(), locationService);
+                    owner().getId(), callPoint);
             return;
         }
-        RpcResult<Void> result = LocationServiceRpcProxy.sendAddBatch(locationService, addresses);
+        RpcResult<Void> result = LocationServiceRpcProxy.sendAddBatch(callPoint, CallFactory.buildServiceInitDataSync(locationService), addresses);
         if (!result.isSuccess()) {
             log.error("StageService 重新发送 MapPlayer ActorAddress 失败: service={}, locationService={}, requested={}, errorCode={}, message={}",
-                    owner().getId(), locationService, addresses.size(), result.getErrorCode(), result.getErrorMessage());
+                    owner().getId(), callPoint, addresses.size(), result.getErrorCode(), result.getErrorMessage());
             return;
         }
         log.info("StageService 重新发送 MapPlayer ActorAddress 完成: service={}, locationService={}, requested={}",
-                owner().getId(), locationService, addresses.size());
+                owner().getId(), callPoint, addresses.size());
     }
 
     private StageService owner() {

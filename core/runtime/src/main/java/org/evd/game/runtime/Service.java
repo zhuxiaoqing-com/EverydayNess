@@ -13,8 +13,10 @@ import org.evd.game.runtime.actorLogic.ActorInterfaceIndexer;
 import org.evd.game.runtime.actorLogic.ActorManager;
 import org.evd.game.runtime.actorLogic.EventListenerInterfaceProcessor;
 import org.evd.game.runtime.call.CallBase;
+import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
+import org.evd.game.runtime.call.CallServiceInitDataSync;
 import org.evd.game.runtime.call.RpcCallBase;
 import org.evd.game.runtime.config.ConfigTableInitializer;
 import org.evd.game.runtime.annotation.Event;
@@ -36,14 +38,13 @@ import org.evd.game.runtime.support.exception.RpcCallException;
 import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.util.DeadlineTimerWheelScheduler;
 import org.evd.game.runtime.util.TimerScheduler;
+import org.evd.game.runtime.util.id.SceneIdGenerator;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -54,6 +55,7 @@ import java.util.function.Consumer;
  * 服务
  */
 public class Service extends TickCase {
+
     public void addCall_snt(CallBase call) {
         if (call == null) {
             throw new SysException("service call is null: service={}", id);
@@ -203,6 +205,10 @@ public class Service extends TickCase {
      * 本service的调用点
      */
     private final CallPoint callPoint;
+    /** 本次 Service 启动实例的唯一身份；Service 重启后必须变化。 */
+    private final long serviceInstanceId = SceneIdGenerator.nextId();
+    /** 其他 Service 的连接和初始化数据同步状态。 */
+    private final OtherServiceRegistry otherServiceRegistry;
     Mdb mdb;
 
     public Service(Node node, String name, String scheduledName, long tickInterval, ServiceInfo serviceInfo) {
@@ -211,6 +217,7 @@ public class Service extends TickCase {
         this.scheduledName = scheduledName;
         this.scope = new ContinuationScope(name);
         this.callPoint = node.getCallPoint(name);
+        this.otherServiceRegistry = new OtherServiceRegistry(this);
         this.callTransport = new CallTransport(node, this, timerScheduler);
         this.messageSender = new MessageSender(this);
         this.processInnerSender = new ProcessInnerSender(this);
@@ -274,6 +281,7 @@ public class Service extends TickCase {
          * 而且一般rpc操作也都是要等onServiceConnect上来以后才进行的吧; 直接rpc也没service给你访问呀;
          */
         init();
+        otherServiceRegistry.start();
 
         // 直接在这里标识,目前看没什么问题
         node.attachToNode(this);
@@ -431,6 +439,10 @@ public class Service extends TickCase {
 
     public CallPoint getCallPoint() {
         return callPoint;
+    }
+
+    public long getServiceInstanceId() {
+        return serviceInstanceId;
     }
 
     public long getWaitBaseTimeInternal() {
@@ -985,6 +997,7 @@ public class Service extends TickCase {
      * 再通过不带下划线的方法分发给子类。</p>
      */
     protected final void _onServiceConnect(Collection<RegisteredService> serviceList) {
+        otherServiceRegistry.onServiceConnect(serviceList);
         onServiceConnect(serviceList);
     }
 
@@ -992,20 +1005,29 @@ public class Service extends TickCase {
     protected void onServiceConnect(Collection<RegisteredService> serviceList) {
     }
 
-    /** 新 Service 已结束稳定等待，并已经进入正式路由索引。 */
-    protected final void _onServiceConnectReady(Collection<RegisteredService> serviceList) {
+    /** 其他 Service 已结束稳定等待并进入通信 Ready。 */
+    void onServiceConnectReady_nt(Collection<RegisteredService> serviceList) {
         if (mdb != null) {
             mdb.connectService(serviceList);
         }
         onServiceConnectReady(serviceList);
+        otherServiceRegistry.sendInitDataSync(serviceList);
     }
 
     /** 子类处理已经进入正式路由的 Service。 */
     protected void onServiceConnectReady(Collection<RegisteredService> serviceList) {
     }
 
+    /**
+     * 对端发来的初始化同步标记已经按本 Service 队列应用完成后调用。
+     * 业务层如果有独立的入站初始化动作，可在这里执行；抛出异常时不会标记同步完成。
+     */
+    protected void onServiceInitDataSync(RegisteredService sourceService) {
+    }
+
     /** Service 从最新注册快照消失，可能包含自己。 */
     protected final void _onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        otherServiceRegistry.onServiceDisconnect(serviceList);
         if (mdb != null) {
             mdb.disconnectService(serviceList);
         }
@@ -1016,13 +1038,13 @@ public class Service extends TickCase {
     protected void onServiceDisconnect(Collection<RegisteredService> serviceList) {
     }
 
-    /** Service 已离线超过保留时间并从 offlineServices 中彻底清理。 */
-    protected final void _onServiceOfflineExpired(Collection<RegisteredService> serviceList) {
-        onServiceOfflineExpired(serviceList);
+    /** 返回本 Service 当前缓存的其他 Service 初始化同步状态。 */
+    public Map<CallPoint, OtherServiceInfo> getOtherServiceMap() {
+        return otherServiceRegistry.getOtherServiceMap();
     }
 
-    /** 子类处理 Service 离线超时清理事件。 */
-    protected void onServiceOfflineExpired(Collection<RegisteredService> serviceList) {
+    void onOtherServiceInitDataSync_nt(CallServiceInitDataSync call) {
+        otherServiceRegistry.onInitDataSync(call);
     }
 
     @Override

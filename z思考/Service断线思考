@@ -174,7 +174,7 @@ Mdb的缓存问题;
 
   最终决定保留准备状态，然后离线延迟也不删;
   增加service级别的其他service缓存，map<callpoint,OtherServiceInfo{RegisterService, boolean initDataSync 初始化数据是否同步}>;
-   默认到达准备状态以后，抛给service,然后service将其加入map, service离线的时候没直接将map里的数据删了;
+   默认到达准备状态以后，抛给service,然后service将其加入map, service离线的时候直接将map里的数据删了;
    然后map会在service里 每秒检测，获取当前时间-service的连上时候>30秒，就进行打error日志，说明数据还没准备好;日志1分钟打印一次就行;
 
    逻辑其他服务器在我这到达准备状态以后，我就发个消息通知那个服务器，先将需要同步的数据发给对面的服务器，
@@ -184,13 +184,46 @@ Mdb的缓存问题;
    对端可以通过这个来检测是否正确数据;
 
 
+    onConnect  需要通知老的新的上线，新的话，除了自己其他都要触发一次
+    onDisconnect 只需要通知老的 新的 掉线了就行;
+    onReady 目前只做了通知老的加了新的，没通知新的老的onReady; 这里问题很大;只有新加的才有5秒onReady,
+            比如newNode AB     oldNode DEF
+
+            C上线了， AB  DEF 都会收到 onConnect，然后5秒以后会收到onReady;
+            但是C本身不会受到 ABDEFd的onConnect, 也不会在5秒后受到onReady;
+            onConnect 其实还好，调用下就好了， 但是onReady就不一样了;
+            老的是没有准备状态的，因为这个准备状态是在Node层面遍历的，还有一种就是放到service层面遍历，只要新加进去的就都有service;
 
 
+org.evd.game.runtime.Node.type2ServiceMap 和 org.evd.game.runtime.Node.type2CallMap
+应该都是要移动到service里去，然后每个service 都只通过自己的这两个参数来获取可以通行的service;
+感觉可以在org.evd.game.runtime.OtherServiceRegistry.checkServiceConnectReady 里构建，然后缓存也可以放到
+OtherServiceRegistry里，不过这个OtherServiceRegistry应该要改个更加通用的名字了吧
 
+Service 初始化数据分为两类
+1. 本地数据
+    在 init 阶段初始化，包括本地配置、数据库及第三方工具中的数据。
+2. 跨 Service 同步数据
+需要从其他 Service 获取全量数据，存在两种情况：
+    增量同步： 对方发送全量数据后，必须立即开始增量同步，避免数据丢失。
+    访问控制： 对方发送全量数据后，本 Service 才能开放对目标 Service 的访问。
+最复杂的情况是两者同时存在：既要保证全量与增量同步的连续性，又要在全量同步完成后才能开放访问。
+    因此，只需要针对这两种情况明确同步时机和访问条件，不需要额外设置固定的 5 秒准备时间。
 
+发送消息： 我收到并完成对方的全量数据同步后，才允许向对方发送业务消息。
+接收消息： 不需要额外限制，由对方控制发送时机。对方完成我的全量数据同步后，自然就可以向我发送消息。
 
+跨 Service 同步数据的两种情况
 
+    1. 增量同步（由数据提供方控制）
+        对方完成向我的全量数据同步后，即可开始发送增量消息，将我加入可发送消息列表。
+    2. 访问控制（由数据接收方控制）
+        我完成对方的全量数据同步后，才能开放依赖该数据的业务功能。
+        这里不能简单地限制双方的消息收发，因为触发业务的可能是第三方 Service。
+        例如：OnlineService 需要先同步 PlayerService 的负载数据，才能处理其他服务器发来的玩家登录分配请求。
+        因此，访问控制必须在具体业务逻辑中判断，而不是统一限制 Service 的消息收发。
 
+    最终方案：增量同步由数据提供方控制发送时机；业务访问由数据接收方根据自身数据是否就绪来判断。无需固定等待 5 秒。
 
 
 

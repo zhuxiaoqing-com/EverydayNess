@@ -4,6 +4,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.annotation.service.ServiceType;
+import org.evd.game.runtime.call.CallServiceInitDataSync;
 import java.util.List;
 import org.evd.game.runtime.call.CallPoint;
 
@@ -28,20 +29,20 @@ public final class OnlineServiceConnectRpcProxy {
     /**
     * 对应 void RPC 的发送结果版本；只表示本地发送是否成功，不等待远端执行结果。
     */
-    public static RpcResult<Void> sendRestoreHistoricalPlayerServices(CallPoint remote, List<String> userIds, CallPoint playerService){
-        return RpcResult.run(() -> inst().restoreHistoricalPlayerServices(remote, userIds, playerService));
+    public static RpcResult<Void> sendRestoreHistoricalPlayerServices(CallPoint remote, CallServiceInitDataSync syncData, List<String> userIds, CallPoint playerService){
+        return RpcResult.run(() -> inst().restoreHistoricalPlayerServices(remote, syncData, userIds, playerService));
     }
 
 
     /**
     * 对应源方法: org.evd.game.OnlineService.disconnect.OnlineServiceConnectRpc#restoreHistoricalPlayerServices()
     */
-    public void restoreHistoricalPlayerServices(CallPoint remote, List<String> userIds, CallPoint playerService){
+    public void restoreHistoricalPlayerServices(CallPoint remote, CallServiceInitDataSync syncData, List<String> userIds, CallPoint playerService){
         Service service = Service.getCurrent();
         if (remote == null) {
             remote = service.getNode().getAnyCallPointByType(ServiceType.ONLINE);
         }
-        service.call(remote, EnumCall.ENUM_ONLINESERVICECONNECTRPC_RESTOREHISTORICALPLAYERSERVICES_0, new Object[]{userIds, playerService});
+        service.call(remote, EnumCall.ENUM_ONLINESERVICECONNECTRPC_RESTOREHISTORICALPLAYERSERVICES_0, new Object[]{syncData, userIds, playerService});
     }
 
 

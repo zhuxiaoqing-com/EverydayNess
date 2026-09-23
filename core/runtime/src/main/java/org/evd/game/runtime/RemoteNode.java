@@ -9,6 +9,7 @@ import org.evd.game.runtime.call.CallPing;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallPong;
 import org.evd.game.runtime.call.CallResult;
+import org.evd.game.runtime.call.CallServiceInitDataSync;
 import org.evd.game.runtime.call.CallServiceStop;
 import org.evd.game.runtime.call.NodeServiceStatus;
 import org.evd.game.runtime.debug.DebugPrint;
@@ -192,6 +193,7 @@ public class RemoteNode {
         if (call instanceof CallPing
                 || call instanceof CallPong
                 || call instanceof CallNodeServicesSync
+                || call instanceof CallServiceInitDataSync
                 || call instanceof CallServiceStop
                 || call instanceof CallResult) {
             return true;
@@ -291,14 +293,27 @@ public class RemoteNode {
         sendOnChannel(channel, call);
     }
 
-    private void sendNodeServicesSync(NetChannel channel, boolean init) {
+    private void sendNodeServicesSync(NetChannel channel, long sessionId, boolean init) {
         CallNodeServicesSync call = new CallNodeServicesSync();
         call.from = localNode.getNodeCallPoint();
         call.to = getRemoteCallPoint();
         call.setInit(init);
         call.setAddr(localNode.getAddr());
-        call.setServices(localNode.buildLocalServicesSnapshot());
+        call.setServices(localNode.buildLocalServicesSnapshot(sessionId));
         sendOnChannel(channel, call);
+    }
+
+    void sendNodeServicesSync(boolean init) {
+        RemoteSession session = currentSession;
+        if (session == null) {
+            return;
+        }
+        sendNodeServicesSync(session.getChannel(), session.getSessionId(), init);
+    }
+
+    long getCurrentSessionId() {
+        RemoteSession session = currentSession;
+        return session == null ? -1L : session.getSessionId();
     }
 
 
@@ -312,7 +327,7 @@ public class RemoteNode {
             return;
         }
         // 主动连接方发送首次握手；对端绑定这条连接后，会回发 init=false 的本地服务快照。
-        sendNodeServicesSync(channel, true);
+        sendNodeServicesSync(channel, currentSession.getSessionId(), true);
     }
 
     /**
@@ -331,7 +346,7 @@ public class RemoteNode {
         if (!bindChannel(channel)) {
             return false;
         }
-        sendNodeServicesSync(channel, false);
+        sendNodeServicesSync(channel, currentSession.getSessionId(), false);
         return true;
     }
 

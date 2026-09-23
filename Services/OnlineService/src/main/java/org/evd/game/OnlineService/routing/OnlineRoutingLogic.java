@@ -79,15 +79,6 @@ public final class OnlineRoutingLogic {
     /** 优先复用用户历史 PlayerService；历史服务不可用时再选择负载最低的服务。 */
     public SOnlinePlayerCandidate selectLeastLoadedPlayer(String userId) {
         CallPoint historicalPlayerService = session().getHistoricalPlayerService(userId);
-        // 存在 但是如果离线应该就直接不给选；
-   /*     RegisteredService offlineService = owner().getNode().getOfflineService(historicalPlayerService);
-        if (offlineService != null) {
-            LogCore.core.warn("OnlineService 历史 PlayerService 离线CD中，暂不选择该服务: userId={}, playerService={}, offlineMill={}",
-                    userId, historicalPlayerService, offlineService.getOfflineMill());
-            return null;
-        }*/
-
-
         if (playerLoads.isEmpty()) {
             LogCore.core.warn("OnlineService 没有可用 PlayerService 负载，无法为用户选择服务: userId={}, service={}",
                     userId, owner().getId());

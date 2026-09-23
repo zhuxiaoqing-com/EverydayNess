@@ -10,6 +10,7 @@ import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
@@ -79,7 +80,7 @@ public final class PlayerServiceConnectLogic {
             LogCore.core.info("PlayerService 批量发送 Player ActorAddress: service={}, locationService={}, actorId={}, actorAddress={}",
                     owner.getId(), locationService.getCallPoint(), address.getActorId(), address.getActorAddress());
         }
-        RpcResult<Void> result = LocationServiceRpcProxy.sendAddBatch(locationService.getCallPoint(), addresses);
+        RpcResult<Void> result = LocationServiceRpcProxy.sendAddBatch(locationService.getCallPoint(), CallFactory.buildServiceInitDataSync(locationService), addresses);
         if (!result.isSuccess()) {
             LogCore.core.warn("PlayerService 批量重新发送 Player ActorAddress 失败: service={}, locationService={}, requested={}, errorCode={}, message={}",
                     owner.getId(), locationService.getCallPoint(), addresses.size(),
@@ -104,7 +105,7 @@ public final class PlayerServiceConnectLogic {
                     owner.getId(), onlineService.getCallPoint(), userId);
         }
         RpcResult<Void> result = OnlineServiceConnectRpcProxy.sendRestoreHistoricalPlayerServices(
-                onlineService.getCallPoint(), userIds, owner.getCallPoint());
+                onlineService.getCallPoint(),CallFactory.buildServiceInitDataSync(onlineService), userIds, owner.getCallPoint());
         if (!result.isSuccess()) {
             LogCore.core.warn("PlayerService 发送 Online 历史绑定恢复失败: service={}, onlineService={}, count={}, errorCode={}, message={}",
                     owner.getId(), onlineService.getCallPoint(), userIds.size(),

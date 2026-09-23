@@ -6,6 +6,7 @@ import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.call.CallServiceInitDataSync;
 import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 
 import java.util.List;
@@ -20,7 +21,7 @@ public final class LocationServiceRpc {
     }
 
     @Rpc
-    public void addBatch(List<SLocationAddress> addresses) {
+    public void addBatch(CallServiceInitDataSync syncData, List<SLocationAddress> addresses) {
         owner().addBatch(addresses);
     }
 

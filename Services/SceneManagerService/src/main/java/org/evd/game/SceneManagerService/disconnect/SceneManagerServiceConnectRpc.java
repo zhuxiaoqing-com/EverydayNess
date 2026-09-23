@@ -7,6 +7,7 @@ import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.call.CallServiceInitDataSync;
 
 import java.util.List;
 
@@ -15,7 +16,7 @@ import java.util.List;
 @RpcHandler
 public final class SceneManagerServiceConnectRpc {
     @Rpc
-    public void restoreStageMaps(CallPoint stage, List<SMapInfo> maps) {
+    public void restoreStageMaps(CallServiceInitDataSync syncData, CallPoint stage, List<SMapInfo> maps) {
         Service.getCurrent(SceneManagerService.class)
                 .getActor(SceneManagerServiceConnectLogic.class)
                 .restoreStageMaps(stage, maps);

@@ -6,6 +6,7 @@ import org.evd.game.annotation.actor.Rpc;
 import org.evd.game.annotation.actor.RpcHandler;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.call.CallServiceInitDataSync;
 
 import java.util.List;
 
@@ -14,7 +15,10 @@ import java.util.List;
 @RpcHandler
 public final class OnlineServiceConnectRpc {
     @Rpc
-    public void restoreHistoricalPlayerServices(List<String> userIds, CallPoint playerService) {
+    public void restoreHistoricalPlayerServices(
+            CallServiceInitDataSync syncData,
+            List<String> userIds,
+            CallPoint playerService) {
         logic().restoreHistoricalPlayerServices(userIds, playerService);
     }
 

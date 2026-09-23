@@ -17,25 +17,13 @@ public class RegisteredService implements ISerializable {
     private ServiceType serviceType;
     private String serviceClassName;
     private String serviceId;
+    /** 本次 Service 启动实例的唯一 ID，不参与路由。 */
+    private long serviceInstanceId;
+    /** 本次 Service 所属 Node 连接到对端 Node 的连接代次。 */
+    private long sessionId;
     private int platformId;
     private int serverId;
     private int nodeId;
-    /**
-     * Service 所在 Node 与目标 Node 之间的连接 ID。
-     *
-     * 例如：AService 属于 ANode，A → B，
-     * 这里保存的是 ANode 上连接 BNode 的 channelId。
-     */
-    private long channelId;
-
-    /** 本地记录的离线时间，不参与服务注册信息序列化。 */
-    @SerializeIgnore
-    private long offlineMill;
-
-    /** 本地记录 Service 进入 Pending 的时间，不参与服务注册信息序列化。 */
-    @SerializeIgnore
-    private long pendingStartTime;
-
     @SerializeIgnore
     private CallPoint callPoint;
 
@@ -55,8 +43,9 @@ public class RegisteredService implements ISerializable {
     public RegisteredService(RegisteredService other) {
         this(other.serviceType, other.serviceClassName, other.serviceId,
                 other.platformId, other.serverId, other.nodeId);
-        this.offlineMill = other.offlineMill;
-        this.pendingStartTime = other.pendingStartTime;
+        this.serviceInstanceId = other.serviceInstanceId;
+        this.sessionId = other.sessionId;
+        this.callPoint = other.callPoint == null ? null : new CallPoint(other.callPoint);
     }
 
     public CallPoint getCallPoint() {
@@ -64,6 +53,13 @@ public class RegisteredService implements ISerializable {
             callPoint = new CallPoint(platformId, serverId, nodeId, serviceId);
         }
         return callPoint;
+    }
+
+    /** 判断是否已经不是同一个 Service 实例或 Node 连接。 */
+    public boolean isDifferentServiceSession(RegisteredService other) {
+        return other == null
+                || serviceInstanceId != other.serviceInstanceId
+                || sessionId != other.sessionId;
     }
 
 

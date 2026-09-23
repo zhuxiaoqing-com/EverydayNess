@@ -1,6 +1,7 @@
 package org.evd.game.runtime.util.id;
 
 import org.evd.game.annotation.node.NodeType;
+import org.evd.game.runtime.util.id.multiNode.MultiNodeIdLayout0;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.ymlconfig.NodeYml;
 import org.evd.game.runtime.ymlconfig.NodeInfo;
@@ -45,6 +46,10 @@ public final class SnowflakeIdGenerator {
      * 保留旧类隐式公开的无参构造器；生成状态仍由静态 API 统一管理。
      */
     public SnowflakeIdGenerator() {
+    }
+
+    public static void init() {
+        SnowflakeIdGenerator.init(SnowflakeIdType.MULTI_NODE, MultiNodeIdLayout0.VERSION);
     }
 
     /**

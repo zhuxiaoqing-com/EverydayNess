@@ -6,6 +6,7 @@ import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.client.ClientSessionRef;
 import org.evd.game.runtime.serializeBean.Chunk;
 import org.evd.game.runtime.support.exception.SysException;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 public final class CallFactory {
     private CallFactory() {
@@ -26,6 +27,23 @@ public final class CallFactory {
         call.setMethodKey(methodKey);
         call.setMethodParam(params);
         call.setNeedResult(needResult);
+        return call;
+    }
+
+    public static CallServiceInitDataSync buildServiceInitDataSync(
+            RegisteredService targetService) {
+        Service current = Service.getCurrent();
+        if (targetService == null || targetService.getCallPoint() == null) {
+            throw new SysException("service init data sync target is null: service={}, targetService={}",
+                    current, targetService);
+        }
+        CallServiceInitDataSync call = new CallServiceInitDataSync();
+        call.setFrom(current.getCallPoint());
+        call.setTo(targetService.getCallPoint());
+
+        call.setTargetService(new RegisteredService(targetService));
+        call.setSourceServiceInstanceId(current.getServiceInstanceId());
+        call.setSourceSessionId(current.getNode().getRemoteSessionId(current.getCallPoint()));
         return call;
     }
 

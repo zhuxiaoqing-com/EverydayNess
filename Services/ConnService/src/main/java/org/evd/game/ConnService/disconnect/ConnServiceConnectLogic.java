@@ -8,6 +8,7 @@ import org.evd.game.common.serializeBean.LocationService.SLocationAddress;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
+import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.netty.NetChannel;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
@@ -65,7 +66,7 @@ public final class ConnServiceConnectLogic {
             LogCore.core.info("ConnService 批量发送 GW ActorAddress: service={}, locationService={}, actorId={}, actorAddress={}",
                     owner.getId(), locationService.getCallPoint(), address.getActorId(), address.getActorAddress());
         }
-        var result = LocationServiceRpcProxy.sendAddBatch(locationService.getCallPoint(), addresses);
+        var result = LocationServiceRpcProxy.sendAddBatch(locationService.getCallPoint(), CallFactory.buildServiceInitDataSync(locationService), addresses);
         if (!result.isSuccess()) {
             LogCore.core.warn("ConnService 批量重新发送 GW ActorAddress 失败: service={}, locationService={}, requested={}, errorCode={}, message={}",
                     owner.getId(), locationService.getCallPoint(), addresses.size(),
