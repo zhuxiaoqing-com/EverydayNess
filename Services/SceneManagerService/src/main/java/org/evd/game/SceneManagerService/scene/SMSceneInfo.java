@@ -2,6 +2,7 @@ package org.evd.game.SceneManagerService.scene;
 
 import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 
 import java.util.HashMap;
@@ -18,7 +19,7 @@ public final class SMSceneInfo {
     public SMSceneInfo(SMapKey mapKey, long sceneId, CallPoint stageCallPoint) {
         this.mapKey = new SMapKey(mapKey.getMapCfgId(), mapKey.getGroupId());
         this.sceneId = sceneId;
-        this.stageCallPoint = stageCallPoint == null ? null : new CallPoint(stageCallPoint);
+        this.stageCallPoint = stageCallPoint;
         this.state = SMSceneState.CREATING;
     }
 
@@ -42,6 +43,11 @@ public final class SMSceneInfo {
         this.state = state;
     }
 
+
+    public CallPoint getStageCallPoint() {
+        return stageCallPoint;
+    }
+
     @Override
     public String toString() {
         return "SMSceneInfo{" +
@@ -54,7 +60,22 @@ public final class SMSceneInfo {
                 '}';
     }
 
-    public CallPoint getStageCallPoint() {
-        return stageCallPoint == null ? null : new CallPoint(stageCallPoint);
+
+    /**
+     * 是否是不能使用
+     */
+    public boolean checkUnavailable() {
+        if(state == SMSceneState.UNAVAILABLE) {
+            return true;
+        }
+
+        /*
+         * 数据还没同步过来
+         */
+        if (!Service.checkSyncDataValid(stageCallPoint)) {
+            return true;
+        }
+        return false;
     }
+
 }

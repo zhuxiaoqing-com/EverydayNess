@@ -73,28 +73,14 @@ final class ServicePeerRegistry {
         if (serviceType == null) {
             return List.of();
         }
-        List<RegisteredService> peers = type2ServiceMap.getOrDefault(serviceType, List.of());
-        List<RegisteredService> currentPeers = new ArrayList<>(peers.size());
-        for (RegisteredService peer : peers) {
-            if (isCurrentSyncedPeer(peer.getCallPoint())) {
-                currentPeers.add(new RegisteredService(peer));
-            }
-        }
-        return List.copyOf(currentPeers);
+        return type2ServiceMap.getOrDefault(serviceType, List.of());
     }
 
     List<CallPoint> getCallPointByType(ServiceType serviceType) {
         if (serviceType == null) {
             return List.of();
         }
-        List<CallPoint> callPoints = type2CallMap.getOrDefault(serviceType, List.of());
-        List<CallPoint> currentCallPoints = new ArrayList<>(callPoints.size());
-        for (CallPoint callPoint : callPoints) {
-            if (isCurrentSyncedPeer(callPoint)) {
-                currentCallPoints.add(new CallPoint(callPoint));
-            }
-        }
-        return List.copyOf(currentCallPoints);
+        return type2CallMap.getOrDefault(serviceType, List.of());
     }
 
     CallPoint getAnyCallPointByType(ServiceType serviceType) {
@@ -102,46 +88,10 @@ final class ServicePeerRegistry {
         return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
     }
 
-    /** 初始化或增量数据同步使用；普通业务路由必须使用 initData 索引。 */
-    CallPoint getAnyInitDataSyncCallPointByType(ServiceType serviceType) {
-        if (serviceType == null) {
-            return null;
-        }
-        RegisteredService selectedPeer = null;
-        for (OtherServiceInfo info : otherServiceMap.values()) {
-            RegisteredService peer = info.getService();
-            if (peer.getServiceType() != serviceType || !isCurrentPeer(peer)) {
-                continue;
-            }
-            if (selectedPeer == null || compareService(peer, selectedPeer) < 0) {
-                selectedPeer = peer;
-            }
-        }
-        return selectedPeer == null ? null : new CallPoint(selectedPeer.getCallPoint());
-    }
-
-    private boolean isCurrentSyncedPeer(CallPoint callPoint) {
-        OtherServiceInfo info = otherServiceMap.get(callPoint);
-        return info != null && info.isInitDataSync() && isCurrentPeer(info.getService());
-    }
-
-    private boolean isCurrentPeer(RegisteredService peer) {
-        RegisteredService currentPeer = node.getRegisteredService(peer.getCallPoint());
-        return currentPeer != null && !peer.isDifferentServiceSession(currentPeer);
-    }
-
-    private int compareService(RegisteredService first, RegisteredService second) {
-        int nodeOrder = Integer.compare(first.getNodeId(), second.getNodeId());
-        return nodeOrder != 0 ? nodeOrder : first.getServiceId().compareTo(second.getServiceId());
-    }
-
     private void rebuildServiceIndexes() {
         Map<ServiceType, List<RegisteredService>> servicesByType = new HashMap<>();
         Map<ServiceType, List<CallPoint>> callPointsByType = new HashMap<>();
         for (OtherServiceInfo info : otherServiceMap.values()) {
-            if (!info.isInitDataSync()) {
-                continue;
-            }
             RegisteredService peer = new RegisteredService(info.getService());
             servicesByType.computeIfAbsent(peer.getServiceType(), ignored -> new ArrayList<>()).add(peer);
             callPointsByType.computeIfAbsent(peer.getServiceType(), ignored -> new ArrayList<>())
@@ -234,11 +184,49 @@ final class ServicePeerRegistry {
 
         if (!info.isInitDataSync()) {
             info.setInitDataSync(true);
-            rebuildServiceIndexes();
             service._onServiceInitDataSync(info.getService());
         }
     }
 
+
+    /**
+     * 检查长时间未完成初始化数据同步的其他 Service，并按间隔记录日志。
+     *
+     * @param now 当前 Service 时间
+     */
+    public void checkInitDataSync(long now) {
+        for (OtherServiceInfo info : otherServiceMap.values()) {
+            if (info.isInitDataSync()
+                    || now - info.getConnectTime() <= INIT_DATA_SYNC_TIMEOUT_MILLIS) {
+                continue;
+            }
+            if (info.getLastErrorLogTime() > 0L
+                    && now - info.getLastErrorLogTime() < INIT_DATA_SYNC_LOG_INTERVAL_MILLIS) {
+                continue;
+            }
+            info.setLastErrorLogTime(now);
+            log.error(
+                    "其他Service初始化数据未同步完成: service={}, otherService={}, connectTime={}, sessionId={}, initDataSync={}",
+                    service.getId(),
+                    info.getService().getCallPoint(),
+                    info.getConnectTime(),
+                    info.getSessionId(),
+                    info.isInitDataSync());
+        }
+    }
+
+    /**
+     * 初始化数据是否已经同步过来了
+     */
+    public boolean checkDataSync(CallPoint callPoint) {
+        OtherServiceInfo otherServiceInfo = otherServiceMap.get(callPoint);
+        return otherServiceInfo != null && otherServiceInfo.isInitDataSync();
+    }
+
+
+    /**
+     * sync协议是否有效
+     */
     public boolean checkSyncValid(CallServiceInitDataSync call, String reason) {
         CallPoint sourceCallPoint = call.getFrom();
         // 来源实例和连接代次必须仍与本地缓存一致。
@@ -333,31 +321,6 @@ final class ServicePeerRegistry {
         checkInitDataSync(now);
     }
 
-    /**
-     * 检查长时间未完成初始化数据同步的其他 Service，并按间隔记录日志。
-     *
-     * @param now 当前 Service 时间
-     */
-    private void checkInitDataSync(long now) {
-        for (OtherServiceInfo info : otherServiceMap.values()) {
-            if (info.isInitDataSync()
-                    || now - info.getConnectTime() <= INIT_DATA_SYNC_TIMEOUT_MILLIS) {
-                continue;
-            }
-            if (info.getLastErrorLogTime() > 0L
-                    && now - info.getLastErrorLogTime() < INIT_DATA_SYNC_LOG_INTERVAL_MILLIS) {
-                continue;
-            }
-            info.setLastErrorLogTime(now);
-            log.error(
-                    "其他Service初始化数据未同步完成: service={}, otherService={}, connectTime={}, sessionId={}, initDataSync={}",
-                    service.getId(),
-                    info.getService().getCallPoint(),
-                    info.getConnectTime(),
-                    info.getSessionId(),
-                    info.isInitDataSync());
-        }
-    }
 
     /** 返回 Service 的逻辑时间；逻辑时间不可用时回退到系统时间。 */
     private long serviceTime() {

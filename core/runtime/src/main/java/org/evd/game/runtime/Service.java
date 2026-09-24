@@ -13,7 +13,6 @@ import org.evd.game.runtime.actorLogic.ActorInterfaceIndexer;
 import org.evd.game.runtime.actorLogic.ActorManager;
 import org.evd.game.runtime.actorLogic.EventListenerInterfaceProcessor;
 import org.evd.game.runtime.call.CallBase;
-import org.evd.game.runtime.call.CallFactory;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.CallResult;
 import org.evd.game.runtime.call.CallServiceInitDataSync;
@@ -915,9 +914,17 @@ public class Service extends TickCase {
         return messageLocationSender;
     }
 
-    public static boolean checkSyncValid(CallServiceInitDataSync call, String reason) {
+    public static boolean checkSyncDataValid(CallServiceInitDataSync call, String reason) {
         Service current = Service.getCurrent();
         return current.servicePeerRegistry.checkSyncValid(call, reason);
+    }
+
+    /**
+     * 初始化数据是否已经同步过来了
+     */
+    public static boolean checkSyncDataValid(CallPoint call) {
+        Service current = Service.getCurrent();
+        return current.servicePeerRegistry.checkDataSync(call);
     }
 
     /**
@@ -1059,11 +1066,6 @@ public class Service extends TickCase {
     /** 返回本 Service 已完成初始化数据同步的任一同类型 Service 调用点。 */
     public CallPoint getAnyCallPointByType(ServiceType serviceType) {
         return servicePeerRegistry.getAnyCallPointByType(serviceType);
-    }
-
-    /** 初始化和增量数据同步使用；普通业务消息必须通过 initData 路由索引。 */
-    public CallPoint getAnyInitDataSyncCallPointByType(ServiceType serviceType) {
-        return servicePeerRegistry.getAnyInitDataSyncCallPointByType(serviceType);
     }
 
     @Override

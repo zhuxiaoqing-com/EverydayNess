@@ -125,6 +125,7 @@ public final class OnlineRoutingLogic {
         }
         // 拉取负载期间会挂起协程，不能把期间断开的服务重新写回候选。
         latest.keySet().retainAll(owner().getCallPointByType(ServiceType.CONN));
+        latest.keySet().removeIf(a -> !Service.checkSyncDataValid(a));
         connLoads.clear();
         connLoads.putAll(latest);
     }
@@ -142,6 +143,7 @@ public final class OnlineRoutingLogic {
             latest.put(callPoint, onlineCountResult.getValue());
         }
         latest.keySet().retainAll(owner().getCallPointByType(ServiceType.PLAYER));
+        latest.keySet().removeIf(a -> !Service.checkSyncDataValid(a));
         playerLoads.clear();
         playerLoads.putAll(latest);
     }

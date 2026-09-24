@@ -2,6 +2,7 @@ package org.evd.game.SceneManagerService.scene;
 
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.SceneManagerService.SceneManagerService;
+import org.evd.game.SceneManagerService.routing.SceneManagerRoutingLogic;
 import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
@@ -91,7 +92,7 @@ public abstract class AbstractSceneDeal {
         SMSceneInfo sceneInfo = scenes.get(mapKey);
         boolean needCreate = sceneInfo == null;
         boolean wasCreating = sceneInfo != null && sceneInfo.getState() == SMSceneState.CREATING;
-        if (sceneInfo != null && sceneInfo.getState() == SMSceneState.UNAVAILABLE) {
+        if (sceneInfo != null && sceneInfo.checkUnavailable()) {
             log.warn("SceneManager Stage 场景暂不可进入: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
                     request.getPlayerId(), request.getTransferId(), sceneInfo.getSceneId(),
                     mapKey.getMapCfgId(), mapKey.getGroupId());
@@ -103,7 +104,13 @@ public abstract class AbstractSceneDeal {
 
         boolean sceneExistedBeforeLock = sceneInfo != null;
         if (needCreate) {
-            CallPoint stage = owner.chooseStage();
+            CallPoint stage = owner.getActor(SceneManagerRoutingLogic.class).chooseStage();
+            if (stage == null) {
+                log.error("SceneManager 无法为新场景选择 Stage: playerId={}, transferId={}, mapCfgId={}, groupId={}",
+                        request.getPlayerId(), request.getTransferId(), mapKey.getMapCfgId(), mapKey.getGroupId());
+                return false;
+            }
+
             sceneInfo = new SMSceneInfo(mapKey, owner.createSceneId(), stage);
             scenes.put(mapKey, sceneInfo);
             log.info("SceneManager 创建场景记录: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}, stage={}",
@@ -167,7 +174,13 @@ public abstract class AbstractSceneDeal {
             return null;
         }
         long sceneId = owner.createSceneId();
-        SMSceneInfo sceneInfo = new SMSceneInfo(mapKey, sceneId, owner.chooseStage());
+        CallPoint stage = owner.getActor(SceneManagerRoutingLogic.class).chooseStage();
+        if (stage == null) {
+            log.error("SceneManager 无法为地图创建选择 Stage: sceneId={}, mapCfgId={}, groupId={}",
+                    sceneId, mapKey.getMapCfgId(), mapKey.getGroupId());
+            return null;
+        }
+        SMSceneInfo sceneInfo = new SMSceneInfo(mapKey, sceneId, stage);
         scenes.put(mapKey, sceneInfo);
         try (ContinuationLockScope ignored = owner.awaitCoroutineLockScope(LockType.MAP_SCENE, mapKey)) {
             /*

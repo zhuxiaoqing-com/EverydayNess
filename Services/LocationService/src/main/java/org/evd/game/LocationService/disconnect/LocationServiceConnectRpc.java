@@ -16,7 +16,7 @@ import java.util.List;
 public final class LocationServiceConnectRpc {
     @Rpc
     public void addBatch(CallServiceInitDataSync syncData, List<SLocationAddress> addresses) {
-        if(!Service.checkSyncValid(syncData, "addBatch")) {
+        if(!Service.checkSyncDataValid(syncData, "addBatch")) {
             return;
         }
         Service.getCurrent(LocationService.class)

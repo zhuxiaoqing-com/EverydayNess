@@ -2,6 +2,7 @@ package org.evd.game.SceneManagerService.disconnect;
 
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.SceneManagerService.SceneManagerService;
+import org.evd.game.SceneManagerService.routing.SceneManagerRoutingLogic;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapKey;
@@ -37,7 +38,7 @@ public final class SceneManagerServiceConnectLogic {
         }
 
         int disappeared = owner.sceneDealManager().replaceStageScenes(stage, maps);
-        owner.updateStageMapCount(stage, maps.size());
+        owner.getActor(SceneManagerRoutingLogic.class).updateStageMapCount(stage, maps.size());
         log.info("SceneManager 接收 Stage 地图快照完成: service={}, stage={}, disappearedMapCount={}, mapCount={}",
                 owner.getId(), stage, disappeared, maps.size());
     }

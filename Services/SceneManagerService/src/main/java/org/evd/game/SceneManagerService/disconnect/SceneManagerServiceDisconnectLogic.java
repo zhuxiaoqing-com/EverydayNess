@@ -2,6 +2,7 @@ package org.evd.game.SceneManagerService.disconnect;
 
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.SceneManagerService.SceneManagerService;
+import org.evd.game.SceneManagerService.routing.SceneManagerRoutingLogic;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.Service;
@@ -22,7 +23,7 @@ public final class SceneManagerServiceDisconnectLogic {
                 continue;
             }
             CallPoint stage = service.getCallPoint();
-            owner.removeStageMapCount(stage);
+            owner.getActor(SceneManagerRoutingLogic.class).removeStageMapCount(stage);
             owner.sceneDealManager().onStageServiceDisconnect(stage);
             log.info("SceneManager 清理 Stage 场景路由: service={}, stage={}", owner.getId(), stage);
         }
