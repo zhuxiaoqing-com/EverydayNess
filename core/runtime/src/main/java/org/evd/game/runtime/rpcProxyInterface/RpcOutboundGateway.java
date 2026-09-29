@@ -15,12 +15,12 @@ public final class RpcOutboundGateway {
         this.service = service;
     }
 
-    public void call(CallPoint toCallPoint, int methodKey, Object[] params) {
-        send(CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, false, 0L));
+    public void call(CallPoint targetCallPoint, int methodKey, Object[] params) {
+        send(CallFactory.buildServiceRpc(service, targetCallPoint, methodKey, params, false, 0L));
     }
 
-    public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
-        Call call = CallFactory.buildServiceRpc(service, toCallPoint, methodKey, params, true, 0L);
+    public Object callWait(CallPoint targetCallPoint, int methodKey, Object[] params, long timeoutMillis) {
+        Call call = CallFactory.buildServiceRpc(service, targetCallPoint, methodKey, params, true, 0L);
         return callWait(call, timeoutMillis);
     }
 
@@ -41,9 +41,9 @@ public final class RpcOutboundGateway {
                         service.getId(), timeoutWaitId, timeoutMillis, call.getTo(), call.getMethodKey()));
     }
 
-    public void sendClientCmd(CallPoint toCallPoint, org.evd.game.runtime.client.ClientSessionRef session,
+    public void sendClientCmd(CallPoint targetCallPoint, org.evd.game.runtime.client.ClientSessionRef session,
                               int msgId, Chunk body) {
-        send(CallFactory.buildServiceClientCmd(service, toCallPoint, session, msgId, body));
+        send(CallFactory.buildServiceClientCmd(service, targetCallPoint, session, msgId, body));
     }
 
     void send(CallBase call) {

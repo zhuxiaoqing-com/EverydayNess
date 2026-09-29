@@ -3,6 +3,7 @@ package org.evd.game.runtime.debug;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.evd.game.runtime.RemoteSession;
 import org.evd.game.runtime.call.CallBase;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.netty.NetChannel;
@@ -25,9 +26,20 @@ public final class DebugPrint {
         }
     }
 
+    public static void printSendRpc(CallBase call) {
+        printSendRpc(-1L, call);
+    }
+
+    public static void printSendRpc(RemoteSession session, CallBase call) {
+        printSendRpc(session == null ? -1L : session.getChannelId(), call);
+    }
+
     public static void printSendRpc(NetChannel netChannel, CallBase call) {
+        printSendRpc(netChannel == null ? -1L : netChannel.getChannelId(), call);
+    }
+
+    private static void printSendRpc(long channelId, CallBase call) {
         if (isDebugEnabled()) {
-            long channelId = netChannel == null ? -1L : netChannel.getChannelId();
             log.warn("发送rpc channelId {} call {}", channelId, call);
         }
     }
@@ -64,6 +76,18 @@ public final class DebugPrint {
      */
     public static void printSendNodeFrame(String stage, int localNodeId, int remoteNodeId,
                                           NetChannel netChannel, ByteBuf byteBuf, CallBase call) {
+        printSendNodeFrame(stage, localNodeId, remoteNodeId,
+                netChannel == null ? -1L : netChannel.getChannelId(), byteBuf, call);
+    }
+
+    public static void printSendNodeFrame(String stage, int localNodeId, int remoteNodeId,
+                                          RemoteSession session, ByteBuf byteBuf, CallBase call) {
+        printSendNodeFrame(stage, localNodeId, remoteNodeId,
+                session == null ? -1L : session.getChannelId(), byteBuf, call);
+    }
+
+    private static void printSendNodeFrame(String stage, int localNodeId, int remoteNodeId,
+                                           long channelId, ByteBuf byteBuf, CallBase call) {
         if (!isDebugEnabled()) {
             return;
         }
@@ -75,7 +99,7 @@ public final class DebugPrint {
                 stage,
                 localNodeId,
                 remoteNodeId,
-                netChannel == null ? -1L : netChannel.getChannelId(),
+                channelId,
                 call == null ? "<packet>" : call.getClass().getSimpleName(),
                 frameLength,
                 payloadLength);

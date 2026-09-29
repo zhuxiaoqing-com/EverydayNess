@@ -14,10 +14,7 @@ public abstract class CallBase implements ISerializable {
     public long id;
     /** 运行时入站 Session 标识，仅用于本进程内分发，不参与序列化。 */
     @SerializeIgnore
-    private transient long sourceSessionId = -1L;
-    /** 运行时出站 Session 标识，不参与序列化；未绑定为 -1，本地直连为 0。 */
-    @SerializeIgnore
-    private transient long outboundSessionId = -1L;
+    private transient long inboundSessionId = -1L;
 
     public long getId() {
         return id;
@@ -43,19 +40,12 @@ public abstract class CallBase implements ISerializable {
         this.to = to;
     }
 
-    public long getSourceSessionId() {
-        return sourceSessionId;
+    public long getInboundSessionId() {
+        return inboundSessionId;
     }
 
-    public void setSourceSessionId(long sourceSessionId) {
-        this.sourceSessionId = sourceSessionId;
+    public void setInboundSessionId(long inboundSessionId) {
+        this.inboundSessionId = inboundSessionId;
     }
 
-    public long getOutboundSessionId() {
-        return outboundSessionId;
-    }
-
-    public void setOutboundSessionId(long outboundSessionId) {
-        this.outboundSessionId = outboundSessionId;
-    }
 }

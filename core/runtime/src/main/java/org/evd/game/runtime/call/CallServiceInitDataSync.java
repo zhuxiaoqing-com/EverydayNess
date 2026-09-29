@@ -9,7 +9,7 @@ public final class CallServiceInitDataSync extends CallBase {
     /**
      * 发送方视角下的目标 Service 注册快照。
      *
-     * <p>包含目标 Service 的 CallPoint、serviceInstanceId 和 sessionId。
+     * <p>包含目标 Service 的 CallPoint、serviceInstanceId 和 ownerNodeSessionId。
      * 接收端使用它校验当前目标是否仍然是发送时的同一个 Service 实例和连接代次。
      * 如果目标 Service 已重启或 Node 已重连，则拒绝本次初始化消息。</p>
      */
@@ -24,12 +24,12 @@ public final class CallServiceInitDataSync extends CallBase {
     private long sourceServiceInstanceId;
 
     /**
-     * 发送方 Node 到目标 Node 的连接代次。
+     * 发送方 Node 到目标 Node 的本地连接代次。
      *
-     * <p>发送方服务快照中的 sessionId 使用同一个值。它用于描述这条初始化数据
+     * <p>发送方服务快照中的 ownerNodeSessionId 使用同一个值。它用于描述这条初始化数据
      * 是在哪一次 Node 连接上产生的；同一个 Service 重连后，该值会变化。</p>
      */
-    private long sourceSessionId;
+    private long sourceNodeSessionId;
 
     public RegisteredService getTargetService() {
         return targetService;
@@ -47,12 +47,12 @@ public final class CallServiceInitDataSync extends CallBase {
         this.sourceServiceInstanceId = sourceServiceInstanceId;
     }
 
-    public long getSourceSessionId() {
-        return sourceSessionId;
+    public long getSourceNodeSessionId() {
+        return sourceNodeSessionId;
     }
 
-    public void setSourceSessionId(long sourceSessionId) {
-        this.sourceSessionId = sourceSessionId;
+    public void setSourceNodeSessionId(long sourceNodeSessionId) {
+        this.sourceNodeSessionId = sourceNodeSessionId;
     }
 
     @Override
@@ -62,7 +62,7 @@ public final class CallServiceInitDataSync extends CallBase {
                 ", to=" + to +
                 ", targetService=" + targetService +
                 ", sourceServiceInstanceId=" + sourceServiceInstanceId +
-                ", sourceSessionId=" + sourceSessionId +
+                ", sourceNodeSessionId=" + sourceNodeSessionId +
                 '}';
     }
 }

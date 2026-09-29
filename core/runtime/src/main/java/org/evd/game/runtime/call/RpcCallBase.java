@@ -1,6 +1,8 @@
 package org.evd.game.runtime.call;
 
 import org.evd.game.annotation.serialize.SerializeClass;
+import org.evd.game.annotation.serialize.SerializeIgnore;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 /**
  * 可执行 RPC 请求的公共负载。
@@ -10,6 +12,10 @@ import org.evd.game.annotation.serialize.SerializeClass;
  */
 @SerializeClass
 public abstract class RpcCallBase extends CallBase {
+    /** 本地发送时解析到的目标服务注册代次，不参与序列化。 */
+    @SerializeIgnore
+    private transient RegisteredService targetRegisteredService;
+
     /** 负载分发类型，见 DispatchType。 */
     public int dispatchType = DispatchType.RPC;
     /** 目标服务调用的方法。 */
@@ -25,7 +31,6 @@ public abstract class RpcCallBase extends CallBase {
         callResult.to = new CallPoint(this.from);
         callResult.id = this.id;
         callResult.methodKey = this.methodKey;
-        callResult.setSourceSessionId(getSourceSessionId());
         return callResult;
     }
 
@@ -59,5 +64,13 @@ public abstract class RpcCallBase extends CallBase {
 
     public void setNeedResult(boolean needResult) {
         this.needResult = needResult;
+    }
+
+    public RegisteredService getTargetRegisteredService() {
+        return targetRegisteredService;
+    }
+
+    public void setTargetRegisteredService(RegisteredService targetRegisteredService) {
+        this.targetRegisteredService = targetRegisteredService;
     }
 }

@@ -45,12 +45,6 @@ public class CallPulseBuffer implements AutoCloseable{
 		}
 
 		try {
-			if (!node.canSendOutboundSession_nt(targetNodePoint, sessionId)) {
-				org.evd.game.runtime.support.LogCore.remote.warn(
-					"出站 Session 已失效，跳过该 Session 缓冲: targetNode={}, sessionId={}",
-					targetNodePoint, sessionId);
-				return;
-			}
 			node.flushCall_st(targetNodePoint, sessionId, buffer.getBuffer(), buffer.getLength());
 		} finally {
 			buffer.reset();

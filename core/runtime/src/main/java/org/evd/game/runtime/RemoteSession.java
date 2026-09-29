@@ -1,9 +1,12 @@
 package org.evd.game.runtime;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.netty.NetChannel;
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * RemoteNode 一次物理链路对应的会话。为了后续RPC懒加载而创建
@@ -15,11 +18,14 @@ public final class RemoteSession {
     private static final AtomicLong SESSION_ID_ALLOC = new AtomicLong();
 
     private final long sessionId;
+    private final Node localNode;
     private final CallPoint remoteCallPoint;
     private final NetChannel channel;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
-    RemoteSession(CallPoint remoteCallPoint, NetChannel channel) {
+    RemoteSession(Node localNode, CallPoint remoteCallPoint, NetChannel channel) {
         this.sessionId = SESSION_ID_ALLOC.incrementAndGet();
+        this.localNode = localNode;
         this.remoteCallPoint = new CallPoint(remoteCallPoint);
         this.channel = channel;
     }
@@ -50,5 +56,21 @@ public final class RemoteSession {
 
     public boolean isValid() {
         return channel.isValid();
+    }
+
+    /** 返回 true 表示消息已交给 Netty；拒绝写入时释放 ByteBuf。 */
+    boolean tryWrite(ByteBuf byteBuf) {
+        if (byteBuf == null) {
+            return false;
+        }
+        if (!isValid()) {
+            ReferenceCountUtil.release(byteBuf);
+            return false;
+        }
+        return channel.tryWrite(byteBuf);
+    }
+
+    public void close() {
+        channel.close();
     }
 }

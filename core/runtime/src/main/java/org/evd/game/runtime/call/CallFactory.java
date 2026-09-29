@@ -43,7 +43,7 @@ public final class CallFactory {
 
         call.setTargetService(new RegisteredService(targetService));
         call.setSourceServiceInstanceId(current.getServiceInstanceId());
-        call.setSourceSessionId(current.getNode().getRemoteSessionId(current.getCallPoint()));
+        call.setSourceNodeSessionId(targetService.getOutboundSessionId());
         return call;
     }
 

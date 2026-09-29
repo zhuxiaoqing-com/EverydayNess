@@ -74,8 +74,6 @@ public class NetChannel {
 
 
     public NetChannel(Channel channel) {
-        Attribute<NetChannel> netChannel = channel.attr(ServerAttributeKey.netChannel);
-        netChannel.set(this);
         Attribute<Long> attribute = channel.attr(ServerAttributeKey.channel_Id);
         this.channelId = autoChannelId.addAndGet(1);
         attribute.set(this.channelId);
@@ -132,29 +130,35 @@ public class NetChannel {
     }
 
     /**
-     * 只有 Netty 写缓冲仍有明确容量时才接收消息。返回 null 表示调用方没有把消息交给 Netty。
+     * 只有 Netty 写缓冲仍有明确容量时才接收消息。返回 true 表示消息已交给 Netty。
      */
-    public ChannelFuture tryWrite(ByteBuf byteBuf) {
+    public boolean tryWrite(ByteBuf byteBuf) {
         if (byteBuf == null) {
-            return null;
+            return false;
         }
         if (!canWrite(byteBuf.readableBytes())) {
             ReferenceCountUtil.release(byteBuf);
-            return null;
+            return false;
         }
-        return channel.writeAndFlush(byteBuf);
+        channel.writeAndFlush(byteBuf);
+        return true;
     }
 
     public boolean write(ByteBuf byteBuf) {
-        return tryWrite(byteBuf) != null;
+        return tryWrite(byteBuf);
     }
 
     public boolean writeAndClose(ByteBuf byteBuf) {
-        ChannelFuture writeFuture = tryWrite(byteBuf);
-        if (writeFuture == null) {
+        if (byteBuf == null) {
             close();
             return false;
         }
+        if (!canWrite(byteBuf.readableBytes())) {
+            ReferenceCountUtil.release(byteBuf);
+            close();
+            return false;
+        }
+        ChannelFuture writeFuture = channel.writeAndFlush(byteBuf);
         writeFuture.addListener(new ChannelFutureListener() {
 
             public void operationComplete(ChannelFuture future) throws Exception {

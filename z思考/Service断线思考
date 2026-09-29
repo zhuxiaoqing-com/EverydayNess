@@ -228,3 +228,19 @@ Service 初始化分两类：
 但是有可能stage那边已经有了这个场景数据，这个时候应该怎么办;
 
 
+要改node之间的通讯，还有service的发送,Node如果是主动断的话，应该是要用一个closeSession的方法，
+在那个closeSession的方法里面要主动调用node的断线事件（org.evd.game.runtime.Node.handleChannelInactive_nt），
+然后再把那个channel里的note ID给它取消掉，
+这样后续的消息就直接发不进来了(org.evd.game.runtime.Node.handleInboundCall 这里判断session或者nodeId是否存在，不存在说明没有注册过，或者已经提前关闭了).
+然后之前发送消息到CallTransport的时候是从node里获取sessionId来进行判断链接是否存在,
+现在改成在CallTransport的时候，不取node里的sessionId,而是将sessionID在Registerservice同步过来的时候提前注册进去，
+然后再CallTransport的时候直接用Registerservice里的sessionId，然后将Registerservice 放到RpcCallBase里，. 这样的话，
+有个好处，就是之前是在发送的时候直接获取note的sessionID，检测它有没有过期，可能过期会在servicediscount之前到来.
+用service发送的话，就不用在发送之前检测sessionID是否有效了，只要最后node那边发送的时候，
+检测一下，session id一不一样，不一样就不发送就好了. 然后RPC 断联。这里的话只要监听service断联就可以了，
+就不需要再(org.evd.game.runtime.Node.failRpcWaitsForRemote_nt 这里进行处理rpc断线了)
+然后改成service的话，还有一个好处就是因为service的断联时间一定会在RPC断联之前触发，
+所以创建地图那里，本来创建地图返回，还在纠结它返回失败到底是本地失败，还是远程失败，还是链接断开的失败，
+现在service断联是进行触发的话，会直接把那个地图改成失效的，只要在创建地图回来之前先如果是失败了，就先检测一下地图状态是不是失效的。
+失效的话，就直接不把那个地图删掉，这样的话就能解决不清楚远端是否地图是否创建出来的问题啊，只要是失效了，就默认远端地图已经创建出来了
+

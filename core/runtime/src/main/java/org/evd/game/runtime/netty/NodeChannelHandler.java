@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.runtime.Node;
+import org.evd.game.runtime.RemoteSession;
 
 
 @Slf4j
@@ -30,12 +31,13 @@ public final class NodeChannelHandler extends  BaseChannelHandler<ByteBuf>  {
     @Override
     protected void onChannelInactive(ChannelHandlerContext ctx) {
         NetChannel session = ctx.channel().attr(ServerAttributeKey.netChannel).getAndSet(null);
+        RemoteSession remoteSession = ctx.channel().attr(ServerAttributeKey.remoteSession).get();
+        Integer remoteNodeId = remoteSession == null ? null : remoteSession.getRemoteNodeId();
         if (session != null) {
             session.setBrokenType(BrokenType.CLIENT_CLOSE);
             node.onChannelInactive_nt(session);
         }
         long sessionId = session == null ? -1L : session.getChannelId();
-        Integer remoteNodeId = ctx.channel().attr(ServerAttributeKey.remoteNodeId).get();
         log.info("Netty onChannelInactive: node={}, remoteNode={}, sessionId={}",
                 node.getId(), remoteNodeId, sessionId);
     }

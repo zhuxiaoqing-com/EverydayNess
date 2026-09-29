@@ -13,8 +13,10 @@ import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.exception.RpcTransportException;
 import org.evd.game.runtime.util.TimerScheduler;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -126,15 +128,17 @@ public final class CallTransport {
         return true;
     }
 
-    int failPendingRpcForSession(long sessionId) {
-        if (sessionId < 0L) {
+    int failPendingRpcForServices(Collection<RegisteredService> disconnectedServices) {
+        if (disconnectedServices == null || disconnectedServices.isEmpty()) {
             return 0;
         }
 
         int failed = 0;
         for (Map.Entry<Long, PendingRpcCall> entry : new ArrayList<>(pendingRpcCalls.entrySet())) {
             PendingRpcCall pendingRpcCall = entry.getValue();
-            if (pendingRpcCall.debugInfo.getSessionId() != sessionId) {
+            RegisteredService targetService = pendingRpcCall.debugInfo.getRpcCallBase()
+                    .getTargetRegisteredService();
+            if (!isDisconnectedService(targetService, disconnectedServices)) {
                 continue;
             }
             long waitId = entry.getKey();
@@ -150,43 +154,48 @@ public final class CallTransport {
         return failed;
     }
 
-    /** 在传输入口捕获当前 Session，并将等待绑定到该 Session。 */
+    /** 在发送边界解析目标 Service 注册项，并将 Call 绑定到该 Session。 */
     void send(CallBase call) {
-        DebugPrint.printSendRpc(null, call);
+        DebugPrint.printSendRpc(call);
         if (call == null) {
             throw new RpcTransportException("rpc transport unavailable: null call");
+        }
+        if (service.getCallPoint().equals(call.to)) {
+            throw new IllegalArgumentException("service cannot send rpc to itself: service=" + serviceId
+                    + ", callPoint=" + call.to);
+        }
+
+        RegisteredService targetService = service.getRegisteredService(call.to);
+        if (call instanceof RpcCallBase rpcCallBase) {
+            rpcCallBase.setTargetRegisteredService(targetService);
         }
 
         // 目标节点与当前节点身份一致时，直接在本地投递。
         if (node.isLocalNode(call.to)) {
-            call.setOutboundSessionId(0L);
-            long waitId = call instanceof CallResult ? 0L : call.getId();
-            if (waitId != 0L && !bindPendingRpcSession(waitId, 0L)) {
-                throw new RpcTransportException("rpc wait is not bindable: service={}, waitId={}, sessionId=0",
-                        serviceId, waitId);
-            }
             node.postLocalCall(call);
             return;
         }
 
         CallPoint toNodePoint = call.to == null ? null : call.to.nodePoint();
         Integer toNodeId = toNodePoint == null ? null : toNodePoint.nodeId;
-        // 当前 RemoteNode 只有一条有效连接，普通 RPC 和 RPC 响应统一使用当前连接。
-        RemoteSession session = node.captureRemoteSession(call);
-        if (session == null) {
-            LogCore.remote.warn("远程Node Service当前不可接收业务RPC，拒绝进入出站缓冲: localNode={}, remoteNode={}, service={}, callType={}",
+
+        if (targetService == null || targetService.getOutboundSessionId() < 0L) {
+            LogCore.remote.warn("远程Node Service注册项当前不可用，拒绝进入出站缓冲: localNode={}, remoteNode={}, service={}, callType={}",
                     node.getId(), toNodeId, call.to == null ? null : call.to.servId,
                     call.getClass().getSimpleName());
             throw new RpcTransportException("rpc transport unavailable: service={}, toNode={}, toService={}, callType={}",
                     serviceId, toNodeId, call.to == null ? null : call.to.servId,
                     call.getClass().getSimpleName());
         }
-        long sessionId = session.getSessionId();
-        call.setOutboundSessionId(sessionId);
-        long waitId = call instanceof CallResult ? 0L : call.getId();
-        if (waitId != 0L && !bindPendingRpcSession(waitId, sessionId)) {
-            throw new RpcTransportException("rpc wait is not bindable: service={}, waitId={}, sessionId={}",
-                    serviceId, waitId, sessionId);
+        long sessionId = targetService.getOutboundSessionId();
+
+        if (!node.canSendBusinessCall_nt(call)) {
+            LogCore.remote.warn("远程Node Service当前不可接收业务RPC，拒绝进入出站缓冲: localNode={}, remoteNode={}, service={}, callType={}",
+                    node.getId(), toNodeId, call.to == null ? null : call.to.servId,
+                    call.getClass().getSimpleName());
+            throw new RpcTransportException("rpc transport unavailable: service={}, toNode={}, toService={}, callType={}",
+                    serviceId, toNodeId, call.to == null ? null : call.to.servId,
+                    call.getClass().getSimpleName());
         }
         CallFrameBufferKey bufferKey = new CallFrameBufferKey(toNodePoint, sessionId);
         CallPulseBuffer buffer = callFrameBuffers.get(bufferKey);
@@ -247,20 +256,19 @@ public final class CallTransport {
         if (pendingRpcCall == null) {
             return null;
         }
-        CallPoint expectedNodePoint = pendingRpcCall.debugInfo.getTargetCallPoint() == null
-                ? null : pendingRpcCall.debugInfo.getTargetCallPoint().nodePoint();
-        CallPoint sourceNodePoint = callResult.from == null ? null : callResult.from.nodePoint();
-        long expectedSessionId = pendingRpcCall.debugInfo.getSessionId();
-        if (!Objects.equals(expectedNodePoint, sourceNodePoint)
-                || expectedSessionId != callResult.getSourceSessionId()) {
+        CallPoint expectedSource = pendingRpcCall.debugInfo.getTargetCallPoint();
+        CallPoint actualSource = callResult.from;
+        long expectedSessionId = pendingRpcCall.debugInfo.getOutboundSessionId();
+        if (expectedSource == null || !expectedSource.equals(actualSource)
+                || expectedSessionId != callResult.getInboundSessionId()) {
             LogCore.remote.error(
-                    "RPC响应来源与等待不匹配，拒绝完成: service={}, waitId={}, expectedNode={}, sourceNode={}, expectedSession={}, sourceSession={}",
+                    "RPC响应来源与等待不匹配，拒绝完成: service={}, waitId={}, expectedSource={}, actualSource={}, expectedSession={}, sourceSession={}",
                     serviceId,
                     callResult.id,
-                    expectedNodePoint,
-                    sourceNodePoint,
+                    expectedSource,
+                    actualSource,
                     expectedSessionId,
-                    callResult.getSourceSessionId());
+                    callResult.getInboundSessionId());
             return null;
         }
         return removePendingRpc(callResult.id);
@@ -275,13 +283,22 @@ public final class CallTransport {
         }
     }
 
-    private boolean bindPendingRpcSession(long waitId, long sessionId) {
-        PendingRpcCall pendingRpcCall = pendingRpcCalls.get(waitId);
-        if (pendingRpcCall == null || sessionId < 0L) {
+    private boolean isDisconnectedService(RegisteredService targetService,
+                                          Collection<RegisteredService> disconnectedServices) {
+        if (targetService == null) {
             return false;
         }
-        pendingRpcCall.debugInfo.setSessionId(sessionId);
-        return true;
+        CallPoint targetCallPoint = targetService.getCallPoint();
+        for (RegisteredService disconnectedService : disconnectedServices) {
+            if (disconnectedService == null
+                    || !Objects.equals(targetCallPoint, disconnectedService.getCallPoint())) {
+                continue;
+            }
+            if (!targetService.isDifferentServiceSession(disconnectedService)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void timeoutPendingRpc(PendingRpcCall pendingRpcCall) {

@@ -9,8 +9,8 @@ import org.evd.game.runtime.ymlconfig.RegisteredService;
 final class OtherServiceInfo {
     private final RegisteredService service;
     private final long connectTime;
-    /** 连接代次；远端使用 Node Session，进程内连接使用 Service 实例代次。 */
-    private final long sessionId;
+    /** 所属 Node 发布的连接代次；进程内连接使用 Service 实例代次。 */
+    private final long ownerNodeSessionId;
     /** 对方发来的初始化数据已经在本地 Service 线程应用完成。 */
     @Setter
     private boolean initDataSync;
@@ -20,8 +20,8 @@ final class OtherServiceInfo {
     OtherServiceInfo(RegisteredService service, long connectTime) {
         this.service = service;
         this.connectTime = connectTime;
-        this.sessionId = service.getSessionId() != 0L
-                ? service.getSessionId()
+        this.ownerNodeSessionId = service.getOwnerNodeSessionId() != 0L
+                ? service.getOwnerNodeSessionId()
                 : service.getServiceInstanceId();
     }
 

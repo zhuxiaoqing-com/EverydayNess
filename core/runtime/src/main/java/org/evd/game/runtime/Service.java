@@ -371,7 +371,9 @@ public class Service extends TickCase {
      * 小于等于0代表不启用超时
      */
     protected long getCallWaitTimeout() {
-        return 10_000;
+        //return 10_000;
+        // 保证比心跳超时时间长
+        return RemoteNode.INTERVAL_LOST + 5_000;
     }
 
     public long getCallWaitTimeoutInternal() {
@@ -429,11 +431,6 @@ public class Service extends TickCase {
     /** 仅在 Service 线程处理入站 RPC 结果，保持其与断链任务的 FIFO 顺序。 */
     void handleInboundResult_st(CallResult callResult) {
         rpcInboundDispatcher.handle(callResult);
-    }
-
-    int failRpcWaitsForRemote(CallPoint remoteNodePoint, long sessionId) {
-        callTransport.discard(remoteNodePoint, sessionId);
-        return callTransport.failPendingRpcForSession(sessionId);
     }
 
     public CallPoint getCallPoint() {
@@ -679,8 +676,8 @@ public class Service extends TickCase {
      * @param methodKey
      * @param params
      */
-    public void call(CallPoint toCallPoint, int methodKey, Object[] params) {
-        rpcOutboundGateway.call(requireCallPoint(toCallPoint, methodKey), methodKey, params);
+    public void call(CallPoint targetCallPoint, int methodKey, Object[] params) {
+        rpcOutboundGateway.call(targetCallPoint, methodKey, params);
     }
 
     /**
@@ -691,20 +688,13 @@ public class Service extends TickCase {
      * @param methodKey
      * @param params
      */
-    public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params) {
+    public Object callWait(CallPoint targetCallPoint, int methodKey, Object[] params) {
         return rpcOutboundGateway.callWait(
-                requireCallPoint(toCallPoint, methodKey), methodKey, params, getCallWaitTimeoutInternal());
+                targetCallPoint, methodKey, params, getCallWaitTimeoutInternal());
     }
 
-    public Object callWait(CallPoint toCallPoint, int methodKey, Object[] params, long timeoutMillis) {
-        return rpcOutboundGateway.callWait(requireCallPoint(toCallPoint, methodKey), methodKey, params, timeoutMillis);
-    }
-
-    private CallPoint requireCallPoint(CallPoint callPoint, int methodKey) {
-        if (callPoint == null) {
-            throw new SysException("rpc target call point is null: service={}, methodKey={}", id, methodKey);
-        }
-        return callPoint;
+    public Object callWait(CallPoint targetCallPoint, int methodKey, Object[] params, long timeoutMillis) {
+        return rpcOutboundGateway.callWait(targetCallPoint, methodKey, params, timeoutMillis);
     }
 
 
@@ -728,9 +718,9 @@ public class Service extends TickCase {
         thisContinuation.waitResult();
     }
 
-    public void sendClientCmd(CallPoint toCallPoint, org.evd.game.runtime.client.ClientSessionRef session,
+    public void sendClientCmd(CallPoint targetCallPoint, org.evd.game.runtime.client.ClientSessionRef session,
                               int msgId, Chunk body) {
-        rpcOutboundGateway.sendClientCmd(toCallPoint, session, msgId, body);
+        rpcOutboundGateway.sendClientCmd(targetCallPoint, session, msgId, body);
     }
 
     public void dispatchLocalClientCmd(org.evd.game.runtime.client.ClientSessionRef session,
@@ -1038,6 +1028,7 @@ public class Service extends TickCase {
 
     /** Service 从最新注册快照消失，可能包含自己。 */
     protected final void _onServiceDisconnect(Collection<RegisteredService> serviceList) {
+        callTransport.failPendingRpcForServices(serviceList);
         servicePeerRegistry.onServiceDisconnect(serviceList);
         if (mdb != null) {
             mdb.disconnectService(serviceList);
@@ -1066,6 +1057,14 @@ public class Service extends TickCase {
     /** 返回本 Service 已完成初始化数据同步的任一同类型 Service 调用点。 */
     public CallPoint getAnyCallPointByType(ServiceType serviceType) {
         return servicePeerRegistry.getAnyCallPointByType(serviceType);
+    }
+
+    /** 返回目标 Service 的注册项。 */
+    public RegisteredService getRegisteredService(CallPoint callPoint) {
+        if (callPoint == null) {
+            return null;
+        }
+        return servicePeerRegistry.getRegisteredService(callPoint);
     }
 
     @Override

@@ -38,9 +38,8 @@ public final class RemoteNodeChannelHandler extends  BaseChannelHandler<ByteBuf>
             node.onChannelInactive_nt(session);
         }
         long sessionId = session == null ? -1L : session.getChannelId();
-        Integer remoteNodeId = ctx.channel().attr(ServerAttributeKey.remoteNodeId).get();
         log.info("Netty onChannelInactive: node={}, remoteNode={} sessionId={}",
-                node.getId(), remoteNodeId, sessionId);
+                node.getId(), remoteNode.getRemoteId(), sessionId);
 
     }
 

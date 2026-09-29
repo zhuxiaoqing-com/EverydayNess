@@ -19,8 +19,11 @@ public class RegisteredService implements ISerializable {
     private String serviceId;
     /** 本次 Service 启动实例的唯一 ID，不参与路由。 */
     private long serviceInstanceId;
-    /** 本次 Service 所属 Node 连接到对端 Node 的连接代次。 */
-    private long sessionId;
+    /** 发布该 Service 的 Node 连接到当前 Node 的本地会话代次。 */
+    private long ownerNodeSessionId;
+    /** 当前 Node 发往该 Service 所属 Node 的会话代次，不参与序列化。 */
+    @SerializeIgnore
+    private long outboundSessionId;
     private int platformId;
     private int serverId;
     private int nodeId;
@@ -44,7 +47,8 @@ public class RegisteredService implements ISerializable {
         this(other.serviceType, other.serviceClassName, other.serviceId,
                 other.platformId, other.serverId, other.nodeId);
         this.serviceInstanceId = other.serviceInstanceId;
-        this.sessionId = other.sessionId;
+        this.ownerNodeSessionId = other.ownerNodeSessionId;
+        this.outboundSessionId = other.outboundSessionId;
         this.callPoint = other.callPoint == null ? null : new CallPoint(other.callPoint);
     }
 
@@ -55,11 +59,12 @@ public class RegisteredService implements ISerializable {
         return callPoint;
     }
 
-    /** 判断是否已经不是同一个 Service 实例或 Node 连接。 */
+    /** 判断是否已经不是同一个 Service 实例或任一端的 Node 连接。 */
     public boolean isDifferentServiceSession(RegisteredService other) {
         return other == null
                 || serviceInstanceId != other.serviceInstanceId
-                || sessionId != other.sessionId;
+                || ownerNodeSessionId != other.ownerNodeSessionId
+                || outboundSessionId != other.outboundSessionId;
     }
 
 

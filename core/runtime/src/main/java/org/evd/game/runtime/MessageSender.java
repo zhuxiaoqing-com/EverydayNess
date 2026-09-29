@@ -31,7 +31,8 @@ public final class MessageSender {
         ActorAddress targetActorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
         RpcCallBase message = CallFactory.buildActorRpc(service, actorAddress, actorId, methodKey, params, true, 0L);
         ContinuationDebugInfo.ActorRpcWaitDebugInfo debugInfo =
-                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(targetActorId, targetActorAddress, methodKey, timeoutMillis);
+                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(
+                        message, targetActorId, targetActorAddress, methodKey, timeoutMillis);
         return service.getCallTransport().awaitRpcCall(
                 message,
                 timeoutMillis,
@@ -59,7 +60,8 @@ public final class MessageSender {
         RpcCallBase message = CallFactory.buildActorClientCmd(
                 service, actorAddress, actorId, msgId, session, body, true);
         ContinuationDebugInfo.ActorRpcWaitDebugInfo debugInfo =
-                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(targetActorId, targetActorAddress, msgId, timeoutMillis);
+                new ContinuationDebugInfo.ActorRpcWaitDebugInfo(
+                        message, targetActorId, targetActorAddress, msgId, timeoutMillis);
         return service.getCallTransport().awaitRpcCall(
                 message,
                 timeoutMillis,

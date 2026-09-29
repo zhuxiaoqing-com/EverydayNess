@@ -4,6 +4,7 @@ import org.evd.game.runtime.actor.ActorAddress;
 import org.evd.game.runtime.actor.ActorId;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.call.RpcCallBase;
+import org.evd.game.runtime.ymlconfig.RegisteredService;
 
 public final class ContinuationDebugInfo {
     private ContinuationDebugInfo() {
@@ -15,17 +16,21 @@ public final class ContinuationDebugInfo {
     }
 
     public static abstract class RpcWaitDebugInfo extends DebugInfo {
-        /** 绑定 RPC 出站 Session；仅用于本地等待匹配和调试，不参与序列化。 */
-        private volatile long sessionId = -1L;
+        private final RpcCallBase rpcCallBase;
+
+        protected RpcWaitDebugInfo(RpcCallBase rpcCallBase) {
+            this.rpcCallBase = rpcCallBase;
+        }
 
         public abstract CallPoint getTargetCallPoint();
 
-        public final long getSessionId() {
-            return sessionId;
+        public final RpcCallBase getRpcCallBase() {
+            return rpcCallBase;
         }
 
-        public final void setSessionId(long sessionId) {
-            this.sessionId = sessionId;
+        public final long getOutboundSessionId() {
+            RegisteredService targetService = rpcCallBase.getTargetRegisteredService();
+            return targetService == null ? 0L : targetService.getOutboundSessionId();
         }
     }
 
@@ -74,25 +79,25 @@ public final class ContinuationDebugInfo {
     }
 
     public static final class ServiceRpcWaitDebugInfo extends RpcWaitDebugInfo {
-        private final CallPoint targetCallPoint;
         private final int methodKey;
         private final long timeoutMillis;
 
         public ServiceRpcWaitDebugInfo(RpcCallBase call, long timeoutMillis) {
-            this.targetCallPoint = call.getTo();
+            super(call);
             this.methodKey = call.getMethodKey();
             this.timeoutMillis = timeoutMillis;
         }
 
         @Override
         public CallPoint getTargetCallPoint() {
+            CallPoint targetCallPoint = getRpcCallBase().getTo();
             return targetCallPoint == null ? null : new CallPoint(targetCallPoint);
         }
 
         @Override
         public String toString() {
-            return "serviceRpc target=" + targetCallPoint + ", methodKey=" + methodKey
-                    + ", timeoutMillis=" + timeoutMillis + ", sessionId=" + getSessionId();
+            return "serviceRpc target=" + getTargetCallPoint() + ", methodKey=" + methodKey
+                    + ", timeoutMillis=" + timeoutMillis + ", sessionId=" + getOutboundSessionId();
         }
     }
 
@@ -102,7 +107,12 @@ public final class ContinuationDebugInfo {
         private final int methodKey;
         private final long timeoutMillis;
 
-        public ActorRpcWaitDebugInfo(ActorId actorId, ActorAddress actorAddress, int methodKey, long timeoutMillis) {
+        public ActorRpcWaitDebugInfo(RpcCallBase rpcCallBase,
+                                     ActorId actorId,
+                                     ActorAddress actorAddress,
+                                     int methodKey,
+                                     long timeoutMillis) {
+            super(rpcCallBase);
             this.actorId = actorId == null ? null : new ActorId(actorId);
             this.actorAddress = actorAddress == null ? null : new ActorAddress(actorAddress);
             this.methodKey = methodKey;
@@ -119,7 +129,7 @@ public final class ContinuationDebugInfo {
         public String toString() {
             return "actorRpc actorId=" + actorId + ", actorAddress=" + actorAddress
                     + ", methodKey=" + methodKey + ", timeoutMillis=" + timeoutMillis
-                    + ", sessionId=" + getSessionId();
+                    + ", sessionId=" + getOutboundSessionId();
         }
     }
 

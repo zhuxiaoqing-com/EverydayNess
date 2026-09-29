@@ -83,9 +83,19 @@ final class ServicePeerRegistry {
         return type2CallMap.getOrDefault(serviceType, List.of());
     }
 
-    CallPoint getAnyCallPointByType(ServiceType serviceType) {
+    RegisteredService getRegisteredService(CallPoint callPoint) {
+        OtherServiceInfo info = callPoint == null ? null : otherServiceMap.get(callPoint);
+        return info == null ? null : info.getService();
+    }
+
+    RegisteredService getAnyRegisteredServiceByType(ServiceType serviceType) {
         List<RegisteredService> registeredServices = getServicesByType(serviceType);
-        return registeredServices.isEmpty() ? null : registeredServices.getFirst().getCallPoint();
+        return registeredServices.isEmpty() ? null : registeredServices.getFirst();
+    }
+
+    CallPoint getAnyCallPointByType(ServiceType serviceType) {
+        RegisteredService registeredService = getAnyRegisteredServiceByType(serviceType);
+        return registeredService == null ? null : registeredService.getCallPoint();
     }
 
     private void rebuildServiceIndexes() {
@@ -137,8 +147,9 @@ final class ServicePeerRegistry {
 
             RpcResult<Void> result = RpcResult.run(() -> service.sendOutboundCall(call));
             if (!result.isSuccess()) {
-                log.error("发送其他Service初始化同步通知失败: service={}, otherService={}, sessionId={}, errorCode={}, message={}",
-                        service.getId(), info.getService().getCallPoint(), info.getSessionId(),
+                log.error("发送其他Service初始化同步通知失败: service={}, otherService={}, outboundSessionId={}, errorCode={}, message={}",
+                        service.getId(), info.getService().getCallPoint(),
+                        info.getService().getOutboundSessionId(),
                         result.getErrorCode(), result.getErrorMessage());
             }
         }
@@ -206,11 +217,11 @@ final class ServicePeerRegistry {
             }
             info.setLastErrorLogTime(now);
             log.error(
-                    "其他Service初始化数据未同步完成: service={}, otherService={}, connectTime={}, sessionId={}, initDataSync={}",
+                    "其他Service初始化数据未同步完成: service={}, otherService={}, connectTime={}, ownerNodeSessionId={}, initDataSync={}",
                     service.getId(),
                     info.getService().getCallPoint(),
                     info.getConnectTime(),
-                    info.getSessionId(),
+                    info.getOwnerNodeSessionId(),
                     info.isInitDataSync());
         }
     }
@@ -269,7 +280,7 @@ final class ServicePeerRegistry {
         if (source.getServiceInstanceId() != call.getSourceServiceInstanceId()) {
             return false;
         }
-        if (source.getSessionId() != call.getSourceSessionId()) {
+        if (source.getOwnerNodeSessionId() != call.getSourceNodeSessionId()) {
             return false;
         }
 
@@ -296,7 +307,7 @@ final class ServicePeerRegistry {
         }
 
         // Node 记录的来源远程会话必须仍与通知中的目标会话一致。
-        if (node.getRemoteSessionId(sourceCallPoint) != target.getSessionId()) {
+        if (node.getRemoteSessionId(sourceCallPoint) != target.getOwnerNodeSessionId()) {
             return false;
         }
         return true;

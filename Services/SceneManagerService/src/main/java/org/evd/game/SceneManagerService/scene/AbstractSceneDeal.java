@@ -196,8 +196,8 @@ public abstract class AbstractSceneDeal {
             SMapCreateRequest stageRequest = new SMapCreateRequest(mapKey,
                     request.getMatchParams());
             if (!createStageScene(sceneInfo, stageRequest, sceneId)) {
-                log.error("SceneManager Stage 创建地图失败，取消创建: sceneId={}, mapCfgId={}, groupId={}",
-                        sceneId, mapKey.getMapCfgId(), mapKey.getGroupId());
+                log.error("SceneManager Stage 创建地图未完成: sceneId={}, mapCfgId={}, groupId={}, state={}",
+                        sceneId, mapKey.getMapCfgId(), mapKey.getGroupId(), sceneInfo.getState());
                 return null;
             }
         }
@@ -241,6 +241,12 @@ public abstract class AbstractSceneDeal {
                 sceneInfo.getStageCallPoint(), request, sceneId);
         if (scenes.get(sceneInfo.getMapKey()) != sceneInfo) {
             log.warn("场景创建返回时路由已失效: sceneId={}", sceneId);
+            return false;
+        }
+        if (sceneInfo.getState() == SMSceneState.UNAVAILABLE) {
+            log.warn("SceneManager 创建返回前 Stage 已断联，保留失效路由: sceneId={}, mapCfgId={}, groupId={}, stage={}",
+                    sceneInfo.getSceneId(), sceneInfo.getMapKey().getMapCfgId(),
+                    sceneInfo.getMapKey().getGroupId(), sceneInfo.getStageCallPoint());
             return false;
         }
         if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
