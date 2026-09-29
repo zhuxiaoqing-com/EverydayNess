@@ -7,7 +7,6 @@ import org.evd.game.SceneManagerService.scene.SceneDealManager;
 import org.evd.game.runtime.util.id.SceneIdGenerator;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
-import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.ymlconfig.ServiceInfo;
 
@@ -42,10 +41,6 @@ public class SceneManagerService extends Service {
 
     public long createSceneId() {
         return SceneIdGenerator.nextId();
-    }
-
-    public CallPoint getSceneStage(long sceneId) {
-        return sceneDealManager.getSceneStage(sceneId);
     }
 
 }

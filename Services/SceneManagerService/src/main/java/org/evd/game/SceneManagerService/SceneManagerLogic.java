@@ -1,11 +1,16 @@
 package org.evd.game.SceneManagerService;
 
 import org.evd.game.annotation.actor.Actor;
+import org.evd.game.common.constant.MapConst;
+import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapCreateRequest;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SRunningMapInfo;
 import org.evd.game.runtime.Service;
+import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.runtime.support.exception.SysException;
 
 import java.util.List;
@@ -13,6 +18,19 @@ import java.util.List;
 /** SceneManager 独立的地图分发逻辑。 */
     @Actor
 public final class SceneManagerLogic {
+    public MapConst.SceneEnterResult enterScene(long sceneId, SPlayerMapData playerData) {
+        CallPoint stage = owner().sceneDealManager().getSceneStage(sceneId);
+        if (stage == null) {
+            return MapConst.SceneEnterResult.SCENE_NOT_FOUND;
+        }
+        RpcResult<MapConst.SceneEnterResult> result = StageServiceRpcProxy.callEnterScene(stage, sceneId, playerData);
+        if (!result.isSuccess()) {
+            throw new SysException("SceneManager 调用 Stage 正式进入地图失败: sceneId={}, errorCode={}, message={}",
+                    sceneId, result.getErrorCode(), result.getErrorMessage());
+        }
+        return result.getValue();
+    }
+
     public boolean enterMap(PlayerEnterRequest request) {
         if (request == null || request.getTargetInfo() == null) {
             throw new SysException("进入地图请求缺少目标地图");
@@ -25,6 +43,13 @@ public final class SceneManagerLogic {
             throw new SysException("退出地图请求缺少地图信息");
         }
         return owner().sceneDealManager().getDeal(mapInfo.getMapCfgId()).exitMap(mapInfo.toMapKey(), playerId);
+    }
+
+    public void destroyScene(SMapInfo mapInfo, CallPoint stage) {
+        if (mapInfo == null) {
+            throw new SysException("销毁地图请求缺少地图信息");
+        }
+        owner().sceneDealManager().getDeal(mapInfo.getMapCfgId()).destroyScene(mapInfo, stage);
     }
 
     public SMapInfo createScene(SMapCreateRequest request) {

@@ -10,33 +10,26 @@ import org.evd.game.PlayerService.offline.PlayerOfflineLogic;
 import org.evd.game.PlayerService.session.PPlayerOnline;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.constant.MapConst;
-import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
-import org.evd.game.common.proxy.LocationService.LocationServiceRpcProxy;
-import org.evd.game.common.proxy.OnlineService.OnlineSessionRpcProxy;
-import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
-import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerEnterParam;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapData;
-import org.evd.game.common.serializeBean.SceneManagerService.routing.SPlayerMapSimpleData;
-import org.evd.game.runtime.Service;
-import org.evd.game.runtime.actor.ActorAddress;
-import org.evd.game.runtime.actor.ActorId;
-import org.evd.game.runtime.call.CallPoint;
-import org.evd.game.runtime.client.ClientSessionRef;
-import org.evd.game.runtime.serializeBean.ClientFrameChunk;
-import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 import org.evd.game.common.proto.C2S_ReadyEnterMap;
 import org.evd.game.common.proto.MapMsgId;
 import org.evd.game.common.proto.S2C_ReadyEnterMap;
+import org.evd.game.common.proxy.ConnService.ConnServiceRpcProxy;
+import org.evd.game.common.proxy.OnlineService.OnlineSessionRpcProxy;
+import org.evd.game.common.proxy.SceneManagerService.SceneManagerRpcProxy;
+import org.evd.game.common.serializeBean.SceneManagerService.routing.*;
+import org.evd.game.runtime.Service;
+import org.evd.game.runtime.actor.ActorAddress;
+import org.evd.game.runtime.call.CallPoint;
+import org.evd.game.runtime.client.ClientSessionRef;
+import org.evd.game.runtime.rpcProxyInterface.RpcResult;
+import org.evd.game.runtime.serializeBean.ClientFrameChunk;
 
 /** PlayerService 独立的地图转场逻辑。 */
 @Slf4j
 @Actor
 public final class PlayerMapLogic {
-    private static final int LOGIN_MAP_CFG_ID = 1;
-    private static final long LOGIN_GROUP_ID = 0L;
+    private static final int DEFAULT_MAP_CFG_ID = 1;
+    private static final long DEFAULT_GROUP_ID = 0L;
     private static final long LOGIN_STATE_WAIT_MILL = 2_000L;
     /** 登录进入默认地图；已有状态时最多等待 2 秒，避免本次登录无意义失败。 */
     public void enterMapOnLogin(long playerId) {
@@ -53,10 +46,15 @@ public final class PlayerMapLogic {
                 return;
             }
         }
-        if (!enterMap(playerId, new SMapInfo(0L, LOGIN_MAP_CFG_ID, LOGIN_GROUP_ID), null)) {
+        if (!enterDefaultMap(playerId)) {
             log.error("PlayerService 登录进入地图失败，踢出玩家: userId={}, playerId={}", userId, playerId);
             owner().getActor(PlayerOfflineLogic.class).kickPlayer(playerId, "登录进入地图失败");
         }
+    }
+
+    /** 进入默认主城；调用方按各自场景处理进入失败。 */
+    private boolean enterDefaultMap(long playerId) {
+        return enterMap(playerId, new SMapInfo(0L, DEFAULT_MAP_CFG_ID, DEFAULT_GROUP_ID), null);
     }
 
     /** 普通地图进入，不涉及匹配状态。 */
@@ -153,12 +151,12 @@ public final class PlayerMapLogic {
                     playerId, transferId);
             return false;
         }
-
         if (!stateLogic().exit(playerId, PlayerMapState.ENTER_MAP)) {
             log.warn("PlayerService 客户端地图加载通知成功但状态已变化: playerId={}, transferId={}",
                     playerId, transferId);
             return false;
         }
+        context.getTargetInfo().setSceneId(targetInfo.getSceneId());
 
         S2C_ReadyEnterMap message = S2C_ReadyEnterMap.newBuilder()
                 .setSuccess(true)
@@ -181,29 +179,23 @@ public final class PlayerMapLogic {
         return true;
     }
 
-    /** Stage 完成退出后通知 PlayerService 清理当前地图。 */
-    public void onExitMap(long playerId, long sceneId) {
-        DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
-        DBMapInfo current = roleMapData == null ? null : roleMapData.getCurrMapInfo();
-        if (current == null || current.getSceneId() != sceneId) {
-            log.warn("PlayerService 收到玩家退出地图通知，但当前地图不匹配: playerId={}, sceneId={}, current={}",
-                    playerId, sceneId, current);
+    /** Stage 通知退出当前场景；地图销毁且没有转场时回到默认地图。 */
+    public void onExitMap(long playerId, SMapInfo mapInfo, int exitType) {
+        if (mapInfo == null || mapInfo.getSceneId() <= 0L) {
+            log.warn("PlayerService 收到非法地图退出通知: playerId={}, mapInfo={}, exitType={}",
+                    playerId, mapInfo, MapConst.RoleExitType.name(exitType));
             return;
         }
-        log.info("PlayerService 清理玩家当前地图: playerId={}, sceneId={}, mapCfgId={}, groupId={}",
-                playerId, sceneId, current.getMapCfgId(), current.getGroupId());
-       /* if (stageActorAddress == null) {
-            log.error("PlayerService 玩家退出地图缺少 StageActorAddress: playerId={}, sceneId={}",
-                    playerId, sceneId);
-            throw new IllegalStateException("玩家退出地图缺少 StageActorAddress: playerId=" + playerId
-                    + ", sceneId=" + sceneId);
+        long sceneId = mapInfo.getSceneId();
+        DBRoleMapData roleMapData = DBRoleMapDataTable.get(playerId);
+        DBMapInfo current = roleMapData.getCurrMapInfo();
+        DBTransferContext transferContext = roleMapData.getTransferContext();
+        if (current == null || current.getSceneId() != sceneId) {
+            return;
         }
-        RpcResult<Void> removeResult = LocationServiceRpcProxy.sendRemove(
-                null, ActorId.mapPlayer(playerId), stageActorAddress);
-        if (!removeResult.isSuccess()) {
-            log.warn("PlayerService 清理玩家 StageActorAddress 失败: playerId={}, sceneId={}, errorCode={}, message={}",
-                    playerId, sceneId, removeResult.getErrorCode(), removeResult.getErrorMessage());
-        }*/
+        log.info("PlayerService 清理玩家当前地图: playerId={}, sceneId={}, mapCfgId={}, groupId={}, exitType={}",
+                playerId, sceneId, current.getMapCfgId(), current.getGroupId(),
+                MapConst.RoleExitType.name(exitType));
         PPlayerOnline online = owner().sessionManager().get(playerId);
         owner().removeStageActorAddress(playerId);
         if (online != null) {
@@ -222,6 +214,24 @@ public final class PlayerMapLogic {
         }
         roleMapData.setOldCurrMapInfo(new DBMapInfo(current));
         roleMapData.setCurrMapInfo(new DBMapInfo());
+
+        if (exitType == MapConst.RoleExitType.MAP_DESTROYED) {
+            if (transferContext != null && transferContext.getStart()) {
+                return;
+            }
+            PlayerMapState state = stateLogic().getState(playerId);
+            if (state == PlayerMapState.NONE && owner().sessionManager().hasOnlinePlayer(playerId)) {
+                log.info("PlayerService 地图销毁后自动进入默认地图: playerId={}, destroyedSceneId={}",
+                        playerId, sceneId);
+                if (!enterDefaultMap(playerId)) {
+                    log.error("PlayerService 地图销毁后进入默认地图失败: playerId={}, destroyedSceneId={}",
+                            playerId, sceneId);
+                }
+            } else {
+                log.info("PlayerService 地图销毁后跳过默认地图回入: playerId={}, sceneId={}, state={}, online={}",
+                        playerId, sceneId, state, owner().sessionManager().hasOnlinePlayer(playerId));
+            }
+        }
     }
 
     /** 客户端加载完成后，调用 Stage 让 SceneBattle 正式接纳玩家。 */
@@ -247,27 +257,46 @@ public final class PlayerMapLogic {
 
         DBMapInfo targetInfo = context.getTargetInfo();
         CallPoint sceneManager = MapConst.getSceneManagerCallPoint(targetInfo.getMapCfgId());
-        RpcResult<CallPoint> stage = SceneManagerRpcProxy.callGetSceneStage(sceneManager, targetInfo.getSceneId());
-        if (!stage.isSuccess() || stage.getValue() == null) {
-            log.error("PlayerService 找不到目标场景 Stage: playerId={}, transferId={}, sceneId={}, errorCode={}, message={}",
-                    playerId, request.getTransferId(), targetInfo.getSceneId(),
-                    stage.getErrorCode(), stage.getErrorMessage());
-            roleMapData.setTransferContext(new DBTransferContext());
-            return;
-        }
         SPlayerMapData playerData = dataLogic().getData(playerId);
         playerData.setGateActorAddress(online.getGateActorAddress());
         playerData.setPlayerActorAddress(online.getActorAddress());
-        RpcResult<Void> result = StageServiceRpcProxy.sendEnterScene(stage.getValue(),
+
+        RpcResult<MapConst.SceneEnterResult> result = SceneManagerRpcProxy.callEnterScene(sceneManager,
                 targetInfo.getSceneId(), playerData);
-        if (!result.isSuccess()) {
-            log.error("PlayerService 发送 Stage 正式进入地图请求失败: playerId={}, transferId={}, sceneId={}, errorCode={}, message={}",
-                    playerId, request.getTransferId(), targetInfo.getSceneId(),
-                    result.getErrorCode(), result.getErrorMessage());
-            roleMapData.setTransferContext(new DBTransferContext());
+
+        boolean enterSucceeded = result.isSuccess()
+                && result.getValue() == MapConst.SceneEnterResult.SUCCESS;
+
+        DBTransferContext currentContext = roleMapData.getTransferContext();
+        long currentTransferId = currentContext == null ? 0L : currentContext.getTransferId();
+        boolean transferIdMatches = currentTransferId == request.getTransferId();
+        if (!transferIdMatches) {
+            log.info("PlayerService 正式进入地图 RPC 返回时转场上下文已变化: playerId={}, requestTransferId={}, currentTransferId={}, sceneId={}, enterSucceeded={}",
+                    playerId, request.getTransferId(), currentTransferId, targetInfo.getSceneId(), enterSucceeded);
             return;
         }
-        log.info("PlayerService 已发送 Stage 正式进入地图请求: playerId={}, transferId={}, sceneId={}",
+        roleMapData.setTransferContext(new DBTransferContext());
+        if (!result.isSuccess()) {
+            log.error("PlayerService 请求 SceneManager 正式进入地图失败: playerId={}, transferId={}, sceneId={}, errorCode={}, message={}",
+                    playerId, request.getTransferId(), targetInfo.getSceneId(),
+                    result.getErrorCode(), result.getErrorMessage());
+            return;
+        }
+        if (result.getValue() == MapConst.SceneEnterResult.SCENE_NOT_FOUND) {
+            log.warn("PlayerService 目标场景已销毁，自动进入默认地图: playerId={}, transferId={}, sceneId={}",
+                    playerId, request.getTransferId(), targetInfo.getSceneId());
+            if (!enterDefaultMap(playerId)) {
+                log.error("PlayerService 目标场景已销毁后进入默认地图失败: playerId={}, transferId={}, sceneId={}",
+                        playerId, request.getTransferId(), targetInfo.getSceneId());
+            }
+            return;
+        }
+        if (result.getValue() != MapConst.SceneEnterResult.SUCCESS) {
+            log.error("PlayerService SceneManager 拒绝正式进入地图: playerId={}, transferId={}, sceneId={}, result={}",
+                    playerId, request.getTransferId(), targetInfo.getSceneId(), result.getValue());
+            return;
+        }
+        log.info("PlayerService SceneManager 已处理正式进入地图请求: playerId={}, transferId={}, sceneId={}",
                 playerId, request.getTransferId(), targetInfo.getSceneId());
     }
 

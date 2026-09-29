@@ -1,3 +1,3 @@
 # 地图配置
-mapCfgId,name,type,playerLimit,monsterIds
+mapCfgId,name,type,playerLimit,monsterIds,waitTime,countTime,validTime,destroyDelay
 # 数据行从这里开始

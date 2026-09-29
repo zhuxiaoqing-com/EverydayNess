@@ -3,6 +3,7 @@ package org.evd.game.SceneManagerService.scene;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.SceneManagerService.SceneManagerService;
 import org.evd.game.SceneManagerService.routing.SceneManagerRoutingLogic;
+import org.evd.game.common.constant.MapConst;
 import org.evd.game.common.proxy.StageService.StageServiceRpcProxy;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.PlayerEnterRequest;
 import org.evd.game.common.serializeBean.SceneManagerService.routing.SMapInfo;
@@ -236,6 +237,31 @@ public abstract class AbstractSceneDeal {
         return true;
     }
 
+    /** Stage 删除本地场景后通知 SceneManager 清理对应路由。 */
+    public void destroyScene(SMapInfo mapInfo, CallPoint stage) {
+        if (mapInfo.getSceneId() <= 0L || stage == null) {
+            log.error("SceneManager 收到非法场景销毁通知: mapInfo={}, stage={}", mapInfo, stage);
+            return;
+        }
+        SMapKey mapKey = mapInfo.toMapKey();
+        SMSceneInfo sceneInfo = scenes.get(mapKey);
+        if (sceneInfo == null) {
+            return;
+        }
+        if (sceneInfo.getSceneId() != mapInfo.getSceneId()
+                || !stage.equals(sceneInfo.getStageCallPoint())) {
+            log.warn("SceneManager 忽略旧场景销毁通知: requestedStage={}, requestedScene={}, currentScene={}, currentStage={}",
+                    stage, mapInfo, sceneInfo.getSceneId(), sceneInfo.getStageCallPoint());
+            return;
+        }
+
+        sceneInfo.getWaitEnterQueue().clear();
+        sceneInfo.setState(SMSceneState.DESTROYED);
+        scenes.remove(mapKey, sceneInfo);
+        log.info("SceneManager 删除 Stage 场景路由: stage={}, mapKey={}, sceneId={}",
+                stage, mapKey, mapInfo.getSceneId());
+    }
+
     private boolean createStageScene(SMSceneInfo sceneInfo, SMapCreateRequest request, long sceneId) {
         RpcResult<Boolean> result = StageServiceRpcProxy.callCreateScene(
                 sceneInfo.getStageCallPoint(), request, sceneId);
@@ -274,15 +300,30 @@ public abstract class AbstractSceneDeal {
         }
         targetInfo.setSceneId(sceneInfo.getSceneId());
         request.setTargetInfo(targetInfo);
-        RpcResult<Boolean> result = StageServiceRpcProxy.callPrepareEnterScene(sceneInfo.getStageCallPoint(), request);
+        RpcResult<MapConst.SceneEnterResult> result = StageServiceRpcProxy.callPrepareEnterScene(
+                sceneInfo.getStageCallPoint(), request);
         if (scenes.get(targetInfo.toMapKey()) != sceneInfo) {
             log.warn("SceneManager Stage 预进入返回时场景路由已失效: playerId={}, sceneId={}, mapCfgId={}, groupId={}",
                     request.getPlayerId(), sceneInfo.getSceneId(), targetInfo.getMapCfgId(), targetInfo.getGroupId());
             return false;
         }
-        if (!result.isSuccess() || !Boolean.TRUE.equals(result.getValue())) {
+        if (!result.isSuccess() || result.getValue() == null) {
             log.error("SceneManager 发送 Stage 预进入请求失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     request.getPlayerId(), sceneInfo.getSceneId(), result.getErrorCode(), result.getErrorMessage());
+            return false;
+        }
+        if (result.getValue() == MapConst.SceneEnterResult.SCENE_NOT_FOUND) {
+            log.error("StageService 找不到 SceneManager 缓存中的场景，删除过期路由: playerId={}, sceneId={}, mapCfgId={}, groupId={}, stage={}",
+                    request.getPlayerId(), sceneInfo.getSceneId(), targetInfo.getMapCfgId(),
+                    targetInfo.getGroupId(), sceneInfo.getStageCallPoint());
+            destroyScene(new SMapInfo(sceneInfo.getSceneId(), targetInfo.getMapCfgId(),
+                    targetInfo.getGroupId()), sceneInfo.getStageCallPoint());
+            return false;
+        }
+        if (result.getValue() != MapConst.SceneEnterResult.SUCCESS) {
+            log.warn("StageService 拒绝预进入请求: playerId={}, sceneId={}, mapCfgId={}, groupId={}, result={}",
+                    request.getPlayerId(), sceneInfo.getSceneId(), targetInfo.getMapCfgId(),
+                    targetInfo.getGroupId(), result.getValue());
             return false;
         }
         log.info("SceneManager 已发送 Stage 预进入请求: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",

@@ -34,6 +34,16 @@ import java.util.Map;
 /** Stage 上所有具体场景的父类，负责预进入队列和正式玩家集合。 */
 @Slf4j
 public class BattleScene {
+    private static final long MIN_WAIT_TIME_MILLIS = 5_000L;
+
+    public enum State {
+        CREATED,
+        WAIT,
+        FIGHTING,
+        FINISH,
+        DESTROYED
+    }
+
     private final SMapKey mapKey;
     private final long sceneId;
     private final StageService owner;
@@ -43,6 +53,20 @@ public class BattleScene {
     private long nextMonsterId = 1L;
     private final BuffLogic buffLogic;
     private final SkillLogic skillLogic;
+    private final long waitDuration;
+    private final long countTime;
+    private final long validTime;
+    private final long destroyDelay;
+    protected State state = State.CREATED;
+    protected long createTime = -1L;
+    protected long waitTime = -1L;
+    protected long startTime = -1L;
+    protected long summaryTime = -1L;
+    protected long destroyTime = -1L;
+    protected long realSummaryTime = -1L;
+    private boolean finish;
+    private boolean timeOut;
+    private long lastSecondHeartTime;
 
     public BattleScene(SMapKey mapKey, long sceneId, StageService owner) {
         this.mapKey = new SMapKey(mapKey.getMapCfgId(), mapKey.getGroupId());
@@ -50,8 +74,20 @@ public class BattleScene {
         this.owner = owner;
         this.buffLogic = owner.getActor(BuffLogic.class);
         this.skillLogic = owner.getActor(SkillLogic.class);
+        MapConfig mapConfig = MapConfigs.get(mapKey.getMapCfgId());
+        this.waitDuration = mapConfig.getWaitTime() * 1000L;
+        this.countTime = mapConfig.getCountTime() * 1000L;
+        this.validTime = mapConfig.getValidTime() * 1000L;
+        this.destroyDelay = mapConfig.getDestroyDelay() * 1000L;
+        initBattleState();
         MonsterLogic monsterLogic = owner.getActor(MonsterLogic.class);
         monsterLogic.loadConfiguredMonsters(this, mapKey.getMapCfgId());
+    }
+
+    private void initBattleState() {
+        createTime = System.currentTimeMillis();
+        state = State.CREATED;
+        waitTime = createTime + Math.max(waitDuration, MIN_WAIT_TIME_MILLIS);
     }
 
     public long allocateMonsterId() { return nextMonsterId++; }
@@ -64,12 +100,145 @@ public class BattleScene {
     }
 
     public void tick(long now) {
+        if (state == State.DESTROYED) {
+            return;
+        }
         roleMap.values().forEach(role -> role.update(now));
         monsterMap.values().forEach(monster -> monster.update(now));
         monsterMap.values().removeIf(monster -> !monster.isAlive());
+        updateState(now);
+    }
+
+    protected void updateState(long now) {
+        switch (state) {
+            case CREATED:
+                if (checkWait(now)) {
+                    state = State.WAIT;
+                    onWait(now);
+                }
+                break;
+            case WAIT:
+                if (checkFighting(now)) {
+                    state = State.FIGHTING;
+                    onFighting(now);
+                }
+                break;
+            case FIGHTING:
+                heart(now);
+                if (checkFinish(now)) {
+                    state = State.FINISH;
+                    onFinish(now);
+                }
+                break;
+            case FINISH:
+                if (now > destroyTime || (roleMap.isEmpty() && pendingRoleMap.isEmpty())) {
+                    state = State.DESTROYED;
+                }
+                break;
+            case DESTROYED:
+                break;
+        }
+    }
+
+    protected boolean checkWait(long now) {
+        return now >= waitTime;
+    }
+
+    protected void onWait(long now) {
+        startTime = now + countTime;
+    }
+
+    protected boolean checkFighting(long now) {
+        return now >= startTime;
+    }
+
+    protected void onFighting(long now) {
+        long configuredSummaryTime = findSummaryTime(now);
+        if (configuredSummaryTime > 0) {
+            summaryTime = now + configuredSummaryTime;
+        }
+    }
+
+    protected long findSummaryTime(long now) {
+        return validTime;
+    }
+
+    protected boolean checkFinish(long now) {
+        if (finish) {
+            return true;
+        }
+        if (summaryTime > 0 && now > summaryTime) {
+            timeOut = true;
+            return true;
+        }
+        return false;
+    }
+
+    protected void onFinish(long now) {
+        realSummaryTime = now;
+        destroyTime = now + destroyDelay;
+        if (!finish) {
+            timeOut();
+            setFinish(true);
+        }
+        summary();
+    }
+
+    public final void heart(long now) {
+        try {
+            _heart(now);
+        } catch (Exception e) {
+            log.error("BattleScene 战场心跳异常: sceneId={}", sceneId, e);
+        }
+    }
+
+    protected void _heart(long now) {
+        if (now - lastSecondHeartTime >= 1000L) {
+            lastSecondHeartTime = now;
+            secondHeart(now);
+        }
+    }
+
+    protected void secondHeart(long now) {
+    }
+
+    protected void summary() {
+    }
+
+    protected void timeOut() {
+        timeOut = true;
+    }
+
+    public State getState() {
+        return state;
+    }
+
+    public void markDestroyed() {
+        state = State.DESTROYED;
+    }
+
+    public boolean isFightState() {
+        return state == State.FIGHTING;
+    }
+
+    public void setFinish(boolean finish) {
+        this.finish = finish;
+    }
+
+    public boolean isFinish() {
+        return finish;
+    }
+
+    public boolean isTimeOut() {
+        return timeOut;
     }
 
     public boolean canEnter(PlayerEnterRequest request) {
+        if (state == State.FINISH || state == State.DESTROYED) {
+            log.info("BattleScene 拒绝进入已结束场景: playerId={}, sceneId={}, state={}",
+                    request == null ? 0L : request.getPlayerId(), sceneId, state);
+            return false;
+        }
         if (request == null) {
             log.warn("BattleScene 拒绝进入：请求为空, sceneId={}", sceneId);
             return false;
@@ -276,7 +445,8 @@ public class BattleScene {
         boolean notifyPlayerService = exitType != MapConst.RoleExitType.PLAYER_SERVICE_DISCONNECT;
         if (playerService != null && notifyPlayerService) {
             RpcResult<Void> exitResult = PlayerMapRpcProxy.sendOnExitMap(
-                    playerService, playerId, sceneId);
+                    playerService, playerId,
+                    new SMapInfo(sceneId, mapKey.getMapCfgId(), mapKey.getGroupId()), exitType);
             if (!exitResult.isSuccess()) {
                 log.warn("StageService 通知 PlayerService 玩家退出地图失败: playerId={}, sceneId={}, exitType={}, errorCode={}, message={}",
                         playerId, sceneId, MapConst.RoleExitType.name(exitType),
@@ -301,9 +471,35 @@ public class BattleScene {
     protected void onRoleExit(BattleRole battleRole) {
     }
 
-    public boolean isEmpty() {
-        return pendingRoleMap.isEmpty() && roleMap.isEmpty() && monsterMap.isEmpty();
+    public void onMapDestroyed() {
+        for (long playerId : new ArrayList<>(roleMap.keySet())) {
+            roleExit(playerId, MapConst.RoleExitType.MAP_DESTROYED);
+        }
+        for (PlayerEnterRequest request : new ArrayList<>(pendingRoleMap.values())) {
+            if (!pendingRoleMap.remove(request.getPlayerId(), request)) {
+                continue;
+            }
+            CallPoint playerService = request.getPlayerService();
+            if (playerService == null) {
+                log.warn("BattleScene 销毁时待进入玩家缺少 PlayerService 地址: playerId={}, sceneId={}",
+                        request.getPlayerId(), sceneId);
+                continue;
+            }
+            RpcResult<Void> exitResult = PlayerMapRpcProxy.sendOnExitMap(
+                    playerService, request.getPlayerId(),
+                    new SMapInfo(sceneId, mapKey.getMapCfgId(), mapKey.getGroupId()),
+                    MapConst.RoleExitType.MAP_DESTROYED);
+            if (!exitResult.isSuccess()) {
+                log.warn("StageService 通知待进入玩家退出销毁地图失败: playerId={}, sceneId={}, exitType={}, errorCode={}, message={}",
+                        request.getPlayerId(), sceneId,
+                        MapConst.RoleExitType.name(MapConst.RoleExitType.MAP_DESTROYED),
+                        exitResult.getErrorCode(), exitResult.getErrorMessage());
+            }
+        }
+
+        monsterMap.clear();
     }
+
 
     public SRunningMapInfo getRunningMapInfo() {
         int hostRoleNum = 0;

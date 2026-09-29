@@ -3,11 +3,9 @@ package org.evd.game.MatchService;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.MatchService.entity.team.MatchTeam;
 import org.evd.game.MatchService.matchingPool.AbstractMatchingPool;
-import org.evd.game.MatchService.matchingPool.impl.EatChickenMatchingPool;
 import org.evd.game.MatchService.matchingPool.impl.PveMatchingPool;
 import org.evd.game.MatchService.matchingPool.impl.Pvp5V5MatchingPool;
 import org.evd.game.MatchService.matchingPool.impl.PvpMatchingPool;
-import org.evd.game.MatchService.matchingPool.impl.RoomMatchingPool;
 import org.evd.game.annotation.actor.Actor;
 import org.evd.game.common.constant.MatchType;
 
@@ -25,9 +23,7 @@ public final class MatchMatchingLogic {
     public MatchMatchingLogic() {
         pools.put(MatchType.PVP5V5_MATCH, new Pvp5V5MatchingPool());
         pools.put(MatchType.PVE_MATCH, new PveMatchingPool());
-        pools.put(MatchType.EAT_CHICKEN, new EatChickenMatchingPool());
         pools.put(MatchType.PVP_MATCH, new PvpMatchingPool());
-        pools.put(MatchType.ROOM_MATCH, new RoomMatchingPool());
     }
 
     public boolean addTeam(int matchType, MatchTeam team) {

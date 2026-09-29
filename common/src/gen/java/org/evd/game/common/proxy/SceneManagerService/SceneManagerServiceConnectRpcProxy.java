@@ -24,7 +24,7 @@ public final class SceneManagerServiceConnectRpcProxy {
     }
 
     public final static class EnumCall{
-        public final static int ENUM_SCENEMANAGERSERVICECONNECTRPC_RESTORESTAGEMAPS_5 = 5;
+        public final static int ENUM_SCENEMANAGERSERVICECONNECTRPC_RESTORESTAGEMAPS_6 = 6;
     }
 
     /**
@@ -43,7 +43,7 @@ public final class SceneManagerServiceConnectRpcProxy {
         if (remote == null) {
             remote = service.getAnyCallPointByType(ServiceType.SCENE_MANAGER);
         }
-        service.call(remote, EnumCall.ENUM_SCENEMANAGERSERVICECONNECTRPC_RESTORESTAGEMAPS_5, new Object[]{syncData, stage, maps});
+        service.call(remote, EnumCall.ENUM_SCENEMANAGERSERVICECONNECTRPC_RESTORESTAGEMAPS_6, new Object[]{syncData, stage, maps});
     }
 
 

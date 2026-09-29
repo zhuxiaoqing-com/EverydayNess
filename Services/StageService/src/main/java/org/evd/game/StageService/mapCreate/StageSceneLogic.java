@@ -15,6 +15,7 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.rpcProxyInterface.RpcResult;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +38,16 @@ public final class StageSceneLogic {
     }
 
     public void tick(long now) {
-        scenes.values().forEach(scene -> scene.tick(now));
+        List<Long> destroyedSceneIds = new ArrayList<>();
+        for (BattleScene scene : scenes.values()) {
+            scene.tick(now);
+            if (scene.getState() == BattleScene.State.DESTROYED) {
+                destroyedSceneIds.add(scene.getSceneId());
+            }
+        }
+        for (long sceneId : destroyedSceneIds) {
+            destroyScene(sceneId);
+        }
     }
 
     public BattleScene getScene(long sceneId) {
@@ -87,7 +97,14 @@ public final class StageSceneLogic {
                         oldSceneId, mapKey.getMapCfgId(), mapKey.getGroupId());
                 throw new IllegalStateException("sceneIds 存在映射但 scenes 找不到 BattleScene: sceneId=" + oldSceneId);
             }
-            return oldSceneId == sceneId;
+            if (oldSceneId == sceneId) {
+                return true;
+            }
+            log.error("StageService 创建场景时发现同一 mapKey 已有旧场景，尝试先销毁: mapCfgId={}, groupId={}, oldSceneId={}, oldState={}, newSceneId={}",
+                    mapKey.getMapCfgId(), mapKey.getGroupId(), oldSceneId,
+                    oldScene.getState(), sceneId);
+            oldScene.markDestroyed();
+            destroyScene(oldSceneId);
         }
         BattleScene createdScene = createSceneObject(request, sceneId, mapConfig.getType());
         scenes.put(sceneId, createdScene);
@@ -107,10 +124,10 @@ public final class StageSceneLogic {
     }
 
     /** 进入目标 BattleScene 的预加入流程，然后退出旧场景。 */
-    public boolean prepareEnterScene(PlayerEnterRequest request) {
+    public MapConst.SceneEnterResult prepareEnterScene(PlayerEnterRequest request) {
         if (request == null || request.getTargetInfo() == null) {
             log.warn("StageService 收到空的预进入请求");
-            return false;
+            return MapConst.SceneEnterResult.REJECTED;
         }
         SMapInfo targetInfo = request.getTargetInfo();
         Long sceneId = sceneIds.get(targetInfo.toMapKey());
@@ -118,10 +135,17 @@ public final class StageSceneLogic {
         if (scene == null) {
             log.warn("StageService 根据 SMapKey 找不到目标 BattleScene: playerId={}, sceneId={}, mapCfgId={}, groupId={}",
                     request.getPlayerId(), targetInfo.getSceneId(), targetInfo.getMapCfgId(), targetInfo.getGroupId());
-            return false;
+            return MapConst.SceneEnterResult.SCENE_NOT_FOUND;
+        }
+        if (scene.getSceneId() != targetInfo.getSceneId()
+                || scene.getState() == BattleScene.State.DESTROYED) {
+            log.warn("StageService 预进入请求指向不存在或已销毁的场景: playerId={}, targetSceneId={}, currentSceneId={}, mapCfgId={}, groupId={}, state={}",
+                    request.getPlayerId(), targetInfo.getSceneId(), scene.getSceneId(),
+                    targetInfo.getMapCfgId(), targetInfo.getGroupId(), scene.getState());
+            return MapConst.SceneEnterResult.SCENE_NOT_FOUND;
         }
         if (!scene.canEnter(request)) {
-            return false;
+            return MapConst.SceneEnterResult.REJECTED;
         }
         scene.addPendingRole(request);
         log.info("StageService 玩家加入预进入队列: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
@@ -139,7 +163,7 @@ public final class StageSceneLogic {
                 log.error("StageService 请求 SceneManager 退出旧地图失败: playerId={}, oldSceneId={}, errorCode={}, message={}",
                         request.getPlayerId(), oldMapInfo.getSceneId(), exitResult.getErrorCode(),
                         exitResult.getErrorMessage());
-                return false;
+                return MapConst.SceneEnterResult.REJECTED;
             }
             log.info("StageService 玩家旧地图退出成功: playerId={}, transferId={}, oldSceneId={}, targetSceneId={}",
                     request.getPlayerId(), request.getTransferId(), oldMapInfo.getSceneId(), targetInfo.getSceneId());
@@ -148,7 +172,7 @@ public final class StageSceneLogic {
         if (!scene.hasPendingRole(request)) {
             log.warn("预进入玩家已因对端失联被移除: playerId={}, transferId={}",
                     request.getPlayerId(), request.getTransferId());
-            return false;
+            return MapConst.SceneEnterResult.REJECTED;
         }
         RpcResult<Boolean> readyResult = PlayerMapRpcProxy.callReadyEnterMap(request.getPlayerService(),
                 request.getPlayerId(), request.getTransferId(), targetInfo);
@@ -156,20 +180,24 @@ public final class StageSceneLogic {
             scene.cancelPending(request);
             log.error("StageService 通知 PlayerService 客户端加载地图失败: playerId={}, sceneId={}, errorCode={}, message={}",
                     request.getPlayerId(), targetInfo.getSceneId(), readyResult.getErrorCode(), readyResult.getErrorMessage());
-            return false;
+            return MapConst.SceneEnterResult.REJECTED;
         }
         log.info("StageService 已通知 PlayerService 客户端加载地图: playerId={}, transferId={}, sceneId={}, mapCfgId={}, groupId={}",
                 request.getPlayerId(), request.getTransferId(), targetInfo.getSceneId(),
                 targetInfo.getMapCfgId(), targetInfo.getGroupId());
-        return true;
+        return MapConst.SceneEnterResult.SUCCESS;
     }
 
     /** 客户端完成加载后，正式进入 SceneBattle。 */
-    public void enterScene(long sceneId, SPlayerMapData playerData) {
+    public MapConst.SceneEnterResult enterScene(long sceneId, SPlayerMapData playerData) {
         BattleScene scene = scenes.get(sceneId);
-        if (scene != null) {
-            scene.roleEnter(playerData);
+        if (scene == null || scene.getState() == BattleScene.State.DESTROYED) {
+            log.warn("StageService 正式进入地图失败，场景不存在或已销毁: playerId={}, sceneId={}",
+                    playerData == null ? 0L : playerData.getPlayerId(), sceneId);
+            return MapConst.SceneEnterResult.SCENE_NOT_FOUND;
         }
+        scene.roleEnter(playerData);
+        return MapConst.SceneEnterResult.SUCCESS;
     }
 
     /** 退出一个场景中的正式玩家或预加入玩家。 */
@@ -178,18 +206,29 @@ public final class StageSceneLogic {
         return scene == null || scene.roleExit(playerId);
     }
 
-    /** 销毁空场景。 */
-    public boolean destroyScene(long sceneId) {
+    /** 删除场景并同步移除 SceneManager 路由。 */
+    public void destroyScene(long sceneId) {
         BattleScene scene = scenes.get(sceneId);
         if (scene == null) {
-            return true;
+            return;
         }
-        if (!scene.isEmpty()) {
-            return false;
+
+        SMapKey mapKey = scene.getMapKey();
+        SMapInfo mapInfo = new SMapInfo(sceneId, mapKey.getMapCfgId(), mapKey.getGroupId());
+        scenes.remove(sceneId, scene);
+        sceneIds.remove(mapKey, sceneId);
+
+        RpcResult<Void> destroyResult = SceneManagerRpcProxy.sendDestroyScene(
+                MapConst.getSceneManagerCallPoint(mapKey.getMapCfgId()), mapInfo, owner().getCallPoint());
+        if (!destroyResult.isSuccess()) {
+            log.error("StageService 发送 SceneManager 场景销毁通知失败: sceneId={}, mapCfgId={}, groupId={}, errorCode={}, message={}",
+                    sceneId, mapKey.getMapCfgId(), mapKey.getGroupId(),
+                    destroyResult.getErrorCode(), destroyResult.getErrorMessage());
         }
-        scenes.remove(sceneId);
-        sceneIds.remove(scene.getMapKey());
-        return true;
+
+        scene.onMapDestroyed();
+        log.info("StageService 销毁场景完成: sceneId={}, mapCfgId={}, groupId={}",
+                sceneId, mapKey.getMapCfgId(), mapKey.getGroupId());
     }
 
     public Map<Long, BattleScene> getScenes() {
