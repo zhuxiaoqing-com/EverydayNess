@@ -6,7 +6,10 @@ package org.evd.game.base;
  * @date 2020/02/09 16:59
  */
 public abstract class DirtyObject {
-    public transient long dirty ;
+    /** 当前内存内容的单调修改版本；保存时不清零。 */
+    public transient long memVersion;
+    /** 最近收到数据库保存成功响应的内存版本。 */
+    public transient long dbVersion;
     private transient DirtyObject _parent;
 
     public DirtyObject() {
@@ -27,35 +30,34 @@ public abstract class DirtyObject {
         parentMakeModify();
     }
 
-    public void clearModify() {
-        dirty = 0;
-    }
-
     private void parentMakeModify() {
         if (_parent != null && _parent != this) {
             _parent.parentMakeModify();
         }
         if(_parent == null) {
-            // 设置新版本号
-            dirty++;
+            memVersion++;
         }
     }
 
 
-    public boolean checkModify() {
-        if (dirty>0) {
-            return true;
-        }
-        return false;
+    public long getMemVersion() {
+        return memVersion;
     }
 
-
-    public long getDirty() {
-        return dirty;
+    public void setMemVersion(long memVersion) {
+        this.memVersion = memVersion;
     }
 
-    public void setDirty(long dirty) {
-        this.dirty = dirty;
+    public long getDbVersion() {
+        return dbVersion;
+    }
+
+    public void setDbVersion(long dbVersion) {
+        this.dbVersion = dbVersion;
+    }
+
+    public boolean isModified() {
+        return memVersion != dbVersion;
     }
 
     public void setParent(DirtyObject parent) {

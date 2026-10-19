@@ -51,11 +51,13 @@ public class TRecord<K, V extends DirtyObject> {
      */
     public void add(V newValue) {
         access();
-        long oldDirty = value == null ? 0 : value.getDirty();
+        long oldMemVersion = value == null ? 0 : value.getMemVersion();
+        long oldDbVersion = value == null ? 0 : value.getDbVersion();
         state = ADD;
         value = newValue;
-        // add 让其默认就是脏的 add也算一次变化 所以需要加一
-        value.setDirty(oldDirty + 1);
+        // add 替换整条记录，也算一次内存修改。
+        value.setMemVersion(oldMemVersion + 1);
+        value.setDbVersion(oldDbVersion);
     }
 
     /**
@@ -63,11 +65,13 @@ public class TRecord<K, V extends DirtyObject> {
      */
     public void remove() {
         access();
-        long oldDirty = value == null ? 0 : value.getDirty();
+        long oldMemVersion = value == null ? 0 : value.getMemVersion();
+        long oldDbVersion = value == null ? 0 : value.getDbVersion();
         state = REMOVE;
         value = table.newValue();
-        // remove 让其默认就是脏的 remove也算一次变化 所以需要加一
-        value.setDirty(oldDirty + 1);
+        // remove 替换整条记录，也算一次内存修改。
+        value.setMemVersion(oldMemVersion + 1);
+        value.setDbVersion(oldDbVersion);
     }
 
     public V get() {
@@ -139,35 +143,17 @@ public class TRecord<K, V extends DirtyObject> {
         return Objects.equals(callPoint, this.ownerCallPoint);
     }
 
-    /**
-     * todo 可能对比json  可能直接在有修改的时候弄个标记传播上来 然后直接判断那个标记
-     * 什么时候重新计算hash;
-     *      select成功的时候;
-     *      保存到db的时候;保存到db分为
-     *          checkPoint; 再
-     *          flush;
-     *          clearCache;
-     */
     public boolean isModified() {
-        // 下面这个不能有 特别是remove状态，因为checkpoint同步过以后，remove状态没法切到别的状态;
-        // 如果通过REMOVE判断是否修改过，会导致每次checkpoint都会将其标记为脏，每次都同步，用checkModify()就没事了;
-       /* switch (getState()) {
-            case ADD:
-                return true;
-            case REMOVE:
-                return true;
-        }*/
-        return value.checkModify();
+        return value.isModified();
     }
 
 
-    public boolean checkpointRefreshState(Long oldDirty) {
-        // 不一样，说明checkpoint协程让开期间，值又变过了;
-        if (value.getDirty() != oldDirty) {
+    public boolean checkpointRefreshState(long snapshotMemVersion) {
+        // 只确认已经成功保存的快照；期间的新修改会让 memVersion 保持更大。
+        value.setDbVersion(Math.max(value.getDbVersion(), snapshotMemVersion));
+        if (value.getMemVersion() != snapshotMemVersion) {
             return false;
         }
-        // 设置为没变化
-        value.clearModify();
 
         switch (getState()) {
             case ADD:
@@ -177,12 +163,6 @@ public class TRecord<K, V extends DirtyObject> {
 
         return true;
     }
-
-    public void checkPointFail() {
-        // 失败了 直接标识已经修改过了，下次继续同步
-        value.makeModify();
-    }
-
 
     boolean flush(String reason) {
         try {
@@ -196,7 +176,7 @@ public class TRecord<K, V extends DirtyObject> {
                     return table.dbExec(table.createSaveDBReq(key, value), ownerCallPoint);
             }
         } catch (Exception e) {
-            // 如果flush时候报错，则清除标识，下次会继续同步
+            // 保存失败时未确认当前版本，下次仍会继续同步。
             logger.error("TRecord flush error reason {} ", reason, e);
             return false;
         } finally {

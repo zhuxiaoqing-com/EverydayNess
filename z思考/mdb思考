@@ -87,3 +87,43 @@ flush必须要等所有的玩家数据都flush成功以后才能清理cache数�
          * 但玩家状态仍然是 LOAD_FINISH
          * 玩家重新登录时看到 LOAD_FINISH 会直接复用 cache，不会重新完整加载，导致 cache 不完整。
          * 所以现在先保留所有 cache，等玩家所有表都 flush 成功后，再统一清理。
+
+游戏数据 Version + WAL 日志方案
+目标： 游戏服务器异常宕机后，通过日志排查哪些数据未持久化到 MySQL，后续人工补偿，不做自动 WAL 恢复。
+1. Version 规则
+- 每次内存业务数据变更，version +1。
+- 每个独立存储模块维护自己的 Version，例如背包、天赋。
+- MySQL 保存业务数据和 Version，必须保证原子性。
+- 异步刷盘必须防止旧快照覆盖新快照。
+2. 日志记录
+日志类型	记录内容
+LOAD	加载数据库时的 Version
+CHANGE	修改前后 Version、具体数据变化 这个不需要!!! 太频繁了
+SAVE_BEGIN	上次持久化 Version、本次快照 Version
+SAVE_SUCCESS	本次成功持久化的 Version
+所有日志附带 runId（进程启动唯一 ID）、玩家 ID、模块名。 这个不需要，带上key 和version就行;
+3. 日志示例
+[LOAD]         run=A, bag, V100
+[CHANGE]       run=A, V100→101, 获得装备A
+[CHANGE]       run=A, V101→102, 获得装备B
+[SAVE_BEGIN]   run=A, V100→102
+[SAVE_SUCCESS] run=A, V102
+[CHANGE]       run=A, V102→103, 获得装备C
+
+服务器宕机
+
+[LOAD]         run=B, bag, V102
+
+日志总的来说就是需要 key 和version, 然后保存的时候带上，上次保存成功的version和当前的version，覆盖version的时候，不管是上次保存的version和当前的version,
+都要先判断下和之前的数据是否一样，一样才覆盖，不一样不覆盖
+
+
+由此判断：V103 可能丢失，需要人工核对补偿。
+4. 注意事项
+1. 数据库保存成功，但成功日志没打印： 下一次 LOAD 的 Version 可辅助确认持久化结果。
+2. Version 重复： 服务器重启后可能重新使用相同 Version，通过 runId 区分不同运行周期。
+3. 日志可靠性： CHANGE 必须可靠落盘，否则异常宕机时可能连变更记录都丢失。
+4. 人工补偿： 结合 runId、日志、数据库实际数据核对，不能仅凭 Version 自动补偿。
+5. 恢复范围： 如果玩家重启后继续操作，必须结合新旧运行周期的记录判断，避免重复补偿。
+最终方案：内存缓存 + MySQL 定时批量刷盘 + 数据变更日志 + 保存区间日志 + 数据加载日志。
+

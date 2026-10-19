@@ -19,8 +19,11 @@
 
 22.如果Service也加int id的话，那service的name也要弄上，也要在Log上加上;同时要id,name;
 
+23.可以给配置类注解加一个字段，如果是有改字段的话，就自动生成DTO类，比如技能Config，生成技能DTO，用来当做内存的中间数据
 
-
+24.数据库最好还是带个version字段;方便服务器挂了以后恢复,然后最好来个立即同步的按钮，将某个表立即同步,这个立即同步也可以传入多个表，这些表在一个事务里同步;
+    然后加了version以后这个Mysql那边批量执行可能就要改一下，毕竟加了version,
+    org.evd.game.runtime.Db.serialize.DbTableField 感觉在这里加一个version最好,然后version感觉最好是在要存入mysql的时候才变化一次，就MDB那模块里变化，你先别改先审核下我的代码 看下我说的哪里不太合理
 
 
 

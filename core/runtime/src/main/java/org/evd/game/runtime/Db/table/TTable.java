@@ -198,7 +198,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         List<TRecord<K, V>> modifyTRecordCache = new ArrayList<>();
         List<TRecord<K, V>> removeTRecordCache = new ArrayList<>();
 
-        Map<K, Long> key2DirtyMap = new HashMap<>();
+        Map<K, Long> key2MemVersionMap = new HashMap<>();
 
 
         for (TRecord<K, V> kvtRecord : getCacheList()) {
@@ -224,7 +224,7 @@ public abstract class TTable<K, V extends DirtyObject> {
                     break;
             }
 
-            key2DirtyMap.put(key, kvtRecord.getValue().getDirty());
+            key2MemVersionMap.put(key, kvtRecord.getValue().getMemVersion());
         }
 
         if (addTRecordCache.isEmpty() &&
@@ -279,48 +279,26 @@ public abstract class TTable<K, V extends DirtyObject> {
 
         if (addSuccess) {
             for (TRecord<K, V> tRecord : addTRecordCache) {
-                Long oldDirty = key2DirtyMap.get(tRecord.getKey());
-                tRecord.checkpointRefreshState(oldDirty);
+                long snapshotMemVersion = key2MemVersionMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(snapshotMemVersion);
             }
         }
 
         if (modifySuccess) {
             for (TRecord<K, V> tRecord : modifyTRecordCache) {
-                Long oldDirty = key2DirtyMap.get(tRecord.getKey());
-                tRecord.checkpointRefreshState(oldDirty);
+                long snapshotMemVersion = key2MemVersionMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(snapshotMemVersion);
             }
         }
 
         if (removeSuccess) {
             for (TRecord<K, V> tRecord : removeTRecordCache) {
-                Long oldDirty = key2DirtyMap.get(tRecord.getKey());
-                tRecord.checkpointRefreshState(oldDirty);
+                long snapshotMemVersion = key2MemVersionMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(snapshotMemVersion);
             }
         }
 
-        // 全部成功了
-      /*  if (addSuccess && modifySuccess && removeSuccess) {
-            return;
-        }
-
-        // 这里就算logic线程的cache里已经没有数据了也没事,反正只是改了这个类,其他都没改
-        if (!addSuccess) {
-            for (TRecord<K, V> tRecord : addTRecordCache) {
-                tRecord.checkPointFail();
-            }
-        }
-
-        if (!modifySuccess) {
-            for (TRecord<K, V> tRecord : modifyTRecordCache) {
-                tRecord.checkPointFail();
-            }
-        }
-
-        if (!removeSuccess) {
-            for (TRecord<K, V> tRecord : removeTRecordCache) {
-                tRecord.checkPointFail();
-            }
-        }*/
+        // 保存失败时 dbVersion 不推进，记录会保持待保存状态。
 
     }
 
@@ -365,6 +343,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         }
     }
 
+    /** 清理过期记录时通过单调递增的 memVersion 判断保存期间是否又有新修改。 */
     public void tickClearCacheLogicThread(CallPoint callPoint) {
         long curNano = System.nanoTime();
         long expairNano = TimeCostPrint.millsNano * TimeCostPrint.minuteMills * 30;
@@ -404,12 +383,13 @@ public abstract class TTable<K, V extends DirtyObject> {
                 cache.remove(one.getKey(), one);
                 continue;
             }
-                long oldDirty = one.getValue().getDirty();
+                long snapshotMemVersion = one.getValue().getMemVersion();
 
             if (one.flush("tickClearCache")) {
+                one.checkpointRefreshState(snapshotMemVersion);
                 TRecord<K, V> currentRecord2 = cache.get(one.getKey());
-                if (currentRecord2 == one && oldDirty == currentRecord2.getValue().getDirty()) {
-                    cache.remove(one.getKey());
+                if (currentRecord2 == one && !one.isModified()) {
+                    cache.remove(one.getKey(), one);
                     successRecordSize++;
                 }
             }
@@ -450,7 +430,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         if (!record.isModified()) {
             return true;
         }
-        long oldDirty = record.getValue().getDirty();
+        long snapshotMemVersion = record.getValue().getMemVersion();
 
         if (record.flush("flush")) {
             // 这里不管中间flush变化了;会在上层检测
@@ -458,7 +438,7 @@ public abstract class TTable<K, V extends DirtyObject> {
              * 这里没用，比如A表flush 但是数据还没清理，B表又flush，这个时候有一个协程拿着get出来的数据进行更新，那我不是这个数据还是修改了，
              * 但是我在clearPlayerCache  这边检测的话，就可以避免这个情况 可以在调用clearPlayerCache 前先检测下 这样也不会影响failLoad
              */
-            record.checkpointRefreshState(oldDirty);
+            record.checkpointRefreshState(snapshotMemVersion);
             return true;
         }
 
