@@ -1,5 +1,6 @@
 package org.evd.game.runtime.rpcProxyInterface;
 
+import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.exception.SysException;
 
 import java.util.function.Supplier;
@@ -44,6 +45,7 @@ public final class RpcResult<T> {
     }
 
     static <T> RpcResult<T> fromFailure(SysException failure) {
+        LogCore.remote.warn("RPC 调用失败: errorCode={}, message={}", failure.getErrorCode(), failure.getMessage(), failure);
         return failure(failure.getErrorCode(), failure.getMessage());
     }
 
