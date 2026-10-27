@@ -9,6 +9,9 @@ import org.evd.game.runtime.Service;
 import org.evd.game.runtime.call.CallPoint;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.LockType;
+import org.evd.game.runtime.Db.serialize.DBReq;
+import org.evd.game.runtime.Db.serialize.DBRsp;
+import org.evd.game.runtime.Db.serialize.DbOpType;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
 import org.evd.game.runtime.rpcProxyInterface.DBExecInterface;
 import org.slf4j.Logger;
@@ -53,7 +56,8 @@ public class Mdb {
         return ownerClass.getPackageName() + TABLE_REGISTRY_SUFFIX;
     }
 
-    private final Map<Class<?>, TTable<?, ?>> class2TableMap = new HashMap<>();
+    private final Map<Class<?>, TTable<?, ?>> tableClass2TableMap = new HashMap<>();
+    private final Map<Class<? extends DirtyObject>, TTable<?, ?>> beanClass2TableMap = new HashMap<>();
     private final List<TTable<?, ?>> tableList = new ArrayList<>();
 
     DBExecInterface dbExecInterface;
@@ -120,26 +124,40 @@ public class Mdb {
         return (TTable<?, ?>) tableConstructor.newInstance();
     }
 
-    public void registerTable(Class<?> apiClass, Class<? extends TTable<?, ?>> implClass) {
+
+
+    public void registerTable(Class<?> tableFacadeClass,
+                              Class<? extends DirtyObject> beanClass,
+                              Class<? extends TTable<?, ?>> tableImplClass) {
         try {
-            TTable<?, ?> tTable = createTableInstance(implClass);
-            registerTableAlias(apiClass, tTable);
-            if (apiClass != implClass) {
-                registerTableAlias(implClass, tTable);
-            }
+            TTable<?, ?> tTable = createTableInstance(tableImplClass);
             tTable.setMdb(this);
+            registerTableAlias(tableFacadeClass, tTable);
+            if (tableImplClass != tableFacadeClass) {
+                registerTableAlias(tableImplClass, tTable);
+            }
+            if (beanClass != null) {
+                registerBeanClassAlias(beanClass, tTable);
+            }
             tableList.add(tTable);
         } catch (Exception e) {
-            throw new DBException("registerTable fail apiClass=" + apiClass + " implClass=" + implClass, e);
+            throw new DBException("registerTable fail tableFacadeClass=" + tableFacadeClass
+                    + " tableImplClass=" + tableImplClass, e);
         }
     }
 
     private void registerTableAlias(Class<?> tableClass, TTable<?, ?> tTable) {
-        tTable.setMdb(this);
-        TTable<?, ?> old = class2TableMap.putIfAbsent(tableClass, tTable);
+        TTable<?, ?> old = tableClass2TableMap.putIfAbsent(tableClass, tTable);
         if (old != null) {
             logger.error("tableClass 重复！！！！ {} ", tableClass);
             throw new DBException("tableClass 重复！！！！ " + tableClass);
+        }
+    }
+
+    private void registerBeanClassAlias(Class<? extends DirtyObject> beanClass, TTable<?, ?> tTable) {
+        TTable<?, ?> old = beanClass2TableMap.putIfAbsent(beanClass, tTable);
+        if (old != null) {
+            throw new DBException("DB Bean class 重复: " + beanClass.getName());
         }
     }
 
@@ -178,22 +196,10 @@ public class Mdb {
         timeCostPrint.print();
     }
 
-    /*
-     * flush 失败以后 需要业务层找机会再次调用;
-     * 这里的flush按理来说应该是要一步的
-
-     * 业务层必须有重试功能;
-     */
-
     /**
-     * 直接本地进行序列化，然后抛到db线程进行存储，然后再抛回来进行删除数据;
-     * 如果在这个期间玩家重新登录的话，那是不是就不应该删除呢?所以来一个function判断是否删除该数据就行了;这个先不弄吧;
-     * 这里flush失败就失败了，clearCache里会保底，这里的clearCache里也会清理可以flush的数据，如果不能清理就麻烦了，比如flush失败以后预约下次flush;
-     * 当然也可以业务层再次预约，看实现;底层只需要保证完善就行;
-     *
-     * todo flush这里其实还没弄好;flush成功以后需要同步给location服务器，将其退出，否则就还在Location服务器，不变;
+     * 按表顺序提交玩家当前的 dirty 数据，返回是否所有表都成功。
+     * 失败不会回滚 MDB 内存状态；本方法不重试，也不保证跨表事务原子性。
      */
-
     @SuppressWarnings({"rawtypes"})
     boolean flushPlayerAllTableToMemory(long playerId) {
         logger.info("flush flushLogicThread start key {}", playerId);
@@ -213,6 +219,136 @@ public class Mdb {
         logger.info("flush flushMdbSaveDB summary key {} tableCount {} success {} ", playerId, tableCount, allSuccess);
         timeCostPrint.print();
         return allSuccess;
+    }
+
+    /**
+     * 同步单个已进入 MDB 缓存的 DB 对象。
+     *
+     * <p>先通过表操作修改内存，再调用此方法落库。例如删除一条已缓存记录：</p>
+     * <pre>{@code
+     * Mdb mdb = Service.getCurrent().getMdb();
+     * DBRoleMapData data = DBRoleMapDataTable.get(playerId);
+     * if (data != null && DBRoleMapDataTable.remove(playerId)) {
+     *     mdb.asyncSyncNow(data);
+     * }
+     * }</pre>
+     */
+    public boolean asyncSyncNow(DirtyObject object) {
+        if (object == null) {
+            throw new DBException("立即同步 DB 对象不能为空");
+        }
+        return asyncSyncNow(Set.of(object));
+    }
+
+    /**
+     * 同步多个已进入 MDB 缓存的 DB 对象；所有对象在一个数据库事务中提交。
+     *
+     * <p>新增、修改或删除先更新各自的内存表，再把对应对象放入集合：</p>
+     * <pre>{@code
+     * Mdb mdb = Service.getCurrent().getMdb();
+     * DBPlayerData player = DBPlayerDataTable.get(playerId);
+     * player.setName(newName);                       // 修改已有缓存对象
+     *
+     * DBRoleMapData map = new DBRoleMapData();
+     * map.setPlayerId(playerId);
+     * DBRoleMapDataTable.add(playerId, map);          // 新增到 MDB 内存
+     *
+     * mdb.asyncSyncNow(Set.of(player, map));          // 两张表同一事务落库
+     * }</pre>
+     *
+     * <p>对象必须来自当前 MDB 缓存；跨 DBService 的对象不能放进同一个事务。</p>
+     */
+    public boolean asyncSyncNow(Set<? extends DirtyObject> objects) {
+        ensureImmediateSyncAvailable();
+        if (objects == null) {
+            throw new DBException("立即同步 DB 对象列表不能为空");
+        }
+
+        List<DBReq> transactionRequests = new ArrayList<>(objects.size());
+        Map<TRecord<?, ?>, Long> snapshotVersions = new LinkedHashMap<>();
+
+        for (DirtyObject object : objects) {
+            if (object == null) {
+                throw new DBException("立即同步 DB 对象不能为空");
+            }
+            TTable<?, ?> table = getTableForBeanClass(object.getClass());
+            TRecord<?, ?> record = table.getCache(object);
+            if (!record.isModified()) {
+                continue;
+            }
+
+            CallPoint ownerCallPoint = record.getOwnerCallPoint();
+            if (ownerCallPoint == null) {
+                throw new DBException("立即同步记录没有数据库归属: table=" + table.getName()
+                        + ", key=" + record.getKey());
+            }
+            snapshotVersions.put(record, record.getValue().getMemVersion());
+            transactionRequests.add(record.createSyncRequest());
+        }
+        return executeImmediateSync(transactionRequests, snapshotVersions);
+    }
+
+    private void ensureImmediateSyncAvailable() {
+        if (lifecycleState != LifecycleState.RUNNING) {
+            throw new DBException("MDB 当前不可立即同步: state=" + lifecycleState);
+        }
+    }
+
+    private TTable<?, ?> getTableForBeanClass(Class<?> beanClass) {
+        TTable<?, ?> table = beanClass2TableMap.get(beanClass);
+        if (table == null) {
+            throw new DBException("MDB DB Bean 未注册: " + beanClass.getName());
+        }
+        return table;
+    }
+
+    private boolean executeImmediateSync(List<DBReq> transactionRequests,
+                                         Map<TRecord<?, ?>, Long> snapshotVersions) {
+        if (transactionRequests.isEmpty()) {
+            return true;
+        }
+
+        Iterator<TRecord<?, ?>> records = snapshotVersions.keySet().iterator();
+        CallPoint callPoint = records.next().getOwnerCallPoint();
+        while (records.hasNext()) {
+            CallPoint recordCallPoint = records.next().getOwnerCallPoint();
+            if (!Objects.equals(callPoint, recordCallPoint)) {
+                throw new DBException("MDB 立即事务记录路由到多个 DBService，无法使用同一事务: callPoints="
+                        + callPoint + ", " + recordCallPoint
+                        + ", tables=" + snapshotVersions.keySet().stream()
+                                .map(record -> record.getTable().getName())
+                                .distinct()
+                                .toList());
+            }
+        }
+
+        DBReq transaction = new DBReq();
+        transaction.setDbOpType(DbOpType.TRANSACTION);
+        transaction.setTransactionRequests(transactionRequests);
+        DBRsp response;
+        try {
+            response = dbExecInterface.dbExec(callPoint, transaction);
+        } catch (RuntimeException e) {
+            logger.error("MDB 立即事务调用失败: tables={}",
+                    snapshotVersions.keySet().stream()
+                            .map(record -> record.getTable().getName())
+                            .distinct()
+                            .toList(),
+                    e);
+            return false;
+        }
+        if (response == null || !response.isSuccess()) {
+            logger.error("MDB 立即事务失败: tables={}, error={}",
+                    snapshotVersions.keySet().stream()
+                            .map(record -> record.getTable().getName())
+                            .distinct()
+                            .toList(),
+                    response == null ? "DBRsp 为空" : response.getExceptionMessage());
+            return false;
+        }
+
+        snapshotVersions.forEach(TRecord::checkpointRefreshState);
+        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -401,7 +537,8 @@ public class Mdb {
             tables.close(runCheckpoint);
         }
         tableList.clear();
-        class2TableMap.clear();
+        tableClass2TableMap.clear();
+        beanClass2TableMap.clear();
 
         lifecycleState = LifecycleState.CLOSED;
         long endTime = System.currentTimeMillis();
@@ -419,7 +556,7 @@ public class Mdb {
         if (clazz == null) {
             throw new DBException("MDB表类型不能为空");
         }
-        TTable<?, ?> table = class2TableMap.get(clazz);
+        TTable<?, ?> table = tableClass2TableMap.get(clazz);
         if (table == null) {
             throw new DBException("MDB表未注册: " + clazz.getName());
         }

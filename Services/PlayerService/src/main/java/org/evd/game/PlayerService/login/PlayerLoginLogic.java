@@ -8,6 +8,7 @@ import org.evd.game.PlayerService.event.RoleMidnightEvent;
 import org.evd.game.PlayerService.map.PlayerMapLogic;
 import org.evd.game.PlayerService.session.PlayerSessionManager;
 import org.evd.game.annotation.actor.Actor;
+import org.evd.game.base.DBException;
 import org.evd.game.common.proto.RoleData;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.actor.ActorAddress;
@@ -110,9 +111,18 @@ public final class PlayerLoginLogic {
             dbPlayerData.setId(playerId);
             dbPlayerData.setName(role.getName());
             dbPlayerData.setLv(role.getLevel());
-            DBPlayerDataTable.add(playerId, dbPlayerData, true);
-            LogCore.core.info("PlayerService 创建玩家基础数据: playerId={}, name={}, level={}",
-                    playerId, dbPlayerData.getName(), dbPlayerData.getLv());
+            if (DBPlayerDataTable.add(playerId, dbPlayerData)) {
+                if (!Service.getCurrent().getMdb().asyncSyncNow(dbPlayerData)) {
+                    throw new DBException("创建玩家基础数据落库失败: playerId=" + playerId);
+                }
+                LogCore.core.info("PlayerService 创建玩家基础数据: playerId={}, name={}, level={}",
+                        playerId, dbPlayerData.getName(), dbPlayerData.getLv());
+            } else {
+                dbPlayerData = DBPlayerDataTable.get(playerId);
+                if (dbPlayerData == null) {
+                    throw new DBException("创建玩家基础数据时发现记录已存在，但重新读取失败: playerId=" + playerId);
+                }
+            }
         }
 
         sessionManager.markOnline(playerId);

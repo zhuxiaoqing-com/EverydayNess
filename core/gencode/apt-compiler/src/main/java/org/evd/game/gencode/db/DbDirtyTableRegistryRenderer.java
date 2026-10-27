@@ -15,6 +15,7 @@ final class DbDirtyTableRegistryRenderer {
         for (DbDirtyEntityMeta entity : entities) {
             sb.append("        mdb.registerTable(")
                     .append(entity.tableTypeName()).append(".class, ")
+                    .append(entity.beanPackage).append(".").append(entity.beanClassName).append(".class, ")
                     .append(entity.internalTableTypeName()).append(".class);\n");
         }
         sb.append("    }\n");

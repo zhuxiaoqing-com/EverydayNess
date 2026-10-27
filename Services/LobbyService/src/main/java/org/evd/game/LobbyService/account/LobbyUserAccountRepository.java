@@ -5,6 +5,7 @@ import org.evd.game.LobbyService.dbDef.db.bean.LBUserAccount;
 import org.evd.game.LobbyService.dbDef.db.table.LBRoleTable;
 import org.evd.game.LobbyService.dbDef.db.table.LBUserAccountTable;
 import org.evd.game.common.serializeBean.LobbyService.login.SLobbyUserAccessResult;
+import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.LogCore;
 
 /** Lobby 用户账号仓库，负责账号、角色数据和封禁状态。 */
@@ -26,15 +27,17 @@ public final class LobbyUserAccountRepository {
             created.setBanReason("");
             created.setCreateTime(now);
             created.setLastLoginTime(now);
-            if (LBUserAccountTable.add(userId, created, true)) {
+            if (LBUserAccountTable.add(userId, created)) {
+                if (!Service.getCurrent().getMdb().asyncSyncNow(created)) {
+                    LogCore.core.error("LobbyService 用户账号已写入内存，但同步数据库失败: userId={}", userId);
+                }
                 LogCore.core.info("LobbyService 创建用户账号: userId={}", userId);
                 return SLobbyUserAccessResult.allowed(true);
             }
 
-            // 并发首登时另一请求可能已经完成创建，重新读取后继续按真实状态判断。
             account = LBUserAccountTable.get(userId);
             if (account == null) {
-                LogCore.core.error("LobbyService 创建用户账号失败: userId={}", userId);
+                LogCore.core.error("LobbyService 创建用户账号时发现记录已存在，但重新读取失败: userId={}", userId);
                 return SLobbyUserAccessResult.denied("用户数据创建失败");
             }
         }
@@ -80,7 +83,12 @@ public final class LobbyUserAccountRepository {
         roleData.setName(name);
         roleData.setLevel(level);
         roleData.setCharacterId(characterId);
-        if (!LBRoleTable.add(playerId, roleData, true)) {
+        if (!LBRoleTable.add(playerId, roleData)) {
+            LogCore.core.warn("LobbyService 创建角色失败，角色记录已存在: userId={}, playerId={}",
+                    userId, playerId);
+            return false;
+        }
+        if (!Service.getCurrent().getMdb().asyncSyncNow(roleData)) {
             LogCore.core.warn("LobbyService 保存角色数据失败: userId={}, playerId={}",
                     userId, playerId);
             return false;

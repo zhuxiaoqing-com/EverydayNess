@@ -57,6 +57,10 @@ final class DbDirtyMysqlTableRenderer {
             }
             sb.append("\"").append(tableFields.get(i).columnName).append("\"");
         }
+        if (!tableFields.isEmpty()) {
+            sb.append(", ");
+        }
+        sb.append("\"version\"");
         sb.append(");\n");
         sb.append("    private static final String CREATE_TABLE_SQL = \"\"\"\n");
         sb.append("            CREATE TABLE IF NOT EXISTS ").append(entity.tableName()).append(" (\n");
@@ -69,11 +73,10 @@ final class DbDirtyMysqlTableRenderer {
             } else {
                 sb.append(" NOT NULL");
             }
-            if (i < tableFields.size() - 1) {
-                sb.append(",");
-            }
+            sb.append(",");
             sb.append("\n");
         }
+        sb.append("                version BIGINT NOT NULL DEFAULT 0\n");
         sb.append("            ) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI\n");
         sb.append("            \"\"\";\n");
         sb.append("\n");
@@ -199,8 +202,14 @@ final class DbDirtyMysqlTableRenderer {
         sb.append("        }\n");
         sb.append("        return tableFieldList;\n");
         sb.append("    }\n\n");
-        sb.append("    private ").append(keyType).append(" getPrimaryKey(").append(entity.beanClassName).append(" value) {\n");
+        sb.append("    @Override\n");
+        sb.append("    protected ").append(keyType).append(" getPrimaryKey(").append(entity.beanClassName).append(" value) {\n");
         sb.append("        return value.get").append(entity.primaryKeyField.methodSuffix).append("();\n");
+        sb.append("    }\n\n");
+        sb.append("    @Override\n");
+        sb.append("    protected void setPrimaryKey(").append(entity.beanClassName).append(" value, ")
+                .append(keyType).append(" key) {\n");
+        sb.append("        value.set").append(entity.primaryKeyField.methodSuffix).append("(key);\n");
         sb.append("    }\n\n");
         sb.append("    private DbTableField toTableField(").append(entity.beanClassName).append(" value) {\n");
         sb.append("        Objects.requireNonNull(value, \"value 不能为空\");\n");
@@ -213,7 +222,9 @@ final class DbDirtyMysqlTableRenderer {
                         .append("(value.get").append(field.methodSuffix).append("())));\n");
             }
         }
-        sb.append("        return new DbTableField(valueList);\n");
+        sb.append("        DbTableField tableField = new DbTableField(valueList);\n");
+        sb.append("        tableField.setVersion(value.getMemVersion());\n");
+        sb.append("        return tableField;\n");
         sb.append("    }\n\n");
         sb.append("    private ").append(keyType).append(" parseRowKey(DbTableField tableField) {\n");
         sb.append("        List<DbValue> valueList = tableField.getValueList();\n");
@@ -241,7 +252,8 @@ final class DbDirtyMysqlTableRenderer {
                         .append(").getV(), value));\n");
             }
         }
-        sb.append("        value.makeModify();\n");
+        sb.append("        value.setMemVersion(tableField.getVersion());\n");
+        sb.append("        value.setDbVersion(tableField.getVersion());\n");
         sb.append("        return value;\n");
         sb.append("    }\n\n");
         for (DbDirtyFieldMeta field : tableFields) {

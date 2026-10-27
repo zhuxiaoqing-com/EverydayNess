@@ -21,14 +21,6 @@ final class DbDirtyTableFacadeRenderer {
         sb.append("        return tTable.add(key, value);\n");
         sb.append("    }\n\n");
 
-        sb.append("    public static boolean add(").append(keyType).append(" key, ")
-                .append(entity.beanClassName).append(" value, boolean immediately) {\n");
-        sb.append("        Mdb mdb = Service.getCurrent().getMdb();\n");
-        sb.append("        TTable<").append(keyType).append(", ").append(entity.beanClassName)
-                .append("> tTable = mdb.getTTable(").append(entity.tableClassName).append(".class);\n");
-        sb.append("        return tTable.add(key, value, immediately);\n");
-        sb.append("    }\n\n");
-
         sb.append("    public static ").append(entity.beanClassName).append(" get(").append(keyType).append(" key) {\n");
         sb.append("        Mdb mdb = Service.getCurrent().getMdb();\n");
         sb.append("        TTable<").append(keyType).append(", ").append(entity.beanClassName)
@@ -42,6 +34,7 @@ final class DbDirtyTableFacadeRenderer {
                 .append("> tTable = mdb.getTTable(").append(entity.tableClassName).append(".class);\n");
         sb.append("        return tTable.remove(key);\n");
         sb.append("    }\n");
+
         sb.append("}\n");
         return sb.toString();
     }

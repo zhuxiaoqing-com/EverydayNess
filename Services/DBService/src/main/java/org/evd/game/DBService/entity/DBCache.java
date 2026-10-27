@@ -1,27 +1,33 @@
 package org.evd.game.DBService.entity;
 
-import lombok.extern.slf4j.Slf4j;
 import org.evd.game.DBService.storage.mysql.StorageEngine;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.Db.serialize.DBReq;
+import org.evd.game.runtime.Db.serialize.DBRsp;
 import org.evd.game.runtime.Db.serialize.DbOpType;
+import org.evd.game.runtime.Db.serialize.DbTableField;
+import org.evd.game.runtime.Db.serialize.MysqlReq;
 import org.evd.game.runtime.continuation.ContinuationLockScope;
 import org.evd.game.runtime.continuation.LockType;
 import org.evd.game.runtime.ymlconfig.DbYml;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * @author zhuxiaoqing
  * @Description: DBCache
  * @Date 2026/7/1 16:13
  **/
-@Slf4j
 public class DBCache {
+    private static final Logger log = LoggerFactory.getLogger(DBCache.class);
+
     private final Service cacheOwner;
     private final StorageEngine storageEngine;
     private final long tickTimerId;
@@ -83,6 +89,43 @@ public class DBCache {
         }
     }
 
+    /** 先缓存事务中的变更，再执行 MySQL 事务；成功后移除已持久化的缓存项。 */
+    public <T> T executeTransaction(List<DBReq> requests, Supplier<T> operation) {
+        if (stopping) {
+            throw new IllegalStateException("DB cache is stopping");
+        }
+
+        Map<CacheKey, TRecord> transactionRecords = new HashMap<>();
+        for (DBReq request : requests) {
+            DBRsp cacheResponse = storageEngine.cache(request, this);
+            if (cacheResponse == null || !cacheResponse.isSuccess()) {
+                String message = cacheResponse == null
+                        ? "transaction cache update returned no response"
+                        : cacheResponse.getExceptionMessage();
+                throw new IllegalStateException(message);
+            }
+
+            MysqlReq mysqlReq = request.getMysqlReq();
+            TableCache tableCache = getTableCache(mysqlReq.getTableName());
+            for (DbTableField field : mysqlReq.getTablFieldList()) {
+                Object key = field.getTableKey();
+                transactionRecords.put(
+                        new CacheKey(tableCache, key), tableCache.getCache().get(key));
+            }
+        }
+
+        T result = operation.get();
+        try (ContinuationLockScope ignored = cacheOwner.awaitCoroutineLockScope(LockType.DB_CACHE, this)) {
+            for (Map.Entry<CacheKey, TRecord> entry : transactionRecords.entrySet()) {
+                CacheKey key = entry.getKey();
+                if (key.tableCache().getCache().get(key.key()) == entry.getValue()) {
+                    key.tableCache().getCache().remove(key.key());
+                }
+            }
+        }
+        return result;
+    }
+
     private void flushOnce() {
         List<TableCache> tableCaches = new ArrayList<>(cache.values());
         for (TableCache tableCache : tableCaches) {
@@ -138,6 +181,9 @@ public class DBCache {
             count += tableCache.getCache().size();
         }
         return count;
+    }
+
+    private record CacheKey(TableCache tableCache, Object key) {
     }
 
 }

@@ -39,11 +39,12 @@ final class DbDirtyPbTableRenderer {
                 .append(" extends TTable<").append(keyType).append(", ").append(entity.beanClassName).append("> {\n");
         sb.append("    private static final String TABLE_NAME = \"").append(entity.tableName()).append("\";\n");
         sb.append("    private static final String KEY_COLUMN_NAME = \"k\";\n");
-        sb.append("    private static final List<String> COLUMN_NAMES = List.of(\"k\", \"v\");\n");
+        sb.append("    private static final List<String> COLUMN_NAMES = List.of(\"k\", \"v\", \"version\");\n");
         sb.append("    private static final String CREATE_TABLE_SQL = \"\"\"\n");
         sb.append("            CREATE TABLE IF NOT EXISTS ").append(entity.tableName()).append(" (\n");
         sb.append("                k ").append(DbDirtyRenderSupport.renderSqlType(entity.primaryKeyField.type)).append(" NOT NULL PRIMARY KEY,\n");
-        sb.append("                v MEDIUMBLOB NOT NULL\n");
+        sb.append("                v MEDIUMBLOB NOT NULL,\n");
+        sb.append("                version BIGINT NOT NULL DEFAULT 0\n");
         sb.append("            ) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI\n");
         sb.append("            \"\"\";\n");
         sb.append("\n");
@@ -161,15 +162,23 @@ final class DbDirtyPbTableRenderer {
         sb.append("        }\n");
         sb.append("        return tableFieldList;\n");
         sb.append("    }\n\n");
-        sb.append("    private ").append(keyType).append(" getPrimaryKey(").append(entity.beanClassName).append(" value) {\n");
+        sb.append("    @Override\n");
+        sb.append("    protected ").append(keyType).append(" getPrimaryKey(").append(entity.beanClassName).append(" value) {\n");
         sb.append("        return value.get").append(entity.primaryKeyField.methodSuffix).append("();\n");
+        sb.append("    }\n\n");
+        sb.append("    @Override\n");
+        sb.append("    protected void setPrimaryKey(").append(entity.beanClassName).append(" value, ")
+                .append(keyType).append(" key) {\n");
+        sb.append("        value.set").append(entity.primaryKeyField.methodSuffix).append("(key);\n");
         sb.append("    }\n\n");
         sb.append("    private DbTableField toSaveField(").append(keyType).append(" key, ").append(entity.beanClassName).append(" value) {\n");
         sb.append("        Objects.requireNonNull(value, \"value 不能为空\");\n");
         sb.append("        List<DbValue> valueList = new ArrayList<>(2);\n");
         sb.append("        valueList.add(new DbValue(key));\n");
         sb.append("        valueList.add(new DbValue(serializeBean(value)));\n");
-        sb.append("        return new DbTableField(valueList);\n");
+        sb.append("        DbTableField tableField = new DbTableField(valueList);\n");
+        sb.append("        tableField.setVersion(value.getMemVersion());\n");
+        sb.append("        return tableField;\n");
         sb.append("    }\n\n");
         sb.append("    private ").append(keyType).append(" parseRowKey(DbTableField tableField) {\n");
         sb.append("        List<DbValue> valueList = tableField.getValueList();\n");
@@ -189,9 +198,8 @@ final class DbDirtyPbTableRenderer {
         sb.append("        byte[] payload = (byte[]) valueList.get(1).getV();\n");
         sb.append("        ").append(entity.beanClassName).append(" value = deserializeBean(payload);\n");
         sb.append("        value.set").append(entity.primaryKeyField.methodSuffix).append("(key);\n");
-        if (shouldMarkModify(entity)) {
-            sb.append("        value.makeModify();\n");
-        }
+        sb.append("        value.setMemVersion(tableField.getVersion());\n");
+        sb.append("        value.setDbVersion(tableField.getVersion());\n");
         sb.append("        return value;\n");
         sb.append("    }\n\n");
         sb.append("    private MysqlRsp requireMysqlRsp(DBRsp rsp) {\n");
@@ -222,23 +230,12 @@ final class DbDirtyPbTableRenderer {
         sb.append("    private ").append(entity.beanClassName).append(" deserializeBean(byte[] bytes) {\n");
         sb.append("        ").append(entity.beanClassName).append(" value = new ").append(entity.beanClassName).append("();\n");
         sb.append("        if (bytes == null || bytes.length == 0) {\n");
-        if (shouldMarkModify(entity)) {
-            sb.append("            value.makeModify();\n");
-        }
         sb.append("            return value;\n");
         sb.append("        }\n");
         sb.append("        ProtostuffIOUtil.mergeFrom(bytes, value, SCHEMA);\n");
-        if (shouldMarkModify(entity)) {
-            sb.append("        value.makeModify();\n");
-        }
         sb.append("        return value;\n");
         sb.append("    }\n");
         sb.append("}\n");
         return sb.toString();
-    }
-
-    private boolean shouldMarkModify(DbDirtyEntityMeta entity) {
-        return !"org.evd.game.LobbyService.dbDef".equals(entity.sourcePackage)
-                || !"LBRole".equals(entity.beanClassName);
     }
 }

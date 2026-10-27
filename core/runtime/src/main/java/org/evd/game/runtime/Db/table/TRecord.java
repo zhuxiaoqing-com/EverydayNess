@@ -1,6 +1,7 @@
 package org.evd.game.runtime.Db.table;
 
 import org.evd.game.base.DirtyObject;
+import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.util.TimeUtils;
 import org.evd.game.runtime.call.CallPoint;
@@ -41,35 +42,21 @@ public class TRecord<K, V extends DirtyObject> {
         this.value = value;
         this.state = state;
         this.ownerCallPoint = ownerCallPoint;
-        value.makeModify();
+        if (state != GET) {
+            value.makeModify();
+        }
         access();
     }
 
 
-    /**
-     * 这里肯定是线性的;因为只有add的地方调用，而且加锁了;
-     */
-    public void add(V newValue) {
-        access();
-        long oldMemVersion = value == null ? 0 : value.getMemVersion();
-        long oldDbVersion = value == null ? 0 : value.getDbVersion();
-        state = ADD;
-        value = newValue;
-        // add 替换整条记录，也算一次内存修改。
-        value.setMemVersion(oldMemVersion + 1);
-        value.setDbVersion(oldDbVersion);
-    }
-
-    /**
-     * 这里肯定是线性的;因为只有remove的地方调用，而且加锁了
-     */
+    /** 仅由 TTable 在同步逻辑片段中调用；状态切换本身不包含协程等待。 */
     public void remove() {
         access();
         long oldMemVersion = value == null ? 0 : value.getMemVersion();
         long oldDbVersion = value == null ? 0 : value.getDbVersion();
         state = REMOVE;
-        value = table.newValue();
-        // remove 替换整条记录，也算一次内存修改。
+        // 删除标记只保留主键，供对象版立即同步入口定位记录。
+        value = table.newRemoveValue(key);
         value.setMemVersion(oldMemVersion + 1);
         value.setDbVersion(oldDbVersion);
     }
@@ -107,6 +94,10 @@ public class TRecord<K, V extends DirtyObject> {
 
     public TTable<K, V> getTable() {
         return table;
+    }
+
+    DBReq createSyncRequest() {
+        return table.createSyncRequest(this);
     }
 
     public CallPoint getOwnerCallPoint() {
@@ -147,7 +138,6 @@ public class TRecord<K, V extends DirtyObject> {
         return value.isModified();
     }
 
-
     public boolean checkpointRefreshState(long snapshotMemVersion) {
         // 只确认已经成功保存的快照；期间的新修改会让 memVersion 保持更大。
         value.setDbVersion(Math.max(value.getDbVersion(), snapshotMemVersion));
@@ -172,7 +162,6 @@ public class TRecord<K, V extends DirtyObject> {
                 case REMOVE:
                     return table.dbExec(table.createRemoveDBReq(key), ownerCallPoint);
                 case GET:
-                    // 对于GET状态，需要检查version条件
                     return table.dbExec(table.createSaveDBReq(key, value), ownerCallPoint);
             }
         } catch (Exception e) {

@@ -12,6 +12,8 @@ import java.util.List;
 public class DbTableField implements ISerializable {
     /** 当前值的实际类型。 */
     private List<DbValue> valueList;
+    /** 行在 MDB 中的持久化版本，与业务列分开传输。 */
+    private long version;
 
 
     public DbTableField() {
@@ -27,6 +29,14 @@ public class DbTableField implements ISerializable {
 
     public void setValueList(List<DbValue> valueList) {
         this.valueList = valueList;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public void setVersion(long version) {
+        this.version = version;
     }
 
     public Object getTableKey() {

@@ -31,7 +31,7 @@ public final class DBProxy implements NodeDbExecutor {
     private StorageEngine storageEngine;
     private DBCache dbCache;
     private volatile boolean closed;
-    private final ThreadLocal<Boolean> syncExecution = ThreadLocal.withInitial(() -> false);
+    private final ThreadLocal<SyncExecution> syncExecution = new ThreadLocal<>();
 
     public DBProxy() {
     }
@@ -79,13 +79,46 @@ public final class DBProxy implements NodeDbExecutor {
             throw new IllegalStateException("DBProxy is not initialized");
         }
 
-        DBRsp dbRsp = new DBRsp();
-        dbRsp.setSuccess(true);
+        if (dbReq.getDbOpType() == DbOpType.TRANSACTION) {
+            return executeTransaction(currentStorageEngine, dbReq);
+        }
+        return executeRequest(currentStorageEngine, dbReq);
+    }
+
+    private DBRsp executeTransaction(StorageEngine currentStorageEngine, DBReq dbReq) {
+        try {
+            if (dbReq.getTransactionRequests() == null || dbReq.getTransactionRequests().isEmpty()) {
+                throw new IllegalArgumentException("transaction requests 不能为空");
+            }
+            Runnable execute = () -> currentStorageEngine.executeTransaction(dbReq.getTransactionRequests());
+            if (dbCache == null) {
+                execute.run();
+            } else {
+                dbCache.executeTransaction(dbReq.getTransactionRequests(), () -> {
+                    execute.run();
+                    return null;
+                });
+            }
+            DBRsp response = new DBRsp();
+            response.setSuccess(true);
+            return response;
+        } catch (Exception e) {
+            return new DBRsp(e.getMessage());
+        }
+    }
+
+    private DBRsp executeRequest(StorageEngine currentStorageEngine, DBReq dbReq) {
         try {
             DBRsp cache = currentStorageEngine.cache(dbReq, dbCache);
             if (cache != null) {
                 return cache;
             }
+        } catch (Exception e) {
+            return new DBRsp(e.getMessage());
+        }
+        DBRsp dbRsp = new DBRsp();
+        dbRsp.setSuccess(true);
+        try {
             switch (dbReq.getDbOpType()) {
                 case DbOpType.CREATE_TABLE -> currentStorageEngine.initTable(dbReq);
                 case DbOpType.GET -> dbRsp = currentStorageEngine.find(dbReq);
@@ -107,22 +140,47 @@ public final class DBProxy implements NodeDbExecutor {
         if (dbReq.getDbOpType() != DbOpType.GET) {
             throw new IllegalArgumentException("同步数据库入口只支持 GET: " + dbReq.getDbOpType());
         }
-        syncExecution.set(true);
+        SyncExecution previous = syncExecution.get();
+        Service service = Service.peekCurrent();
+        syncExecution.set(new SyncExecution(service, runningContinuationId(service)));
         try {
             return dbExec(null, dbReq);
         } finally {
-            syncExecution.remove();
+            if (previous == null) {
+                syncExecution.remove();
+            } else {
+                syncExecution.set(previous);
+            }
         }
     }
 
     public <T> T awaitDb(Mono<T> mono, long timeoutMillis) {
         // 等待层多等 5 秒，给底层 operation.timeout() 的取消、连接清理和结果回传留出时间。正常打不了协程超时的;
         long awaitTimeoutMillis = timeoutMillis + 5000L;
-        if (Boolean.TRUE.equals(syncExecution.get())) {
+        if (isSyncExecution()) {
             return mono.block(Duration.ofMillis(awaitTimeoutMillis));
         }
         Service service = Service.getCurrent();
         return service.awaitCompletionStage(mono.toFuture(), awaitTimeoutMillis);
+    }
+
+    private boolean isSyncExecution() {
+        SyncExecution execution = syncExecution.get();
+        if (execution == null) {
+            return false;
+        }
+        Service service = Service.peekCurrent();
+        return execution.service() == service
+                && execution.continuationId() == runningContinuationId(service);
+    }
+
+    private static long runningContinuationId(Service service) {
+        return service != null && service.continuationRuntime().isContinuation()
+                ? service.requireRunningContinuation().getConId()
+                : -1L;
+    }
+
+    private record SyncExecution(Service service, long continuationId) {
     }
 
     public synchronized void stop(boolean force) {

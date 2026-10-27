@@ -35,11 +35,6 @@ public abstract class StorageMongo implements StorageEngine {
     }
 
     @Override
-    public boolean insert(DBReq _dbReq) {
-        return unsupported();
-    }
-
-    @Override
     public void replace(DBReq _dbReq) {
         unsupported();
     }
@@ -149,7 +144,7 @@ public abstract class StorageMongo implements StorageEngine {
 	}
 
 	@Override
-	public void replace(String tableName, String key, String value) {
+	public void update(String tableName, String key, String value) {
 		long begin = System.nanoTime();
 		try {
 			MongoCollection<DBObject> table = getTable(tableName);

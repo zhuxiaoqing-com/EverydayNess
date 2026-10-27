@@ -3,6 +3,9 @@ package org.evd.game.runtime.Db.serialize;
 import org.evd.game.annotation.serialize.SerializeClass;
 import org.evd.game.base.ISerializable;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * @author zhuxiaoqing
  * @Description: MysqlData
@@ -14,6 +17,7 @@ public class DBReq implements ISerializable {
     private DbOpType dbOpType;
 
     MysqlReq mysqlReq = new MysqlReq();
+    private List<DBReq> transactionRequests = new ArrayList<>();
 
 
     public DBReq() {
@@ -37,6 +41,14 @@ public class DBReq implements ISerializable {
 
     public void setDbOpType(DbOpType dbOpType) {
         this.dbOpType = dbOpType;
+    }
+
+    public List<DBReq> getTransactionRequests() {
+        return transactionRequests;
+    }
+
+    public void setTransactionRequests(List<DBReq> transactionRequests) {
+        this.transactionRequests = transactionRequests;
     }
 }
 

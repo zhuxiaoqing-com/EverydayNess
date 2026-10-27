@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 import reactor.netty.resources.LoopResources;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -109,6 +110,16 @@ public class LoggerMysql implements LoggerEngine {
 
     public <T> Mono<T> executeSerial(Object key, Supplier<Mono<T>> operation) {
         return serialExecutor.submit(key, operation);
+    }
+
+    /** 保留单 key 调用入口。 */
+    public <T> Mono<T> executeSerialTransaction(Object key, Supplier<Mono<T>> operation) {
+        return executeSerialTransaction(List.of(key), operation);
+    }
+
+    /** 原子预约事务涉及的所有 Lane，事务本身只执行一次。 */
+    public <T> Mono<T> executeSerialTransaction(Collection<?> keys, Supplier<Mono<T>> operation) {
+        return serialExecutor.submitTransaction(keys, operation);
     }
 
     public <T, R> Mono<List<R>> executeSerialBatch(List<T> items,

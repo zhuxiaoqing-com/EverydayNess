@@ -5,6 +5,7 @@ import org.evd.game.PlayerService.dbDef.db.bean.DBRoleMapData;
 import org.evd.game.PlayerService.dbDef.db.bean.DBTransferContext;
 import org.evd.game.PlayerService.dbDef.db.table.DBRoleMapDataTable;
 import org.evd.game.annotation.actor.Actor;
+import org.evd.game.base.DBException;
 import org.evd.game.runtime.Service;
 
 /** 负责玩家地图和匹配状态的互斥进入、退出及超时清理。 */
@@ -121,7 +122,7 @@ public final class PlayerMapStateLogic {
         data = new DBRoleMapData();
         data.setPlayerId(playerId);
         data.setStateType(PlayerMapState.NONE.getId());
-        DBRoleMapDataTable.add(playerId, data, true);
+        DBRoleMapDataTable.add(playerId, data);
         return data;
     }
 }

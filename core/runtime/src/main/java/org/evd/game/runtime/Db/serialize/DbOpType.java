@@ -13,14 +13,16 @@ public enum DbOpType {
     GET,
     /** 批量查询数据。 */
     BATCH_GET,
-    /** 保存单条数据。 */
+    /** 保存单条数据（MySQL REPLACE）。 */
     SAVE,
-    /** 批量保存数据。 */
+    /** 批量保存数据（MySQL REPLACE）。 */
     BATCH_SAVE,
     /** 删除单条数据。 */
     REMOVE,
     /** 批量删除数据。 */
     BATCH_REMOVE,
+    /** 在同一个数据库事务中执行多条表请求。 */
+    TRANSACTION,
 
     ;
 

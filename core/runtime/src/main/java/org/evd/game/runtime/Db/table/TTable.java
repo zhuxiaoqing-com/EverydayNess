@@ -69,23 +69,18 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     private V get(K key, boolean sync, boolean forLoad) {
         checkAccess(key, forLoad);
-        TRecord<K, V> tRecord = cache.get(key);
-        if (tRecord != null) {
-            if (tRecord.isRemoveState()) {
-                return null;
+        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+                LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+            checkAccess(key, forLoad);
+            TRecord<K, V> tRecord = cache.get(key);
+            if (tRecord != null) {
+                if (tRecord.isRemoveState()) {
+                    return null;
+                }
+                return tRecord.get();
             }
-            return tRecord.get();
+            return getFromDb(key, sync, forLoad);
         }
-
-        if (!sync) {
-            try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
-                    LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
-                checkAccess(key, forLoad);
-                return getFromDb(key, false, forLoad);
-            }
-        }
-
-        return getFromDb(key, true, forLoad);
     }
 
     private V getFromDb(K key, boolean sync, boolean forLoad) {
@@ -110,7 +105,7 @@ public abstract class TTable<K, V extends DirtyObject> {
                 : getExec(createGetDBReq(key), callPoint);
         checkAccess(key, forLoad);
 
-        // DB await 期间可能已经发生 add/remove；旧查询结果不能覆盖最新 cache。
+        // 查询返回后以缓存中的记录为准，不用旧数据库结果覆盖缓存状态。
         tRecord = cache.get(key);
         if (tRecord != null) {
             if (tRecord.isRemoveState()) {
@@ -127,46 +122,70 @@ public abstract class TTable<K, V extends DirtyObject> {
         tRecord = new TRecord<>(this, key, value, TRecord.GET, callPoint);
         cache.put(key, tRecord);
             return tRecord.getValue();
-
     }
 
+    /**
+     * 插入本地缓存中的新记录；数据库提交由 checkpoint 或 asyncSyncNow 完成。
+     *
+     * @return 本地确认 key 不存在并接纳插入时返回 true；已存在时返回 false
+     */
     public boolean add(K key, V value) {
-        return add(key, value, false);
-    }
-
-    public boolean add(K key, V value, boolean immediately) {
         getMdb().checkPlayerAccess(key, false);
         if (value == null) {
             throw new NullPointerException("value is null");
         }
 
-        TRecord<K, V> tRecord = cache.get(key);
-        if (tRecord != null) {
-            tRecord.add(value);
+        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+                LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+            getMdb().checkPlayerAccess(key, false);
+            TRecord<K, V> tRecord = cache.get(key);
+            if (tRecord != null) {
+                if (!tRecord.isRemoveState() || tRecord.isModified()
+                        || !cache.remove(key, tRecord)) {
+                    return false;
+                }
+            }
+
+            // 预查用于尽早报告已有 key；最终保存使用 REPLACE，适用于并发写入。
+            findFailCache.invalidate(key);
+            getFromDb(key, false, false);
+            // 数据库里已经存在;
+            if (cache.containsKey(key)) {
+                return false;
+            }
+
+            value.setMemVersion(0L);
+            value.setDbVersion(0L);
+            tRecord = new TRecord<>(this, key, value, TRecord.ADD,
+                    findDBServiceCallPoint(key));
+            cache.put(key, tRecord);
+            findFailCache.invalidate(key);
             return true;
         }
-
-        tRecord = new TRecord<>(this, key, value, TRecord.ADD, findDBServiceCallPoint(key));
-        cache.put(key, tRecord);
-        findFailCache.invalidate(key);
-        return true;
-
     }
 
+    /** 删除记录前先读取数据库中的完整记录，保留其数据库版本。 */
     public boolean remove(K key) {
         getMdb().checkPlayerAccess(key, false);
-        TRecord<K, V> tRecord = cache.get(key);
-        if (tRecord != null) {
+        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+                LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
+            getMdb().checkPlayerAccess(key, false);
+            TRecord<K, V> tRecord = cache.get(key);
+            if (tRecord == null) {
+                findFailCache.invalidate(key);
+                getFromDb(key, false, false);
+                tRecord = cache.get(key);
+            }
+            if (tRecord == null) {
+                return true;
+            }
+            if (tRecord.isRemoveState()) {
+                return true;
+            }
             tRecord.remove();
+            findFailCache.invalidate(key);
             return true;
         }
-
-        // 没有找到就直接新建一个删除标记。
-        tRecord = new TRecord<K, V>(this, key, newValue(), TRecord.REMOVE, findDBServiceCallPoint(key));
-        cache.put(key, tRecord);
-        findFailCache.invalidate(key);
-        return true;
-
     }
 
     public void checkpoint(boolean close) {
@@ -383,7 +402,8 @@ public abstract class TTable<K, V extends DirtyObject> {
                 cache.remove(one.getKey(), one);
                 continue;
             }
-                long snapshotMemVersion = one.getValue().getMemVersion();
+
+            long snapshotMemVersion = one.getValue().getMemVersion();
 
             if (one.flush("tickClearCache")) {
                 one.checkpointRefreshState(snapshotMemVersion);
@@ -405,6 +425,15 @@ public abstract class TTable<K, V extends DirtyObject> {
         return flush(playerKey(playerId));
     }
 
+    DBReq createSyncRequest(TRecord<K, V> record) {
+        Map<K, V> singleRecord = Map.of(record.getKey(), record.getValue());
+        DBReq request = switch (record.getState()) {
+            case TRecord.ADD, TRecord.GET -> createBatchSaveDBReq(singleRecord);
+            case TRecord.REMOVE -> createBatchRemoveDBReq(singleRecord);
+            default -> throw new IllegalStateException("未知记录状态: " + record.getState());
+        };
+        return request;
+    }
 
     /**
      * flush 是按玩家同步多张表的。
@@ -454,6 +483,8 @@ public abstract class TTable<K, V extends DirtyObject> {
         logger.info("{}  table stop begin {}  ", getName(), mdb.service.getId());
         if (runCheckpoint) {
             checkpoint(true);
+        }
+        if (runCheckpoint) {
             int dirtyRecordCount = 0;
             for (TRecord<K, V> record : cache.values()) {
                 if (record.isModified()) {
@@ -489,6 +520,19 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     Collection<TRecord<K, V>> getCacheList() {
         return cache.values();
+    }
+
+    /** 按 DB Bean 主键读取当前缓存记录，删除状态下允许用原 Bean 定位 tombstone。 */
+    @SuppressWarnings("unchecked")
+    TRecord<K, V> getCache(DirtyObject object) {
+        V value = (V) object;
+        K key = Objects.requireNonNull(getPrimaryKey(value), "DB 对象主键不能为空");
+        TRecord<K, V> record = cache.get(key);
+        if (record == null || (!record.isRemoveState() && record.getValue() != value)) {
+            throw new DBException("立即同步对象不属于当前 MDB 缓存: table=" + getName()
+                    + ", key=" + key);
+        }
+        return record;
     }
 
     void deleteCache(K key) {
@@ -558,6 +602,12 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     protected abstract V newValue();
 
+    V newRemoveValue(K key) {
+        V value = newValue();
+        setPrimaryKey(value, key);
+        return value;
+    }
+
     protected void validateKeyValue(K key, V value) {
     }
 
@@ -571,8 +621,6 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
     protected abstract DBReq serializeSaveDBReq(V value);
-
-    public abstract DBReq createRemoveDBReq(K key);
 
     public abstract DBReq createBatchGetDBReq(Map<K, V> map);
 
@@ -588,11 +636,17 @@ public abstract class TTable<K, V extends DirtyObject> {
 
     protected abstract DBReq serializeBatchSaveDBReq(Map<K, V> map);
 
+    public abstract DBReq createRemoveDBReq(K key);
+
     public abstract DBReq createBatchRemoveDBReq(Map<K, V> map);
 
     public abstract V parseGetDBRsp(DBRsp rsp);
 
     public abstract Map<K, V> parseBatchGetDBRsp(DBRsp rsp);
+
+    protected abstract K getPrimaryKey(V value);
+
+    protected abstract void setPrimaryKey(V value, K key);
 
 
 }

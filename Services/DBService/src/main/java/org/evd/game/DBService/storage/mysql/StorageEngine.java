@@ -9,7 +9,6 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * insert
  * replace
  * replaceBatch
  * remove
@@ -21,11 +20,12 @@ public interface StorageEngine {
 
     DBRsp findBatch(DBReq _dbReq);
 
-    boolean insert(DBReq _dbReq);
-
     void replace(DBReq _dbReq);
 
     void replaceBatch(DBReq _dbReq);
+
+    /** 在同一个 MySQL 事务中按顺序执行多条保存或删除请求。 */
+    void executeTransaction(List<DBReq> requests);
 
     void remove(DBReq _dbReq);
 

@@ -2,6 +2,8 @@ package org.evd.game.DBService.storage.mysql;
 
 import io.r2dbc.spi.Connection;
 import io.r2dbc.spi.Result;
+import io.r2dbc.spi.Row;
+import io.r2dbc.spi.RowMetadata;
 import io.r2dbc.spi.Statement;
 import org.evd.game.DBService.DBProxy;
 import org.evd.game.DBService.entity.DBCache;
@@ -30,10 +32,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class StorageMysql implements StorageEngine {
     private static final Logger log = LoggerFactory.getLogger(StorageMysql.class);
+    private static final String VERSION_COLUMN_NAME = "version";
 
     private final int batchPerCount;
     private final int costMsWarn;
@@ -123,68 +128,111 @@ public class StorageMysql implements StorageEngine {
     }
 
     @Override
+    public void replaceBatch(DBReq dbReq) {
+        executeBatchWrite(dbReq, "replace", this::executeReplaceBatch);
+    }
+
+    @Override
     public void replace(DBReq dbReq) {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
         Object key = mysqlReq.getSingleTableKey();
-        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
-        Mono<Void> operation = Mono.usingWhen(
-                logger.openWriteConnection(),
-                connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField())),
-                Connection::close
-        );
-        await(logger.executeSerial(key, () -> operation.timeout(operationTimeout)
-                .doOnError(e -> log.error("replace error, table={}, key={}", tableName, key, e))
+        Mono<Void> operation = executeWithWriteTransaction(connection ->
+                        executeReplace(connection, tableName, mysqlReq.getSingleTableField()),
+                        operationTimeout)
+                .doOnError(error -> log.error("replace error, table={}, key={}", tableName, key, error))
                 .onErrorMap(SysException::new)
                 .doFinally(signalType -> {
                     long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
                     if (costMs > costMsWarn) {
                         log.warn("table {} replace key {} cost: {} ms", tableName, key, costMs);
                     }
-                })));
+                });
+        await(logger.executeSerial(key, () -> operation));
     }
 
-    @Override
-    public void replaceBatch(DBReq dbReq) {
+    private void executeBatchWrite(DBReq dbReq,
+                                   String operationName,
+                                   BatchWrite operation) {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         List<DbTableField> tableFieldList = mysqlReq.getTablFieldList();
         if (tableFieldList == null || tableFieldList.isEmpty()) {
             return;
         }
         String tableName = mysqlReq.getTableName();
-        String sql = resolveSql(dbReq);
         awaitBatch(logger.executeSerialBatch(tableFieldList,
-                DbTableField::getTableKey,
-                fields -> {
-                    String batchKeys = getBatchKeys(fields);
-                    long begin = System.nanoTime();
-                    return Mono.usingWhen(
-                        logger.openWriteConnection(),
-                        connection -> {
-                            if (fields.size() <= batchPerCount) {
-                                return executeWrite(connection, sql, fields);
-                            }
-                            List<Mono<Void>> operations = new ArrayList<>();
-                            for (int start = 0; start < fields.size(); start += batchPerCount) {
-                                int end = Math.min(start + batchPerCount, fields.size());
-                                operations.add(executeWrite(connection, sql, fields.subList(start, end)));
-                            }
-                            return Flux.concat(operations).then();
-                        },
-                        Connection::close
-                    ).timeout(batchOperationTimeout)
-                    .doOnError(e -> log.error("replace batch error, table={}, keys={}, num={}",
-                            tableName, batchKeys, fields.size(), e))
-                    .onErrorMap(SysException::new)
-                    .doFinally(signalType -> {
-                        long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                        if (costMs > batchCostMsWarn) {
-                            log.warn("table {} batch replace keys {} num {} cost: {} ms",
-                                    tableName, batchKeys, fields.size(), costMs);
-                        }
-                    });
-                }));
+                    DbTableField::getTableKey,
+                    fields -> {
+                        String batchKeys = getBatchKeys(fields);
+                        long begin = System.nanoTime();
+                        return executeWithWriteTransaction(connection ->
+                                operation.execute(connection, tableName, fields),
+                                batchOperationTimeout)
+                                .doOnError(e -> log.error("{} batch error, table={}, keys={}, num={}",
+                                        operationName, tableName, batchKeys, fields.size(), e))
+                                .onErrorMap(SysException::new)
+                                .doFinally(signalType -> {
+                                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                                    if (costMs > batchCostMsWarn) {
+                                        log.warn("table {} batch {} keys {} num {} cost: {} ms",
+                                                tableName, operationName, batchKeys, fields.size(), costMs);
+                                    }
+                                });
+                    }));
+    }
+
+    @Override
+    public void executeTransaction(List<DBReq> requests) {
+        if (requests == null) {
+            throw new IllegalArgumentException("transaction requests 不能为空");
+        }
+        if (requests.isEmpty()) {
+            return;
+        }
+        long begin = System.nanoTime();
+        Mono<Void> operation = executeWithWriteTransaction(connection ->
+                Flux.fromIterable(requests)
+                        .concatMap(request -> executeTransactionRequest(connection, request))
+                        .then(),
+                batchOperationTimeout)
+                .doOnError(error -> log.error("execute transaction failed, requestCount={}",
+                        requests.size(), error))
+                .doFinally(signalType -> {
+                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                    if (costMs > batchCostMsWarn) {
+                        log.warn("execute transaction requestCount={} cost: {} ms",
+                                requests.size(), costMs);
+                    }
+                });
+        List<Object> transactionKeys = collectTransactionKeys(requests);
+        awaitBatch(logger.executeSerialTransaction(transactionKeys, () -> operation));
+    }
+
+    private List<Object> collectTransactionKeys(List<DBReq> requests) {
+        List<Object> keys = new ArrayList<>();
+        for (DBReq request : requests) {
+            if (request == null || request.getDbOpType() == null || request.getMysqlReq() == null) {
+                throw new IllegalArgumentException("transaction 子请求不完整");
+            }
+            MysqlReq mysqlReq = request.getMysqlReq();
+            switch (request.getDbOpType()) {
+                case SAVE, REMOVE -> keys.add(
+                        mysqlReq.getSingleTableField().getTableKey());
+                case BATCH_SAVE, BATCH_REMOVE -> {
+                    List<DbTableField> fields = mysqlReq.getTablFieldList();
+                    if (fields == null) {
+                        throw new IllegalArgumentException("transaction 批量字段列表不能为空");
+                    }
+                    for (DbTableField field : fields) {
+                        keys.add(field.getTableKey());
+                    }
+                }
+                default -> throw new IllegalArgumentException(
+                        "transaction 不支持子操作: " + request.getDbOpType());
+            }
+        }
+        return keys;
     }
 
     @Override
@@ -196,66 +244,24 @@ public class StorageMysql implements StorageEngine {
         }
         String tableName = mysqlReq.getTableName();
         awaitBatch(logger.executeSerialBatch(tableFieldList,
-                DbTableField::getTableKey,
-                fields -> {
-                    String batchKeys = getBatchKeys(fields);
-                    String sql = resolveBatchSql(tableName, DbOpType.BATCH_REMOVE, fields.size());
-                    long begin = System.nanoTime();
-                    return Mono.usingWhen(
-                        logger.openWriteConnection(),
-                        connection -> {
-                            Statement statement = connection.createStatement(sql);
-                            if (!fields.isEmpty()) {
-                                int paramIndex = 0;
-                                for (DbTableField tableField : fields) {
-                                    statement.bind(paramIndex++, tableField.getTableKey());
-                                }
-                            }
-                            return Flux.from(statement.execute())
-                                    .flatMap(Result::getRowsUpdated)
-                                    .then();
-                        },
-                        Connection::close
-                    ).timeout(batchOperationTimeout)
-                    .doOnError(e -> log.error("remove batch error, table={}, keys={}, num={}",
-                            tableName, batchKeys, fields.size(), e))
-                    .onErrorMap(SysException::new)
-                    .doFinally(signalType -> {
-                        long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                        if (costMs > batchCostMsWarn) {
-                            log.warn("table {} batch remove keys {} num {} cost: {} ms",
-                                    tableName, batchKeys, fields.size(), costMs);
-                        }
-                    });
-                }));
-    }
-
-    @Override
-    public boolean insert(DBReq dbReq) {
-        MysqlReq mysqlReq = dbReq.getMysqlReq();
-        String tableName = mysqlReq.getTableName();
-        Object key = mysqlReq.getSingleTableKey();
-        String sql = resolveSql(dbReq);
-        long begin = System.nanoTime();
-        Mono<Boolean> operation = Mono.usingWhen(
-                        logger.openWriteConnection(),
-                        connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField()))
-                                .thenReturn(Boolean.TRUE),
-                        Connection::close
-                )
-                .timeout(operationTimeout)
-                .onErrorResume(e -> {
-                    log.error("insert error, table={}, key={}",
-                            tableName, key, e);
-                    return Mono.just(Boolean.FALSE);
-                })
-                .doFinally(signalType -> {
-                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                    if (costMs > costMsWarn) {
-                        log.warn("table {} insert key {} cost: {} ms", tableName, key, costMs);
-                    }
-                });
-        return await(logger.executeSerial(key, () -> operation));
+                    DbTableField::getTableKey,
+                    fields -> {
+                        String batchKeys = getBatchKeys(fields);
+                        long begin = System.nanoTime();
+                        return executeWithWriteTransaction(connection ->
+                                executeRemovesInChunks(connection, tableName, fields),
+                                batchOperationTimeout)
+                                .doOnError(e -> log.error("remove batch error, table={}, keys={}, num={}",
+                                        tableName, batchKeys, fields.size(), e))
+                                .onErrorMap(SysException::new)
+                                .doFinally(signalType -> {
+                                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                                    if (costMs > batchCostMsWarn) {
+                                        log.warn("table {} batch remove keys {} num {} cost: {} ms",
+                                                tableName, batchKeys, fields.size(), costMs);
+                                    }
+                                });
+                    }));
     }
 
     @Override
@@ -263,22 +269,20 @@ public class StorageMysql implements StorageEngine {
         MysqlReq mysqlReq = dbReq.getMysqlReq();
         String tableName = mysqlReq.getTableName();
         Object key = mysqlReq.getSingleTableKey();
-        String sql = resolveSql(dbReq);
         long begin = System.nanoTime();
-        Mono<Void> operation = Mono.usingWhen(
-                logger.openWriteConnection(),
-                connection -> executeWrite(connection, sql, List.of(mysqlReq.getSingleTableField())),
-                Connection::close
-        );
-        await(logger.executeSerial(key, () -> operation.timeout(operationTimeout)
-                .doOnError(e -> log.error("remove error, table={}, key={}", tableName, key, e))
-                .onErrorMap(SysException::new)
-                .doFinally(signalType -> {
-                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                    if (costMs > costMsWarn) {
-                        log.warn("table {} remove key {} cost: {} ms", tableName, key, costMs);
-                    }
-                })));
+        Mono<Void> operation = executeWithWriteTransaction(connection ->
+                executeRemovesInChunks(connection, tableName,
+                        List.of(mysqlReq.getSingleTableField())), operationTimeout);
+        await(logger.executeSerial(key,
+                () -> operation
+                        .doOnError(e -> log.error("remove error, table={}, key={}", tableName, key, e))
+                        .onErrorMap(SysException::new)
+                        .doFinally(signalType -> {
+                            long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                            if (costMs > costMsWarn) {
+                                log.warn("table {} remove key {} cost: {} ms", tableName, key, costMs);
+                            }
+                        })));
     }
 
     @Override
@@ -304,16 +308,7 @@ public class StorageMysql implements StorageEngine {
                         }
                     }
                     return Flux.from(statement.execute())
-                            .flatMap(result -> result.map((row, metadata) -> {
-                                List<DbValue> resultList = new ArrayList<>();
-                                int columnIndex = 0;
-                                for (var ignored : metadata.getColumnMetadatas()) {
-                                    resultList.add(new DbValue(row.get(columnIndex++)));
-                                }
-                                DbTableField rowField = new DbTableField();
-                                rowField.setValueList(resultList);
-                                return rowField;
-                            }))
+                            .flatMap(result -> result.map(this::readTableField))
                             .collectList()
                             .map(rows -> {
                                 MysqlRsp mysqlRsp = new MysqlRsp();
@@ -322,19 +317,21 @@ public class StorageMysql implements StorageEngine {
                                 dbRsp.setSuccess(true);
                                 dbRsp.setMysqlRsp(mysqlRsp);
                                 return dbRsp;
-                            });
+                            })
+                            .timeout(operationTimeout);
                 },
                 Connection::close
         );
-        return await(logger.executeSerial(key, () -> operation.timeout(operationTimeout)
-                .doOnError(e -> log.error("find error, table={}, key={}", tableName, key, e))
-                .onErrorMap(SysException::new)
-                .doFinally(signalType -> {
-                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                    if (costMs > costMsWarn) {
-                        log.warn("table {} find key {} cost: {} ms", tableName, key, costMs);
-                    }
-                })));
+        return await(logger.executeSerial(key,
+                () -> operation
+                        .doOnError(e -> log.error("find error, table={}, key={}", tableName, key, e))
+                        .onErrorMap(SysException::new)
+                        .doFinally(signalType -> {
+                            long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                            if (costMs > costMsWarn) {
+                                log.warn("table {} find key {} cost: {} ms", tableName, key, costMs);
+                            }
+                        })));
     }
 
     @Override
@@ -343,12 +340,12 @@ public class StorageMysql implements StorageEngine {
         List<DbTableField> tableFieldList = mysqlReq.getTablFieldList();
         String tableName = mysqlReq.getTableName();
         List<DBRsp> responses = awaitBatch(logger.executeSerialBatch(tableFieldList,
-                DbTableField::getTableKey,
-                fields -> {
-                    String batchKeys = getBatchKeys(fields);
-                    String sql = resolveBatchSql(tableName, DbOpType.BATCH_GET, fields.size());
-                    long begin = System.nanoTime();
-                    Mono<DBRsp> operation = Mono.usingWhen(
+                    DbTableField::getTableKey,
+                    fields -> {
+                        String batchKeys = getBatchKeys(fields);
+                        String sql = resolveBatchSql(tableName, DbOpType.BATCH_GET, fields.size());
+                        long begin = System.nanoTime();
+                        Mono<DBRsp> operation = Mono.usingWhen(
                 logger.openReadConnection(),
                 connection -> {
                     Statement statement = connection.createStatement(sql);
@@ -357,16 +354,7 @@ public class StorageMysql implements StorageEngine {
                         statement.bind(paramIndex++, tableField.getTableKey());
                     }
                     return Flux.from(statement.execute())
-                            .flatMap(result -> result.map((row, metadata) -> {
-                                List<DbValue> resultList = new ArrayList<>();
-                                int columnIndex = 0;
-                                for (var ignored : metadata.getColumnMetadatas()) {
-                                    resultList.add(new DbValue(row.get(columnIndex++)));
-                                }
-                                DbTableField rowField = new DbTableField();
-                                rowField.setValueList(resultList);
-                                return rowField;
-                            }))
+                            .flatMap(result -> result.map(this::readTableField))
                             .collectList()
                             .map(rows -> {
                                 MysqlRsp mysqlRsp = new MysqlRsp();
@@ -375,20 +363,23 @@ public class StorageMysql implements StorageEngine {
                                 dbRsp.setSuccess(true);
                                 dbRsp.setMysqlRsp(mysqlRsp);
                                 return dbRsp;
-                            });
+                            })
+                            .timeout(batchOperationTimeout);
                 },
                 Connection::close
                     );
-                    return operation.timeout(batchOperationTimeout)
-                            .doOnError(e -> log.error("find batch error, table={}, keys={}", tableName, batchKeys, e))
-                            .onErrorMap(SysException::new)
-                            .doFinally(signalType -> {
-                                long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
-                                if (costMs > batchCostMsWarn) {
-                                    log.warn("table {} batch find keys {} cost: {} ms", tableName, batchKeys, costMs);
-                                }
-                            });
-                }));
+                        return operation
+                                .doOnError(e -> log.error("find batch error, table={}, keys={}",
+                                        tableName, batchKeys, e))
+                                .onErrorMap(SysException::new)
+                                .doFinally(signalType -> {
+                                    long costMs = (long) ((System.nanoTime() - begin) * 1e-6);
+                                    if (costMs > batchCostMsWarn) {
+                                        log.warn("table {} batch find keys {} cost: {} ms",
+                                                tableName, batchKeys, costMs);
+                                    }
+                                });
+                    }));
         return mergeBatchResponses(responses);
     }
 
@@ -520,6 +511,299 @@ public class StorageMysql implements StorageEngine {
         }
     }
 
+    private Mono<Void> executeWithWriteTransaction(Function<Connection, Mono<Void>> work,
+                                                  Duration timeout) {
+        return Mono.defer(() -> {
+            TransactionState state = new TransactionState();
+            return Mono.usingWhen(
+                    logger.openWriteConnection(),
+                    connection -> Mono.defer(() -> Mono.from(connection.beginTransaction()))
+                            .then(Mono.defer(() -> {
+                                Mono<Void> transactionWork = Objects.requireNonNull(
+                                        work.apply(connection), "transaction work returned null");
+                                return transactionWork.doOnSubscribe(
+                                        ignored -> state.workStarted.set(true));
+                            }))
+                            .then(Mono.defer(() -> {
+                                state.commitStarted.set(true);
+                                return Mono.from(connection.commitTransaction())
+                                        .doOnSuccess(ignored -> state.commitConfirmed.set(true));
+                            }))
+                            .timeout(timeout)
+                            .onErrorMap(error -> state.commitStarted.get()
+                                    && !state.commitConfirmed.get()
+                                    ? new DbSerialExecutor.OutcomeUnknownException(
+                                            "MySQL commit started but its outcome is unknown", error)
+                                    : error),
+                    connection -> Mono.defer(() -> Mono.from(connection.close()))
+                            .onErrorResume(closeFailure -> {
+                                log.error("MySQL transaction committed but connection close failed",
+                                        closeFailure);
+                                return Mono.empty();
+                            }),
+                    (connection, failure) -> rollbackAndClose(connection, failure, state),
+                    connection -> rollbackAndClose(connection, null, state)
+            );
+        });
+    }
+
+    /**
+     * 事务流程失败或被取消后，尝试回滚并关闭连接。
+     * @param connection 当前事务使用的 MySQL 连接
+     * @param operationFailure 触发清理的原始异常；取消路径可能为 null
+     * @param state 当前事务工作和提交阶段的状态
+     */
+    private Mono<Void> rollbackAndClose(Connection connection,
+                                        Throwable operationFailure,
+                                        TransactionState state) {
+        // 延迟执行回滚，等 usingWhen 订阅清理 Publisher 时才真正调用数据库。
+        return Mono.defer(() -> Mono.from(connection.rollbackTransaction()))
+                // 回滚失败时转入兜底流程：判断结果是否未知、关闭连接并返回回滚错误。
+                .onErrorResume(rollbackFailure -> closeAfterRollbackFailure(
+                        // 回滚和关闭都使用当前事务持有的同一个连接。
+                        // operationFailure 是触发清理的原始失败；取消清理时它可能为 null。
+                        // rollbackFailure 是本次回滚失败的原因。
+                        // state 记录事务工作和提交是否已经开始或确认。
+                        connection, operationFailure, rollbackFailure, state))
+                // 回滚成功后继续关闭连接；回滚失败时兜底流程会返回错误，不会走到这里。
+                .then(Mono.defer(() -> Mono.from(connection.close()))
+                        // 关闭失败时包装成清理异常，并保留可能存在的原始操作异常。
+                        .onErrorMap(closeFailure -> cleanupFailure(
+                                // 说明连接关闭发生在事务回滚之后。
+                                "MySQL connection close failed after transaction rollback",
+                                // 原始业务/数据库操作异常；没有原始异常时以关闭异常为主因。
+                                // 当前连接关闭失败异常会由 cleanupFailure 记录并附加。
+                                operationFailure, closeFailure)));
+    }
+
+    /**
+     * 回滚失败后的兜底处理：标记数据库结果、尽力关闭连接并报告回滚失败。
+     * @param connection 当前事务使用的 MySQL 连接
+     * @param operationFailure 触发清理的原始异常；取消路径可能为 null
+     * @param rollbackFailure 回滚操作本身抛出的异常
+     * @param state 当前事务工作和提交阶段的状态
+     */
+    private Mono<Void> closeAfterRollbackFailure(Connection connection,
+                                                 Throwable operationFailure,
+                                                 Throwable rollbackFailure,
+                                                 TransactionState state) {
+        // 工作已开始，说明事务内可能已经执行 SQL，回滚失败后无法确认数据库状态。
+        boolean outcomeUnknown = state.workStarted.get()
+                // 提交已开始但没有确认成功时，提交可能已在 MySQL 生效，因此结果未知。
+                || (state.commitStarted.get() && !state.commitConfirmed.get());
+        // 提交结果不明时使用更具体的错误信息；其余情况按是否执行过事务工作区分。
+        String failureMessage = state.commitStarted.get() && !state.commitConfirmed.get()
+                // 提交和回滚都无法确认时，无法判断事务是否已生效。
+                ? "MySQL commit outcome and rollback outcome are unknown"
+                // 执行过事务工作但回滚失败，数据库最终状态无法确认。
+                : outcomeUnknown
+                        ? "MySQL transaction rollback failed; database outcome is unknown"
+                        // 事务工作还没开始，回滚失败不会包含已执行的业务 SQL。
+                        : "MySQL transaction rollback failed before transaction work started";
+        // 优先保留触发清理的原始异常；如果没有原始异常，就以回滚异常作为根因。
+        Throwable cause = operationFailure == null ? rollbackFailure : operationFailure;
+        // 结果未知时用专用异常，让上层知道不能把这次写入简单当成失败或成功。
+        RuntimeException rollbackError = outcomeUnknown
+                ? new DbSerialExecutor.OutcomeUnknownException(failureMessage, cause)
+                // 结果可确定时用普通运行时异常报告回滚失败。
+                : new RuntimeException(failureMessage, cause);
+        // 原始异常已作为根因时，把回滚异常也附上，避免丢失第二个故障原因。
+        if (operationFailure != null && rollbackFailure != operationFailure) {
+            rollbackError.addSuppressed(rollbackFailure);
+        }
+        // 记录回滚失败本身，便于日志定位数据库清理故障。
+        log.error("MySQL transaction rollback failed", rollbackFailure);
+        // 无论回滚是否成功，都尽力关闭连接，避免连接资源继续占用。
+        return Mono.defer(() -> Mono.from(connection.close()))
+                // 关闭也失败时附加到回滚异常，保留两个清理故障。
+                .onErrorResume(closeFailure -> {
+                    rollbackError.addSuppressed(closeFailure);
+                    // 记录连接关闭失败；异常已附加到最终返回的 rollbackError。
+                    log.error("MySQL connection close failed after rollback failure", closeFailure);
+                    // 关闭失败不覆盖回滚异常，继续返回统一的回滚错误。
+                    return Mono.empty();
+                })
+                // 关闭处理结束后，将回滚错误交还给 usingWhen 的调用方。
+                .then(Mono.error(rollbackError));
+    }
+
+    private RuntimeException cleanupFailure(String message,
+                                            Throwable operationFailure,
+                                            Throwable cleanupFailure) {
+        String failureMessage = message;
+        Throwable cause = operationFailure == null ? cleanupFailure : operationFailure;
+        RuntimeException failure = new RuntimeException(failureMessage, cause);
+        if (operationFailure != null && cleanupFailure != operationFailure) {
+            failure.addSuppressed(cleanupFailure);
+        }
+        log.error(failureMessage, cleanupFailure);
+        return failure;
+    }
+
+    private Mono<Void> executeTransactionRequest(Connection connection, DBReq request) {
+        if (request == null || request.getDbOpType() == null || request.getMysqlReq() == null) {
+            return Mono.error(new IllegalArgumentException("transaction 子请求不完整"));
+        }
+        MysqlReq mysqlReq = request.getMysqlReq();
+        String tableName = mysqlReq.getTableName();
+        return switch (request.getDbOpType()) {
+            case SAVE -> executeReplace(connection, tableName,
+                    mysqlReq.getSingleTableField());
+            case BATCH_SAVE -> executeReplaceBatch(connection, tableName,
+                    mysqlReq.getTablFieldList());
+            case REMOVE -> executeRemovesInChunks(connection, tableName,
+                    List.of(mysqlReq.getSingleTableField()));
+            case BATCH_REMOVE -> executeRemovesInChunks(connection, tableName,
+                    mysqlReq.getTablFieldList());
+            default -> Mono.error(new IllegalArgumentException(
+                    "transaction 不支持子操作: " + request.getDbOpType()));
+        };
+    }
+
+    private Mono<Void> executeRemovesInChunks(Connection connection,
+                                               String tableName,
+                                               List<DbTableField> tableFieldList) {
+        if (tableFieldList == null) {
+            return Mono.error(new IllegalArgumentException("BATCH_REMOVE 字段列表不能为空"));
+        }
+        if (tableFieldList.isEmpty()) {
+            return Mono.empty();
+        }
+        return Mono.defer(() -> {
+            List<List<DbTableField>> chunks = splitFields(tableFieldList);
+            return Flux.fromIterable(chunks)
+                    .concatMap(fields -> executeRemoveBatch(connection, tableName, fields))
+                    .then();
+        });
+    }
+
+    private Mono<Void> executeRemoveBatch(Connection connection,
+                                          String tableName,
+                                          List<DbTableField> tableFieldList) {
+        TableMeta tableMeta = requireTableMeta(tableName);
+        return executeBatchDeletes(connection, tableMeta, tableFieldList);
+    }
+
+    private Mono<Void> executeBatchDeletes(Connection connection,
+                                           TableMeta tableMeta,
+                                           List<DbTableField> tableFieldList) {
+        if (tableFieldList.isEmpty()) {
+            return Mono.empty();
+        }
+        String sql = "DELETE FROM " + tableMeta.tableName() + " WHERE "
+                + tableMeta.keyColumnName() + " = ?";
+        Statement statement = connection.createStatement(sql);
+        for (int rowIndex = 0; rowIndex < tableFieldList.size(); rowIndex++) {
+            if (rowIndex > 0) {
+                // 保存上一组主键绑定并开始下一组；所有参数组由后续 execute() 执行。
+                statement.add();
+            }
+            statement.bind(0, tableFieldList.get(rowIndex).getTableKey());
+        }
+        // DELETE 以主键为条件；记录不存在时影响零行也视为删除完成。
+        return Flux.from(statement.execute())
+                .flatMap(Result::getRowsUpdated)
+                .then();
+    }
+
+    private List<List<DbTableField>> splitFields(List<DbTableField> tableFieldList) {
+        List<DbTableField> sortedFields = new ArrayList<>(tableFieldList);
+        sortedFields.sort((left, right) -> compareTableKeys(
+                left.getTableKey(), right.getTableKey()));
+        List<List<DbTableField>> chunks = new ArrayList<>();
+        for (int start = 0; start < sortedFields.size(); start += batchPerCount) {
+            int end = Math.min(start + batchPerCount, sortedFields.size());
+            chunks.add(sortedFields.subList(start, end));
+        }
+        return chunks;
+    }
+
+    private int compareTableKeys(Object left, Object right) {
+        if (left instanceof Number leftNumber && right instanceof Number rightNumber) {
+            return Long.compare(leftNumber.longValue(), rightNumber.longValue());
+        }
+        if (left instanceof String leftString && right instanceof String rightString) {
+            return leftString.compareTo(rightString);
+        }
+        throw new IllegalArgumentException("不支持的表主键类型比较: left="
+                + (left == null ? "null" : left.getClass().getName()) + ", right="
+                + (right == null ? "null" : right.getClass().getName()));
+    }
+
+    private Mono<Void> executeReplace(Connection connection,
+                                      String tableName,
+                                      DbTableField tableField) {
+        return executeReplaceBatch(connection, tableName, List.of(tableField));
+    }
+
+    private Mono<Void> executeReplaceBatch(Connection connection,
+                                           String tableName,
+                                           List<DbTableField> tableFieldList) {
+        if (tableFieldList == null) {
+            return Mono.error(new IllegalArgumentException("REPLACE 字段列表不能为空"));
+        }
+        if (tableFieldList.isEmpty()) {
+            return Mono.empty();
+        }
+        return Mono.defer(() -> {
+            TableMeta tableMeta = requireTableMeta(tableName);
+            String sql = "REPLACE INTO " + tableMeta.tableName() + " ("
+                    + joinColumnNames(tableMeta.columnNames()) + ") VALUES ("
+                    + createPlaceholders(tableMeta.columnNames().size()) + ")";
+            List<List<DbTableField>> chunks = splitFields(tableFieldList);
+            return Flux.fromIterable(chunks)
+                    .concatMap(fields -> {
+                        Statement statement = connection.createStatement(sql);
+                        for (int rowIndex = 0; rowIndex < fields.size(); rowIndex++) {
+                            if (rowIndex > 0) {
+                                statement.add();
+                            }
+                            DbTableField tableField = fields.get(rowIndex);
+                            List<DbValue> valueList = tableField.getValueList();
+                            for (int columnIndex = 0; columnIndex < valueList.size(); columnIndex++) {
+                                statement.bind(columnIndex, valueList.get(columnIndex).getV());
+                            }
+                            statement.bind(valueList.size(), tableField.getVersion());
+                        }
+                        return Flux.from(statement.execute())
+                                .flatMap(Result::getRowsUpdated)
+                                .then();
+                    })
+                    .then();
+        });
+    }
+
+    private DbTableField readTableField(Row row, RowMetadata metadata) {
+        int columnCount = metadata.getColumnMetadatas().size();
+        if (columnCount == 0) {
+            throw new IllegalStateException("查询结果没有列");
+        }
+        String lastColumnName = metadata.getColumnMetadatas().get(columnCount - 1).getName();
+        if (!VERSION_COLUMN_NAME.equalsIgnoreCase(lastColumnName)) {
+            throw new IllegalStateException("查询结果末列必须是 version，实际为: " + lastColumnName);
+        }
+        Long version = row.get(columnCount - 1, Long.class);
+        if (version == null) {
+            throw new IllegalStateException("查询结果 version 为空");
+        }
+        List<DbValue> resultList = new ArrayList<>(columnCount - 1);
+        for (int columnIndex = 0; columnIndex < columnCount - 1; columnIndex++) {
+            resultList.add(new DbValue(row.get(columnIndex)));
+        }
+        DbTableField rowField = new DbTableField();
+        rowField.setValueList(resultList);
+        rowField.setVersion(version);
+        return rowField;
+    }
+
+    private TableMeta requireTableMeta(String tableName) {
+        TableMeta tableMeta = tableMetaCache.get(tableName);
+        if (tableMeta == null) {
+            throw new IllegalArgumentException("table meta 未注册: " + tableName);
+        }
+        return tableMeta;
+    }
+
     private Mono<Void> executeWrite(Connection connection, String sql, List<DbTableField> tableFieldList) {
         Statement statement = connection.createStatement(sql);
         bindBatchTableFields(statement, tableFieldList);
@@ -534,6 +818,7 @@ public class StorageMysql implements StorageEngine {
         }
         for (int rowIndex = 0; rowIndex < tableFieldList.size(); rowIndex++) {
             if (rowIndex > 0) {
+                // 保存上一条记录的绑定参数，并为下一条记录开始新的一组绑定。
                 statement.add();
             }
             bindValues(statement, tableFieldList.get(rowIndex).getValueList());
@@ -566,21 +851,12 @@ public class StorageMysql implements StorageEngine {
         }
 
 
-        TableMeta tableMeta = tableMetaCache.get(mysqlReq.getTableName());
-        if (tableMeta == null) {
-            throw new IllegalArgumentException("table meta 未注册: " + mysqlReq.getTableName());
-        }
+        TableMeta tableMeta = requireTableMeta(mysqlReq.getTableName());
         return switch (dbOpType) {
             case GET -> "SELECT " + joinColumnNames(tableMeta.columnNames())
                     + " FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName() + " = ?";
             case BATCH_GET -> "SELECT " + joinColumnNames(tableMeta.columnNames())
                     + " FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName()
-                    + " IN (" + createPlaceholders(mysqlReq.getTablFieldList().size()) + ")";
-            case SAVE, BATCH_SAVE -> "REPLACE INTO " + tableMeta.tableName() + " ("
-                    + joinColumnNames(tableMeta.columnNames()) + ") VALUES ("
-                    + createPlaceholders(tableMeta.columnNames().size()) + ")";
-            case REMOVE -> "DELETE FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName() + " = ?";
-            case BATCH_REMOVE -> "DELETE FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName()
                     + " IN (" + createPlaceholders(mysqlReq.getTablFieldList().size()) + ")";
             default -> throw new IllegalArgumentException("unsupported db op type: " + dbOpType);
         };
@@ -630,16 +906,10 @@ public class StorageMysql implements StorageEngine {
     }
 
     private String resolveBatchSql(String tableName, DbOpType dbOpType, int keyCount) {
-        TableMeta tableMeta = tableMetaCache.get(tableName);
-        if (tableMeta == null) {
-            throw new IllegalArgumentException("table meta 未注册: " + tableName);
-        }
+        TableMeta tableMeta = requireTableMeta(tableName);
         return switch (dbOpType) {
             case BATCH_GET -> "SELECT " + joinColumnNames(tableMeta.columnNames())
                     + " FROM " + tableMeta.tableName() + " WHERE " + tableMeta.keyColumnName()
-                    + " IN (" + createPlaceholders(keyCount) + ")";
-            case BATCH_REMOVE -> "DELETE FROM " + tableMeta.tableName()
-                    + " WHERE " + tableMeta.keyColumnName()
                     + " IN (" + createPlaceholders(keyCount) + ")";
             default -> throw new IllegalArgumentException("unsupported batch db op type: " + dbOpType);
         };
@@ -650,6 +920,27 @@ public class StorageMysql implements StorageEngine {
             Objects.requireNonNull(tableName, "tableName 不能为空");
             Objects.requireNonNull(keyColumnName, "keyColumnName 不能为空");
             Objects.requireNonNull(columnNames, "columnNames 不能为空");
+            if (columnNames.size() < 2) {
+                throw new IllegalArgumentException("表元数据必须包含业务列和末尾 version 列");
+            }
+            if (!VERSION_COLUMN_NAME.equalsIgnoreCase(columnNames.getLast())) {
+                throw new IllegalArgumentException("表元数据最后一列必须是 version: " + tableName);
+            }
+            if (!columnNames.subList(0, columnNames.size() - 1).contains(keyColumnName)) {
+                throw new IllegalArgumentException("表元数据不包含主键列: " + keyColumnName);
+            }
         }
+
+    }
+
+    private static final class TransactionState {
+        private final AtomicBoolean workStarted = new AtomicBoolean();
+        private final AtomicBoolean commitStarted = new AtomicBoolean();
+        private final AtomicBoolean commitConfirmed = new AtomicBoolean();
+    }
+
+    @FunctionalInterface
+    private interface BatchWrite {
+        Mono<Void> execute(Connection connection, String tableName, List<DbTableField> fields);
     }
 }

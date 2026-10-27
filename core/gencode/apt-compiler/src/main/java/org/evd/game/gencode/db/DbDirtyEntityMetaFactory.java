@@ -11,6 +11,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
+import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -51,17 +52,29 @@ final class DbDirtyEntityMetaFactory {
             }
         }
 
-        DbDirtyFieldMeta primaryKeyField = validateFields(sourceClassName, table, fields);
+        DbDirtyFieldMeta primaryKeyField = validateFields(
+                typeElement, sourceClassName, dbType, table, fields, processingEnv);
         return new DbDirtyEntityMeta(sourcePackage, layout.dbRootPackage(), layout.relativePackage(), registryPackage,
                 legacyFlatPackage, legacyBrokenPackage, beanPackage, tablePackage, internalTablePackage,
                 beanClassName, beanClassName + "Table", "_" + beanClassName + "Table_",
                 dbType, table, fields, primaryKeyField);
     }
 
-    private static DbDirtyFieldMeta validateFields(String className, boolean table, List<DbDirtyFieldMeta> fields) {
+    private static DbDirtyFieldMeta validateFields(TypeElement typeElement,
+                                                  String className,
+                                                  DBserialize dbType,
+                                                  boolean table,
+                                                  List<DbDirtyFieldMeta> fields,
+                                                  ProcessingEnvironment processingEnv) {
         Set<Integer> usedTagValues = new HashSet<>();
         DbDirtyFieldMeta primaryKeyField = null;
         for (DbDirtyFieldMeta field : fields) {
+            if (table && "version".equalsIgnoreCase(field.columnName)) {
+                String message = "数据库表字段映射到 APT 保留列 version: " + className + "."
+                        + field.name + " (column=" + field.columnName + ")";
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message, typeElement);
+                throw new IllegalStateException(message);
+            }
             if (field.tagValue == null) {
                 throw new IllegalStateException("所有字段都必须显式标记 @DBDirtyTag: " + className + "." + field.name);
             }
@@ -83,6 +96,13 @@ final class DbDirtyEntityMetaFactory {
         }
         if (table && primaryKeyField == null) {
             throw new IllegalStateException("table=true 的实体必须至少声明一个 primaryKey: " + className);
+        }
+        if (table && dbType == DBserialize.MYSQL && primaryKeyField != null
+                && fields.get(0) != primaryKeyField) {
+            String message = "MYSQL table=true 的实体主键必须是第一个字段: " + className
+                    + " (primaryKey=" + primaryKeyField.name + ", firstField=" + fields.get(0).name + ")";
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message, typeElement);
+            throw new IllegalStateException(message);
         }
         return primaryKeyField;
     }
