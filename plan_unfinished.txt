@@ -25,7 +25,7 @@
     然后加了version以后这个Mysql那边批量执行可能就要改一下，毕竟加了version,
     org.evd.game.runtime.Db.serialize.DbTableField 感觉在这里加一个version最好,然后version感觉最好是在要存入mysql的时候才变化一次，就MDB那模块里变化，你先别改先审核下我的代码 看下我说的哪里不太合理
 
-25.协程锁 不能解锁一个就抛到下一帧执行，不然1w个任务 得1万帧以后才能执行了,得立即执行,然后可以加个上限，超过以后才抛到下一帧执行;
+
 
 
 

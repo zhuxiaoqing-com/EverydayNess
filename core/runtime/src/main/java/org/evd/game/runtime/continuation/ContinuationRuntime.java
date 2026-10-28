@@ -17,7 +17,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public final class ContinuationRuntime implements ContinuationHost {
-    private static final long DRAIN_DEFER_LOG_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(1);
+    private static final long DRAIN_LOG_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(1);
+    private static final long MIN_DRAIN_TIME_BUDGET_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
 
     private final Service service;
     private final ContinuationPool continuationPool;
@@ -27,7 +28,7 @@ public final class ContinuationRuntime implements ContinuationHost {
     private final Map<Long, Task.ContinuationWrapper> continuations = new HashMap<>();
     private final FrameQueue<Task.ContinuationWrapper> readyContinuations =
             new FrameQueue<>(new ArrayDeque<>());
-    private long lastDrainDeferredLogNanos;
+    private long lastDrainLogNanos;
     private boolean closed;
 
     private record DebugDumpSections(
@@ -170,10 +171,13 @@ public final class ContinuationRuntime implements ContinuationHost {
 
     public int drain(String phase) {
         requireServiceThread();
-        int scheduled = readyContinuations.getFrameProcessNum();
+        long drainStartNanos = System.nanoTime();
+        int readyAtStart = readySize();
+        int maxProcessPerFrame = readyContinuations.getMaxProcessPerFrame();
         int resumed = 0;
         Task.ContinuationWrapper continuation;
-        while (resumed < scheduled && (continuation = readyContinuations.pollFirst()) != null) {
+        while (resumed < maxProcessPerFrame
+                && (continuation = readyContinuations.pollFirst()) != null) {
             resumed++;
             long conId = continuation.getConId();
             ActorId actorId = continuation.getActorId();
@@ -191,12 +195,22 @@ public final class ContinuationRuntime implements ContinuationHost {
             }
         }
 
-        if (!readyContinuations.isEmpty()) {
-            long now = System.nanoTime();
-            if (lastDrainDeferredLogNanos == 0L
-                    || now - lastDrainDeferredLogNanos >= DRAIN_DEFER_LOG_INTERVAL_NANOS) {
-                lastDrainDeferredLogNanos = now;
-                logDrainBudgetExceeded(phase);
+        long now = System.nanoTime();
+        long elapsedNanos = now - drainStartNanos;
+        long tickIntervalNanos = TimeUnit.MILLISECONDS.toNanos(service.getTickIntervalMillis());
+        long timeBudgetNanos = Math.max(MIN_DRAIN_TIME_BUDGET_NANOS, tickIntervalNanos * 2L);
+        int remaining = readySize();
+        boolean timeBudgetExceeded = elapsedNanos >= timeBudgetNanos;
+        if (remaining > 0 || timeBudgetExceeded) {
+            if (lastDrainLogNanos == 0L
+                    || now - lastDrainLogNanos >= DRAIN_LOG_INTERVAL_NANOS) {
+                lastDrainLogNanos = now;
+                LogCore.core.error(
+                        "continuation drain backlog or time budget exceeded: service={}, phase={}, readyAtStart={}, resumed={}, remaining={}, maxProcessPerFrame={}, elapsedMs={}, timeBudgetMs={}, timeBudgetExceeded={}",
+                        service.getId(), phase, readyAtStart, resumed, remaining, maxProcessPerFrame,
+                        TimeUnit.NANOSECONDS.toMillis(elapsedNanos),
+                        TimeUnit.NANOSECONDS.toMillis(timeBudgetNanos),
+                        timeBudgetExceeded);
             }
         }
         return resumed;
@@ -227,12 +241,6 @@ public final class ContinuationRuntime implements ContinuationHost {
                     "continuation runtime must run on its service thread: service={}, currentService={}",
                     service.getId(), currentService == null ? null : currentService.getId());
         }
-    }
-
-    private void logDrainBudgetExceeded(String phase) {
-        LogCore.core.error(
-                "continuation drain execution budget exceeded: service={}, phase={}",
-                service.getId(), phase);
     }
 
     public String buildDebugDump() {

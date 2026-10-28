@@ -73,6 +73,11 @@ public final class FrameQueue<E> {
         return getFrameProcessNum(queue.size());
     }
 
+    /** 返回每帧处理上限。 */
+    public int getMaxProcessPerFrame() {
+        return maxProcessPerFrame;
+    }
+
     /**
      * 使用调用方提供的队列 size 计算本帧处理数量。
      * 适合容器已有准确计数或 size 获取成本较高的场景。

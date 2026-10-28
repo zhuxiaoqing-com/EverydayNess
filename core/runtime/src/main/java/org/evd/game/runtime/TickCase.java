@@ -62,6 +62,11 @@ public abstract class TickCase {
         return timeCurrent;
     }
 
+    /** 返回当前对象的实际 tick 间隔，单位毫秒。 */
+    public final long getTickIntervalMillis() {
+        return tickInterval;
+    }
+
     public void pulseCase_t(){
         timeCurrent = System.currentTimeMillis();
 
