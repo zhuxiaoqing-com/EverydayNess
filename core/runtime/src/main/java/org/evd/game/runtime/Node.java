@@ -4,8 +4,10 @@ import io.netty.buffer.ByteBuf;
 import lombok.extern.slf4j.Slf4j;
 import org.evd.game.annotation.node.NodeType;
 import org.evd.game.runtime.call.*;
+import org.evd.game.runtime.Db.snapshot.SnapshotManager;
 import org.evd.game.runtime.ymlconfig.NodeInfo;
 import org.evd.game.runtime.ymlconfig.RegisteredService;
+import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.debug.DebugPrint;
 import org.evd.game.runtime.misc.BufferPool;
@@ -70,6 +72,8 @@ public class Node extends TickCase{
 
     /** 每秒轮询远程Node；Ping 间隔由 RemoteNode 自己控制。 */
     private final TickTimer remoteNodePulseTimer = new TickTimer(1000L, true);
+    /** Node 心跳内每五分钟输出一次快照序列化统计。 */
+    private final TickTimer snapshotStatsTimer = new TickTimer();
     /** 本地服务注册版本 */
     private volatile AtomicLong localServiceVersion = new AtomicLong();
     /** 关服已经开始；关闭新的 Service 注册入口。 */
@@ -80,6 +84,8 @@ public class Node extends TickCase{
     private volatile NetAcceptor acceptor;
     /** NODE_LOCAL 模式下由 Node 独占的数据库入口，不是 Service。 */
     private volatile NodeDbExecutor nodeDbExecutor;
+    /** 当前 Node 所有 Service 共用的 Chronicle 快照 Map。 */
+    private volatile SnapshotManager snapshotManager;
     /** NODE_LOCAL 模式数据库入口的固定路由标识。 */
     private final CallPoint nodeDbCallPoint;
     ChannelManager channelManager = new ChannelManager();
@@ -141,6 +147,7 @@ public class Node extends TickCase{
             pulseRemoteNodes_nt();
             // 本地服务注册变化后，广播给已连接节点
             pulseServiceRegistry_nt();
+            pulseSnapshotStats_nt();
     }
 
     private void pulseServiceLifecycle_nt() {
@@ -385,10 +392,55 @@ public class Node extends TickCase{
 //        if (scheduledExecutors.isEmpty()){
 //            throw new SysException("node还为创建线程池");
 //        }
+        initializeSnapshotManager();
         // addService
         for (Service service : pendServices.values()){
             addService(service);
         }
+    }
+
+    private void initializeSnapshotManager() {
+        if (!isSnapshotStoreEnabled()) {
+            return;
+        }
+        if (pendServices.values().stream().noneMatch(Service::requiresMdb)) {
+            return;
+        }
+        try {
+            SnapshotManager manager = SnapshotManager.open(platformId, serverId, nodeInfo.getNodeId());
+            if (manager.size() > 0L) {
+                long pending = manager.size();
+                manager.close();
+                throw new SysException(
+                        "检测到未完成的 Node DB 快照，必须先运行 DbSnapshotRecoveryMain: node={}, file={}, pending={}",
+                        nodeInfo.getNodeId(), SnapshotManager.fileForNode(
+                                platformId, serverId, nodeInfo.getNodeId()), pending);
+            }
+            snapshotManager = manager;
+        } catch (Exception e) {
+            throw new SysException(e, "初始化 Node Chronicle 快照 Map 失败: node={}", nodeInfo.getNodeId());
+        }
+        snapshotStatsTimer.start(5L * 60L * 1000L);
+    }
+
+    private void pulseSnapshotStats_nt() {
+        SnapshotManager manager = snapshotManager;
+        if (manager != null && snapshotStatsTimer.isPeriod(timeCurrent)) {
+            manager.logStats(nodeInfo.getNodeId());
+        }
+    }
+
+    public SnapshotManager getSnapshotManager() {
+        SnapshotManager current = snapshotManager;
+        if (current == null) {
+            throw new SysException("Node Chronicle 快照 Map 尚未初始化: node={}", nodeInfo.getNodeId());
+        }
+        return current;
+    }
+
+    /** 当前 Node 的快照开关，Node 下所有 Service 共用这一配置。 */
+    public boolean isSnapshotStoreEnabled() {
+        return GlobalYml.isSnapshotStoreEnabled();
     }
 
     /**
@@ -429,6 +481,19 @@ public class Node extends TickCase{
 
     @Override
     protected void onClose() {
+        SnapshotManager currentSnapshotManager = snapshotManager;
+        snapshotManager = null;
+        if (currentSnapshotManager != null) {
+            try {
+                if (services.isEmpty()) {
+                    currentSnapshotManager.closeAndDeleteIfEmpty();
+                } else {
+                    currentSnapshotManager.close();
+                }
+            } catch (Exception e) {
+                LogCore.core.error("关闭 Node Chronicle 快照 Map 失败: node={}", nodeInfo.getNodeId(), e);
+            }
+        }
         nodeExecutor.shutdown();
         for (ScheduledExecutor scheduledExecutor : scheduledExecutors) {
             scheduledExecutor.shutdown();

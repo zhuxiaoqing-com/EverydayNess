@@ -121,7 +121,7 @@ public final class ${proxyName}{
 		</#if>
 		<#list fields as field>
 		<@readField field=field />
-		instance.set${field.name?cap_first}(${field.name});
+instance.set${field.name?cap_first}(${field.name});
 		</#list>
 		</#if>
 	}

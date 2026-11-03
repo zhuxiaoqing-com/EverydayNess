@@ -148,3 +148,24 @@ remove的话 就更没法判断版本了，直接删除就是了，不需要判�
 
 内存完成完整的业务操作，数据库异步原子落库。订单也适用，但订单号唯一、重复回调幂等这些约束仍然要有。
     这里的事务只保证，原子落库;
+
+
+MDB快照实现  可以让数据丢失降到毫秒级;使用java的第三方mmap实现  内存映射文件（Memory-Mapped File，mmap）
+    value.memVersion：内存数据修改的时候变化+1
+    value.snapshotMemVersion：存到快照的时候变化  = memVersion
+    value.dbVersion  ：存到数据库的时候变化  =memVersion;
+    然后因为DirtyObject里的version等数据都是transient的，快照的value类需要将这三个version都保存一下，
+    应该是memVersion=保存的时候的值，snapshotMemVersion=memVersion值，dbVersion  =保存的时候的值;
+    这个类从数据库加载出来以后memVersion=dbVersion;  snapshotMemVersion= dbVersion;
+    然后什么时候快照 是在memVersion>snapshotMemVersion的时候快照;
+    什么时候删除快照，是在数据库返回以后，判断dbVersion>=snapshotMemVersion的时候
+
+
+    get add remove
+    特别是get里的sync 如果选择了sync模式，add remove 就都不需要这个协程锁了吧，然后这个get的sync 由Mdb的一个参数开启 默认是关闭的;
+    不然的话如果就get 有sync,其他两个没有 就会有消息顺序不一致的问题， 比如：A add 加协程锁， 然后下一个A 又get sync，不就运行的比Aadd 加协程锁的还快吗;
+        所以sync不能由get传入，而是一开始就要定下来 是不是要用sync;
+
+MDB事务：
+   // 异步请求会挂起当前 continuation，tick 仍可能运行会继续进行快照写入,这里挂了的话还是没有原子性；所以干脆先逐条预写 Chronicle，让 MySQL 尚未返回期间的数据可恢复。
+   // 同步模式阻塞 Service/tick，且 Chronicle不支持多 key 原子写入，因此由 MySQL TRANSACTION 作为本批数据的提交边界。同步的话tick被阻塞住了，所以不怕没有原子性

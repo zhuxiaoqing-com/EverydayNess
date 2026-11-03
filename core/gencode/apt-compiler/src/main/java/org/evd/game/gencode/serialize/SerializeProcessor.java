@@ -61,7 +61,6 @@ public class SerializeProcessor extends ProcessorBase {
         if (!generatedClasses.add(fullClassName)) {
             return;
         }
-
         try {
             String content = SerializeSupport.renderTemplate(
                     SerializeSupport.TEMPLATE_SERIALIZE_REGISTER,

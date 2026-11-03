@@ -54,6 +54,8 @@ public class Task {
         private DebugState debugState = DebugState.NEW;
         /** 当前正在运行该协程的线程 */
         private Thread runningThread;
+        /** 当前同步执行栈内禁止协程挂起的嵌套层数。 */
+        private int nonYieldingScopeDepth;
 
         public ContinuationWrapper(ContinuationHost host) {
             this.host = host;
@@ -78,6 +80,7 @@ public class Task {
             this.queueReason = null;
             this.debugState = DebugState.NEW;
             this.runningThread = null;
+            this.nonYieldingScopeDepth = 0;
         }
 
         public void bindDebugInfo(ContinuationDebugInfo.DebugInfo debugInfo) {
@@ -149,6 +152,7 @@ public class Task {
             queueReason = null;
             debugState = DebugState.NEW;
             runningThread = null;
+            nonYieldingScopeDepth = 0;
         }
 
         /**
@@ -187,8 +191,29 @@ public class Task {
         }
 
         public void prepareWait() {
+            ensureYieldAllowed();
             result = null;
             failure = null;
+        }
+
+        /** 标记一个必须保持在当前协程栈内完成的同步执行区间。 */
+        public void enterNonYieldingScope() {
+            nonYieldingScopeDepth++;
+        }
+
+        /** 退出同步执行区间。 */
+        public void exitNonYieldingScope() {
+            if (nonYieldingScopeDepth <= 0) {
+                throw new IllegalStateException("协程禁止挂起作用域未开启: conId=" + conId);
+            }
+            nonYieldingScopeDepth--;
+        }
+
+        private void ensureYieldAllowed() {
+            if (nonYieldingScopeDepth > 0) {
+                // 在等待状态变更或 Continuation.yield 前失败，避免同步 DB 调用挂起后才被发现。
+                throw new IllegalStateException("同步执行期间不允许协程挂起: conId=" + conId);
+            }
         }
 
         /**
@@ -196,6 +221,7 @@ public class Task {
          * @return
          */
         public Object waitResult() {
+            ensureYieldAllowed();
             // 协程进入阻塞，因为此时result为null
             // 需要等其他协程setResult后并runVirtual唤醒协程，才能执行return result;
             Continuation.yield(continuation.getScope());

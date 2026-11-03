@@ -1,5 +1,10 @@
 db: # 数据库配置
   engine: mysql # 数据库引擎类型
+  snapshotStore: # Chronicle DB 实体快照存储
+    enabled: true # 是否启用实体快照
+    directory: "data/db-snapshots" # 快照目录；相对路径按进程工作目录解析，也支持绝对路径
+    averageValueSizeKb: 1 # average Value 样本大小，单位 KB
+    entries: 14000 # Chronicle Map 最大条目数
   mysql: # MySQL 数据库配置
     r2dbcUrl: "r2dbc:mysql://127.0.0.1:3306/game" # R2DBC 数据库连接地址
     username: "root" # 数据库用户名

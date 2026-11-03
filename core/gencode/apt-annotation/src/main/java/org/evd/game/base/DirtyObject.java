@@ -10,6 +10,8 @@ public abstract class DirtyObject {
     public transient long memVersion;
     /** 最近收到数据库保存成功响应的内存版本。 */
     public transient long dbVersion;
+    /** 已由本地快照保存或由数据库确认的最新内存版本。 */
+    public transient long snapshotVersion;
     private transient DirtyObject _parent;
 
     public DirtyObject() {
@@ -54,6 +56,14 @@ public abstract class DirtyObject {
 
     public void setDbVersion(long dbVersion) {
         this.dbVersion = dbVersion;
+    }
+
+    public long getSnapshotVersion() {
+        return snapshotVersion;
+    }
+
+    public void setSnapshotVersion(long snapshotVersion) {
+        this.snapshotVersion = snapshotVersion;
     }
 
     public boolean isModified() {

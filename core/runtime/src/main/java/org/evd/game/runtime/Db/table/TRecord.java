@@ -1,6 +1,7 @@
 package org.evd.game.runtime.Db.table;
 
 import org.evd.game.base.DirtyObject;
+import org.evd.game.runtime.Db.serialize.CachedProtostuffSerializer;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.util.TimeUtils;
@@ -54,11 +55,13 @@ public class TRecord<K, V extends DirtyObject> {
         access();
         long oldMemVersion = value == null ? 0 : value.getMemVersion();
         long oldDbVersion = value == null ? 0 : value.getDbVersion();
+        long oldSnapshotVersion = value == null ? 0 : value.getSnapshotVersion();
         state = REMOVE;
         // 删除标记只保留主键，供对象版立即同步入口定位记录。
         value = table.newRemoveValue(key);
         value.setMemVersion(oldMemVersion + 1);
         value.setDbVersion(oldDbVersion);
+        value.setSnapshotVersion(oldSnapshotVersion);
     }
 
     public V get() {
@@ -94,6 +97,10 @@ public class TRecord<K, V extends DirtyObject> {
 
     public TTable<K, V> getTable() {
         return table;
+    }
+
+    public CachedProtostuffSerializer getSnapshotSerializer() {
+        return table.getMdb().getProtostuffSerializer();
     }
 
     DBReq createSyncRequest() {
@@ -138,10 +145,16 @@ public class TRecord<K, V extends DirtyObject> {
         return value.isModified();
     }
 
-    public boolean checkpointRefreshState(long snapshotMemVersion) {
-        // 只确认已经成功保存的快照；期间的新修改会让 memVersion 保持更大。
-        value.setDbVersion(Math.max(value.getDbVersion(), snapshotMemVersion));
-        if (value.getMemVersion() != snapshotMemVersion) {
+    public boolean checkpointRefreshState(long confirmedDbVersion) {
+        // 数据库已确认的版本推进快照基线；期间的新修改会让 memVersion 保持更大。
+        if (confirmedDbVersion > value.getDbVersion()) {
+            value.setDbVersion(confirmedDbVersion);
+        }
+        if (confirmedDbVersion > value.getSnapshotVersion()) {
+            value.setSnapshotVersion(confirmedDbVersion);
+        }
+        table.getMdb().removeSnapshotsCoveredByDbVersion(this);
+        if (value.getMemVersion() != confirmedDbVersion) {
             return false;
         }
 
@@ -152,6 +165,11 @@ public class TRecord<K, V extends DirtyObject> {
         }
 
         return true;
+    }
+
+    public boolean needsSnapshot() {
+        return isModified()
+                && value.getMemVersion() > value.getSnapshotVersion();
     }
 
     boolean flush(String reason) {
@@ -168,8 +186,6 @@ public class TRecord<K, V extends DirtyObject> {
             // 保存失败时未确认当前版本，下次仍会继续同步。
             logger.error("TRecord flush error reason {} ", reason, e);
             return false;
-        } finally {
-
         }
         return true;
     }

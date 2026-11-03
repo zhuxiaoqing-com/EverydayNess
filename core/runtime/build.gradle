@@ -30,6 +30,7 @@ dependencies {
     implementation libs.mysql.connector.j
     implementation libs.picocsv
     implementation libs.fastutil
+    implementation libs.chronicle.map
 
     implementation project(':core:gencode:apt-annotation')
     annotationProcessor project(':core:gencode:apt-compiler')

@@ -4,16 +4,18 @@ import org.evd.game.annotation.serialize.DBserialize;
 
 final class DbDirtyBeanRenderer {
     private final DbDirtyFieldTagRenderer jsonTagRenderer = new DbDirtyJsonFieldTagRenderer();
-    private final DbDirtyFieldTagRenderer pbTagRenderer = new DbDirtyPbFieldTagRenderer();
+    private final DbDirtyFieldTagRenderer protostuffTagRenderer = new DbDirtyProtostuffFieldTagRenderer();
     private final DbDirtyFieldTagRenderer noopTagRenderer = new DbDirtyNoopFieldTagRenderer();
 
     String render(DbDirtyEntityMeta entity) {
         var importedEntityTypes = DbDirtyTypeNameSupport.collectImportedEntityTypes(entity);
         StringBuilder sb = new StringBuilder(8192);
-        DbDirtyFieldTagRenderer tagRenderer = resolveTagRenderer(entity.dbType);
+        DbDirtyFieldTagRenderer jsonFieldTagRenderer = resolveJsonTagRenderer(entity.dbType);
         sb.append("package ").append(entity.beanPackage).append(";\n\n");
         sb.append("import org.evd.game.base.DirtyObject;\n");
-        tagRenderer.appendImport(sb, entity);
+        DbDirtyRenderSupport.appendBeanSchemaImports(sb);
+        protostuffTagRenderer.appendImport(sb, entity);
+        jsonFieldTagRenderer.appendImport(sb, entity);
         DbDirtyTypeNameSupport.appendImports(sb, importedEntityTypes);
         if (entity.usesList()) {
             sb.append("import org.evd.game.runtime.Db.collection.XArrayList;\n");
@@ -28,9 +30,11 @@ final class DbDirtyBeanRenderer {
 
         sb.append("public final class ").append(entity.beanClassName)
                 .append(" extends DirtyObject {\n");
+        DbDirtyRenderSupport.appendBeanSchema(sb, entity);
         for (DbDirtyFieldMeta field : entity.fields) {
             appendFieldDocComment(sb, field);
-            tagRenderer.appendAnnotation(sb, field, "    ");
+            protostuffTagRenderer.appendAnnotation(sb, field, "    ");
+            jsonFieldTagRenderer.appendAnnotation(sb, field, "    ");
             sb.append("    private ").append(field.type.fieldType).append(" ").append(field.name).append(";\n");
         }
         sb.append("\n");
@@ -68,10 +72,9 @@ final class DbDirtyBeanRenderer {
         sb.append("     */\n");
     }
 
-    private DbDirtyFieldTagRenderer resolveTagRenderer(DBserialize dbType) {
+    private DbDirtyFieldTagRenderer resolveJsonTagRenderer(DBserialize dbType) {
         return switch (dbType) {
             case JSON -> jsonTagRenderer;
-            case PB -> pbTagRenderer;
             default -> noopTagRenderer;
         };
     }
@@ -243,7 +246,7 @@ final class DbDirtyJsonFieldTagRenderer implements DbDirtyFieldTagRenderer {
     }
 }
 
-final class DbDirtyPbFieldTagRenderer implements DbDirtyFieldTagRenderer {
+final class DbDirtyProtostuffFieldTagRenderer implements DbDirtyFieldTagRenderer {
     @Override
     public void appendImport(StringBuilder sb, DbDirtyEntityMeta entity) {
         if (entity.hasTaggedField()) {

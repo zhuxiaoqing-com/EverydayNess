@@ -25,6 +25,9 @@ public class InputStream implements InputStreamBase {
 	
 	/** 字节流处理类 */
 	private final CodedInputStream stream;
+	private final byte[] rawBuffer;
+	private final int rawOffset;
+	private final int rawLength;
 
 	private static final Map<Integer, SerializeReadRegistration> _serializeReadFuncMap = new HashMap<>();
 //	private static ReturnFunctionWithException2<ISerializable, Integer, InputStream, IOException> _serializeReadFunc = null;
@@ -50,7 +53,23 @@ public class InputStream implements InputStreamBase {
 	}
 	
 	public InputStream(byte[] buffer, int offset, int length) {
+		this.rawBuffer = buffer;
+		this.rawOffset = offset;
+		this.rawLength = length;
 		this.stream = CodedInputStream.newInstance(buffer, offset, length);
+	}
+
+	/** 快照读取器可直接使用底层字节窗口，避免复制后再交给其他二进制解码器。 */
+	public byte[] getRawBuffer() {
+		return rawBuffer;
+	}
+
+	public int getRawOffset() {
+		return rawOffset;
+	}
+
+	public int getRawLength() {
+		return rawLength;
 	}
 
 	public byte[] readRawBytes(int length) throws IOException {

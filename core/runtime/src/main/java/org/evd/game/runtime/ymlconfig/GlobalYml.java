@@ -1,6 +1,7 @@
 package org.evd.game.runtime.ymlconfig;
 
 
+import org.evd.game.annotation.service.ServiceName;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.support.exception.SysException;
@@ -56,6 +57,11 @@ public final class GlobalYml {
             throw new SysException("GlobalYml dbConfig not initialized");
         }
         return dbConfig;
+    }
+
+    /** 全局 Chronicle 快照开关，所有 Node 和 Service 共用同一配置值。 */
+    public static boolean isSnapshotStoreEnabled() {
+        return requireDbConfig().getDb().getSnapshotStore().isEnabled();
     }
 
     public static NodeInfo requireNodeInfo(int nodeId) {
@@ -118,7 +124,7 @@ public final class GlobalYml {
                 for (ServiceInfo serviceInfo : scheduleInfo.getServices()) {
                     int serviceNum = Math.max(1, serviceInfo.getNum());
                     String className = serviceInfo.getClassName();
-                    String serviceClassName = "org.evd.game." + className + "." + className;
+                    String serviceClassName = ServiceName.fullClassName(className);
                     for (int index = 1; index <= serviceNum; index++) {
                         returnList.add(new RegisteredService(
                                 serviceInfo.getServiceType(),

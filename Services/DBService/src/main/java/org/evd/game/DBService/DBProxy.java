@@ -15,6 +15,7 @@ import org.evd.game.runtime.ymlconfig.DbMysqlRuntimeYml;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
 import org.evd.game.runtime.Db.NodeDbExecutor;
 import org.evd.game.runtime.support.exception.ServiceStoppingException;
+import org.evd.game.runtime.continuation.Task;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -31,23 +32,29 @@ public final class DBProxy implements NodeDbExecutor {
     private StorageEngine storageEngine;
     private DBCache dbCache;
     private volatile boolean closed;
-    private final ThreadLocal<SyncExecution> syncExecution = new ThreadLocal<>();
+    /** 当前线程正在执行同步 DB 请求时为 true，awaitDb 据此选择阻塞等待。 */
+    private final ThreadLocal<Boolean> syncExecution = new ThreadLocal<>();
 
     public DBProxy() {
     }
 
     @Override
     public synchronized void init() {
-        init(PoolSize.remote());
+        init(PoolSize.remote(), true);
     }
 
     /** NODE_LOCAL 使用者在启动阶段已经统计完成，连接池只按这个数量计算一次。 */
     @Override
     public synchronized void init(int mdbServiceCount) {
-        init(PoolSize.nodeLocal(mdbServiceCount));
+        init(PoolSize.nodeLocal(mdbServiceCount), true);
     }
 
-    private void init(PoolSize poolSize) {
+    /** 单独恢复进程不启用依赖 Service 定时器的 DB 内存缓存。 */
+    public synchronized void initForRecovery() {
+        init(PoolSize.remote(), false);
+    }
+
+    private void init(PoolSize poolSize, boolean enableMemoryCache) {
         if (closed) {
             throw new IllegalStateException("DBProxy is already closed");
         }
@@ -62,7 +69,7 @@ public final class DBProxy implements NodeDbExecutor {
         storageEngine = new StorageMysql(this,
                 new LoggerMysql(mysqlConfig, poolSize.initialSize(), poolSize.maxSize()),
                 dbConfig.getDb().getStorage());
-        if (dbConfig.getDb().getStorage().isEnableMemoryCache()) {
+        if (enableMemoryCache && dbConfig.getDb().getStorage().isEnableMemoryCache()) {
             dbCache = new DBCache(storageEngine);
         } else {
             dbCache = null;
@@ -83,6 +90,33 @@ public final class DBProxy implements NodeDbExecutor {
             return executeTransaction(currentStorageEngine, dbReq);
         }
         return executeRequest(currentStorageEngine, dbReq);
+    }
+
+    /** 在独立恢复进程中同步执行一条数据库请求。 */
+    public DBRsp dbExecRecovery(DBReq dbReq) {
+        Boolean previous = syncExecution.get();
+        try {
+            syncExecution.set(Boolean.TRUE);
+            return dbExec(null, dbReq);
+        } finally {
+            restoreSyncExecution(previous);
+        }
+    }
+
+    /** 使用生成的 CREATE_TABLE 请求携带表元数据，不在恢复时执行 DDL。 */
+    public void registerRecoveryTable(DBReq createTableRequest) {
+        if (storageEngine == null) {
+            throw new IllegalStateException("DBProxy is not initialized");
+        }
+        if (!(storageEngine instanceof StorageMysql storageMysql)) {
+            throw new IllegalStateException("快照恢复只支持 MySQL: engine="
+                    + storageEngine.getClass().getName());
+        }
+        if (createTableRequest == null || createTableRequest.getMysqlReq() == null) {
+            throw new IllegalArgumentException("恢复表元数据请求不完整");
+        }
+        var mysqlReq = createTableRequest.getMysqlReq();
+        storageMysql.registerRecoveryTable(mysqlReq.getTableName(), mysqlReq.getTableMeta());
     }
 
     private DBRsp executeTransaction(StorageEngine currentStorageEngine, DBReq dbReq) {
@@ -137,19 +171,22 @@ public final class DBProxy implements NodeDbExecutor {
 
     @Override
     public DBRsp doExecSync(DBReq dbReq) {
-        if (dbReq.getDbOpType() != DbOpType.GET) {
-            throw new IllegalArgumentException("同步数据库入口只支持 GET: " + dbReq.getDbOpType());
-        }
-        SyncExecution previous = syncExecution.get();
+        Boolean previous = syncExecution.get();
         Service service = Service.peekCurrent();
-        syncExecution.set(new SyncExecution(service, runningContinuationId(service)));
+        Task.ContinuationWrapper continuation = null;
+        if (service != null && service.continuationRuntime().isContinuation()) {
+            continuation = service.requireRunningContinuation();
+            // 同步 DB 请求必须留在当前协程栈；任何协程等待都会在真正挂起前失败。
+            continuation.enterNonYieldingScope();
+        }
+
         try {
+            syncExecution.set(Boolean.TRUE);
             return dbExec(null, dbReq);
         } finally {
-            if (previous == null) {
-                syncExecution.remove();
-            } else {
-                syncExecution.set(previous);
+            restoreSyncExecution(previous);
+            if (continuation != null) {
+                continuation.exitNonYieldingScope();
             }
         }
     }
@@ -157,30 +194,19 @@ public final class DBProxy implements NodeDbExecutor {
     public <T> T awaitDb(Mono<T> mono, long timeoutMillis) {
         // 等待层多等 5 秒，给底层 operation.timeout() 的取消、连接清理和结果回传留出时间。正常打不了协程超时的;
         long awaitTimeoutMillis = timeoutMillis + 5000L;
-        if (isSyncExecution()) {
+        if (Boolean.TRUE.equals(syncExecution.get())) {
             return mono.block(Duration.ofMillis(awaitTimeoutMillis));
         }
         Service service = Service.getCurrent();
         return service.awaitCompletionStage(mono.toFuture(), awaitTimeoutMillis);
     }
 
-    private boolean isSyncExecution() {
-        SyncExecution execution = syncExecution.get();
-        if (execution == null) {
-            return false;
+    private void restoreSyncExecution(Boolean previous) {
+        if (previous == null) {
+            syncExecution.remove();
+        } else {
+            syncExecution.set(previous);
         }
-        Service service = Service.peekCurrent();
-        return execution.service() == service
-                && execution.continuationId() == runningContinuationId(service);
-    }
-
-    private static long runningContinuationId(Service service) {
-        return service != null && service.continuationRuntime().isContinuation()
-                ? service.requireRunningContinuation().getConId()
-                : -1L;
-    }
-
-    private record SyncExecution(Service service, long continuationId) {
     }
 
     public synchronized void stop(boolean force) {

@@ -3,11 +3,13 @@ package org.evd.game.runtime.Db.table;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.protostuff.Schema;
 import org.evd.game.base.DBException;
 import org.evd.game.base.DirtyObject;
 import org.evd.game.runtime.Db.serialize.DBReq;
 import org.evd.game.runtime.Db.serialize.DBRsp;
-import org.evd.game.runtime.Db.NodeDbExecutor;
+import org.evd.game.runtime.Db.serialize.ProtostuffSerializer;
+import org.evd.game.runtime.Db.snapshot.SnapshotValue;
 import org.evd.game.runtime.Db.table.util.TimeCostPrint;
 import org.evd.game.runtime.support.TwoTuple;
 import org.evd.game.runtime.call.CallPoint;
@@ -27,6 +29,7 @@ public abstract class TTable<K, V extends DirtyObject> {
     private static final Logger logger = LoggerFactory.getLogger(TTable.class);
 
     Mdb mdb;
+    private ProtostuffSerializer recoverySerializer;
 
     //private TTableCache<K, V> cache;
     private final Map<K, TRecord<K, V>> cache = new HashMap<>(500);
@@ -47,38 +50,31 @@ public abstract class TTable<K, V extends DirtyObject> {
     }
 
 
+    /*
+    get add remove
+    特别是get里的sync 如果选择了sync模式，add remove 就都不需要这个协程锁了吧，然后这个get的sync 由Mdb的一个参数开启 默认是关闭的;
+    不然的话如果就get 有sync,其他两个没有 就会有消息顺序不一致的问题， 比如：A add 加协程锁， 然后下一个A 又get sync，不就运行的比Aadd 加协程锁的还快吗;
+        所以sync不能由get传入，而是一开始就要定下来 是不是要用sync;
+     */
     private boolean isSync() {
-        // 先默认异步访问吧;
-        return false;
-        //return getMdb().isLocal();
+        return getMdb().isSyncGetEnabled();
     }
 
     public V get(K key) {
-        return get(key, isSync(), false);
-    }
-
-    /** 固定使用异步数据库查询，供批量预加载等场景使用。 */
-    public V getAsync(K key) {
-        return get(key, false, false);
+        return get(key, false);
     }
 
     /** 按表声明的主键类型加载玩家数据，避免 Long playerId 误传给 String/Integer 表。 */
     V getForLoad(long playerId) {
-        return get(playerKey(playerId), false, true);
+        return get(playerKey(playerId), true);
     }
 
-    private V get(K key, boolean sync, boolean forLoad) {
+    private V get(K key, boolean forLoad) {
+        boolean sync = isSync();
         checkAccess(key, forLoad);
-        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+        try (ContinuationLockScope ignored = sync ? null : mdb.service.awaitCoroutineLockScope(
                 LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
             checkAccess(key, forLoad);
-            TRecord<K, V> tRecord = cache.get(key);
-            if (tRecord != null) {
-                if (tRecord.isRemoveState()) {
-                    return null;
-                }
-                return tRecord.get();
-            }
             return getFromDb(key, sync, forLoad);
         }
     }
@@ -100,9 +96,7 @@ public abstract class TTable<K, V extends DirtyObject> {
             throw new DBException("DBService未连接: table=" + getName() + ", key=" + key);
         }
 
-        V value = sync
-                ? getExecSync(createGetDBReq(key))
-                : getExec(createGetDBReq(key), callPoint);
+        V value = getExec(createGetDBReq(key), callPoint, sync);
         checkAccess(key, forLoad);
 
         // 查询返回后以缓存中的记录为准，不用旧数据库结果覆盖缓存状态。
@@ -135,7 +129,8 @@ public abstract class TTable<K, V extends DirtyObject> {
             throw new NullPointerException("value is null");
         }
 
-        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+        boolean sync = isSync();
+        try (ContinuationLockScope ignored = sync ? null : mdb.service.awaitCoroutineLockScope(
                 LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
             getMdb().checkPlayerAccess(key, false);
             TRecord<K, V> tRecord = cache.get(key);
@@ -148,7 +143,7 @@ public abstract class TTable<K, V extends DirtyObject> {
 
             // 预查用于尽早报告已有 key；最终保存使用 REPLACE，适用于并发写入。
             findFailCache.invalidate(key);
-            getFromDb(key, false, false);
+            getFromDb(key, sync, false);
             // 数据库里已经存在;
             if (cache.containsKey(key)) {
                 return false;
@@ -156,6 +151,7 @@ public abstract class TTable<K, V extends DirtyObject> {
 
             value.setMemVersion(0L);
             value.setDbVersion(0L);
+            value.setSnapshotVersion(0L);
             tRecord = new TRecord<>(this, key, value, TRecord.ADD,
                     findDBServiceCallPoint(key));
             cache.put(key, tRecord);
@@ -167,13 +163,14 @@ public abstract class TTable<K, V extends DirtyObject> {
     /** 删除记录前先读取数据库中的完整记录，保留其数据库版本。 */
     public boolean remove(K key) {
         getMdb().checkPlayerAccess(key, false);
-        try (ContinuationLockScope ignored = mdb.service.awaitCoroutineLockScope(
+        boolean sync = isSync();
+        try (ContinuationLockScope ignored = sync ? null : mdb.service.awaitCoroutineLockScope(
                 LockType.TABLE_RECORD, new TwoTuple<>(getName(), key))) {
             getMdb().checkPlayerAccess(key, false);
             TRecord<K, V> tRecord = cache.get(key);
             if (tRecord == null) {
                 findFailCache.invalidate(key);
-                getFromDb(key, false, false);
+                getFromDb(key, sync, false);
                 tRecord = cache.get(key);
             }
             if (tRecord == null) {
@@ -290,7 +287,10 @@ public abstract class TTable<K, V extends DirtyObject> {
 
         if (removeSuccess) {
             for (TRecord<K, V> tRecord : removeTRecordCache) {
-                if (tRecord.isRemoveState() && cache.remove(tRecord.getKey(), tRecord)) {
+                long memVersion = key2MemVersionMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(memVersion);
+                if (tRecord.isRemoveState() && !tRecord.isModified()
+                        && cache.remove(tRecord.getKey(), tRecord)) {
                     findFailCache.put(tRecord.getKey(), defaultValue);
                 }
             }
@@ -298,22 +298,15 @@ public abstract class TTable<K, V extends DirtyObject> {
 
         if (addSuccess) {
             for (TRecord<K, V> tRecord : addTRecordCache) {
-                long snapshotMemVersion = key2MemVersionMap.get(tRecord.getKey());
-                tRecord.checkpointRefreshState(snapshotMemVersion);
+                long memVersion = key2MemVersionMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(memVersion);
             }
         }
 
         if (modifySuccess) {
             for (TRecord<K, V> tRecord : modifyTRecordCache) {
-                long snapshotMemVersion = key2MemVersionMap.get(tRecord.getKey());
-                tRecord.checkpointRefreshState(snapshotMemVersion);
-            }
-        }
-
-        if (removeSuccess) {
-            for (TRecord<K, V> tRecord : removeTRecordCache) {
-                long snapshotMemVersion = key2MemVersionMap.get(tRecord.getKey());
-                tRecord.checkpointRefreshState(snapshotMemVersion);
+                long memVersion = key2MemVersionMap.get(tRecord.getKey());
+                tRecord.checkpointRefreshState(memVersion);
             }
         }
 
@@ -403,10 +396,10 @@ public abstract class TTable<K, V extends DirtyObject> {
                 continue;
             }
 
-            long snapshotMemVersion = one.getValue().getMemVersion();
+            long snapshotVersion = one.getValue().getMemVersion();
 
             if (one.flush("tickClearCache")) {
-                one.checkpointRefreshState(snapshotMemVersion);
+                one.checkpointRefreshState(snapshotVersion);
                 TRecord<K, V> currentRecord2 = cache.get(one.getKey());
                 if (currentRecord2 == one && !one.isModified()) {
                     cache.remove(one.getKey(), one);
@@ -459,7 +452,7 @@ public abstract class TTable<K, V extends DirtyObject> {
         if (!record.isModified()) {
             return true;
         }
-        long snapshotMemVersion = record.getValue().getMemVersion();
+        long snapshotVersion = record.getValue().getMemVersion();
 
         if (record.flush("flush")) {
             // 这里不管中间flush变化了;会在上层检测
@@ -467,7 +460,7 @@ public abstract class TTable<K, V extends DirtyObject> {
              * 这里没用，比如A表flush 但是数据还没清理，B表又flush，这个时候有一个协程拿着get出来的数据进行更新，那我不是这个数据还是修改了，
              * 但是我在clearPlayerCache  这边检测的话，就可以避免这个情况 可以在调用clearPlayerCache 前先检测下 这样也不会影响failLoad
              */
-            record.checkpointRefreshState(snapshotMemVersion);
+            record.checkpointRefreshState(snapshotVersion);
             return true;
         }
 
@@ -517,6 +510,14 @@ public abstract class TTable<K, V extends DirtyObject> {
         this.mdb = mdb;
     }
 
+    /** 为离线快照恢复提供 DBReq 序列化器，恢复时不需要启动或构造 Mdb。 */
+    public final void initializeForRecovery(ProtostuffSerializer serializer) {
+        if (mdb != null) {
+            throw new IllegalStateException("已绑定 Mdb 的 TTable 不能初始化为离线恢复表: " + getName());
+        }
+        recoverySerializer = Objects.requireNonNull(serializer, "serializer");
+    }
+
 
     Collection<TRecord<K, V>> getCacheList() {
         return cache.values();
@@ -561,30 +562,22 @@ public abstract class TTable<K, V extends DirtyObject> {
         return (K) Long.valueOf(playerId);
     }
 
-    public V getExec(DBReq dbReq, CallPoint callPoint) {
+    public V getExec(DBReq dbReq, CallPoint callPoint, boolean sync) {
         if (callPoint == null) {
             logger.error("callPoint == null  type {} DBReq {}", dbReq.getDbOpType(), dbReq);
         }
-        DBRsp dbRsp = getMdb().getDbExecInterface().dbExec(callPoint, dbReq);
+        DBRsp dbRsp = getMdb().executeDbReq(callPoint, dbReq, sync);
         //todo 这里进行报错之类的
         return parseGetDBRsp(dbRsp);
-    }
-
-    public V getExecSync(DBReq dbReq) {
-        NodeDbExecutor nodeDbExecutor = getMdb().service.getNode().getNodeDbExecutor();
-        if (nodeDbExecutor == null) {
-            throw new DBException("同步数据库访问只支持 NODE_LOCAL: table=" + getName());
-        }
-        return parseGetDBRsp(nodeDbExecutor.doExecSync(dbReq));
     }
 
     public boolean dbExec(DBReq dbReq, CallPoint callPoint) {
         if (callPoint == null) {
             logger.error("callPoint == null  type {} DBReq {}", dbReq.getDbOpType(), dbReq);
         }
-        DBRsp dbRsp = getMdb().getDbExecInterface().dbExec(callPoint, dbReq);
+        DBRsp dbRsp = getMdb().executeDbReq(callPoint, dbReq, false);
         //todo 这里进行报错之类的
-        return dbRsp.isSuccess();
+        return dbRsp != null && dbRsp.isSuccess();
     }
 
     public CallPoint findDBServiceCallPoint(K key) {
@@ -601,6 +594,30 @@ public abstract class TTable<K, V extends DirtyObject> {
 
 
     protected abstract V newValue();
+
+    protected abstract Schema<V> snapshotSchema();
+
+    public final V newSnapshotValue() {
+        return newValue();
+    }
+
+    public final Schema<V> getSnapshotSchema() {
+        return snapshotSchema();
+    }
+
+    public final K getSnapshotPrimaryKey(V value) {
+        return getPrimaryKey(value);
+    }
+
+    protected final byte[] serializeWithProtostuff(V value, Schema<V> schema) {
+        Mdb currentMdb = mdb;
+        ProtostuffSerializer serializer = currentMdb == null
+                ? recoverySerializer : currentMdb.getProtostuffSerializer();
+        if (serializer == null) {
+            throw new DBException("TTable 未绑定 Mdb 或恢复序列化器: table=" + getName());
+        }
+        return serializer.serialize(value, schema);
+    }
 
     V newRemoveValue(K key) {
         V value = newValue();

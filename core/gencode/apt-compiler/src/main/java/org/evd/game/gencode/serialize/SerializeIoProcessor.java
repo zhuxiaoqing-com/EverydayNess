@@ -63,7 +63,6 @@ public class SerializeIoProcessor extends ProcessorBase {
         if (!generatedClasses.add(fullClassName)) {
             return;
         }
-
         try {
             String content = SerializeSupport.renderTemplate(
                     SerializeSupport.TEMPLATE_SERIALIZE_IO,

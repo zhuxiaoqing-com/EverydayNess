@@ -18,6 +18,7 @@ dependencies {
     implementation project(":core:gencode:apt-annotation")
     implementation project(':core:runtime')
     implementation project(':common')
+    implementation project(':Services:DBService')
 }
 
 test {

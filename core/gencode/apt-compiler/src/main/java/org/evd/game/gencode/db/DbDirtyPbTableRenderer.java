@@ -25,10 +25,7 @@ final class DbDirtyPbTableRenderer {
         sb.append("import org.evd.game.runtime.Db.serialize.MysqlRsp;\n");
         sb.append("import org.evd.game.runtime.Db.serialize.MysqlTableMeta;\n");
         sb.append("import org.evd.game.runtime.Db.table.TTable;\n");
-        sb.append("import io.protostuff.LinkedBuffer;\n");
         sb.append("import io.protostuff.ProtostuffIOUtil;\n");
-        sb.append("import io.protostuff.Schema;\n");
-        sb.append("import io.protostuff.runtime.RuntimeSchema;\n");
         sb.append("import java.util.ArrayList;\n");
         sb.append("import java.util.LinkedHashMap;\n");
         sb.append("import java.util.List;\n");
@@ -48,8 +45,7 @@ final class DbDirtyPbTableRenderer {
         sb.append("            ) ENGINE=INNODB DEFAULT CHARSET=UTF8MB4 COLLATE=UTF8MB4_GENERAL_CI\n");
         sb.append("            \"\"\";\n");
         sb.append("\n");
-        sb.append("    private static final Schema<").append(entity.beanClassName).append("> SCHEMA = RuntimeSchema.getSchema(")
-                .append(entity.beanClassName).append(".class);\n\n");
+        sb.append("\n");
 
         sb.append("    private ").append(entity.internalTableClassName).append("() {\n");
         sb.append("    }\n\n");
@@ -61,6 +57,7 @@ final class DbDirtyPbTableRenderer {
         sb.append("    protected ").append(entity.beanClassName).append(" newValue() {\n");
         sb.append("        return new ").append(entity.beanClassName).append("();\n");
         sb.append("    }\n\n");
+        appendSnapshotSerializationHooks(sb, entity);
 
         sb.append("    @Override\n");
         sb.append("    public DBReq createCreateTableDBReq() {\n");
@@ -200,6 +197,7 @@ final class DbDirtyPbTableRenderer {
         sb.append("        value.set").append(entity.primaryKeyField.methodSuffix).append("(key);\n");
         sb.append("        value.setMemVersion(tableField.getVersion());\n");
         sb.append("        value.setDbVersion(tableField.getVersion());\n");
+        sb.append("        value.setSnapshotVersion(tableField.getVersion());\n");
         sb.append("        return value;\n");
         sb.append("    }\n\n");
         sb.append("    private MysqlRsp requireMysqlRsp(DBRsp rsp) {\n");
@@ -220,22 +218,23 @@ final class DbDirtyPbTableRenderer {
         sb.append("    }\n\n");
         sb.append("\n");
         sb.append("    private byte[] serializeBean(").append(entity.beanClassName).append(" value) {\n");
-        sb.append("        LinkedBuffer buffer = LinkedBuffer.allocate();\n");
-        sb.append("        try {\n");
-        sb.append("            return ProtostuffIOUtil.toByteArray(value, SCHEMA, buffer);\n");
-        sb.append("        } finally {\n");
-        sb.append("            buffer.clear();\n");
-        sb.append("        }\n");
+        sb.append("        return serializeWithProtostuff(value, ")
+                .append(entity.beanClassName).append(".PROTOSTUFF_SCHEMA);\n");
         sb.append("    }\n\n");
         sb.append("    private ").append(entity.beanClassName).append(" deserializeBean(byte[] bytes) {\n");
         sb.append("        ").append(entity.beanClassName).append(" value = new ").append(entity.beanClassName).append("();\n");
         sb.append("        if (bytes == null || bytes.length == 0) {\n");
         sb.append("            return value;\n");
         sb.append("        }\n");
-        sb.append("        ProtostuffIOUtil.mergeFrom(bytes, value, SCHEMA);\n");
+        sb.append("        ProtostuffIOUtil.mergeFrom(bytes, value, ")
+                .append(entity.beanClassName).append(".PROTOSTUFF_SCHEMA);\n");
         sb.append("        return value;\n");
         sb.append("    }\n");
         sb.append("}\n");
         return sb.toString();
+    }
+
+    private void appendSnapshotSerializationHooks(StringBuilder sb, DbDirtyEntityMeta entity) {
+        DbDirtyRenderSupport.appendSnapshotSerializationHooks(sb, entity);
     }
 }

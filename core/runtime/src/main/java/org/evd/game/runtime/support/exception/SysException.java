@@ -1,7 +1,7 @@
 package org.evd.game.runtime.support.exception;
 
 import org.evd.game.runtime.support.RpcErrorCodes;
-import org.evd.game.runtime.support.RuntimeUtils;
+import org.evd.game.runtime.util.RuntimeUtils;
 
 /**
  * 

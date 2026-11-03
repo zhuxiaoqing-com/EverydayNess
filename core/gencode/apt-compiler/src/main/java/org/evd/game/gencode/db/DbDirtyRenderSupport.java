@@ -4,6 +4,25 @@ final class DbDirtyRenderSupport {
     private DbDirtyRenderSupport() {
     }
 
+    static void appendBeanSchemaImports(StringBuilder sb) {
+        sb.append("import io.protostuff.Schema;\n");
+        sb.append("import io.protostuff.runtime.RuntimeSchema;\n");
+    }
+
+    static void appendBeanSchema(StringBuilder sb, DbDirtyEntityMeta entity) {
+        sb.append("    public static final Schema<").append(entity.beanClassName)
+                .append("> PROTOSTUFF_SCHEMA = RuntimeSchema.getSchema(").append(entity.beanClassName).append(".class);\n");
+        sb.append('\n');
+    }
+
+    static void appendSnapshotSerializationHooks(StringBuilder sb, DbDirtyEntityMeta entity) {
+        sb.append("    @Override\n");
+        sb.append("    protected io.protostuff.Schema<").append(entity.beanClassName)
+                .append("> snapshotSchema() {\n");
+        sb.append("        return ").append(entity.beanClassName).append(".PROTOSTUFF_SCHEMA;\n");
+        sb.append("    }\n\n");
+    }
+
     static String renderPrimitiveWrite(String primitiveType, String outExpr, String valueExpr) {
         return switch (primitiveType) {
             case "boolean" -> outExpr + ".writeBoolean(" + valueExpr + ");";

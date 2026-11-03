@@ -24,6 +24,7 @@ quartz = "2.3.2"
 agrona = "2.5.0"
 mysqlConnector = "8.4.0"
 picocsv = "2.6.0"
+chronicleMap = "2026.1"
 
 [libraries]
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
@@ -56,6 +57,7 @@ quartz = { module = "org.quartz-scheduler:quartz", version.ref = "quartz" }
 agrona = { module = "org.agrona:agrona", version.ref = "agrona" }
 mysql-connector-j = { module = "com.mysql:mysql-connector-j", version.ref = "mysqlConnector" }
 picocsv = { module = "com.github.nbbrd.picocsv:picocsv", version.ref = "picocsv" }
+chronicle-map = { module = "net.openhft:chronicle-map", version.ref = "chronicleMap" }
 
 [plugins]
 protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }

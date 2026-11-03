@@ -1,3 +1,7 @@
 ext.hasDbDef = true
 
 apply from: rootProject.file('gradle/service-module.gradle')
+
+dependencies {
+    testImplementation libs.chronicle.map
+}

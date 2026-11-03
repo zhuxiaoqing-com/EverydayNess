@@ -56,6 +56,7 @@ final class DbDirtyJsonTableRenderer {
         sb.append("    protected ").append(entity.beanClassName).append(" newValue() {\n");
         sb.append("        return new ").append(entity.beanClassName).append("();\n");
         sb.append("    }\n\n");
+        appendSnapshotSerializationHooks(sb, entity);
 
         sb.append("    @Override\n");
         sb.append("    public DBReq createCreateTableDBReq() {\n");
@@ -195,6 +196,7 @@ final class DbDirtyJsonTableRenderer {
         sb.append("        value.set").append(entity.primaryKeyField.methodSuffix).append("(key);\n");
         sb.append("        value.setMemVersion(tableField.getVersion());\n");
         sb.append("        value.setDbVersion(tableField.getVersion());\n");
+        sb.append("        value.setSnapshotVersion(tableField.getVersion());\n");
         sb.append("        return value;\n");
         sb.append("    }\n\n");
         sb.append("    private String encodeJsonPayload(").append(entity.beanClassName).append(" value) {\n");
@@ -228,5 +230,9 @@ final class DbDirtyJsonTableRenderer {
         sb.append("    }\n\n");
         sb.append("}\n");
         return sb.toString();
+    }
+
+    private void appendSnapshotSerializationHooks(StringBuilder sb, DbDirtyEntityMeta entity) {
+        DbDirtyRenderSupport.appendSnapshotSerializationHooks(sb, entity);
     }
 }

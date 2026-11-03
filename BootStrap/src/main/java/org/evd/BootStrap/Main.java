@@ -1,6 +1,7 @@
 package org.evd.BootStrap;
 
 import lombok.extern.slf4j.Slf4j;
+import org.evd.game.annotation.service.ServiceName;
 import org.evd.game.annotation.service.ServiceType;
 import org.evd.game.common.ClassFinder;
 import org.evd.game.runtime.ymlconfig.GlobalYml;
@@ -13,6 +14,7 @@ import org.evd.game.runtime.ymlconfig.ServiceInfo;
 import org.evd.game.runtime.Node;
 import org.evd.game.runtime.Service;
 import org.evd.game.runtime.Db.NodeDbExecutor;
+import org.evd.game.DBService.DbSnapshotRecoveryMain;
 import org.evd.game.runtime.support.LogCore;
 import org.evd.game.runtime.support.exception.SysException;
 import org.evd.game.runtime.support.TupleUtils;
@@ -52,6 +54,11 @@ public class Main {
 
         log.info("start  node {} ", nodeId);
         GlobalYml.init(bootStrapName, nodeId);
+        if (DbSnapshotRecoveryMain.run(bootStrapName, nodeId)) {
+            log.warn("DB 快照恢复完成，停止本次游戏启动；请重启以启动游戏服务");
+            System.exit(2);
+            return;
+        }
         NodeYml config = GlobalYml.requireNodeConfig();
 
         NodeInfo nodeInfo = GlobalYml.requireLocalNodeInfo();
@@ -92,7 +99,7 @@ public class Main {
         for (ScheduleInfo scheduleInfo : nodeInfo.getSchedule()){
             for (ServiceInfo serviceInfo : scheduleInfo.getServices()){
                 String className = serviceInfo.getClassName();
-                String serviceClassName = "org.evd.game." + className + "." + className;
+                String serviceClassName = ServiceName.fullClassName(className);
                 Class<ServiceInfo> clazz = (Class<ServiceInfo>) Class.forName(serviceClassName);
                 // TODO 按service名加载 XXXService.jar
                 Constructor con = clazz.getConstructor(Node.class, String.class, String.class, int.class, ServiceInfo.class);

@@ -127,6 +127,19 @@ public class StorageMysql implements StorageEngine {
         }
     }
 
+    /** 恢复快照只登记生成表的列映射；实际 SQL 会验证数据库表是否存在。 */
+    public void registerRecoveryTable(String tableName, MysqlTableMeta tableMetaData) {
+        Objects.requireNonNull(tableName, "tableName");
+        Objects.requireNonNull(tableMetaData, "tableMetaData");
+        TableMeta tableMeta = new TableMeta(tableName, tableMetaData.getKeyColumnName(),
+                List.copyOf(tableMetaData.getColumnNames()));
+        TableMeta previous = tableMetaCache.putIfAbsent(tableName, tableMeta);
+        if (previous != null && !previous.equals(tableMeta)) {
+            throw new IllegalStateException("恢复表元数据冲突: table=" + tableName
+                    + ", previous=" + previous + ", current=" + tableMeta);
+        }
+    }
+
     @Override
     public void replaceBatch(DBReq dbReq) {
         executeBatchWrite(dbReq, "replace", this::executeReplaceBatch);
